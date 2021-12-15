@@ -1,0 +1,16 @@
+[package]
+name = "bitfields-derive"
+version = "0.2.5"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "1.0"
+
+[dev-dependencies]
+anyhow = "1.0.51"
+bitfields = { path = "../bitfields" }
