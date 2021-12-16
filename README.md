@@ -11,7 +11,7 @@ Struct Derive features:
 - Reverse Byte Order with no runtime cost. 
   - #[bitfields(flip)]
 - Bit 0 positioning. Msb0 or Lsb0. Small compile time cost. 
-  - #[bitfields(read_from = "msb0" or lsb0)].
+  - #[bitfields(read_from = "ZERO_BIT_LOCATION")]. ZERO_BIT_LOCATION can be mbs0 or lsb0.
 - Peek functions. Unpack on a per fields basis. useful if you only need a couple fields but would rather not unpack the entire struct. 
   - peek_{field_name}() and peek_slice_{field_name}().
 - Bit Size Enforcement. Specify how many used bits you expect the output to have. 
