@@ -1,8 +1,8 @@
 pub trait Bitfields<const SIZE: usize> {
     const BYTE_SIZE: usize = SIZE;
     const BIT_SIZE: usize;
-    fn into_bytes(self) -> [u8;SIZE];
-    fn from_bytes(input_byte_buffer: [u8;SIZE]) -> Self;
+    fn into_bytes(self) -> [u8; SIZE];
+    fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 
 pub trait BitfieldEnum {
@@ -18,7 +18,11 @@ pub struct BitfieldPeekError(pub usize, pub usize);
 
 impl std::fmt::Display for BitfieldPeekError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(fmt, "expected {} bytes, {} bytes were provided.", self.1, self.0)
+        write!(
+            fmt,
+            "expected {} bytes, {} bytes were provided.",
+            self.1, self.0
+        )
     }
 }
 

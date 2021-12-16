@@ -63,7 +63,7 @@ impl EnumInfo {
                 Meta::NameValue(_) => {}
                 Meta::Path(_) => {}
                 Meta::List(meta_list) => {
-                    if meta_list.path.is_ident("bitfield_enum") {
+                    if meta_list.path.is_ident("bondrewd_enum") {
                         for nested_meta in meta_list.nested {
                             match nested_meta {
                                 NestedMeta::Meta(meta) => match meta {
@@ -329,7 +329,7 @@ impl EnumInfo {
             } else {
                 return Err(syn::Error::new(
                     input.ident.span(),
-                    "add #[bitfield_enum(u8)] as struct attribute to avoid problems caused by future changed please.",
+                    "add #[bondrewd_enum(u8)] as struct attribute to avoid problems caused by future changed please.",
                 ));
             },
         };

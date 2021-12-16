@@ -769,7 +769,7 @@ impl StructInfo {
                 }
             }
             Meta::List(meta_list) => {
-                if meta_list.path.is_ident("bitfields") {
+                if meta_list.path.is_ident("bondrewd") {
                     for nested_meta in meta_list.nested {
                         match nested_meta {
                             NestedMeta::Meta(meta) => {

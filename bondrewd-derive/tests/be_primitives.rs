@@ -1,8 +1,8 @@
-use bitfields::Bitfields;
-use bitfields_derive::Bitfields as BitfieldsDerive;
+use bondrewd::Bitfields;
+use bondrewd_derive::Bitfields as BitfieldsDerive;
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "le")]
+#[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bit_length = 3]
     one: u8,
@@ -24,14 +24,15 @@ fn to_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
-    assert_eq!(bytes[0], 0b010_11001);
-    assert_eq!(bytes[1], 0b00100011);
-    assert_eq!(bytes[2], 0b00000000);
-    assert_eq!(bytes[3], 0b000000_01);
-    assert_eq!(bytes[4], 0b10000100);
-    assert_eq!(bytes[5], 0b1000_0100);
+    assert_eq!(bytes[0], 0b010_00000);
+    assert_eq!(bytes[1], 0b00000000);
+    assert_eq!(bytes[2], 0b01100011);
+    assert_eq!(bytes[3], 0b001001_00);
+    assert_eq!(bytes[4], 0b10000110);
+    assert_eq!(bytes[5], 0b0001_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
+
     //peeks
     assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
     assert_eq!(simple.two, Simple::peek_slice_two(&bytes)?);
@@ -45,7 +46,7 @@ fn to_bytes_simple() -> anyhow::Result<()> {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "le", flip)]
+#[bondrewd(default_endianness = "be", flip)]
 struct SimpleWithFlip {
     one: bool,
     #[bit_length = 10]
@@ -78,7 +79,7 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "le", read_from = "lsb0")]
+#[bondrewd(default_endianness = "be", read_from = "lsb0")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bit_length = 10]

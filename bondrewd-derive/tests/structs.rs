@@ -1,7 +1,7 @@
-use bitfields::Bitfields;
-use bitfields_derive::Bitfields as BitfieldsDerive;
+use bondrewd::Bitfields;
+use bondrewd_derive::Bitfields as BitfieldsDerive;
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bit_length = 3]
     one: u8,
@@ -13,7 +13,7 @@ struct Simple {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithStruct {
     #[bit_length = 3]
     one: u8,
@@ -59,7 +59,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be", flip)]
+#[bondrewd(default_endianness = "be", flip)]
 struct SimpleWithStructWithFlip {
     #[bit_length = 3]
     one: u8,
@@ -114,7 +114,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_flip() -> anyhow::Result<(
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SmallStruct {
     one: bool,
     two: bool,
@@ -124,11 +124,11 @@ struct SmallStruct {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningStruct {
     #[bit_length = 4]
     one: u8,
-    #[bitfield(struct_size = 1, bit_length = 5)]
+    #[bondrewd(struct_size = 1, bit_length = 5)]
     two: SmallStruct,
     #[bit_length = 7]
     three: u8,
@@ -172,11 +172,11 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteNonSpanningStruct {
     #[bit_length = 3]
     one: u8,
-    #[bitfield(struct_size = 1, bit_length = 5)]
+    #[bondrewd(struct_size = 1, bit_length = 5)]
     two: SmallStruct,
     three: u8,
 }

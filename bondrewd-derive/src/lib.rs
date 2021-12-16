@@ -65,8 +65,7 @@ use syn::{parse_macro_input, DeriveInput};
         array_bit_length,
         element_byte_length,
         array_byte_length,
-        bitfields,
-        bitfield
+        bondrewd,
     )
 )]
 pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
@@ -130,7 +129,7 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
     // slap peek quotes inside a impl block at the end and we good to go
     let to_bytes_quote = quote! {
-        impl bitfields::Bitfields<#struct_size> for #struct_name {
+        impl bondrewd::Bitfields<#struct_size> for #struct_name {
             const BIT_SIZE: usize = #bit_size;
 
             fn into_bytes(self) -> [u8;#struct_size] {
@@ -147,8 +146,8 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     TokenStream::from(to_bytes_quote)
 }
 
-#[proc_macro_derive(BitfieldEnum, attributes(invalid, bitfield_enum))]
-pub fn derive_bitfields_enum(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(BitfieldEnum, attributes(invalid, bondrewd_enum))]
+pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let enum_info = match EnumInfo::parse(&input) {
         Ok(parsed_enum) => parsed_enum,
@@ -161,7 +160,7 @@ pub fn derive_bitfields_enum(input: TokenStream) -> TokenStream {
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {
-        impl bitfields::BitfieldEnum for #enum_name {
+        impl bondrewd::BitfieldEnum for #enum_name {
             type Primitive = #primitive;
             #into
             #from

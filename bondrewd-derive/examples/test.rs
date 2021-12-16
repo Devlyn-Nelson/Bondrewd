@@ -1,5 +1,5 @@
-use bitfields::{BitfieldEnum, Bitfields};
-use bitfields_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
+use bondrewd::{BitfieldEnum, Bitfields};
+use bondrewd_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
 
 #[derive(BitfieldEnumDerive, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {
@@ -12,7 +12,7 @@ pub enum CcsdsPacketSequenceFlags {
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
 #[derive(BitfieldEnumDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfield_enum(u8)]
+#[bondrewd_enum(u8)]
 pub enum CcsdsPacketVersion {
     One,
     Two,
@@ -21,7 +21,7 @@ pub enum CcsdsPacketVersion {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be", enforce_bytes = 6)]
+#[bondrewd(default_endianness = "be", enforce_bytes = 6)]
 pub struct CcsdsPacketHeader {
     #[enum_primitive = "u8"]
     #[bit_length = 3]

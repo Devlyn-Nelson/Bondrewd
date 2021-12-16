@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "bitfields",
-    "bitfields-derive",
+    "bondrewd",
+    "bondrewd-derive",
 ]

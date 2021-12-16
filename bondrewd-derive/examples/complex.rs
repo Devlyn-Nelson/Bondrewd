@@ -1,5 +1,5 @@
-use bitfields::{BitfieldEnum, Bitfields};
-use bitfields_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
+use bondrewd::{BitfieldEnum, Bitfields};
+use bondrewd_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
 
 #[derive(BitfieldEnumDerive, Clone, Eq, PartialEq, Debug)]
 enum EyeColor {
@@ -10,7 +10,7 @@ enum EyeColor {
 }
 
 #[derive(BitfieldsDerive, Clone, Eq, PartialEq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct PersonParts {
     head: bool,
     #[bit_length = 2]
@@ -22,7 +22,7 @@ struct PersonParts {
 }
 
 #[derive(BitfieldsDerive, Clone, Eq, PartialEq, Debug)]
-#[bitfields(default_endianness = "be", flip)]
+#[bondrewd(default_endianness = "be", flip)]
 struct PersonStuff {
     // English only?
     // TODO this element array does all be the first element wrong

@@ -1,0 +1,10 @@
+[package]
+name = "bondrewd"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bondrewd-derive = { path = "../bondrewd-derive", optional = true }
+
+[features] 
+derive = ["bondrewd-derive"]

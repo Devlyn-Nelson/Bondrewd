@@ -1,5 +1,5 @@
-use bitfields::{BitfieldEnum, Bitfields};
-use bitfields_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
+use bondrewd::{BitfieldEnum, Bitfields};
+use bondrewd_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnumDerive)]
 enum TestEnum {
@@ -11,11 +11,11 @@ enum TestEnum {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningEnum {
     #[bit_length = 6]
     one: u8,
-    #[bitfield(enum_primitive = "u8", bit_length = 3)]
+    #[bondrewd(enum_primitive = "u8", bit_length = 3)]
     two: TestEnum,
     #[bit_length = 7]
     three: u8,

@@ -1,5 +1,5 @@
 [package]
-name = "bitfields-derive"
+name = "bondrewd-derive"
 version = "0.2.5"
 edition = "2021"
 
@@ -13,4 +13,4 @@ syn = "1.0"
 
 [dev-dependencies]
 anyhow = "1.0.51"
-bitfields = { path = "../bitfields" }
+bondrewd = { path = "../bondrewd" }

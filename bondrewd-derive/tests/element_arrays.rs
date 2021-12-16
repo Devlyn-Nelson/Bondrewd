@@ -1,8 +1,8 @@
-use bitfields::Bitfields;
-use bitfields_derive::Bitfields as BitfieldsDerive;
+use bondrewd::Bitfields;
+use bondrewd_derive::Bitfields as BitfieldsDerive;
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be")]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithArray {
     #[bit_length = 4]
     one: u8,
