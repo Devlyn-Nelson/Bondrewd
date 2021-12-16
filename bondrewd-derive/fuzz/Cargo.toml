@@ -1,5 +1,5 @@
 [package]
-name = "bitfields-derive-fuzz"
+name = "bondrewd-derive-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
@@ -10,10 +10,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-bitfields = { path = "../../bitfields" }
-
-[dependencies.bitfields-derive]
-path = ".."
+bondrewd = { path = "../../bondrewd", features = ["derive"] }
 
 # Prevent this from interfering with workspaces
 [workspace]

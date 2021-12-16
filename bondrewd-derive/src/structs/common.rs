@@ -758,7 +758,7 @@ impl StructInfo {
             Meta::Path(value) => {
                 if let Some(ident) = value.get_ident() {
                     match ident.to_string().as_str() {
-                        "flip" => {
+                        "reverse" => {
                             info.flip = true;
                         }
                         "enforce_full_bytes" => {

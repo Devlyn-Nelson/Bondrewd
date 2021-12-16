@@ -15,7 +15,7 @@ struct Simple {
 }
 
 #[test]
-fn to_bytes_simple() -> anyhow::Result<()> {
+fn le_into_bytes_simple() -> anyhow::Result<()> {
     let simple = Simple {
         one: 2,
         two: 6345,
@@ -49,7 +49,7 @@ fn to_bytes_simple() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "le", flip)]
+#[bondrewd(default_endianness = "le", reverse)]
 struct SimpleWithFlip {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -58,7 +58,7 @@ struct SimpleWithFlip {
     three: u8,
 }
 #[test]
-fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
+fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     let simple = SimpleWithFlip {
         one: false,
         two: u16::MAX & 0b0000001111111111,
@@ -94,7 +94,7 @@ struct SimpleWithReadFromBack {
     three: u8,
 }
 #[test]
-fn to_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
+fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     let simple = SimpleWithReadFromBack {
         one: false,
         two: u16::MAX & 0b0000001111111111,

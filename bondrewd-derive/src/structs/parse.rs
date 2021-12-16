@@ -472,7 +472,7 @@ impl FieldAttrBuilder {
                         _ => {
                             return Err(Error::new(
                                 builder.span(),
-                                "expected attributes that have names such as \"read_from\" or \"flip\"",
+                                "expected attributes that have names such as \"read_from\" or \"reverse\"",
                             ));
                         }
                     }

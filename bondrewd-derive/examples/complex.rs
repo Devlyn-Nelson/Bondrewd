@@ -23,7 +23,7 @@ struct PersonParts {
 }
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(default_endianness = "be", flip)]
+#[bondrewd(default_endianness = "be", reverse)]
 struct PersonStuff {
     // English only?
     // TODO this element array does all be the first element wrong

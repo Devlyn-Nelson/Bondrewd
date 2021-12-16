@@ -9,7 +9,7 @@ Derive Bit level fields packing/unpacking functions for a rust Structure with th
 Struct Derive features:
 - from_bytes and into_bytes functions are created. these are impled for the Bitfields trait in bondrewd.
 - Reverse Byte Order with no runtime cost. 
-  - #[bondrewd(flip)]
+  - #[bondrewd(reverse)]
 - Bit 0 positioning. Msb0 or Lsb0. Small compile time cost. 
   - #[bondrewd(read_from = "ZERO_BIT_LOCATION")]. ZERO_BIT_LOCATION can be mbs0 or lsb0.
 - Peek functions. Unpack on a per fields basis. useful if you only need a couple fields but would rather not unpack the entire struct. 
