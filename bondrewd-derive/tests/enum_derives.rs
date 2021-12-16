@@ -1,10 +1,9 @@
 use bondrewd::BitfieldEnum;
-use bondrewd_derive::BitfieldEnum as BitfieldEnumDerive;
 
 // for situation where all bits are accounted for, like if this enum was used as a 2bit field than
 // we can just let the last option be a valid catch all (in proc_macro code it is still marked as
 // an invalid catch all but that doesn't really matter)
-#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnumDerive)]
+#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 #[bondrewd_enum(u8)]
 enum NoInvalidEnum {
     Zero,

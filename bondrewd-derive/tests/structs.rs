@@ -1,6 +1,5 @@
 use bondrewd::Bitfields;
-use bondrewd_derive::Bitfields as BitfieldsDerive;
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bit_length = 3]
@@ -12,7 +11,7 @@ struct Simple {
     four: u8,
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithStruct {
     #[bit_length = 3]
@@ -47,10 +46,13 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes[6], 0b10000100);
     assert_eq!(bytes[7], 0b00001110);
 
-    //peeks
-    assert_eq!(simple.one, SimpleWithStruct::peek_slice_one(&bytes)?);
-    assert_eq!(simple.two, SimpleWithStruct::peek_slice_two(&bytes)?);
-    assert_eq!(simple.three, SimpleWithStruct::peek_slice_three(&bytes)?);
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithStruct::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithStruct::peek_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithStruct::peek_slice_three(&bytes)?);
+    }
 
     // from_bytes
     let new_simple = SimpleWithStruct::from_bytes(bytes);
@@ -58,7 +60,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", flip)]
 struct SimpleWithStructWithFlip {
     #[bit_length = 3]
@@ -92,28 +94,29 @@ fn struct_spanning_multiple_bytes_shift_required_with_flip() -> anyhow::Result<(
     assert_eq!(bytes[2], 0b11000010);
     assert_eq!(bytes[1], 0b10000100);
     assert_eq!(bytes[0], 0b00001110);
-
-    //peeks
-    assert_eq!(
-        simple.one,
-        SimpleWithStructWithFlip::peek_slice_one(&bytes)?
-    );
-    assert_eq!(
-        simple.two,
-        SimpleWithStructWithFlip::peek_slice_two(&bytes)?
-    );
-    assert_eq!(
-        simple.three,
-        SimpleWithStructWithFlip::peek_slice_three(&bytes)?
-    );
-
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(
+            simple.one,
+            SimpleWithStructWithFlip::peek_slice_one(&bytes)?
+        );
+        assert_eq!(
+            simple.two,
+            SimpleWithStructWithFlip::peek_slice_two(&bytes)?
+        );
+        assert_eq!(
+            simple.three,
+            SimpleWithStructWithFlip::peek_slice_three(&bytes)?
+        );
+    }
     // from_bytes
     let new_simple = SimpleWithStructWithFlip::from_bytes(bytes);
     assert_eq!(simple, new_simple);
     Ok(())
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SmallStruct {
     one: bool,
@@ -123,7 +126,7 @@ struct SmallStruct {
     five: bool,
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningStruct {
     #[bit_length = 4]
@@ -152,26 +155,29 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b00001010);
     assert_eq!(bytes[1], 0b10000000);
-    //peeks
-    assert_eq!(
-        simple.one,
-        SimpleWithSingleByteSpanningStruct::peek_slice_one(&bytes)?
-    );
-    assert_eq!(
-        simple.two,
-        SimpleWithSingleByteSpanningStruct::peek_slice_two(&bytes)?
-    );
-    assert_eq!(
-        simple.three,
-        SimpleWithSingleByteSpanningStruct::peek_slice_three(&bytes)?
-    );
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(
+            simple.one,
+            SimpleWithSingleByteSpanningStruct::peek_slice_one(&bytes)?
+        );
+        assert_eq!(
+            simple.two,
+            SimpleWithSingleByteSpanningStruct::peek_slice_two(&bytes)?
+        );
+        assert_eq!(
+            simple.three,
+            SimpleWithSingleByteSpanningStruct::peek_slice_three(&bytes)?
+        );
+    }
 
     // from_bytes
     let new_simple = SimpleWithSingleByteSpanningStruct::from_bytes(bytes);
     assert_eq!(simple, new_simple);
     Ok(())
 }
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteNonSpanningStruct {
     #[bit_length = 3]
@@ -199,19 +205,22 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b01010101);
     assert_eq!(bytes[1], 0b00001010);
-    //peeks
-    assert_eq!(
-        simple.one,
-        SimpleWithSingleByteNonSpanningStruct::peek_slice_one(&bytes)?
-    );
-    assert_eq!(
-        simple.two,
-        SimpleWithSingleByteNonSpanningStruct::peek_slice_two(&bytes)?
-    );
-    assert_eq!(
-        simple.three,
-        SimpleWithSingleByteNonSpanningStruct::peek_slice_three(&bytes)?
-    );
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(
+            simple.one,
+            SimpleWithSingleByteNonSpanningStruct::peek_slice_one(&bytes)?
+        );
+        assert_eq!(
+            simple.two,
+            SimpleWithSingleByteNonSpanningStruct::peek_slice_two(&bytes)?
+        );
+        assert_eq!(
+            simple.three,
+            SimpleWithSingleByteNonSpanningStruct::peek_slice_three(&bytes)?
+        );
+    }
 
     // from_bytes
     let new_simple = SimpleWithSingleByteNonSpanningStruct::from_bytes(bytes);

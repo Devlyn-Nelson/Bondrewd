@@ -1,7 +1,6 @@
 use bondrewd::{BitfieldEnum, Bitfields};
-use bondrewd_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
 
-#[derive(BitfieldEnumDerive, Clone, Eq, PartialEq, Debug)]
+#[derive(BitfieldEnum, Clone, Eq, PartialEq, Debug)]
 enum EyeColor {
     Blue,
     Green,
@@ -9,7 +8,7 @@ enum EyeColor {
     Other(u8),
 }
 
-#[derive(BitfieldsDerive, Clone, Eq, PartialEq, Debug)]
+#[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct PersonParts {
     head: bool,
@@ -21,7 +20,7 @@ struct PersonParts {
     toes: u8,
 }
 
-#[derive(BitfieldsDerive, Clone, Eq, PartialEq, Debug)]
+#[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
 #[bondrewd(default_endianness = "be", flip)]
 struct PersonStuff {
     // English only?

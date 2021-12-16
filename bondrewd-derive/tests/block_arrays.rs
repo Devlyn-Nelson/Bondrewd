@@ -1,7 +1,6 @@
 use bondrewd::Bitfields;
-use bondrewd_derive::Bitfields as BitfieldsDerive;
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithBlockArray {
     #[bit_length = 3]
@@ -24,13 +23,16 @@ fn to_bytes_simple_with_block_array_spanning() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b00011111);
     assert_eq!(bytes[1], 0b11110000);
-    //peeks
-    assert_eq!(simple.one, SimpleWithBlockArray::peek_slice_one(&bytes)?);
-    assert_eq!(simple.two, SimpleWithBlockArray::peek_slice_two(&bytes)?);
-    assert_eq!(
-        simple.three,
-        SimpleWithBlockArray::peek_slice_three(&bytes)?
-    );
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithBlockArray::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithBlockArray::peek_slice_two(&bytes)?);
+        assert_eq!(
+            simple.three,
+            SimpleWithBlockArray::peek_slice_three(&bytes)?
+        );
+    }
 
     // from_bytes
     let new_simple = SimpleWithBlockArray::from_bytes(bytes);

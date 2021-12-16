@@ -1,7 +1,6 @@
 use bondrewd::{BitfieldEnum, Bitfields};
-use bondrewd_derive::{BitfieldEnum as BitfieldEnumDerive, Bitfields as BitfieldsDerive};
 
-#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnumDerive)]
+#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 enum TestEnum {
     Zero,
     One,
@@ -10,7 +9,7 @@ enum TestEnum {
     Other(u8),
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningEnum {
     #[bit_length = 6]
@@ -32,19 +31,22 @@ fn to_bytes_simple_with_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b00000001);
     assert_eq!(bytes[1], 0b10000000);
-    //peeks
-    assert_eq!(
-        simple.one,
-        SimpleWithSingleByteSpanningEnum::peek_slice_one(&bytes)?
-    );
-    assert_eq!(
-        simple.two,
-        SimpleWithSingleByteSpanningEnum::peek_slice_two(&bytes)?
-    );
-    assert_eq!(
-        simple.three,
-        SimpleWithSingleByteSpanningEnum::peek_slice_three(&bytes)?
-    );
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(
+            simple.one,
+            SimpleWithSingleByteSpanningEnum::peek_slice_one(&bytes)?
+        );
+        assert_eq!(
+            simple.two,
+            SimpleWithSingleByteSpanningEnum::peek_slice_two(&bytes)?
+        );
+        assert_eq!(
+            simple.three,
+            SimpleWithSingleByteSpanningEnum::peek_slice_three(&bytes)?
+        );
+    }
 
     // from_bytes
     let new_simple = SimpleWithSingleByteSpanningEnum::from_bytes(bytes);

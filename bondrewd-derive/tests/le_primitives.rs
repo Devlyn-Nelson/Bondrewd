@@ -1,7 +1,6 @@
 use bondrewd::Bitfields;
-use bondrewd_derive::Bitfields as BitfieldsDerive;
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le")]
 struct Simple {
     #[bit_length = 3]
@@ -32,11 +31,14 @@ fn to_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b1000_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    //peeks
-    assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
-    assert_eq!(simple.two, Simple::peek_slice_two(&bytes)?);
-    assert_eq!(simple.three, Simple::peek_slice_three(&bytes)?);
-    assert_eq!(simple.four, Simple::peek_slice_four(&bytes)?);
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, Simple::peek_slice_two(&bytes)?);
+        assert_eq!(simple.three, Simple::peek_slice_three(&bytes)?);
+        assert_eq!(simple.four, Simple::peek_slice_four(&bytes)?);
+    }
 
     // from_bytes
     let new_simple = Simple::from_bytes(bytes);
@@ -44,7 +46,7 @@ fn to_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le", flip)]
 struct SimpleWithFlip {
     one: bool,
@@ -66,10 +68,13 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
 
     assert_eq!(bytes[1], 0b01111111);
     assert_eq!(bytes[0], 0b11100000);
-    //peeks
-    assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
-    assert_eq!(simple.two, SimpleWithFlip::peek_slice_two(&bytes)?);
-    assert_eq!(simple.three, SimpleWithFlip::peek_slice_three(&bytes)?);
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithFlip::peek_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithFlip::peek_slice_three(&bytes)?);
+    }
 
     // from_bytes
     let new_simple = SimpleWithFlip::from_bytes(bytes);
@@ -77,7 +82,7 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le", read_from = "lsb0")]
 struct SimpleWithReadFromBack {
     one: bool,
@@ -99,13 +104,16 @@ fn to_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b00000111);
     assert_eq!(bytes[1], 0b11111110);
-    //peeks
-    assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);
-    assert_eq!(simple.two, SimpleWithReadFromBack::peek_slice_two(&bytes)?);
-    assert_eq!(
-        simple.three,
-        SimpleWithReadFromBack::peek_slice_three(&bytes)?
-    );
+    #[cfg(peek_slice)]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithReadFromBack::peek_slice_two(&bytes)?);
+        assert_eq!(
+            simple.three,
+            SimpleWithReadFromBack::peek_slice_three(&bytes)?
+        );
+    }
 
     // from_bytes
     let new_simple = SimpleWithReadFromBack::from_bytes(bytes);

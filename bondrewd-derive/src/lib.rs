@@ -85,7 +85,11 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     };
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
-    let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, true) {
+    #[cfg(not(features = "peek_slice"))]
+    let peek_slice: bool = false;
+    #[cfg(features = "peek_slice")]
+    let peek_slice: bool = true;
+    let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, peek_slice) {
         Ok(ftb) => ftb,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
@@ -124,7 +128,7 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
     // slap peek quotes inside a impl block at the end and we good to go
     let to_bytes_quote = quote! {
-        impl bondrewd::Bitfields<#struct_size> for #struct_name {
+        impl Bitfields<#struct_size> for #struct_name {
             const BIT_SIZE: usize = #bit_size;
 
             fn into_bytes(self) -> [u8;#struct_size] {
