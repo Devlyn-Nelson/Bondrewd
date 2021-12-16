@@ -9,29 +9,29 @@ Derive Bit level fields packing/unpacking functions for a rust Structure with th
 Struct Derive features:
 - from_bytes and into_bytes functions are created.
 - Reverse Byte Order with no runtime cost. 
-  - #[bitfields(flip)]
+  - #[bondrewd(flip)]
 - Bit 0 positioning. Msb0 or Lsb0. Small compile time cost. 
-  - #[bitfields(read_from = "ZERO_BIT_LOCATION")]. ZERO_BIT_LOCATION can be mbs0 or lsb0.
+  - #[bondrewd(read_from = "ZERO_BIT_LOCATION")]. ZERO_BIT_LOCATION can be mbs0 or lsb0.
 - Peek functions. Unpack on a per fields basis. useful if you only need a couple fields but would rather not unpack the entire struct. 
   - peek_{field_name}() and peek_slice_{field_name}().
 - Bit Size Enforcement. Specify how many used bits you expect the output to have. 
-  - #[bitfields(enforce_bits = {AMOUNT_OF_BITS})]
-  - #[bitfields(enforce_full_bytes)]
+  - #[bondrewd(enforce_bits = {AMOUNT_OF_BITS})]
+  - #[bondrewd(enforce_full_bytes)]
 
 Field Derive features: 
 - Natural typing of primitives. No Custom Type Wrapping. 
-  - #[bitfield(bit_length = {TOTAL_BITS_TO_USE})]
+  - #[bondrewd(bit_length = {TOTAL_BITS_TO_USE})]
 - Enum Fields that can catch Invalid variants. 
-  - #[bitfield(enum_primitive = "u8")]. u8 is the only supported type, but i am willing to support more if needed.
+  - #[bondrewd(enum_primitive = "u8")]. u8 is the only supported type, but i am willing to support more if needed.
 - Inner Structures. 
-  - #[bitfield(struct_size = {TOTAL_BYTES})]
+  - #[bondrewd(struct_size = {TOTAL_BYTES})]
 - Per field Endiannes control. 
-  - #[bitfield(endianness = "{ENDIANNESS}")], ENDIANNESS can be: le, be, msb, lsb big, little. use your favorite.
+  - #[bondrewd(endianness = "{ENDIANNESS}")], ENDIANNESS can be: le, be, msb, lsb big, little. use your favorite.
 - Arrays.
   - Element Arrays. Define the bit-length of each element in the array. 
-    - #[bitfield(element_bit_length = {TOTAL_BIT_PER_ELEMENT})]
+    - #[bondrewd(element_bit_length = {TOTAL_BIT_PER_ELEMENT})]
   - Block Array. Define a overall bit length. example [u8;4] defined with a bit-length of 28 would remove the 4 Most Significant bits. 
-    - #[bitfield(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
+    - #[bondrewd(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 
 Enum Derive features: 
