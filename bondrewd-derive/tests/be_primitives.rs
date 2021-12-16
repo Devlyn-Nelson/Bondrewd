@@ -5,11 +5,11 @@ use bondrewd::BitfieldPeekError;
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
-    #[bit_length = 3]
+    #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bit_length = 27]
+    #[bondrewd(bit_length = 27)]
     two: u32,
-    #[bit_length = 14]
+    #[bondrewd(bit_length = 14)]
     three: u16,
     four: u8,
 }
@@ -52,9 +52,9 @@ fn to_bytes_simple() -> anyhow::Result<()> {
 #[bondrewd(default_endianness = "be", flip)]
 struct SimpleWithFlip {
     one: bool,
-    #[bit_length = 10]
+    #[bondrewd(bit_length = 10)]
     two: u16,
-    #[bit_length = 5]
+    #[bondrewd(bit_length = 5)]
     three: u8,
 }
 #[test]
@@ -88,9 +88,9 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
 #[bondrewd(default_endianness = "be", read_from = "lsb0")]
 struct SimpleWithReadFromBack {
     one: bool,
-    #[bit_length = 10]
+    #[bondrewd(bit_length = 10)]
     two: u16,
-    #[bit_length = 5]
+    #[bondrewd(bit_length = 5)]
     three: u8,
 }
 #[test]

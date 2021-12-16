@@ -50,16 +50,6 @@ use syn::{parse_macro_input, DeriveInput};
 #[proc_macro_derive(
     Bitfields,
     attributes(
-        bit_length,
-        endianness,
-        bits,
-        byte_length,
-        struct_size,
-        enum_primitive,
-        element_bit_length,
-        array_bit_length,
-        element_byte_length,
-        array_byte_length,
         bondrewd,
     )
 )]
@@ -158,7 +148,7 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
 ///                         variant will be used).
 /// [X] - Invalid catch (stores the actual primitive in a 1 field Variant).
 /// [ ] - types other than u8.
-#[proc_macro_derive(BitfieldEnum, attributes(invalid, bondrewd_enum))]
+#[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let enum_info = match EnumInfo::parse(&input) {

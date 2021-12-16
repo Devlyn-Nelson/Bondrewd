@@ -4,11 +4,11 @@ use bondrewd::BitfieldPeekError;
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
-    #[bit_length = 3]
+    #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bit_length = 27]
+    #[bondrewd(bit_length = 27)]
     two: u32,
-    #[bit_length = 14]
+    #[bondrewd(bit_length = 14)]
     three: u16,
     four: u8,
 }
@@ -16,11 +16,11 @@ struct Simple {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithStruct {
-    #[bit_length = 3]
+    #[bondrewd(bit_length = 3)]
     one: u8,
-    #[struct_size = 7]
+    #[bondrewd(struct_size = 7)]
     two: Simple,
-    #[bit_length = 4]
+    #[bondrewd(bit_length = 4)]
     three: u8,
 }
 
@@ -65,11 +65,11 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", flip)]
 struct SimpleWithStructWithFlip {
-    #[bit_length = 3]
+    #[bondrewd(bit_length = 3)]
     one: u8,
-    #[struct_size = 7]
+    #[bondrewd(struct_size = 7)]
     two: Simple,
-    #[bit_length = 4]
+    #[bondrewd(bit_length = 4)]
     three: u8,
 }
 
@@ -131,11 +131,11 @@ struct SmallStruct {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningStruct {
-    #[bit_length = 4]
+    #[bondrewd(bit_length = 4)]
     one: u8,
     #[bondrewd(struct_size = 1, bit_length = 5)]
     two: SmallStruct,
-    #[bit_length = 7]
+    #[bondrewd(bit_length = 7)]
     three: u8,
 }
 #[test]
@@ -182,7 +182,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteNonSpanningStruct {
-    #[bit_length = 3]
+    #[bondrewd(bit_length = 3)]
     one: u8,
     #[bondrewd(struct_size = 1, bit_length = 5)]
     two: SmallStruct,

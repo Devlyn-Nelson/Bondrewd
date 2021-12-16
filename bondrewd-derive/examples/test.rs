@@ -17,24 +17,21 @@ pub enum CcsdsPacketSequenceFlags {
 pub enum CcsdsPacketVersion {
     One,
     Two,
-    #[invalid]
     Invalid,
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", enforce_bytes = 6)]
 pub struct CcsdsPacketHeader {
-    #[enum_primitive = "u8"]
-    #[bit_length = 3]
+    #[bondrewd(enum_primitive = "u8", bit_length = 3)]
     pub(crate) packet_version_number: CcsdsPacketVersion,
     pub(crate) packet_type: bool,
     pub(crate) sec_hdr_flag: bool,
-    #[bit_length = 11]
+    #[bondrewd(bit_length = 11)]
     pub(crate) app_process_id: u16,
-    #[enum_primitive = "u8"]
-    #[bit_length = 2]
+    #[bondrewd(enum_primitive = "u8", bit_length = 2)]
     pub(crate) sequence_flags: CcsdsPacketSequenceFlags,
-    #[bit_length = 14]
+    #[bondrewd(bit_length = 14)]
     pub(crate) packet_seq_count: u16,
     pub(crate) packet_data_length: u16,
 }

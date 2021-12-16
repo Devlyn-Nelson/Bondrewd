@@ -3,7 +3,7 @@ use bondrewd::BitfieldEnum;
 // for situation where all bits are accounted for, like if this enum was used as a 2bit field than
 // we can just let the last option be a valid catch all (in proc_macro code it is still marked as
 // an invalid catch all but that doesn't really matter)
-#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
+#[derive(BitfieldEnum)]
 #[bondrewd_enum(u8)]
 enum NoInvalidEnum {
     Zero,
@@ -26,4 +26,30 @@ fn enum_auto_catch_all() {
     assert!(NoInvalidEnum::from_primitive(5u8).into_primitive() == 3);
     assert!(NoInvalidEnum::from_primitive(154u8).into_primitive() == 3);
     assert!(NoInvalidEnum::from_primitive(255u8).into_primitive() == 3);
+}
+
+#[derive(BitfieldEnum)]
+#[bondrewd_enum(u8)]
+enum CenteredInvalid {
+    BLue,
+    One,
+    #[bondrewd_enum(invalid)]
+    Invalid,
+    Three,
+    Four,
+}
+
+#[test]
+fn enum_centered_catch_all() {
+    assert!(CenteredInvalid::from_primitive(0u8).into_primitive() == 0);
+    assert!(CenteredInvalid::from_primitive(1u8).into_primitive() == 1);
+    assert!(CenteredInvalid::from_primitive(2u8).into_primitive() == 2);
+    assert!(CenteredInvalid::from_primitive(3u8).into_primitive() == 3);
+    assert!(CenteredInvalid::from_primitive(4u8).into_primitive() == 4);
+
+    // test the catch all functionality
+    assert_eq!(CenteredInvalid::from_primitive(5u8).into_primitive(), 2);
+    assert!(CenteredInvalid::from_primitive(6u8).into_primitive() == 2);
+    assert!(CenteredInvalid::from_primitive(154u8).into_primitive() == 2);
+    assert!(CenteredInvalid::from_primitive(255u8).into_primitive() == 2);
 }

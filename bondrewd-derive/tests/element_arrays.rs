@@ -5,11 +5,11 @@ use bondrewd::BitfieldPeekError;
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithArray {
-    #[bit_length = 4]
+    #[bondrewd(bit_length = 4)]
     one: u8,
-    #[element_bit_length = 1]
+    #[bondrewd(element_bit_length = 1)]
     two: [bool; 5],
-    #[bit_length = 7]
+    #[bondrewd(bit_length = 7)]
     three: u8,
 }
 #[test]

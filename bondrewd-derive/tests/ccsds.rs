@@ -5,36 +5,36 @@ use bondrewd::BitfieldPeekError;
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 pub struct DownlinkFileHeader {
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     aes256: [u8; 16],
     tai_timestamp: u64,
-    #[bit_length = 2]
+    #[bondrewd(bit_length = 2)]
     reserve_spare: u8,
-    #[bit_length = 30]
+    #[bondrewd(bit_length = 30)]
     pub file_id: u32,
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     hash: [u8; 16],
 }
 
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 pub struct UplinkFileHeader {
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     aes256: [u8; 16],
     tai_timestamp: u64,
-    #[bit_length = 2]
+    #[bondrewd(bit_length = 2)]
     reserve_spare: u8,
-    #[bit_length = 30]
+    #[bondrewd(bit_length = 30)]
     pub file_id: u32,
     chunk_index: u16,
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     hash: [u8; 16],
 }
 
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 pub struct UplinkCommandHeader {
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     aes256: [u8; 16],
     pub tai_timestamp: u64,
     pub service_port: u16,
@@ -44,7 +44,7 @@ pub struct UplinkCommandHeader {
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 pub struct DownlinkCommandHeader {
-    #[element_byte_length = 1]
+    #[bondrewd(element_byte_length = 1)]
     aes256: [u8; 16],
     pub(crate) tai_timestamp: u64,
     pub(crate) service_port: u16,
@@ -66,7 +66,6 @@ pub enum CcsdsPacketSequenceFlags {
 pub enum CcsdsPacketVersion {
     One,
     Two,
-    #[invalid]
     Invalid,
 }
 
@@ -77,11 +76,11 @@ pub struct CcsdsPacketHeader {
     pub(crate) packet_version_number: CcsdsPacketVersion,
     pub(crate) packet_type: bool,
     pub(crate) sec_hdr_flag: bool,
-    #[bit_length = 11]
+    #[bondrewd(bit_length = 11)]
     pub(crate) app_process_id: u16,
     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
     pub(crate) sequence_flags: CcsdsPacketSequenceFlags,
-    #[bit_length = 14]
+    #[bondrewd(bit_length = 14)]
     pub(crate) packet_seq_count: u16,
     pub(crate) packet_data_length: u16,
 }

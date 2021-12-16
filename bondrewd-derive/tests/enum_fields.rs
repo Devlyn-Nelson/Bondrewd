@@ -14,11 +14,11 @@ enum TestEnum {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningEnum {
-    #[bit_length = 6]
+    #[bondrewd(bit_length = 6)]
     one: u8,
     #[bondrewd(enum_primitive = "u8", bit_length = 3)]
     two: TestEnum,
-    #[bit_length = 7]
+    #[bondrewd(bit_length = 7)]
     three: u8,
 }
 #[test]

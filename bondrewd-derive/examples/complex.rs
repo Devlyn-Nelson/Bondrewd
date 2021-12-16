@@ -14,11 +14,11 @@ enum EyeColor {
 #[bondrewd(default_endianness = "be")]
 struct PersonParts {
     head: bool,
-    #[bit_length = 2]
+    #[bondrewd(bit_length = 2)]
     shoulders: u8,
-    #[bit_length = 2]
+    #[bondrewd(bit_length = 2)]
     knees: u8,
-    #[bit_length = 4]
+    #[bondrewd(bit_length = 4)]
     toes: u8,
 }
 
@@ -27,21 +27,19 @@ struct PersonParts {
 struct PersonStuff {
     // English only?
     // TODO this element array does all be the first element wrong
-    #[element_byte_length = 2]
+    #[bondrewd(element_byte_length = 2)]
     name: [char; 32],
     // Nobody lives past 127
-    #[bit_length = 7]
+    #[bondrewd(bit_length = 7)]
     age: u8,
     // Eyes have color
-    #[enum_primitive = "u8"]
-    #[bit_length = 3]
+    #[bondrewd(enum_primitive = "u8", bit_length = 3)]
     eye_color: EyeColor,
     // Standard components
-    #[bit_length = 9]
-    #[struct_size = 2]
+    #[bondrewd(bit_length = 9, struct_size = 2)]
     parts: PersonParts,
     // how many times they have blinked each of their eyes
-    #[bit_length = 60]
+    #[bondrewd(bit_length = 60)]
     blinks: u64,
 }
 
