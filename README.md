@@ -9,34 +9,35 @@ Derive Bit level fields packing/unpacking functions for a rust Structure with th
 Struct Derive features:
 - from_bytes and into_bytes functions are created.
 - Reverse Byte Order with no runtime cost. 
-    #[bitfields(flip)]
+  - #[bitfields(flip)]
 - Bit 0 positioning. Msb0 or Lsb0. Small compile time cost. 
-    #[bitfields(read_from = "msb0" or lsb0)].
+  - #[bitfields(read_from = "msb0" or lsb0)].
 - Peek functions. Unpack on a per fields basis. useful if you only need a couple fields but would rather not unpack the entire struct. 
-    peek_{field_name}() and peek_slice_{field_name}().
+  - peek_{field_name}() and peek_slice_{field_name}().
 - Bit Size Enforcement. Specify how many used bits you expect the output to have. 
-    #[bitfields(enforce_bits = {AMOUNT_OF_BITS})] or #[bitfields(enforce_full_bytes)].
+  - #[bitfields(enforce_bits = {AMOUNT_OF_BITS})]
+  - #[bitfields(enforce_full_bytes)]
 
 Field Derive features: 
 - Natural typing of primitives. No Custom Type Wrapping. 
-    #[bitfield(bit_length = {TOTAL_BITS_TO_USE})]
+  - #[bitfield(bit_length = {TOTAL_BITS_TO_USE})]
 - Enum Fields that can catch Invalid variants. 
-    #[bitfield(enum_primitive = "u8")]. u8 is the only supported type, but i am willing to support more if needed.
+  - #[bitfield(enum_primitive = "u8")]. u8 is the only supported type, but i am willing to support more if needed.
 - Inner Structures. 
-    #[bitfield(struct_size = {TOTAL_BYTES})]
+  - #[bitfield(struct_size = {TOTAL_BYTES})]
 - Per field Endiannes control. 
-    #[bitfield(endianness = "{ENDIANNESS}")], ENDIANNESS can be: le, be, msb, lsb big, little. use your favorite.
+  - #[bitfield(endianness = "{ENDIANNESS}")], ENDIANNESS can be: le, be, msb, lsb big, little. use your favorite.
 - Arrays.
   - Element Arrays. Define the bit-length of each element in the array. 
-      #[bitfield(element_bit_length = {TOTAL_BIT_PER_ELEMENT})]
+    - #[bitfield(element_bit_length = {TOTAL_BIT_PER_ELEMENT})]
   - Block Array. Define a overall bit length. example [u8;4] defined with a bit-length of 28 would remove the 4 Most Significant bits. 
-      #[bitfield(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
+    - #[bitfield(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 
 Enum Derive features: 
 - Derive from_primitive and into_primitive.
 - specify a Invalid variant for catching values that don't make sense. otherwise the last value will be used as a catch all.
-    #[invalid].
+  - #[invalid].
 - Invalid with primitive. like the Invalid catch all above but it stores the value as a variant field.
 
 Long answer.
