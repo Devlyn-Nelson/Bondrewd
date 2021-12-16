@@ -16,11 +16,14 @@ Struct Derive features:
   - peek_{field_name}() and peek_slice_{field_name}().
 - Bit Size Enforcement. Specify how many used bits you expect the output to have. 
   - #[bondrewd(enforce_bits = {AMOUNT_OF_BITS})]
+  - #[bondrewd(enforce_bytes = {AMOUNT_OF_BYTES})]
   - #[bondrewd(enforce_full_bytes)]
 
 Field Derive features: 
 - Natural typing of primitives. No Custom Type Wrapping. 
   - #[bondrewd(bit_length = {TOTAL_BITS_TO_USE})]
+  - #[bondrewd(byte_length = {TOTAL_BYTES_TO_USE})]
+  - #[bondrewd(bits = "FIRST_BIT_INDEX..LAST_BIT_INDEX_PLUS_ONE")] - not tested.
 - Enum Fields that can catch Invalid variants. 
   - #[bondrewd(enum_primitive = "u8")]. u8 is the only supported type, but i am willing to support more if needed.
 - Inner Structures. 
@@ -29,9 +32,11 @@ Field Derive features:
   - #[bondrewd(endianness = "{ENDIANNESS}")], ENDIANNESS can be: le, be, msb, lsb big, little. use your favorite.
 - Arrays.
   - Element Arrays. Define the bit-length of each element in the array. 
-    - #[bondrewd(element_bit_length = {TOTAL_BIT_PER_ELEMENT})]
+    - #[bondrewd(element_bit_length = {TOTAL_BITS_PER_ELEMENT})]
+    - #[bondrewd(element_byte_length = {TOTAL_BYTES_PER_ELEMENT})]
   - Block Array. Define a overall bit length. example [u8;4] defined with a bit-length of 28 would remove the 4 Most Significant bits. 
     - #[bondrewd(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
+    - #[bondrewd(array_byte_length = {TOTAL_AMOUNT_OF_BYTES})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 
 Enum Derive features: 
