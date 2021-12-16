@@ -32,3 +32,6 @@ impl std::error::Error for BitfieldPeekError {}
 #[cfg(feature = "derive")]
 #[doc(hidden)]
 pub use bondrewd_derive::*;
+
+#[cfg(all(not(feature = "derive"), feature = "peek_slice"))]
+compile_error!("the peek_slice attribute depends on the derive attribute");
