@@ -1,4 +1,6 @@
 use bondrewd::{BitfieldEnum, Bitfields};
+#[cfg(feature = "peek_slice")]
+use bondrewd::BitfieldPeekError;
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 enum TestEnum {
@@ -31,7 +33,7 @@ fn to_bytes_simple_with_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b00000001);
     assert_eq!(bytes[1], 0b10000000);
-    #[cfg(peek_slice)]
+    #[cfg(feature = "peek_slice")]
     {
         //peeks
         assert_eq!(

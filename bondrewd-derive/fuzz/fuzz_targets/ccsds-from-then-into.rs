@@ -1,7 +1,6 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use bitfields::{Bitfields, BitfieldEnum};
-use bitfields_derive::{Bitfields as BitfieldsDerive, BitfieldEnum as BitfieldEnumDerive};
 
 #[derive(BitfieldEnumDerive, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {

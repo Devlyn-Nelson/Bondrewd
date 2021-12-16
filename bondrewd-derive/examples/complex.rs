@@ -1,4 +1,6 @@
 use bondrewd::{BitfieldEnum, Bitfields};
+#[cfg(feature = "peek_slice")]
+use bondrewd::BitfieldPeekError;
 
 #[derive(BitfieldEnum, Clone, Eq, PartialEq, Debug)]
 enum EyeColor {

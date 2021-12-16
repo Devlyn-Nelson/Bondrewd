@@ -95,13 +95,11 @@ fn make_peek_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    // TODO find better way to inject bitfield crate path
-    let bitfield_create_ident = format_ident!("bondrewd");
     Ok(quote! {
         pub fn #field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldPeekError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
-                Err(#bitfield_create_ident::BitfieldPeekError(slice_length, #min_length))
+                Err(BitfieldPeekError(slice_length, #min_length))
             } else {
                 Ok(
                     #field_quote

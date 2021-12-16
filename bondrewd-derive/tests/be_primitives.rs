@@ -1,4 +1,6 @@
 use bondrewd::Bitfields;
+#[cfg(feature = "peek_slice")]
+use bondrewd::BitfieldPeekError;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -31,7 +33,7 @@ fn to_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b0001_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(peek_slice)]
+    #[cfg(feature = "peek_slice")]
     {
         //peeks
         assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
@@ -68,7 +70,7 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
 
     assert_eq!(bytes[1], 0b01111111);
     assert_eq!(bytes[0], 0b11100000);
-    #[cfg(peek_slice)]
+    #[cfg(feature = "peek_slice")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
@@ -104,7 +106,7 @@ fn to_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b00000111);
     assert_eq!(bytes[1], 0b11111110);
-    #[cfg(peek_slice)]
+    #[cfg(feature = "peek_slice")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);

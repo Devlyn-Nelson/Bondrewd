@@ -1,4 +1,6 @@
 use bondrewd::Bitfields;
+#[cfg(feature = "peek_slice")]
+use bondrewd::BitfieldPeekError;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -23,7 +25,7 @@ fn to_bytes_simple_with_block_array_spanning() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b00011111);
     assert_eq!(bytes[1], 0b11110000);
-    #[cfg(peek_slice)]
+    #[cfg(feature = "peek_slice")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithBlockArray::peek_slice_one(&bytes)?);

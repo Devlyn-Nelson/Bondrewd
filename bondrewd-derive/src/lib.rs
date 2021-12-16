@@ -86,11 +86,11 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
     let peek_slice: bool;
-    #[cfg(not(features = "peek_slice"))]
+    #[cfg(not(feature = "peek_slice"))]
     {
         peek_slice = false;
     }
-    #[cfg(features = "peek_slice")]
+    #[cfg(feature = "peek_slice")]
     {
         peek_slice = true;
     }
