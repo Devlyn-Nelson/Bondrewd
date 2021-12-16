@@ -15,4 +15,5 @@ bondrewd-derive = { path = "../bondrewd-derive", optional = true }
 
 [features] 
 derive = ["bondrewd-derive"]
-derive_with_peek_slice = ["bondrewd-derive/peek_slice"]
+peek_slice = ["bondrewd-derive/peek_slice"]
+derive_with_peek_slice = ["derive" , "peek_slice"]

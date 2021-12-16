@@ -85,10 +85,15 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     };
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
+    let peek_slice: bool;
     #[cfg(not(features = "peek_slice"))]
-    let peek_slice: bool = false;
+    {
+        peek_slice = false;
+    }
     #[cfg(features = "peek_slice")]
-    let peek_slice: bool = true;
+    {
+        peek_slice = true;
+    }
     let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, peek_slice) {
         Ok(ftb) => ftb,
         Err(err) => return TokenStream::from(err.to_compile_error()),
