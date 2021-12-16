@@ -3,6 +3,7 @@ I use this for work, so if you use this and find a problem i would be more than 
 I currently do not have time to write good docs, so in the mean time looking at the files within the bondrews-derive/tests/ folder would be your best bet.
 # Purpose
 Short answer.
+
 Derive Bit level fields packing/unpacking functions for a rust Structure with the ability to peek at a field without unpacking any other fields. 
 
 outer struct features:
@@ -32,6 +33,7 @@ field feautres:
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 
 Long answer.
+
 I work in a Small satellite company and when sending data between ground and orbit we try to reduce byte size where ever possible because more bytes means more susceptibility to errors/interference. To fix this Protocols for communicating have been made, for example Ccsds Packets. Due to the limited selection of space grade processors our current processor is a single core 1gz proccessor meaning fast packing/unpacking is very important.
 Reasons i needed to reinvent the wheel rather than use PackedStruct 0.6 or ModularBitfields 0.11: 
   - Natural typing. use primitives directly. (neither ModularBitfields nor PackedStruct do this for fields that have bit lengths that are not powers of 2).
