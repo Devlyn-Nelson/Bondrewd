@@ -14,5 +14,6 @@ repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 bondrewd-derive = { path = "../bondrewd-derive", optional = true }
 
 [features] 
+default = []
 derive = ["bondrewd-derive"]
-peek_slice = []
+peek_slice = ["bondrewd-derive/peek_slice"]
