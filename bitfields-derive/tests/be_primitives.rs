@@ -79,7 +79,7 @@ fn to_bytes_simple_with_flip() -> anyhow::Result<()> {
 }
 
 #[derive(BitfieldsDerive, Clone, PartialEq, Eq, Debug)]
-#[bitfields(default_endianness = "be", read_from = "back")]
+#[bitfields(default_endianness = "be", read_from = "lsb0")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bit_length = 10]

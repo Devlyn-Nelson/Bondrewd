@@ -679,7 +679,7 @@ pub struct StructInfo {
     pub name: Ident,
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
     /// if true then bit 0 is the Least Significant Bit (the last bit in the last byte).
-    pub start_from_back: bool,
+    pub lsb_zero: bool,
     /// flip all the bytes, like .reverse() for vecs or arrays. but we do that here because we can do
     /// it with no runtime cost.
     pub flip: bool,
@@ -706,11 +706,11 @@ impl StructInfo {
                 if value.path.is_ident("read_from") {
                     if let Lit::Str(val) = value.lit {
                         match val.value().as_str() {
-                            "back" => info.start_from_back = true,
-                            "front" => info.start_from_back = false,
+                            "lsb0" => info.lsb_zero = true,
+                            "msb0" => info.lsb_zero = false,
                             _ => return Err(Error::new(
                                 val.span(),
-                                "Expected literal str \"back\" or \"front\" for read_from attribute.",
+                                "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
                             )),
                         }
                     }
@@ -793,7 +793,7 @@ impl StructInfo {
         };
         let mut info = StructInfo {
             name: input.ident.clone(),
-            start_from_back: false,
+            lsb_zero: false,
             flip: false,
             enforcement: StructEnforcement::NoRules,
             fields: Default::default(),
@@ -842,7 +842,7 @@ impl StructInfo {
             }
         }
 
-        if info.start_from_back {
+        if info.lsb_zero {
             for ref mut field in info.fields.iter_mut() {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);
