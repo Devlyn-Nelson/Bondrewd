@@ -6,7 +6,8 @@ Short answer.
 
 Derive Bit level fields packing/unpacking functions for a rust Structure with the ability to peek at a field without unpacking any other fields. 
 
-outer struct features:
+Struct Derive features:
+- from_bytes and into_bytes functions are created.
 - Reverse Byte Order with no runtime cost. 
     #[bitfields(flip)]
 - Bit 0 positioning. Msb0 or Lsb0. Small compile time cost. 
@@ -16,7 +17,7 @@ outer struct features:
 - Bit Size Enforcement. Specify how many used bits you expect the output to have. 
     #[bitfields(enforce_bits = {AMOUNT_OF_BITS})] or #[bitfields(enforce_full_bytes)].
 
-field feautres: 
+Field Derive features: 
 - Natural typing of primitives. No Custom Type Wrapping. 
     #[bitfield(bit_length = {TOTAL_BITS_TO_USE})]
 - Enum Fields that can catch Invalid variants. 
@@ -32,12 +33,18 @@ field feautres:
       #[bitfield(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 
+Enum Derive features: 
+- Derive from_primitive and into_primitive.
+- specify a Invalid variant for catching values that don't make sense. otherwise the last value will be used as a catch all.
+    #[invalid].
+- Invalid with primitive. like the Invalid catch all above but it stores the value as a variant field.
+
 Long answer.
 
 I work in a Small satellite company and when sending data between ground and orbit we try to reduce byte size where ever possible because more bytes means more susceptibility to errors/interference. To fix this Protocols for communicating have been made, for example Ccsds Packets. Due to the limited selection of space grade processors our current processor is a single core 1gz proccessor meaning fast packing/unpacking is very important.
 Reasons i needed to reinvent the wheel rather than use PackedStruct 0.6 or ModularBitfields 0.11: 
   - Natural typing. use primitives directly. (neither ModularBitfields nor PackedStruct do this for fields that have bit lengths that are not powers of 2).
-  - Enum Field support that can catch invalid numbers without panics. (PackedStruct offers this, but you are required to use a built in EnumType Wrapper which i didn't like).
+  - Enum Field support that can catch invalid numbers without panics. (PackedStruct offers this, but you are required to use a built in EnumType Wrapper which i didn't like, ModularBitfields panics).
   - Reverse Byte Order with no runtime cost. this reason i needed this is very stupid so don't ask.
   - Bit 0 positioning. Msb0 or Lsb0 (PackedStruct offers this)
   - Peek functions. unpack on a per fields basis.
