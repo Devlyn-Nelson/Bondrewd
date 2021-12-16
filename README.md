@@ -4,6 +4,7 @@ I currently do not have time to write good docs, so in the mean time looking at 
 # Purpose
 Short answer.
 Derive Bit level fields packing/unpacking functions for a rust Structure with the ability to peek at a field without unpacking any other fields. 
+
 outer struct features:
 - Reverse Byte Order with no runtime cost. 
     #[bitfields(flip)]
