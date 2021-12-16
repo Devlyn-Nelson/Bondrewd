@@ -31,4 +31,4 @@ impl std::error::Error for BitfieldPeekError {}
 // re-export the derive stuff
 #[cfg(feature = "derive")]
 #[doc(hidden)]
-pub use bondrewd_derive as derives;
+pub use bondrewd_derive::*;

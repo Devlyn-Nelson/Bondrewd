@@ -11,6 +11,9 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, DeriveInput};
 
+/// # Attributes: 
+/// * `bit_length = {BITS}` - define the total amount of bits to use when packed.
+/// 
 /// # Tasks ((- = in-progress), (T = needs testing), (X = Done), (* = Partial))
 /// Structs
 /// [T] - read_direction ( the bit order is reversed with no runtime cost)
@@ -44,14 +47,6 @@ use syn::{parse_macro_input, DeriveInput};
 ///     [T] - total bit/bytes length enforcement by a specified amount of
 ///             bits or bytes.
 /// * primitives should exclude usize and isize due to ambiguous sizing
-///
-/// Enum
-/// [X] - from_primitive.
-/// [X] - into_primitive.
-/// [X] - Invalid flag (Invalid values will be dropped an a generic no field
-///                         variant will be used).
-/// [X] - Invalid catch (stores the actual primitive in a 1 field Variant).
-/// [ ] - types other than u8.
 #[proc_macro_derive(
     Bitfields,
     attributes(
@@ -146,6 +141,14 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     TokenStream::from(to_bytes_quote)
 }
 
+/// # Tasks ((- = in-progress), (T = needs testing), (X = Done), (* = Partial))
+/// Enum
+/// [X] - from_primitive.
+/// [X] - into_primitive.
+/// [X] - Invalid flag (Invalid values will be dropped an a generic no field
+///                         variant will be used).
+/// [X] - Invalid catch (stores the actual primitive in a 1 field Variant).
+/// [ ] - types other than u8.
 #[proc_macro_derive(BitfieldEnum, attributes(invalid, bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
