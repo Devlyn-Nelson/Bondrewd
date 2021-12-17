@@ -159,6 +159,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     }
 
     assert_eq!(0, SimpleWithReserve::peek_reserve(&bytes));
+    assert!(SimpleWithReserve::peek_reserve(&bytes) != simple.reserve);
     simple.reserve = 0;
     // from_bytes
     let new_simple = SimpleWithReserve::from_bytes(bytes);
