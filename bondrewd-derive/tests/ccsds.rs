@@ -22,7 +22,8 @@ pub struct UplinkFileHeader {
     #[bondrewd(element_byte_length = 1)]
     aes256: [u8; 16],
     tai_timestamp: u64,
-    #[bondrewd(bit_length = 2)]
+    #[bondrewd(bit_length = 2, reserve)]
+    #[allow(dead_code)]
     reserve_spare: u8,
     #[bondrewd(bit_length = 30)]
     pub file_id: u32,

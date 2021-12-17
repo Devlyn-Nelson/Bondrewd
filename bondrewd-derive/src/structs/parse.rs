@@ -8,6 +8,7 @@ use crate::structs::common::{Endianness, FieldAttrs, FieldInfo};
 
 pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
+    pub reserve: bool,
 }
 
 impl TryFromAttrBuilderError {
@@ -15,6 +16,7 @@ impl TryFromAttrBuilderError {
         FieldAttrs {
             endianness: self.endianness,
             bit_range,
+            reserve: self.reserve,
         }
     }
 }
@@ -60,6 +62,7 @@ pub struct FieldAttrBuilder {
     pub endianness: Box<Endianness>,
     pub bit_range: FieldBuilderRange,
     pub ty: FieldAttrBuilderType,
+    pub reserve: bool,
 }
 
 impl FieldAttrBuilder {
@@ -69,6 +72,7 @@ impl FieldAttrBuilder {
             endianness: Box::new(Endianness::None),
             bit_range: FieldBuilderRange::None,
             ty: FieldAttrBuilderType::None,
+            reserve: false,
         }
     }
 
@@ -478,7 +482,16 @@ impl FieldAttrBuilder {
                     }
                 }
             }
-            Meta::Path(_path) => {}
+            Meta::Path(path) => {
+                if let Some(ident) = path.get_ident() {
+                    match ident.to_string().as_str() {
+                        "reserve" => {
+                            builder.reserve = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
             Meta::List(meta_list) => {
                 if meta_list.path.is_ident("bondrewd") {
                     for nested_meta in meta_list.nested {
@@ -503,10 +516,12 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
             Ok(FieldAttrs {
                 endianness: self.endianness,
                 bit_range: bit_range,
+                reserve: self.reserve,
             })
         } else {
             Err(TryFromAttrBuilderError {
                 endianness: self.endianness,
+                reserve: self.reserve,
             })
         }
     }

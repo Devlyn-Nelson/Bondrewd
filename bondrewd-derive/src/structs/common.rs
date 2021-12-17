@@ -431,6 +431,7 @@ impl FieldDataType {
 pub struct FieldAttrs {
     pub endianness: Box<Endianness>,
     pub bit_range: Range<usize>,
+    pub reserve: bool,
 }
 
 impl FieldAttrs {
@@ -463,6 +464,7 @@ impl Iterator for ElementSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..start + self.element_bit_size,
                 endianness: self.endianness.clone(),
+                reserve: false,
             };
             let mut name = self.outer_name.clone();
             name = quote! {#name[#index]};
@@ -508,6 +510,7 @@ impl Iterator for BlockSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..start + ty_size,
                 endianness: self.endianness.clone(),
+                reserve: false,
             };
             self.bit_length -= ty_size;
             let index = self.length;

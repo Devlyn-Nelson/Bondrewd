@@ -9,14 +9,16 @@ pub fn create_to_bytes_field_quotes(
 ) -> Result<Vec<proc_macro2::TokenStream>, syn::Error> {
     let mut field_quotes = Vec::<proc_macro2::TokenStream>::new();
     for field in info.fields.iter() {
-        field_quotes.push(get_field_quote(
-            &field,
-            if info.flip {
-                Some(info.total_bytes() - 1)
-            } else {
-                None
-            },
-        )?);
+        if !field.attrs.reserve {
+            field_quotes.push(get_field_quote(
+                &field,
+                if info.flip {
+                    Some(info.total_bytes() - 1)
+                } else {
+                    None
+                },
+            )?);
+        }
     }
     Ok(field_quotes)
 }
