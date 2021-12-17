@@ -122,3 +122,46 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
     Ok(())
 }
+
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "be", read_from = "msb0")]
+struct SimpleWithReserve {
+    #[bondrewd(bit_length = 9)]
+    one: u16,
+    #[bondrewd(bit_length = 3, reserve )]
+    reserve: u8,
+    #[bondrewd(bit_length = 4)]
+    two: u8,
+}
+
+#[test]
+fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
+    let mut simple = SimpleWithReserve {
+        one: 341,
+        reserve: u8::MAX,
+        two: 10,
+    };
+    assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
+    let bytes: [u8;2] = simple.clone().into_bytes();
+    assert_eq!(bytes.len(), 2);
+
+    assert_eq!(bytes[0], 0b10101010);
+    assert_eq!(bytes[1], 0b10001010);
+    #[cfg(feature = "peek_slice")]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithReserve::peek_slice_one(&bytes)?);
+        assert_eq!(0, SimpleWithReserve::peek_slice_two(&bytes)?);
+        assert_eq!(
+            simple.three,
+            SimpleWithReserve::peek_slice_three(&bytes)?
+        );
+    }
+
+    assert_eq!(0, SimpleWithReserve::peek_reserve(&bytes));
+    simple.reserve = 0;
+    // from_bytes
+    let new_simple = SimpleWithReserve::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}

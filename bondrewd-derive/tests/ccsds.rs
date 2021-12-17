@@ -2,56 +2,6 @@ use bondrewd::{BitfieldEnum, Bitfields};
 #[cfg(feature = "peek_slice")]
 use bondrewd::BitfieldPeekError;
 
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-pub struct DownlinkFileHeader {
-    #[bondrewd(element_byte_length = 1)]
-    aes256: [u8; 16],
-    tai_timestamp: u64,
-    #[bondrewd(bit_length = 2)]
-    reserve_spare: u8,
-    #[bondrewd(bit_length = 30)]
-    pub file_id: u32,
-    #[bondrewd(element_byte_length = 1)]
-    hash: [u8; 16],
-}
-
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-pub struct UplinkFileHeader {
-    #[bondrewd(element_byte_length = 1)]
-    aes256: [u8; 16],
-    tai_timestamp: u64,
-    #[bondrewd(bit_length = 2, reserve)]
-    #[allow(dead_code)]
-    reserve_spare: u8,
-    #[bondrewd(bit_length = 30)]
-    pub file_id: u32,
-    chunk_index: u16,
-    #[bondrewd(element_byte_length = 1)]
-    hash: [u8; 16],
-}
-
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-pub struct UplinkCommandHeader {
-    #[bondrewd(element_byte_length = 1)]
-    aes256: [u8; 16],
-    pub tai_timestamp: u64,
-    pub service_port: u16,
-    pub command_counter: u16,
-}
-
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-pub struct DownlinkCommandHeader {
-    #[bondrewd(element_byte_length = 1)]
-    aes256: [u8; 16],
-    pub(crate) tai_timestamp: u64,
-    pub(crate) service_port: u16,
-    pub command_counter: u16,
-}
-
 #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {
     Continuation,
