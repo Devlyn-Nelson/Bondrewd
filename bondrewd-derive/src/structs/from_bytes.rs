@@ -103,10 +103,10 @@ fn make_peek_slice_fn(
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
     Ok(quote! {
-        pub fn #field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldPeekError> {
+        pub fn #field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
-                Err(BitfieldPeekError(slice_length, #min_length))
+                Err(BitfieldSliceError(slice_length, #min_length))
             } else {
                 Ok(
                     #field_quote

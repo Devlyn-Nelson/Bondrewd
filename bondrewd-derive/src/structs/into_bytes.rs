@@ -2,25 +2,134 @@ use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
     FieldDataType, FieldInfo, StructInfo,
 };
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-pub fn create_to_bytes_field_quotes(
+pub struct IntoBytesOptions {
+    pub into_bytes_fn: TokenStream,
+    pub set_field_fns: TokenStream,
+    pub set_slice_field_fns: Option<TokenStream>,
+}
+
+pub fn create_into_bytes_field_quotes(
     info: &StructInfo,
-) -> Result<Vec<proc_macro2::TokenStream>, syn::Error> {
-    let mut field_quotes = Vec::<proc_macro2::TokenStream>::new();
+    set_slice: bool,
+) -> Result<IntoBytesOptions, syn::Error> {
+    // all of the fields setting will be appended to this
+    let mut into_bytes_quote = quote! {};
+    // all quote with all of the set slice functions appended to it.
+    let mut set_slice_fns_quote = quote! {};
+    // all quote with all of the set functions appended to it.
+    let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
+        let (field_setter, _) = get_field_quote(
+            &field,
+            if info.flip {
+                Some(info.total_bytes() - 1)
+            } else {
+                None
+            },
+            true,
+        )?;
         if !field.attrs.reserve {
-            field_quotes.push(get_field_quote(
-                &field,
-                if info.flip {
-                    Some(info.total_bytes() - 1)
-                } else {
-                    None
-                },
-            )?);
+            into_bytes_quote = quote! {
+                #into_bytes_quote
+                #field_setter
+            };
+        }
+        let (field_setter, clear_quote) = get_field_quote(
+            &field,
+            if info.flip {
+                Some(info.total_bytes() - 1)
+            } else {
+                None
+            },
+            false,
+        )?;
+        let set_quote = make_set_fn(&field_setter, &field, &info, &clear_quote)?;
+        set_fns_quote = quote! {
+            #set_fns_quote
+            #set_quote
+        };
+
+        if set_slice {
+            let set_slice_quote = make_set_slice_fn(&field_setter, &field, &info, &clear_quote)?;
+            set_slice_fns_quote = quote! {
+                #set_slice_fns_quote
+                #set_slice_quote
+            };
         }
     }
-    Ok(field_quotes)
+    let struct_size = &info.total_bytes();
+    // construct from bytes function. use input_byte_buffer as input name because,
+    // that is what the field quotes expect to extract from.
+    // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+    // because all of the from_bytes field quote store there data in a temporary variable with the same
+    // name as its destination field the list of field names will be just fine.
+    let into_bytes_fn = quote! {
+        fn into_bytes(self) -> [u8;#struct_size] {
+            let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
+            #into_bytes_quote
+            output_byte_buffer
+        }
+    };
+    Ok(IntoBytesOptions {
+        into_bytes_fn,
+        set_field_fns: set_fns_quote,
+        set_slice_field_fns: if set_slice {
+            Some(set_slice_fns_quote)
+        } else {
+            None
+        },
+    })
+}
+
+fn make_set_slice_fn(
+    field_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    clear_quote: &TokenStream,
+) -> syn::Result<TokenStream> {
+    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let fn_field_name = format_ident!("set_slice_{}", field_name);
+    let type_ident = field.ty.type_quote();
+    let min_length = if info.flip {
+        ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
+    } else {
+        (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
+    };
+    Ok(quote! {
+        #[inline]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), BitfieldSliceError> {
+            let slice_length = output_byte_buffer.len();
+            if slice_length < #min_length {
+                Err(BitfieldSliceError(slice_length, #min_length))
+            } else {
+                #clear_quote
+                #field_quote
+                Ok(())
+            }
+        }
+    })
+}
+
+fn make_set_fn(
+    field_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    clear_quote: &TokenStream,
+) -> syn::Result<TokenStream> {
+    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let fn_field_name = format_ident!("set_{}", field_name);
+    let type_ident = field.ty.type_quote();
+    let struct_size = info.total_bytes();
+    Ok(quote! {
+        #[inline]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], #field_name: #type_ident) {
+            #clear_quote
+            #field_quote
+        }
+    })
 }
 
 /// the flip value must be the total amount of bytes the result of into_bytes should have MINUS ONE,
@@ -28,44 +137,71 @@ pub fn create_to_bytes_field_quotes(
 fn get_field_quote(
     field: &FieldInfo,
     flip: Option<usize>,
-) -> syn::Result<proc_macro2::TokenStream> {
+    with_self: bool,
+) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
     let field_name = field.name.clone();
     let quote_field_name = match field.ty {
         FieldDataType::Float(_, _) => {
-            quote! {self.#field_name.to_bits()}
+            if with_self {
+                quote! {self.#field_name.to_bits()}
+            }else{
+                quote! {#field_name.to_bits()}
+            }
         }
         FieldDataType::Char(_, _) => {
-            quote! {(self.#field_name as u32)}
+            if with_self {
+                quote! {(self.#field_name as u32)}
+            }else{
+                quote! {(#field_name as u32)}
+            }
         }
         FieldDataType::Enum(_, _, _) => {
-            quote! {((self.#field_name).into_primitive())}
+            if with_self {
+                quote! {((self.#field_name).into_primitive())}
+            }else{
+                quote! {((#field_name).into_primitive())}
+            }
         }
         FieldDataType::ElementArray(_, _, _) => {
+            let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
             let sub = field.get_element_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip)?;
+                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
                     #sub_field_quote
                 };
+                clear_buffer = quote! {
+                    #clear_buffer
+                    #clear
+                };
             }
-            return Ok(buffer);
+            return Ok((buffer, clear_buffer));
         }
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
+            let mut clear_buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip)?;
+                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #sub_field_quote
                     #buffer
                 };
+                clear_buffer = quote! {
+                    #clear_buffer
+                    #clear
+                };
             }
-            return Ok(buffer);
+            return Ok((buffer, clear_buffer));
         }
         _ => {
-            quote! {self.#field_name}
+            if with_self {
+                quote! {self.#field_name}
+            }else{
+                quote! {#field_name}
+            }
         }
     };
     match field.attrs.endianness.as_ref() {
@@ -74,11 +210,12 @@ fn get_field_quote(
         Endianness::None => apply_ne_math_to_field_access_quote(field, quote_field_name, flip),
     }
 }
+// first token stream is actual setter, but second one is overwrite current bits to 0.
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
     flip: Option<usize>,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
     let operator = if let Some(flip) = flip {
@@ -170,11 +307,19 @@ fn apply_le_math_to_field_access_quote(
         let mid_shift: u32 = 8 - available_bits_in_first_byte as u32;
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
+        let mut clear_quote = quote! {};
         while i != fields_last_bits_index {
             let start = if let None = flip {
                 starting_inject_byte + i
             } else {
                 starting_inject_byte - i
+            };
+            let not_current_bit_mask = !current_bit_mask;
+            let not_next_bit_mask = !next_bit_mask;
+            clear_quote = quote! {
+                #clear_quote
+                output_byte_buffer[#start] &= #not_current_bit_mask;
+                output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
             };
             full_quote = quote! {
                 #full_quote
@@ -191,6 +336,13 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             let right_shift: u32 = right_shift.clone() as u32;
+            let not_first_bit_mask = !first_bit_mask;
+            let not_last_bit_mask = !last_bit_mask;
+            clear_quote = quote! {
+                #clear_quote
+                output_byte_buffer[#start] &= #not_first_bit_mask;
+                output_byte_buffer[#start #operator 1] &= #not_last_bit_mask;
+            };
             full_quote = quote! {
                 #full_quote
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
@@ -205,13 +357,18 @@ fn apply_le_math_to_field_access_quote(
             };
             // this should give us the last index of the field
             let left_shift: u32 = right_shift.clone().abs() as u32;
+            let not_first_bit_mask = !first_bit_mask;
+            clear_quote = quote! {
+                #clear_quote
+                output_byte_buffer[#start] &= #not_first_bit_mask;
+            };
             full_quote = quote! {
                 #full_quote
                 output_byte_buffer[#start] |= (#field_buffer_name[#i].rotate_left(#left_shift)) & #first_bit_mask;
             };
         }
 
-        Ok(full_quote)
+        Ok((full_quote, clear_quote))
     } else {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -270,17 +427,21 @@ fn apply_le_math_to_field_access_quote(
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
+        let not_mask = !mask;
+        let clear_quote = quote! {
+            output_byte_buffer[#starting_inject_byte] &= #not_mask;
+        };
         let apply_field_to_buffer = quote! {
             output_byte_buffer[#starting_inject_byte] |= (#field_as_u8_quote << #shift_left) & #mask;
         };
-        Ok(apply_field_to_buffer)
+        Ok((apply_field_to_buffer, clear_quote))
     }
 }
 fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
     flip: Option<usize>,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
     let operator = if let Some(flip) = flip {
@@ -321,6 +482,7 @@ fn apply_ne_math_to_field_access_quote(
             }
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
+        let mut clear_quote = quote!{};
         let mut full_quote = quote! {
             #field_byte_buffer;
         };
@@ -338,6 +500,13 @@ fn apply_ne_math_to_field_access_quote(
                 } else {
                     starting_inject_byte - i
                 };
+                let not_current_bit_mask = !current_bit_mask;
+                let not_next_bit_mask = !next_bit_mask;
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                    output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
+                };
                 full_quote = quote! {
                     #full_quote
                     #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
@@ -348,7 +517,7 @@ fn apply_ne_math_to_field_access_quote(
         } else if right_shift < 0 {
             return Err(syn::Error::new(
                 field.ident.span(),
-                "left shifting struct was removed to see if it would ever happend",
+                "left shifting struct was removed to see if it would ever happened",
             ));
             /* left shift (this means that the last bits are in the first byte)
             // because we are applying bits in place we need masks in insure we don't effect other fields
@@ -379,6 +548,11 @@ fn apply_ne_math_to_field_access_quote(
                 } else {
                     starting_inject_byte - i
                 };
+                let not_current_bit_mask = !current_bit_mask;
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                };
                 if i == 0 {
                     full_quote = quote! {
                         #full_quote
@@ -392,7 +566,7 @@ fn apply_ne_math_to_field_access_quote(
                 }
             }
         }
-        Ok(full_quote)
+        Ok((full_quote, clear_quote))
     } else {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -420,6 +594,11 @@ fn apply_ne_math_to_field_access_quote(
             ));
         }
         let shift_left = (8 - amount_of_bits) - (field.attrs.bit_range.start % 8);
+
+        let not_mask = !mask;
+        let clear_quote = quote! {
+            output_byte_buffer[#starting_inject_byte] &= #not_mask;
+        };
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -448,7 +627,7 @@ fn apply_ne_math_to_field_access_quote(
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
-        Ok(finished_quote)
+        Ok((finished_quote, clear_quote))
     }
 }
 ///
@@ -460,7 +639,7 @@ fn apply_be_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
     flip: Option<usize>,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
     if let Some(flip) = flip {
@@ -560,6 +739,10 @@ fn apply_be_math_to_field_access_quote(
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
+        let not_first_bit_mask = !first_bit_mask;
+        let mut clear_quote = quote!{
+            output_byte_buffer[#starting_inject_byte] &= #not_first_bit_mask;
+        };
         let mut full_quote = quote! {
             #field_byte_buffer;
             output_byte_buffer[#starting_inject_byte] |= #field_buffer_name[#first_bits_index] & #first_bit_mask;
@@ -570,10 +753,15 @@ fn apply_be_math_to_field_access_quote(
         } else {
             starting_inject_byte - 1
         };
+        let not_last_bit_mask = !last_bit_mask;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
             if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1usize..field.ty.size() {
+                    clear_quote = quote!{
+                        #clear_quote
+                        output_byte_buffer[#current_byte_index_in_buffer] = 0u8;
+                    };
                     full_quote = quote! {
                         #full_quote
                         output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#i];
@@ -585,6 +773,10 @@ fn apply_be_math_to_field_access_quote(
                     };
                 }
             }
+            clear_quote = quote!{
+                #clear_quote
+                output_byte_buffer[#current_byte_index_in_buffer] &= #not_last_bit_mask;
+            };
             full_quote = quote! {
                 #full_quote
                 output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[0] & #last_bit_mask;
@@ -606,13 +798,17 @@ fn apply_be_math_to_field_access_quote(
             }
             // this should give us the last index of the field
             let final_index = field.ty.size() - 1;
+            clear_quote = quote!{
+                #clear_quote
+                output_byte_buffer[#current_byte_index_in_buffer] &= #not_last_bit_mask;
+            };
             full_quote = quote! {
                 #full_quote
                 output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#final_index] & #last_bit_mask;
             };
         }
 
-        Ok(full_quote)
+        Ok((full_quote, clear_quote))
     } else {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -671,9 +867,13 @@ fn apply_be_math_to_field_access_quote(
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
+        let not_mask = !mask;
+        let clear_quote = quote! {
+            output_byte_buffer[#starting_inject_byte] &= #not_mask;
+        };
         let apply_field_to_buffer = quote! {
             output_byte_buffer[#starting_inject_byte] |= (#field_as_u8_quote << #shift_left) & #mask;
         };
-        Ok(apply_field_to_buffer)
+        Ok((apply_field_to_buffer, clear_quote))
     }
 }

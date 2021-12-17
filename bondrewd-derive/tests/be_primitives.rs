@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
-#[cfg(feature = "peek_slice")]
-use bondrewd::BitfieldPeekError;
+#[cfg(feature = "slice_fns")]
+use bondrewd::BitfieldSliceError;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -33,7 +33,7 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b0001_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
@@ -70,7 +70,7 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
 
     assert_eq!(bytes[1], 0b01111111);
     assert_eq!(bytes[0], 0b11100000);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
@@ -106,7 +106,7 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b00000111);
     assert_eq!(bytes[1], 0b11111110);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);
@@ -142,22 +142,33 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         two: 10,
     };
     assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
+    #[cfg(feature = "slice_fns")]
+    let mut bytes: [u8;2] = simple.clone().into_bytes();
+    #[cfg(not(feature = "slice_fns"))]
     let bytes: [u8;2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
     assert_eq!(bytes[0], 0b10101010);
     assert_eq!(bytes[1], 0b10001010);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReserve::peek_slice_one(&bytes)?);
-        assert_eq!(0, SimpleWithReserve::peek_slice_two(&bytes)?);
+        assert_eq!(0, SimpleWithReserve::peek_slice_reserve(&bytes)?);
         assert_eq!(
-            simple.three,
-            SimpleWithReserve::peek_slice_three(&bytes)?
+            simple.two,
+            SimpleWithReserve::peek_slice_two(&bytes)?
         );
+        // TODO write more set slice tests
+        SimpleWithReserve::set_slice_one(&mut bytes, 0)?;
+        SimpleWithReserve::set_slice_reserve(&mut bytes, 7)?;
+        SimpleWithReserve::set_slice_two(&mut bytes, 0)?;
+        simple.one = 0;
+        simple.two = 0;
     }
-
+    #[cfg(feature = "slice_fns")]
+    assert_eq!(7, SimpleWithReserve::peek_reserve(&bytes));
+    #[cfg(not(feature = "slice_fns"))]
     assert_eq!(0, SimpleWithReserve::peek_reserve(&bytes));
     assert!(SimpleWithReserve::peek_reserve(&bytes) != simple.reserve);
     simple.reserve = 0;

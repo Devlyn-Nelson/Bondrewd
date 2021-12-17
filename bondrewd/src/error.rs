@@ -1,9 +1,9 @@
-/// Currently there is only 1 error type which is not enough bytes provided to peek at field.
+/// Currently there is only 1 error type which is not enough bytes provided to slice at field.
 /// (amount of bytes provided , amount of bytes required)
 #[derive(Debug)]
-pub struct BitfieldPeekError(pub usize, pub usize);
+pub struct BitfieldSliceError(pub usize, pub usize);
 
-impl std::fmt::Display for BitfieldPeekError {
+impl std::fmt::Display for BitfieldSliceError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             fmt,
@@ -13,4 +13,4 @@ impl std::fmt::Display for BitfieldPeekError {
     }
 }
 
-impl std::error::Error for BitfieldPeekError {}
+impl std::error::Error for BitfieldSliceError {}

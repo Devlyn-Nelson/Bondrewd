@@ -12,13 +12,13 @@ pub trait BitfieldEnum {
 }
 
 mod error;
-#[cfg(feature = "peek_slice")]
-pub use error::BitfieldPeekError;
+#[cfg(feature = "slice_fns")]
+pub use error::BitfieldSliceError;
 
 // re-export the derive stuff
 #[cfg(feature = "derive")]
 #[doc(hidden)]
 pub use bondrewd_derive::*;
 
-#[cfg(all(not(feature = "derive"), feature = "peek_slice"))]
-compile_error!("the peek_slice attribute depends on the derive attribute");
+#[cfg(all(not(feature = "derive"), feature = "slice_fns"))]
+compile_error!("the slice_fns attribute depends on the derive attribute");

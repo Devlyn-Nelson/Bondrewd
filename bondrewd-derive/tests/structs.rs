@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
-#[cfg(feature = "peek_slice")]
-use bondrewd::BitfieldPeekError;
+#[cfg(feature = "slice_fns")]
+use bondrewd::BitfieldSliceError;
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
@@ -48,7 +48,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes[6], 0b10000100);
     assert_eq!(bytes[7], 0b00001110);
 
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithStruct::peek_slice_one(&bytes)?);
@@ -96,7 +96,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     assert_eq!(bytes[2], 0b11000010);
     assert_eq!(bytes[1], 0b10000100);
     assert_eq!(bytes[0], 0b00001110);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(
@@ -157,7 +157,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b00001010);
     assert_eq!(bytes[1], 0b10000000);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(
@@ -207,7 +207,7 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b01010101);
     assert_eq!(bytes[1], 0b00001010);
-    #[cfg(feature = "peek_slice")]
+    #[cfg(feature = "slice_fns")]
     {
         //peeks
         assert_eq!(

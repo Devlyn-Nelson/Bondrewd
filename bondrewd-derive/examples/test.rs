@@ -1,6 +1,6 @@
 use bondrewd::{BitfieldEnum, Bitfields};
-#[cfg(feature = "peek_slice")]
-use bondrewd::BitfieldPeekError;
+#[cfg(feature = "slice_fns")]
+use bondrewd::BitfieldSliceError;
 
 #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {

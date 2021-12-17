@@ -5,7 +5,7 @@ use enums::parse::EnumInfo;
 mod structs;
 use structs::common::StructInfo;
 use structs::from_bytes::create_from_bytes_field_quotes;
-use structs::into_bytes::create_to_bytes_field_quotes;
+use structs::into_bytes::create_into_bytes_field_quotes;
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -67,34 +67,37 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = format_ident!("{}", struct_info.name);
 
+    
+    // get a list of all fields from_bytes logic which gets there bytes from an array called
+    // input_byte_buffer.
+    let slice_fns: bool;
+    #[cfg(not(feature = "slice_fns"))]
+    {
+        slice_fns = false;
+    }
+    #[cfg(feature = "slice_fns")]
+    {
+        slice_fns = true;
+    }
     // get a list of all fields into_bytes logic which puts there bytes into an array called
     // output_byte_buffer.
-    let fields_to_bytes = match create_to_bytes_field_quotes(&struct_info) {
+    let fields_into_bytes = match create_into_bytes_field_quotes(&struct_info, slice_fns) {
         Ok(ftb) => ftb,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
-    // get a list of all fields from_bytes logic which gets there bytes from an array called
-    // input_byte_buffer.
-    let peek_slice: bool;
-    #[cfg(not(feature = "peek_slice"))]
-    {
-        peek_slice = false;
-    }
-    #[cfg(feature = "peek_slice")]
-    {
-        peek_slice = true;
-    }
-    let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, peek_slice) {
-        Ok(ftb) => ftb,
+    let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, slice_fns) {
+        Ok(ffb) => ffb,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
     // combine all of the into_bytes quotes separated by newlines
-    let mut to_bytes_quote = quote! {};
-    for field_to_bytes in fields_to_bytes {
-        to_bytes_quote = quote! {
-            #to_bytes_quote
-            #field_to_bytes
-        };
+    let into_bytes_quote = fields_into_bytes.into_bytes_fn;
+    let mut set_quotes = fields_into_bytes.set_field_fns;
+
+    if let Some(set_slice_quote) = fields_into_bytes.set_slice_field_fns {
+        set_quotes = quote! {
+            #set_quotes
+            #set_slice_quote
+        }
     }
 
     let from_bytes_quote = fields_from_bytes.from_bytes_fn;
@@ -107,9 +110,10 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
         }
     }
 
-    peek_quotes = quote! {
+    let getter_setters_quotes = quote! {
         impl #struct_name {
             #peek_quotes
+            #set_quotes
         }
     };
 
@@ -125,16 +129,10 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
     let to_bytes_quote = quote! {
         impl Bitfields<#struct_size> for #struct_name {
             const BIT_SIZE: usize = #bit_size;
-
-            fn into_bytes(self) -> [u8;#struct_size] {
-                let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
-                #to_bytes_quote
-                output_byte_buffer
-            }
-
+            #into_bytes_quote
             #from_bytes_quote
         }
-        #peek_quotes
+        #getter_setters_quotes
     };
 
     TokenStream::from(to_bytes_quote)
