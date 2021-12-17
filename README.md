@@ -38,11 +38,13 @@ Field Derive features:
     - #[bondrewd(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
     - #[bondrewd(array_byte_length = {TOTAL_AMOUNT_OF_BYTES})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
+- Ignore reserve fields. peek_ and peek_slice_ functions are still generated but into_bytes and from_bytes will just use zeros
+  - #[bondrewd(reserve)]
 
 Enum Derive features: 
 - Derive from_primitive and into_primitive.
 - specify a Invalid variant for catching values that don't make sense. otherwise the last value will be used as a catch all.
-  - #[invalid].
+  - #[bondrewd_enum(invalid)].
 - Invalid with primitive. like the Invalid catch all above but it stores the value as a variant field.
 
 Long answer.
