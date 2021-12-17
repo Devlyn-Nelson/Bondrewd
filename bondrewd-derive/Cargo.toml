@@ -23,4 +23,4 @@ slice_fns = []
 
 [dev-dependencies]
 anyhow = "1.0.51"
-bondrewd = { path = "../bondrewd", features = ["derive", "slice_fns"] }
+bondrewd = { path = "../bondrewd", features = ["derive"] }
