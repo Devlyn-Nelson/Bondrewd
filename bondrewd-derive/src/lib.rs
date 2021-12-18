@@ -48,7 +48,7 @@
 //! }
 //! ```
 //! # Supported Field Types
-//! * All primitive other than usize and isize (i believe ambiguous sizing is bad for this type of work).
+//! * All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 //! * Enums which implement the BitfieldEnum trait in bondrewd.
 //! * Structs which implement the Bitfield trait in bondrewd.
 //! 
@@ -58,20 +58,21 @@
 //! * `enforce_bytes = {BYTES}` defines a required resulting BIT_SIZE divided by 8 of the structure in condensed form.
 //! * `enforce_bits = {BYTES}` defines a required resulting BIT_SIZE of the structure in condensed form.
 //! * `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
-//! * `reverse` defines that the entire byte array should be reverse before reading. no runtime cost.
+//! * `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
 //! 
 //! # Field Attributes 
-//! * `bit_length = {BITS}` define the total amount of bits to use when packed.
-//! * `byte_length = {BYTES}` define the total amount of bytes to use when packed.
+//! * `bit_length = {BITS}` define the total amount of bits to use when condensed.
+//! * `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
 //! * `endianness = {"le" or "be"}` define per field endianess.
-//! * `element_bit_length = ` describes that the bit length is for each element of an array.
-//! * `element_byte_length = ` describes that the byte length is for each element of an array.
-//! * `block_bit_length = ` describes that the bit length is for the entire an array dropping lower indexes first.
-//! * `block_byte_length = ` describes that the byte length is for the entire an array dropping lower indexes first.
+//! * `element_bit_length = {BITS}` describes a bit length for each element of an array.
+//! * `element_byte_length = {BYTES}` describes a byte length for each element of an array.
+//! * `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first.
+//! * `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first.
 //! * `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
 //! * `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
 //! * `reserve` defines that this field should be ignored in from and into bytes functions.
-//! * /!Untested!\ `bits` - define the bit indexes yourself rather than let the proc macro figure it out.
+//! * /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure 
+//! it out. using a rust range in quotes.
 //! 
 //! ### Full Example Generated code
 //! ```
