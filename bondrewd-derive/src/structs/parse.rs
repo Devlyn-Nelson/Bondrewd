@@ -385,7 +385,7 @@ impl FieldAttrBuilder {
                                 ));
                             }
                         }
-                        "array_bit_length" => {
+                        "block_bit_length" => {
                             if let Lit::Int(val) = value.lit {
                                 match val.base10_parse::<usize>() {
                                     Ok(bit_length) => {
@@ -429,7 +429,7 @@ impl FieldAttrBuilder {
                                 ));
                             }
                         }
-                        "array_byte_length" => {
+                        "block_byte_length" => {
                             if let Lit::Int(val) = value.lit {
                                 match val.base10_parse::<usize>() {
                                     Ok(byte_length) => {

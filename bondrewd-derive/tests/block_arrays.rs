@@ -7,7 +7,7 @@ use bondrewd::BitfieldSliceError;
 struct SimpleWithBlockArray {
     #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bondrewd(array_bit_length = 9)]
+    #[bondrewd(block_bit_length = 9)]
     two: [u8; 2],
     #[bondrewd(bit_length = 4)]
     three: u8,

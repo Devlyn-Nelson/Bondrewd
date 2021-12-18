@@ -1,3 +1,4 @@
+//! Defined Traits for bondrewd-derive,
 pub trait Bitfields<const SIZE: usize> {
     const BYTE_SIZE: usize = SIZE;
     const BIT_SIZE: usize;

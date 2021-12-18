@@ -1,6 +1,6 @@
 # Bondrewd
 I use this for work, so if you use this and find a problem i would be more than happy to fix it.
-I currently do not have time to write good docs, so in the mean time looking at the files within the bondrewd-derive/tests/ folder would be your best bet.
+Im also not good at making read me's.
 # Purpose
 Short answer.
 
@@ -37,8 +37,8 @@ Field Derive features:
     - #[bondrewd(element_bit_length = {TOTAL_BITS_PER_ELEMENT})]
     - #[bondrewd(element_byte_length = {TOTAL_BYTES_PER_ELEMENT})]
   - Block Array. Define a overall bit length. example [u8;4] defined with a bit-length of 28 would remove the 4 Most Significant bits. 
-    - #[bondrewd(array_bit_length = {TOTAL_AMOUNT_OF_BITS})]
-    - #[bondrewd(array_byte_length = {TOTAL_AMOUNT_OF_BYTES})]
+    - #[bondrewd(block_bit_length = {TOTAL_AMOUNT_OF_BITS})]
+    - #[bondrewd(block_byte_length = {TOTAL_AMOUNT_OF_BYTES})]
 - Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
 - Ignore reserve fields. peek_ and peek_slice_ functions are still generated but into_bytes and from_bytes will just use zeros
   - #[bondrewd(reserve)]
