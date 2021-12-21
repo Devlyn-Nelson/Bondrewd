@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd-derive"
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Dev <devlynknelson@gmail.com>"]
@@ -19,10 +19,10 @@ quote = "1.0"
 syn = "1.0"
 
 [features]
-default = ["hex_fns"]
+default = []
 slice_fns = []
 hex_fns = []
 
 [dev-dependencies]
 anyhow = "1.0.51"
-bondrewd = { path = "../bondrewd", features = ["derive"] }
+bondrewd = { path = "../bondrewd", features = ["derive", "slice_fns", "hex_fns"] }

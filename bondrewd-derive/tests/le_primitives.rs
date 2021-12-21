@@ -1,6 +1,4 @@
-use bondrewd::Bitfields;
-#[cfg(feature = "slice_fns")]
-use bondrewd::BitfieldSliceError;
+use bondrewd::*;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le")]

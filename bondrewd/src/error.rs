@@ -13,13 +13,16 @@ impl std::fmt::Display for BitfieldSliceError {
     }
 }
 impl std::error::Error for BitfieldSliceError {}
-#[cfg(feature = "hex_fns")]
-use thiserror::Error;
-#[cfg(feature = "hex_fns")]
-#[derive(Debug, Error)]
-pub enum BitfieldHexError {
-    #[error("expected {1} bytes, {0} bytes were provided.")]
-    InvaildSize(usize, usize),
-    #[error(transparent)]
-    HexRegexFailure(#[from] std::num::ParseIntError),
+
+#[derive(Debug)]
+pub struct BitfieldHexError(pub char, pub usize);
+
+impl std::fmt::Display for BitfieldHexError {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            fmt,
+            "found Invalid character {} @ index {}.",
+            self.0, self.1
+        )
+    }
 }

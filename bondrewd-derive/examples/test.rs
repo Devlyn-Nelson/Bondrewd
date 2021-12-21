@@ -1,6 +1,4 @@
 use bondrewd::*;
-#[cfg(feature = "slice_fns")]
-use bondrewd::BitfieldSliceError;
 
 #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {
@@ -36,13 +34,48 @@ pub struct CcsdsPacketHeader {
     pub(crate) packet_data_length: u16,
 }
 
-#[derive(Bitfields)]
+#[derive(Bitfields, Clone)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
     #[bondrewd(bit_length = 4)]
     four: u8,
-    asdf: [i8;6],
+    asdf: i8,
+}
+
+/*#[derive(Bitfields, Clone, Debug, PartialEq)]
+#[bondrewd(read_from = "lsb0", enforce_bits = 3)]
+pub struct StatusMagnetometer {
+    int_mtm1: bool,
+    int_mtm2: bool,
+    ext_mtm: bool,
+}
+
+/// Response to a Get Mtm Reading command - returns data in the Telemetry::Magnetometer format (separate as non-unit enums are not supported by GraphQL)
+/// This includes status and readings for all magnetometers
+#[derive(Bitfields, Clone, Debug, PartialEq)]
+#[bondrewd(default_endianness = "msb")]
+pub struct Magnetometer {
+    pub timestamp: u64,
+    #[bondrewd(struct_size = 1)]
+    pub status: StatusMagnetometer,
+    #[bondrewd(block_byte_length = 6)]
+    pub int_mtm1_xyz: [i16; 3],
+    #[bondrewd(block_byte_length = 6)]
+    pub int_mtm2_xyz: [i16; 3],
+    #[bondrewd(block_byte_length = 6)]
+    pub ext_mtm_xyz: [i16; 3],
+}*/
+
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "be")]
+struct SimpleWithBlockArray {
+    #[bondrewd(bit_length = 3)]
+    one: u8,
+    #[bondrewd(block_bit_length = 9)]
+    two: [u8; 2],
+    #[bondrewd(bit_length = 4)]
+    three: u8,
 }
 
 fn main() {

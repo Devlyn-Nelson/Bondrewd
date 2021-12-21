@@ -513,6 +513,7 @@ impl Iterator for ElementSubFieldIter {
     }
 }
 
+#[derive(Debug)]
 pub struct BlockSubFieldIter {
     pub outer_ident: Box<Ident>,
     pub endianness: Box<Endianness>,
@@ -533,15 +534,10 @@ impl Iterator for BlockSubFieldIter {
             if ty_size > self.bit_length {
                 ty_size = self.bit_length;
             }
-            let start = if self.length > 0 {
-                self.starting_bit_index
-                    + (self.bit_length % ty_size)
-                    + ((self.length - 1) * ty_size)
-            } else {
-                self.starting_bit_index
-            };
+            let start = self.starting_bit_index;
+            self.starting_bit_index = start + ty_size;
             let attrs = FieldAttrs {
-                bit_range: start..start + ty_size,
+                bit_range: start..(start + ty_size),
                 endianness: self.endianness.clone(),
                 reserve: false,
             };
@@ -702,6 +698,7 @@ impl FieldInfo {
     }
 }
 
+#[derive(Debug)]
 pub enum StructEnforcement {
     /// there is no enforcement so if bits are unused then it will act like they are a reserve field
     NoRules,
@@ -711,6 +708,7 @@ pub enum StructEnforcement {
     EnforceBitAmount(usize),
 }
 
+#[derive(Debug)]
 pub struct StructInfo {
     pub name: Ident,
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
