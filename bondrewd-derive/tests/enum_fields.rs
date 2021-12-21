@@ -1,6 +1,4 @@
-use bondrewd::{BitfieldEnum, Bitfields};
-#[cfg(feature = "slice_fns")]
-use bondrewd::BitfieldSliceError;
+use bondrewd::*;
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 enum TestEnum {

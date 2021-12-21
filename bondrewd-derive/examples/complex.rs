@@ -1,6 +1,4 @@
-use bondrewd::{BitfieldEnum, Bitfields};
-#[cfg(feature = "slice_fns")]
-use bondrewd::BitfieldSliceError;
+use bondrewd::*;
 
 #[derive(BitfieldEnum, Clone, Eq, PartialEq, Debug)]
 enum EyeColor {
@@ -66,5 +64,4 @@ fn main() {
     let bytes = person.clone().into_bytes();
     let cloned_and_transferred_person = PersonStuff::from_bytes(bytes);
     assert_eq!(cloned_and_transferred_person, person);
-    println!("");
 }
