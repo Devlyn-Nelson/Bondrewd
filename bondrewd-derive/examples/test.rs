@@ -37,14 +37,9 @@ pub struct CcsdsPacketHeader {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bondrewd(bit_length = 19)]
-    two: u32,
-    #[bondrewd(bit_length = 14)]
-    six: u16,
     #[bondrewd(bit_length = 4)]
     four: u8,
 }
