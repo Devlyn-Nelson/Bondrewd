@@ -12,5 +12,14 @@ impl std::fmt::Display for BitfieldSliceError {
         )
     }
 }
-
 impl std::error::Error for BitfieldSliceError {}
+#[cfg(feature = "hex_fns")]
+use thiserror::Error;
+#[cfg(feature = "hex_fns")]
+#[derive(Debug, Error)]
+pub enum BitfieldHexError {
+    #[error("expected {1} bytes, {0} bytes were provided.")]
+    InvaildSize(usize, usize),
+    #[error(transparent)]
+    HexRegexFailure(#[from] std::num::ParseIntError),
+}

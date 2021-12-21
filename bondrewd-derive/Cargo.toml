@@ -19,7 +19,9 @@ quote = "1.0"
 syn = "1.0"
 
 [features]
+default = ["hex_fns"]
 slice_fns = []
+hex_fns = []
 
 [dev-dependencies]
 anyhow = "1.0.51"

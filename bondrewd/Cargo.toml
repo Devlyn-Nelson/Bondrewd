@@ -12,8 +12,10 @@ repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 
 [dependencies]
 bondrewd-derive = { path = "../bondrewd-derive", optional = true }
+thiserror = { version = "^1.0", optional = true }
 
 [features] 
-default = []
+default = ["hex_fns"]
 derive = ["bondrewd-derive"]
 slice_fns = ["bondrewd-derive/slice_fns"]
+hex_fns = ["thiserror"]

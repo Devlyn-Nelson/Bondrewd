@@ -12,9 +12,17 @@ pub trait BitfieldEnum {
     fn into_primitive(self) -> Self::Primitive;
 }
 
+
 mod error;
 #[cfg(feature = "slice_fns")]
 pub use error::BitfieldSliceError;
+#[cfg(feature = "hex_fns")]
+pub use error::BitfieldHexError;
+#[cfg(feature = "hex_fns")]
+pub trait BitfieldHex<S = Self>{
+    fn from_hex_string(hex: String) -> Result<S, BitfieldHexError>;
+    fn into_hex_string(self) -> String;
+}
 
 // re-export the derive stuff
 #[cfg(feature = "derive")]

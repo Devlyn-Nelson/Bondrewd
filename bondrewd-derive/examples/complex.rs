@@ -1,4 +1,4 @@
-use bondrewd::{BitfieldEnum, Bitfields};
+use bondrewd::*;
 #[cfg(feature = "slice_fns")]
 use bondrewd::BitfieldSliceError;
 

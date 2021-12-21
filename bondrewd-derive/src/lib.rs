@@ -64,15 +64,19 @@
 //! * `bit_length = {BITS}` define the total amount of bits to use when condensed.
 //! * `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
 //! * `endianness = {"le" or "be"}` define per field endianess.
+//! * `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first. (default array type)
+//! * `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first. (default array type)
 //! * `element_bit_length = {BITS}` describes a bit length for each element of an array.
 //! * `element_byte_length = {BYTES}` describes a byte length for each element of an array.
-//! * `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first.
-//! * `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first.
 //! * `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
 //! * `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
 //! * `reserve` defines that this field should be ignored in from and into bytes functions.
 //! * /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure 
 //! it out. using a rust range in quotes.
+//! 
+//! # Crate Features:
+//! * `slice_fns` added peek_slice_{field}(&[u8]) -> Result<{field_type}, BondrewdSliceError> {} and 
+//! set_slice_{field}(&mut [u8], {field_type}) -> Result<(), BondrewdSliceError> {}
 //! 
 //! ### Full Example Generated code
 //! ```
@@ -299,6 +303,53 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
             #set_quotes
         }
     };
+    let mut hex = false;
+    #[cfg(feature = "hex_fns")]
+    {
+        hex = true;
+    }
+    let hex_fns_quote = if hex {
+        quote! {
+            impl BitfieldHex for #struct_name {
+                fn from_hex_string(hex: String) -> Result<Self, BitfieldHexError> {
+                    let hex = hex.as_str();
+                    if hex.len() == Self::BYTE_SIZE * 2 {
+                        let mut bytes: [u8; #struct_size] = [0;Self::BYTE_SIZE];
+                        for i in 0..Self::BYTE_SIZE * 2 {
+                            bytes[i] = u8::from_str_radix(&hex[i..i + 2], 16)?;
+                        }
+                        Ok(Self::from_bytes(bytes))
+                    }else{
+                        Err(BitfieldHexError::InvaildSize(hex.len(), Self::BYTE_SIZE))
+                    }
+                }
+        
+                fn into_hex_string(self) -> String {
+                    let bytes = self.into_bytes();
+                    bytes.iter().map(|byte| match byte {
+                        0 => '0',
+                        1 => '1',
+                        2 => '2',
+                        3 => '3',
+                        4 => '4',
+                        5 => '5',
+                        6 => '6',
+                        7 => '7',
+                        8 => '8',
+                        9 => '9',
+                        10 => 'A',
+                        11 => 'B',
+                        12 => 'C',
+                        13 => 'D',
+                        14 => 'E',
+                        15 => 'F',
+                    }).collect()
+                }
+            }
+        }
+    }else{
+        quote!{}
+    };
 
     // get the bit size of the entire set of fields to fill in trait requirement.
     let bit_size = struct_info.total_bits();
@@ -316,6 +367,7 @@ pub fn derive_smart_fields(input: TokenStream) -> TokenStream {
             #from_bytes_quote
         }
         #getter_setters_quotes
+        #hex_fns_quote
     };
 
     TokenStream::from(to_bytes_quote)
