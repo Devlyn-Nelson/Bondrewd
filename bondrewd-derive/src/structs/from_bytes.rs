@@ -640,11 +640,26 @@ fn apply_be_math_to_field_access_quote(
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let output = match field.ty {
             FieldDataType::Number(size, _, ref type_quote) |
-            FieldDataType::Float(size, ref type_quote) |
             FieldDataType::Enum(ref type_quote, size, _) => {
                 let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip);
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_be_bytes({
+                        #full_quote
+                    })#shift
+                };
+                apply_field_to_buffer
+            }
+            FieldDataType::Float(size, _) => {
+                let alt_type_quote = if size == 4 {
+                    quote!{u32}
+                }else if size == 8 {
+                    quote!{u64}
+                }else{
+                    return Err(syn::Error::new(field.ident.span(), "unsupported floating type"))
+                };
+                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip);
+                let apply_field_to_buffer = quote! {
+                    #alt_type_quote::from_be_bytes({
                         #full_quote
                     })#shift
                 };

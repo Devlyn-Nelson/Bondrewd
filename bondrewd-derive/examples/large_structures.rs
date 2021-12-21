@@ -1,16 +1,16 @@
-use bondrewd::{BitfieldEnum, Bitfields};
-#[cfg(feature = "slice_fns")]
-use bondrewd::BitfieldSliceError;
+use bondrewd::*;
 
-#[bondrewd(defaut_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
+#[derive(Bitfields)]
+#[bondrewd(default_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
 pub struct StatusMagnetometer {
     mtm1: bool,
     mtm2: bool,
     mtm3: bool,
-    #[bondrewd(bit_length = "5")]
+    #[bondrewd(bit_length = 5, reserve)]
     reserved: u8,
 }
 
+#[derive(Bitfields)]
 #[bondrewd(default_endianness = "big")]
 pub struct Magnetometers {
     pub timestamp: u64,
