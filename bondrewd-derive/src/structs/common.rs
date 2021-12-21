@@ -120,6 +120,19 @@ impl Endianness {
             true
         }
     }
+    fn perhaps_endianness(&mut self, size: usize) -> bool {
+        if let Self::None = self {
+            if size == 1{
+                let mut swap = Self::Big;
+                std::mem::swap(&mut swap,self);
+                true
+            }else{
+                false
+            }
+        } else {
+            true
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -272,55 +285,21 @@ impl FieldDataType {
                                     )
                                 }
                                 _ => {
-                                    
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
                                         sub_attrs.ty = FieldAttrBuilderType::None;
                                     }
+
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
                                         &ident,
                                         default_endianess,
                                     )?;
-
-                                    attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        FieldBuilderRange::Range(range) => {
-                                            if range.end < range.start {
-                                                return Err(syn::Error::new(
-                                                    ident.span(),
-                                                    "range end is less than range start",
-                                                ));
-                                            }
-                                            if range.end - range.start
-                                                != sub_ty.size() * 8 * array_length
-                                            {
-                                                return Err(
-                                                    syn::Error::new(
-                                                        ident.span(),
-                                                        "Element arrays bit range didn't match (element bit size * array length)"
-                                                    )
-                                                );
-                                            }
-                                            FieldBuilderRange::Range(range)
-                                        }
-                                        FieldBuilderRange::LastEnd(last_end) => {
-                                            FieldBuilderRange::Range(
-                                                last_end
-                                                    ..last_end + (array_length * sub_ty.size() * 8),
-                                            )
-                                        }
-                                        _ => {
-                                            return Err(syn::Error::new(
-                                                ident.span(),
-                                                "failed getting Range for element array",
-                                            ));
-                                        }
-                                    };
-
+                                    attrs.endianness = sub_attrs.endianness;
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::ElementArray(
+                                    FieldDataType::BlockArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
@@ -350,7 +329,7 @@ impl FieldDataType {
         // if the type is a number and its endianess is None (numbers should have endianess) then we
         // apply the structs default (which might also be None)
         if data_type.is_number() {
-            if !attrs.endianness.has_endianness() {
+            if !attrs.endianness.perhaps_endianness(data_type.size()) {
                 if default_endianess.has_endianness() {
                     attrs.endianness = Box::new(default_endianess.clone());
                 } else {

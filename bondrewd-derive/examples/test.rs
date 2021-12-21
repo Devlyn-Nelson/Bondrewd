@@ -42,6 +42,7 @@ struct Simple {
     one: u8,
     #[bondrewd(bit_length = 4)]
     four: u8,
+    asdf: [i8;6],
 }
 
 fn main() {
