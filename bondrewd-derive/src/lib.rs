@@ -186,44 +186,48 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, DeriveInput};
 
-
-
-
-
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access.
 /// 
 /// # Struct Derive Tasks
-/// - [x] read_direction ( the bit order is reversed with no runtime cost)
-/// - [x] flip (flip the entire byte order with no runtime cost)
 /// - [x] Little Endian primitives
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
 /// - [x] Big Endian primitives
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
 /// - [x] Struct
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
 /// - [x] Enum
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
 /// - [x] Element Arrays
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
 /// - [x] Block Arrays
+///     - [x] Impl peek_{field} and set_{field} functions.
 ///     - [x] Impl into_bytes.
-///     - [x] Impl peek_{field} and peek_slice_{field} functions.
 ///     - [x] Impl from_bytes.
+///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
+///     - [ ] use this array type automatically if no attributes are provided.
 /// - [x] bit size enforcement as an option to ensure proper struct sizing
 ///     - [x] full bytes attribute (BIT_SIZE % 8 == 0)
 ///     - [x] total bit/bytes length enforcement by a specified amount of
 ///             bits or bytes.
+/// - [x] read_direction ( the bit order is reversed with no runtime cost)
+/// - [x] flip (flip the entire byte order with no runtime cost)
+/// - [x] reserve fields which don't get read or written in into or from bytes functions.
 /// - [ ] make single byte primitives automatically use big endianness if not defined.
 /// * primitives should exclude usize and isize due to ambiguous sizing
 #[proc_macro_derive(
