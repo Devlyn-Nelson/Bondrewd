@@ -1,5 +1,5 @@
 //! Defined Traits for bondrewd-derive.
-//! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/0.2.12/bondrewd_derive/)
+//! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/0.2.13/bondrewd_derive/)
 pub trait Bitfields<const SIZE: usize> {
     const BYTE_SIZE: usize = SIZE;
     const BIT_SIZE: usize;
