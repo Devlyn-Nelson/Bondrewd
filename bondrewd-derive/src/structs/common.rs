@@ -531,8 +531,8 @@ impl Iterator for BlockSubFieldIter {
     fn next(&mut self) -> Option<Self::Item> {
         if self.length != 0 {
             let mut ty_size = self.ty.size() * 8;
-            if ty_size > self.bit_length {
-                ty_size = self.bit_length;
+            if  self.bit_length % ty_size != 0 {
+                ty_size = self.bit_length % ty_size;
             }
             let start = self.starting_bit_index;
             self.starting_bit_index = start + ty_size;
