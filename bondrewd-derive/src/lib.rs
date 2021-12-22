@@ -75,11 +75,13 @@
 //! it out. using a rust range in quotes.
 //! 
 //! # Crate Features:
-//! * `slice_fns` added peek_slice_{field}(&[u8]) -> Result<{field_type}, BondrewdSliceError> {} and 
-//! set_slice_{field}(&mut [u8], {field_type}) -> Result<(), BondrewdSliceError> {}
-//! * `hex_fns` provided from/into hex functions like from/into bytes. the hex inputs/outputs are [u8;N] 
+//! * `slice_fns` generates slice functions: 
+//!     * `fn peek_slice_{field}(&[u8]) -> Result<{field_type}, BondrewdSliceError> {}`
+//!     * `fn set_slice_{field}(&mut [u8], {field_type}) -> Result<(), BondrewdSliceError> {}`
+//! * `hex_fns` provided from/into hex functions like from/into bytes. the hex inputs/outputs are \[u8;N\] 
 //! where N is double the calculated bondrewd STRUCT_SIZE. hex encoding and decoding is based off the 
-//! hex crate to and from slice fns but with statically sized arrays so we could eliminate sizing errors.
+//! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized 
+//! arrays so we could eliminate sizing errors.
 //! 
 //! ### Full Example Generated code
 //! ```
