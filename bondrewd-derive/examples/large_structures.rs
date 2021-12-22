@@ -1,6 +1,6 @@
 use bondrewd::*;
 
-#[derive(Bitfields, Debug, Clone)]
+#[derive(Bitfields, Debug, Clone, PartialEq)]
 #[bondrewd(default_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
 pub struct StatusMagnetometer {
     mtm1: bool,
@@ -11,7 +11,7 @@ pub struct StatusMagnetometer {
     reserved: u8,
 }
 
-#[derive(Bitfields, Debug, Clone)]
+#[derive(Bitfields, Debug, Clone, PartialEq)]
 #[bondrewd(default_endianness = "big")]
 pub struct Magnetometers {
     pub timestamp: u64,
@@ -46,5 +46,12 @@ fn main() {
         hex_from_bytes.push(hex_char as char);
     }
     assert_eq!("000000000002918407FE63FDA30156039EFE4EFA4AFFF20235004D", hex_from_bytes);
-    println!("");
+    match Magnetometers::from_hex(bytes) {
+        Ok(mag) => {
+            assert_eq!(mag, og);
+        }
+        Err(err) => {
+            panic!("failed paring hex [{}]", err);
+        }
+    }
 }
