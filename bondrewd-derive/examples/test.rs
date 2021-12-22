@@ -34,15 +34,6 @@ pub struct CcsdsPacketHeader {
     pub(crate) packet_data_length: u16,
 }
 
-#[derive(Bitfields, Clone)]
-struct Simple {
-    #[bondrewd(bit_length = 3)]
-    one: u8,
-    #[bondrewd(bit_length = 4)]
-    four: u8,
-    asdf: i8,
-}
-
 /*#[derive(Bitfields, Clone, Debug, PartialEq)]
 #[bondrewd(read_from = "lsb0", enforce_bits = 3)]
 pub struct StatusMagnetometer {
@@ -67,15 +58,15 @@ pub struct Magnetometer {
     pub ext_mtm_xyz: [i16; 3],
 }*/
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
-struct SimpleWithBlockArray {
-    #[bondrewd(bit_length = 3)]
-    one: u8,
-    #[bondrewd(block_bit_length = 9)]
-    two: [u8; 2],
-    #[bondrewd(bit_length = 4)]
-    three: u8,
+#[derive(Bitfields, Clone, PartialEq, Debug)]
+#[bondrewd(default_endianness = "le")]
+struct SimpleWithFloats {
+    #[bondrewd(bit_length = 27)]
+    one: f32,
+    #[bondrewd(bit_length = 60)]
+    two: f64,
+    #[bondrewd(bit_length = 19)]
+    three: f32,
 }
 
 fn main() {

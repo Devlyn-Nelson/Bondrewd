@@ -7,6 +7,7 @@ pub struct StatusMagnetometer {
     mtm2: bool,
     mtm3: bool,
     #[bondrewd(bit_length = 5, reserve)]
+    #[allow(dead_code)]
     reserved: u8,
 }
 

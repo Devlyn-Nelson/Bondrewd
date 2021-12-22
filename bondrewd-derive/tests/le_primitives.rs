@@ -120,3 +120,40 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
     Ok(())
 }
+
+#[derive(Bitfields, Clone, PartialEq, Debug)]
+#[bondrewd(default_endianness = "le")]
+struct SimpleWithFloats {
+    #[bondrewd(bit_length = 27)]
+    one: f32,
+    #[bondrewd(bit_length = 60)]
+    two: f64,
+    #[bondrewd(bit_length = 19)]
+    three: f32,
+}
+
+#[test]
+fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
+    let simple = SimpleWithFloats {
+        one: f32::from_bits(0x00000000_u32),
+        two: f64::from_bits(0x09A1D45EE54D1A90_u64),
+        three: f32::from_bits(0x0001D45E_u32),
+    };
+    let bytes = simple.clone().into_bytes();
+    for byte in bytes {
+        print!("{:08b}",byte);
+    }
+    print!("\n");
+    #[cfg(feature = "slice_fns")]
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithFloats::peek_slice_one(&bytes)?);
+        //assert_eq!(simple.two, SimpleWithFloats::peek_slice_two(&bytes)?);
+        //assert_eq!(simple.three, SimpleWithFloats::peek_slice_three(&bytes)?);
+    }
+
+    // from_bytes
+    let new_simple = SimpleWithFloats::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}

@@ -297,8 +297,7 @@ fn apply_le_math_to_field_access_quote(
             let right_shift: u32 = right_shift.clone() as u32;
             full_quote = quote! {
                 #full_quote
-                #field_buffer_name[#i] |= input_byte_buffer[#start] & #first_bit_mask;
-                #field_buffer_name[#i] |= input_byte_buffer[#start #operator 1] & #last_bit_mask;
+                #field_buffer_name[#i] |= input_byte_buffer[#start + 1] & #last_bit_mask;
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#right_shift);
             };
         } else {
@@ -323,10 +322,24 @@ fn apply_le_math_to_field_access_quote(
 
         let output = match field.ty {
             FieldDataType::Number(_, _, ref type_quote) |
-            FieldDataType::Float(_, ref type_quote) |
             FieldDataType::Enum(ref type_quote, _, _) => {
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_le_bytes({
+                        #full_quote
+                    })
+                };
+                apply_field_to_buffer
+            }
+            FieldDataType::Float(_, _) => {
+                let alt_type_quote = if size == 4 {
+                    quote!{u32}
+                }else if size == 8 {
+                    quote!{u64}
+                }else{
+                    return Err(syn::Error::new(field.ident.span(), "unsupported floating type"))
+                };
+                let apply_field_to_buffer = quote! {
+                    #alt_type_quote::from_le_bytes({
                         #full_quote
                     })
                 };
