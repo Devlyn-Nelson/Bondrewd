@@ -158,8 +158,8 @@ fn get_field_quote(
             for sub_field in sub {
                 let sub_field_quote = get_field_quote(&sub_field, flip)?;
                 buffer = quote! {
-                    {#sub_field_quote},
                     #buffer
+                    {#sub_field_quote},
                 };
             }
             let buffer = quote! { [#buffer] };

@@ -1,6 +1,6 @@
 use bondrewd::*;
 
-#[derive(Bitfields)]
+#[derive(Bitfields, Debug, Clone)]
 #[bondrewd(default_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
 pub struct StatusMagnetometer {
     mtm1: bool,
@@ -11,7 +11,7 @@ pub struct StatusMagnetometer {
     reserved: u8,
 }
 
-#[derive(Bitfields)]
+#[derive(Bitfields, Debug, Clone)]
 #[bondrewd(default_endianness = "big")]
 pub struct Magnetometers {
     pub timestamp: u64,
@@ -19,7 +19,7 @@ pub struct Magnetometers {
     pub status: StatusMagnetometer,
     pub mtm1_xyz: [i16; 3],
     pub mtm2_xyz: [i16; 3],
-    pub mtm3_xyz: [f32; 3],
+    pub mtm3_xyz: [i16; 3],
 }
 
 fn main() {
@@ -28,6 +28,23 @@ fn main() {
         Magnetometers::BIT_SIZE,
         Magnetometers::BYTE_SIZE
     );
-
+    let og = Magnetometers{
+        timestamp: 168324,
+        status: StatusMagnetometer {
+            mtm1: true,
+            mtm2: true,
+            mtm3: true,
+            reserved: 0,
+        },
+        mtm1_xyz: [-413, -605, 342],
+        mtm2_xyz: [926, -434, -1462],
+        mtm3_xyz: [-14, 565, 77],
+    };
+    let bytes = og.clone().into_hex_upper();
+    let mut hex_from_bytes = String::new();
+    for hex_char in bytes {
+        hex_from_bytes.push(hex_char as char);
+    }
+    assert_eq!("000000000002918407FE63FDA30156039EFE4EFA4AFFF20235004D", hex_from_bytes);
     println!("");
 }

@@ -523,13 +523,13 @@ pub struct BlockSubFieldIter {
     pub ty: FieldDataType,
     pub outer_name: proc_macro2::TokenStream,
     pub bit_length: usize,
+    pub total_bytes: usize,
 }
 
 impl Iterator for BlockSubFieldIter {
     type Item = FieldInfo;
     fn next(&mut self) -> Option<Self::Item> {
         if self.length != 0 {
-            self.length -= 1;
             let mut ty_size = self.ty.size() * 8;
             if ty_size > self.bit_length {
                 ty_size = self.bit_length;
@@ -542,9 +542,10 @@ impl Iterator for BlockSubFieldIter {
                 reserve: false,
             };
             self.bit_length -= ty_size;
-            let index = self.length;
+            let index = self.total_bytes - self.length;
             let mut name = self.outer_name.clone();
             name = quote! {#name[#index]};
+            self.length -= 1;
             Some(FieldInfo {
                 ident: self.outer_ident.clone(),
                 attrs,
@@ -637,6 +638,7 @@ impl FieldInfo {
                 starting_bit_index: self.attrs.bit_range.start,
                 length: array_length.clone(),
                 ty: sub_field.ty.clone(),
+                total_bytes: array_length.clone(),
             })
         } else {
             Err(syn::Error::new(

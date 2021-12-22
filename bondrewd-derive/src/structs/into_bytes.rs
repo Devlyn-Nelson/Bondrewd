@@ -184,10 +184,11 @@ fn get_field_quote(
             let mut clear_buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
+                println!("--{}", sub_field.name);
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
-                    #sub_field_quote
                     #buffer
+                    #sub_field_quote
                 };
                 clear_buffer = quote! {
                     #clear_buffer
