@@ -55,54 +55,53 @@ enum ParseMetaResult {
 }
 
 impl EnumInfo {
-    fn parse_meta(meta: Meta, invalid_found: &mut Option<usize>, primitive_type: &mut Option<Ident>, i: u8, var: &syn::Variant) -> syn::Result<ParseMetaResult> {
+    fn parse_meta(
+        meta: Meta,
+        invalid_found: &mut Option<usize>,
+        primitive_type: &mut Option<Ident>,
+        i: u8,
+        var: &syn::Variant,
+    ) -> syn::Result<ParseMetaResult> {
         match meta {
-            Meta::NameValue(_) => {
-                Ok(ParseMetaResult::None)
-            }
+            Meta::NameValue(_) => Ok(ParseMetaResult::None),
             Meta::Path(name_value) => {
                 if let Some(name) = name_value.get_ident() {
                     match name.to_string().as_str() {
                         "invalid" => {
                             if let Some(ref index) = invalid_found {
-                                return Ok(ParseMetaResult::InvalidConflict(var.ident.span(), index.clone()));
+                                return Ok(ParseMetaResult::InvalidConflict(
+                                    var.ident.span(),
+                                    index.clone(),
+                                ));
                             } else {
                                 match var.fields {
-                                    syn::Fields::Named(ref named) => {
-                                        match named.named.len() {
-                                            1 => {
-                                                if let syn::Type::Path(ref path) =
-                                                    named.named[0].ty
-                                                {
-                                                    if let Some(prim_ident) =
-                                                        path.path.get_ident()
-                                                    {
-                                                        if let Some(ref prim_ty) =
-                                                            primitive_type
+                                    syn::Fields::Named(ref named) => match named.named.len() {
+                                        1 => {
+                                            if let syn::Type::Path(ref path) = named.named[0].ty {
+                                                if let Some(prim_ident) = path.path.get_ident() {
+                                                    if let Some(ref prim_ty) = primitive_type {
+                                                        if prim_ident.to_string()
+                                                            != prim_ty.to_string()
                                                         {
-                                                            if prim_ident.to_string()
-                                                                != prim_ty.to_string()
-                                                            {
-                                                                return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
-                                                            }
-                                                        } else {
-                                                            let mut invalid = Some(i as usize);
-                                                            std::mem::swap(invalid_found,&mut invalid);
+                                                            return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
                                                         }
+                                                    } else {
+                                                        let mut invalid = Some(i as usize);
+                                                        std::mem::swap(invalid_found, &mut invalid);
                                                     }
-                                                } else {
-                                                    return Err(syn::Error::new(var.ident.span(), "catch invalid variants with a field must contain a unsigned primitive"));
                                                 }
-                                                let mut invalid = Some(i as usize);
-                                                std::mem::swap(invalid_found,&mut invalid);
-                                                
-                                                Ok(ParseMetaResult::Ok(EnumVariantType::CatchPrimitive))
+                                            } else {
+                                                return Err(syn::Error::new(var.ident.span(), "catch invalid variants with a field must contain a unsigned primitive"));
                                             }
-                                            _ => {
-                                                return Err(syn::Error::new(var.ident.span(), "Invalid Variants must have either no fields or 1 field containing the primitive type the enum will become"));
-                                            }
+                                            let mut invalid = Some(i as usize);
+                                            std::mem::swap(invalid_found, &mut invalid);
+
+                                            Ok(ParseMetaResult::Ok(EnumVariantType::CatchPrimitive))
                                         }
-                                    }
+                                        _ => {
+                                            return Err(syn::Error::new(var.ident.span(), "Invalid Variants must have either no fields or 1 field containing the primitive type the enum will become"));
+                                        }
+                                    },
                                     syn::Fields::Unnamed(ref unnamed) => {
                                         match unnamed.unnamed.len() {
                                             1 => {
@@ -131,17 +130,15 @@ impl EnumInfo {
                                     }
                                     syn::Fields::Unit => {
                                         let mut invalid = Some(i as usize);
-                                        std::mem::swap(invalid_found,&mut invalid);
+                                        std::mem::swap(invalid_found, &mut invalid);
                                         Ok(ParseMetaResult::Ok(EnumVariantType::CatchAll(i)))
                                     }
                                 }
                             }
                         }
-                        _ => {
-                            Ok(ParseMetaResult::None)
-                        }
+                        _ => Ok(ParseMetaResult::None),
                     }
-                }else{
+                } else {
                     Ok(ParseMetaResult::None)
                 }
             }
@@ -150,23 +147,26 @@ impl EnumInfo {
                     for nested_meta in meta_list.nested {
                         match nested_meta {
                             NestedMeta::Meta(meta) => {
-                                match Self::parse_meta(meta, invalid_found, primitive_type, i, var)? {
+                                match Self::parse_meta(meta, invalid_found, primitive_type, i, var)?
+                                {
                                     ParseMetaResult::Ok(ty) => return Ok(ParseMetaResult::Ok(ty)),
                                     ParseMetaResult::None => {}
-                                    ParseMetaResult::InvalidConflict(span, i) => return Ok(ParseMetaResult::InvalidConflict(span, i)),
+                                    ParseMetaResult::InvalidConflict(span, i) => {
+                                        return Ok(ParseMetaResult::InvalidConflict(span, i))
+                                    }
                                 }
                             }
                             NestedMeta::Lit(_) => {}
                         }
                     }
                     Ok(ParseMetaResult::None)
-                }else{
+                } else {
                     Ok(ParseMetaResult::None)
                 }
             }
         }
     }
-    
+
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         // get the struct, error out if not a struct
         let data = match input.data {
@@ -213,7 +213,13 @@ impl EnumInfo {
         for (var, i) in data.variants.iter().zip(0u8..data.variants.len() as u8) {
             let mut finished = false;
             for attr in &var.attrs {
-                match Self::parse_meta(attr.parse_meta()?, &mut invalid_found, &mut primitive_type, i, &var)?{
+                match Self::parse_meta(
+                    attr.parse_meta()?,
+                    &mut invalid_found,
+                    &mut primitive_type,
+                    i,
+                    &var,
+                )? {
                     ParseMetaResult::Ok(ty) => {
                         variants.push(EnumVariant {
                             name: var.ident.clone(),
@@ -225,10 +231,7 @@ impl EnumInfo {
                     ParseMetaResult::InvalidConflict(span, i) => {
                         return Err(syn::Error::new(
                             span,
-                            format!(
-                                "Invalid already found [{}]",
-                                variants[i].name
-                            ),
+                            format!("Invalid already found [{}]", variants[i].name),
                         ));
                     }
                 }

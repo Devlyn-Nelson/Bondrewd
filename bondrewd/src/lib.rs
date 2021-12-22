@@ -13,19 +13,21 @@ pub trait BitfieldEnum {
     fn into_primitive(self) -> Self::Primitive;
 }
 
-
 mod error;
+#[cfg(feature = "hex_fns")]
+pub use error::BitfieldHexError;
 #[cfg(feature = "slice_fns")]
 pub use error::BitfieldSliceError;
 #[cfg(feature = "hex_fns")]
-pub use error::BitfieldHexError;
-#[cfg(feature = "hex_fns")]
-pub trait BitfieldHex<const SIZE: usize> where Self: Sized {
+pub trait BitfieldHex<const SIZE: usize>
+where
+    Self: Sized,
+{
     const UPPERS: &'static [u8; 16] = b"0123456789ABCDEF";
     const LOWERS: &'static [u8; 16] = b"0123456789abcdef";
-    fn from_hex(hex: [u8;SIZE]) -> Result<Self, BitfieldHexError>;
-    fn into_hex_upper(self) -> [u8;SIZE];
-    fn into_hex_lower(self) -> [u8;SIZE];
+    fn from_hex(hex: [u8; SIZE]) -> Result<Self, BitfieldHexError>;
+    fn into_hex_upper(self) -> [u8; SIZE];
+    fn into_hex_lower(self) -> [u8; SIZE];
 }
 
 // re-export the derive stuff

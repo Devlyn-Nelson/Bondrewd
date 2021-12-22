@@ -72,7 +72,10 @@ fn enum_centered_catch_primitive() {
     assert!(CenteredInvalidPrimitive::from_primitive(4u8).into_primitive() == 4);
 
     // test the catch all functionality
-    assert_eq!(CenteredInvalidPrimitive::from_primitive(5u8).into_primitive(), 5);
+    assert_eq!(
+        CenteredInvalidPrimitive::from_primitive(5u8).into_primitive(),
+        5
+    );
     assert!(CenteredInvalidPrimitive::from_primitive(6u8).into_primitive() == 6);
     assert!(CenteredInvalidPrimitive::from_primitive(154u8).into_primitive() == 154);
     assert!(CenteredInvalidPrimitive::from_primitive(255u8).into_primitive() == 255);

@@ -126,7 +126,7 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 struct SimpleWithReserve {
     #[bondrewd(bit_length = 9)]
     one: u16,
-    #[bondrewd(bit_length = 3, reserve )]
+    #[bondrewd(bit_length = 3, reserve)]
     reserve: u8,
     #[bondrewd(bit_length = 4)]
     two: u8,
@@ -141,9 +141,9 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     };
     assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
     #[cfg(feature = "slice_fns")]
-    let mut bytes: [u8;2] = simple.clone().into_bytes();
+    let mut bytes: [u8; 2] = simple.clone().into_bytes();
     #[cfg(not(feature = "slice_fns"))]
-    let bytes: [u8;2] = simple.clone().into_bytes();
+    let bytes: [u8; 2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
     assert_eq!(bytes[0], 0b10101010);
@@ -153,10 +153,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         //peeks
         assert_eq!(simple.one, SimpleWithReserve::peek_slice_one(&bytes)?);
         assert_eq!(0, SimpleWithReserve::peek_slice_reserve(&bytes)?);
-        assert_eq!(
-            simple.two,
-            SimpleWithReserve::peek_slice_two(&bytes)?
-        );
+        assert_eq!(simple.two, SimpleWithReserve::peek_slice_two(&bytes)?);
         // TODO write more set slice tests
         SimpleWithReserve::set_slice_one(&mut bytes, 0)?;
         SimpleWithReserve::set_slice_reserve(&mut bytes, 7)?;

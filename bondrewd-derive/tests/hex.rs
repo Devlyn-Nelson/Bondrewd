@@ -25,7 +25,7 @@ mod hex_tests {
         pub ext_mtm_xyz: [i16; 3],
     }
     #[test]
-    fn hex_test(){
+    fn hex_test() {
         let og = Magnetometer {
             timestamp: 063482412850,
             status: StatusMagnetometer {
@@ -53,8 +53,11 @@ mod hex_tests {
         let from_bytes_obj = Magnetometer::from_bytes(bytes);
         assert_eq!(from_bytes_obj, og);
 
-        let from_hex_obj = if let Ok(m) = Magnetometer::from_hex(hex) { m } else { panic!("Bad decode")};
+        let from_hex_obj = if let Ok(m) = Magnetometer::from_hex(hex) {
+            m
+        } else {
+            panic!("Bad decode")
+        };
         assert_eq!(from_hex_obj, og);
-
     }
 }

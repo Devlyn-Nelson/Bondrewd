@@ -122,11 +122,11 @@ impl Endianness {
     }
     fn perhaps_endianness(&mut self, size: usize) -> bool {
         if let Self::None = self {
-            if size == 1{
+            if size == 1 {
                 let mut swap = Self::Big;
-                std::mem::swap(&mut swap,self);
+                std::mem::swap(&mut swap, self);
                 true
-            }else{
+            } else {
                 false
             }
         } else {
@@ -336,7 +336,7 @@ impl FieldDataType {
                     if data_type.size() == 1 {
                         let mut big = Endianness::Big;
                         std::mem::swap(attrs.endianness.as_mut(), &mut big);
-                    }else{
+                    } else {
                         return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
                     }
                 }
@@ -531,7 +531,7 @@ impl Iterator for BlockSubFieldIter {
     fn next(&mut self) -> Option<Self::Item> {
         if self.length != 0 {
             let mut ty_size = self.ty.size() * 8;
-            if  self.bit_length % ty_size != 0 {
+            if self.bit_length % ty_size != 0 {
                 ty_size = self.bit_length % ty_size;
             }
             let start = self.starting_bit_index;

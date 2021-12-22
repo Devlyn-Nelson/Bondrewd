@@ -1,18 +1,18 @@
 //! Fast and easy bitfield proc macro
-//! 
-//! Provides a proc macro for compressing a data structure with data which can be expressed with bit 
+//!
+//! Provides a proc macro for compressing a data structure with data which can be expressed with bit
 //! lengths that are not a power of Two.
 //! # Derive Generated Functions:
 //! - Conversion between a sized u8 array and the rust structure you define.
 //! - Peek and Set functions that allow the field to be accessed or overwritten within a sized u8 array.
-//! 
+//!
 //! For example we can define a data structure with 5 total bytes as:
 //! - a field named one will be the first 3 bits.
 //! - a field named two will be the next 19 bits.
 //! - a field named six will be the next 14 bits.
 //! - a field named four will be the next 4 bits.
-//! 
-//! 
+//!
+//!
 //! ```
 //! // Users code
 //! use bondrewd::*;
@@ -51,7 +51,7 @@
 //! * All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 //! * Enums which implement the BitfieldEnum trait in bondrewd.
 //! * Structs which implement the Bitfield trait in bondrewd.
-//! 
+//!
 //! # Struct Attributes
 //! * `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields.
 //! * `read_from = {"msb0" or "lsb0"}` defines bit positioning. which end of the byte array to start at.
@@ -59,8 +59,8 @@
 //! * `enforce_bits = {BYTES}` defines a required resulting BIT_SIZE of the structure in condensed form.
 //! * `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
 //! * `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
-//! 
-//! # Field Attributes 
+//!
+//! # Field Attributes
 //! * `bit_length = {BITS}` define the total amount of bits to use when condensed.
 //! * `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
 //! * `endianness = {"le" or "be"}` define per field endianess.
@@ -71,18 +71,18 @@
 //! * `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
 //! * `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
 //! * `reserve` defines that this field should be ignored in from and into bytes functions.
-//! * /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure 
+//! * /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
 //! it out. using a rust range in quotes.
-//! 
+//!
 //! # Crate Features:
-//! * `slice_fns` generates slice functions: 
+//! * `slice_fns` generates slice functions:
 //!     * `fn peek_slice_{field}(&[u8]) -> Result<{field_type}, BondrewdSliceError> {}`
 //!     * `fn set_slice_{field}(&mut [u8], {field_type}) -> Result<(), BondrewdSliceError> {}`
-//! * `hex_fns` provided from/into hex functions like from/into bytes. the hex inputs/outputs are \[u8;N\] 
-//! where N is double the calculated bondrewd STRUCT_SIZE. hex encoding and decoding is based off the 
-//! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized 
+//! * `hex_fns` provided from/into hex functions like from/into bytes. the hex inputs/outputs are \[u8;N\]
+//! where N is double the calculated bondrewd STRUCT_SIZE. hex encoding and decoding is based off the
+//! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
 //! arrays so we could eliminate sizing errors.
-//! 
+//!
 //! ### Full Example Generated code
 //! ```
 //! use bondrewd::*;
@@ -197,7 +197,7 @@ use syn::{parse_macro_input, DeriveInput};
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access.
-/// 
+///
 /// # Struct Derive Tasks
 /// - [x] Little Endian primitives
 ///     - [x] Impl peek_{field} and set_{field} functions.
@@ -238,12 +238,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - [x] flip (flip the entire byte order with no runtime cost)
 /// - [x] reserve fields which don't get read or written in into or from bytes functions.
 /// * primitives should exclude usize and isize due to ambiguous sizing
-#[proc_macro_derive(
-    Bitfields,
-    attributes(
-        bondrewd,
-    )
-)]
+#[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     // parse the input into a StructInfo which contains all the information we
@@ -258,7 +253,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = format_ident!("{}", struct_info.name);
 
-    
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
     let slice_fns: bool;
@@ -307,7 +301,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             #set_quotes
         }
     };
-    let hex ;
+    let hex;
     #[cfg(feature = "hex_fns")]
     {
         hex = true;
@@ -338,9 +332,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                         bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
                     }
                     Ok(Self::from_bytes(bytes))
-                    
+
                 }
-        
+
                 fn into_hex_upper(self) -> [u8;#hex_size] {
                     let bytes = self.into_bytes();
                     let mut output: [u8;#hex_size] = [0; #hex_size];
@@ -362,8 +356,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             }
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
     // get the bit size of the entire set of fields to fill in trait requirement.
@@ -389,7 +383,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
-/// 
+///
 /// # Enum Derive Tasks
 /// - [x] from_primitive.
 /// - [x] into_primitive.

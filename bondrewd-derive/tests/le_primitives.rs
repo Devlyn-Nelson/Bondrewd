@@ -141,7 +141,7 @@ fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     };
     let bytes = simple.clone().into_bytes();
     for byte in bytes {
-        print!("{:08b}",byte);
+        print!("{:08b}", byte);
     }
     print!("\n");
     #[cfg(feature = "slice_fns")]

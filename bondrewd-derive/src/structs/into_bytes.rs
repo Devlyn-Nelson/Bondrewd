@@ -144,21 +144,21 @@ fn get_field_quote(
         FieldDataType::Float(_, _) => {
             if with_self {
                 quote! {self.#field_name.to_bits()}
-            }else{
+            } else {
                 quote! {#field_name.to_bits()}
             }
         }
         FieldDataType::Char(_, _) => {
             if with_self {
                 quote! {(self.#field_name as u32)}
-            }else{
+            } else {
                 quote! {(#field_name as u32)}
             }
         }
         FieldDataType::Enum(_, _, _) => {
             if with_self {
                 quote! {((self.#field_name).into_primitive())}
-            }else{
+            } else {
                 quote! {((#field_name).into_primitive())}
             }
         }
@@ -184,7 +184,6 @@ fn get_field_quote(
             let mut clear_buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                println!("--{}", sub_field.name);
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -200,7 +199,7 @@ fn get_field_quote(
         _ => {
             if with_self {
                 quote! {self.#field_name}
-            }else{
+            } else {
                 quote! {#field_name}
             }
         }
@@ -483,7 +482,7 @@ fn apply_ne_math_to_field_access_quote(
             }
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
-        let mut clear_quote = quote!{};
+        let mut clear_quote = quote! {};
         let mut full_quote = quote! {
             #field_byte_buffer;
         };
@@ -741,7 +740,7 @@ fn apply_be_math_to_field_access_quote(
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let not_first_bit_mask = !first_bit_mask;
-        let mut clear_quote = quote!{
+        let mut clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_first_bit_mask;
         };
         let mut full_quote = quote! {
@@ -759,7 +758,7 @@ fn apply_be_math_to_field_access_quote(
             // right shift (this means that the last bits are in the first byte)
             if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1usize..field.ty.size() {
-                    clear_quote = quote!{
+                    clear_quote = quote! {
                         #clear_quote
                         output_byte_buffer[#current_byte_index_in_buffer] = 0u8;
                     };
@@ -774,7 +773,7 @@ fn apply_be_math_to_field_access_quote(
                     };
                 }
             }
-            clear_quote = quote!{
+            clear_quote = quote! {
                 #clear_quote
                 output_byte_buffer[#current_byte_index_in_buffer] &= #not_last_bit_mask;
             };
@@ -799,7 +798,7 @@ fn apply_be_math_to_field_access_quote(
             }
             // this should give us the last index of the field
             let final_index = field.ty.size() - 1;
-            clear_quote = quote!{
+            clear_quote = quote! {
                 #clear_quote
                 output_byte_buffer[#current_byte_index_in_buffer] &= #not_last_bit_mask;
             };

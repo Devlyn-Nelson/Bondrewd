@@ -27,7 +27,7 @@ pub fn create_from_bytes_field_quotes(
     for field in info.fields.iter() {
         let field_name = &field.ident;
         let peek_name = format_ident!("peek_{}", field_name.as_ref());
-        let field_extractor= get_field_quote(
+        let field_extractor = get_field_quote(
             &field,
             if info.flip {
                 Some(info.total_bytes() - 1)
@@ -36,11 +36,11 @@ pub fn create_from_bytes_field_quotes(
             },
         )?;
         let peek_call = if !field.attrs.reserve {
-            quote!{Self::#peek_name(&input_byte_buffer)}
-        }else{
+            quote! {Self::#peek_name(&input_byte_buffer)}
+        } else {
             // TODO make this detect the type to use.
             let type_quote = field.ty.type_quote();
-            quote!{0 as #type_quote}
+            quote! {0 as #type_quote}
         };
         from_bytes_quote = quote! {
             #from_bytes_quote
