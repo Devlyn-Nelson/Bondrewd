@@ -36,6 +36,7 @@ pub fn create_from_bytes_field_quotes(
             } else {
                 None
             },
+            info.total_bytes(),
         )?;
         let peek_call = if !field.attrs.reserve {
             quote! {Self::#peek_name(&input_byte_buffer)}
@@ -139,13 +140,14 @@ fn make_peek_fn(
 fn get_field_quote(
     field: &FieldInfo,
     flip: Option<usize>,
+    struct_size: usize,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let value_retrieval = match field.ty {
         FieldDataType::ElementArray(_, _, _) => {
             let mut buffer = quote! {};
             let sub = field.get_element_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip)?;
+                let sub_field_quote = get_field_quote(&sub_field, flip, struct_size)?;
                 buffer = quote! {
                     #buffer
                     {#sub_field_quote},
@@ -158,7 +160,7 @@ fn get_field_quote(
             let mut buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip)?;
+                let sub_field_quote = get_field_quote(&sub_field, flip, struct_size)?;
                 buffer = quote! {
                     #buffer
                     {#sub_field_quote},
@@ -170,7 +172,7 @@ fn get_field_quote(
         _ => match field.attrs.endianness.as_ref() {
             Endianness::Big => apply_be_math_to_field_access_quote(field, flip)?,
             Endianness::Little => apply_le_math_to_field_access_quote(field, flip)?,
-            Endianness::None => apply_ne_math_to_field_access_quote(field, flip)?,
+            Endianness::None => apply_ne_math_to_field_access_quote(field, flip, struct_size)?,
         },
     };
 
@@ -443,6 +445,7 @@ fn apply_le_math_to_field_access_quote(
 fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
     flip: Option<usize>,
+    struct_size: usize,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
@@ -484,12 +487,22 @@ fn apply_ne_math_to_field_access_quote(
                     let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
                     let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
                     let right_shift: u32 = right_shift as u32;
-                    for i in 0..last_index {
+                    for i in 0..*size {
                         let start = if let None = flip {starting_inject_byte + i}else{starting_inject_byte - i};
-                        let first = quote!{
+                        let mut first = quote!{
                             #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
-                            #buffer_ident[#i] |= input_byte_buffer[#start #operator 1] & #next_bit_mask;
                         };
+                        let operator_bool = if let Some(flip) = flip {
+                            start == 0
+                        } else {
+                            start + 1 == struct_size
+                        };
+                        if !operator_bool {
+                            first = quote!{
+                                #first
+                                #buffer_ident[#i] |= input_byte_buffer[#start #operator 1] & #next_bit_mask;
+                            };
+                        }
                         quote_builder = quote!{
                             #quote_builder
                             #first
@@ -497,19 +510,23 @@ fn apply_ne_math_to_field_access_quote(
                         };
                     }
                 }else if right_shift < 0{
+                    return Err(syn::Error::new(
+                        field.ident.span(),
+                        "left shifting struct was removed to see if it would ever happened",
+                    ));
                     //TODO this might be impossible for structs
                     // left shift (this means that the last bits are in the first byte)
                     // because we are applying bits in place we need masks in insure we don't effect other fields
                     // data. we need one for the first byte and the last byte.
-                    let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
+                    /*let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
                     let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
                     let left_shift = right_shift.clone().abs() as u32;
-                    for i in 0..last_index {
+                    for i in 0..*size {
                         let start = if let None = flip {starting_inject_byte + i}else{starting_inject_byte - i};
                         let mut first = quote!{
                             #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
                         };
-                        if i + 1 != *size {
+                        if i + 1 <= *size {
                             first = quote!{
                                 #first
                                 #buffer_ident[#i] = input_byte_buffer[#start #operator 1] & #next_bit_mask;
@@ -520,7 +537,7 @@ fn apply_ne_math_to_field_access_quote(
                             #first
                             #buffer_ident[#i] = #buffer_ident[#i].rotate_right(#left_shift);
                         };
-                    }
+                    }*/
                 }else{
                     // no shift can be more faster.
                     let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
