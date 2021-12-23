@@ -467,18 +467,18 @@ fn apply_ne_math_to_field_access_quote(
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let (field_byte_buffer, size) = match field.ty {
+        let field_byte_buffer = match field.ty {
             FieldDataType::Number(_, _,_ ) |
             FieldDataType::Float(_, _) |
             FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char was not given Endianness, please report this.")),
             FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Enum was not given Endianness, please report this.")),
-            FieldDataType::Struct(ref size, _) => {
+            FieldDataType::Struct(_, _) => {
                 let field_call = quote!{#field_access_quote.into_bytes()};
                 let apply_field_to_buffer = quote! {
                     let mut #field_buffer_name = #field_call
                 };
-                (apply_field_to_buffer, size.clone())
+                apply_field_to_buffer
             }
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
@@ -487,6 +487,8 @@ fn apply_ne_math_to_field_access_quote(
             #field_byte_buffer;
         };
         // fill in the rest of the bits
+
+        let last_index = (amount_of_bits as f64 / 8.0_f64) as usize;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
             // because we are applying bits in place we need masks in insure we don't effect other fields
@@ -494,7 +496,7 @@ fn apply_ne_math_to_field_access_quote(
             let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
             let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
             let right_shift: u32 = right_shift as u32;
-            for i in 0usize..size {
+            for i in 0usize..last_index {
                 let start = if let None = flip {
                     starting_inject_byte + i
                 } else {
@@ -542,7 +544,7 @@ fn apply_ne_math_to_field_access_quote(
             // no shift can be more faster.
             let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
 
-            for i in 0usize..size {
+            for i in 0usize..last_index {
                 let start = if let None = flip {
                     starting_inject_byte + i
                 } else {

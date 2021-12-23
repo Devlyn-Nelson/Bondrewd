@@ -1,7 +1,26 @@
-use bondrewd::*;
+#![no_main]
+use libfuzzer_sys::fuzz_target;
+use bondrewd::{Bitfields, BitfieldEnum};
+
+#[derive(BitfieldEnum, Clone, PartialEq,  Debug)]
+#[bondrewd_enum(u8)]
+pub enum Test2Bits {
+    One,
+    Two,
+    Three,
+    FourInvalid,
+}
+
+/// 3 bitt field describing the version number of Ccsds standard to use.
+#[derive(BitfieldEnum, Clone, PartialEq,  Debug)]
+pub enum TestInvalid {
+    One,
+    Two,
+    Invalid(u8),
+}
 
 #[derive(Bitfields, Clone, PartialEq, Debug)]
-#[bondrewd(default_endianness = "be", enforce_bits = "593")]
+#[bondrewd(default_endianness = "be")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -45,10 +64,8 @@ pub struct Test {
     test_struct: TestInner,
 }
 
-fn main() {
-    let data: [u8;Test::BYTE_SIZE] = [0;Test::BYTE_SIZE];
+fuzz_target!(|data: [u8;Test::BYTE_SIZE]| {
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
-    println!("asdf");
     assert_eq!(Test::from_bytes(data.clone()).into_bytes(), data);
-}
+});

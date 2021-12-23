@@ -17,7 +17,7 @@ bondrewd = { path = "../../bondrewd", features = ["derive"] }
 members = ["."]
 
 [[bin]]
-name = "ccsds-from-then-into"
-path = "fuzz_targets/ccsds-from-then-into.rs"
+name = "big-test"
+path = "fuzz_targets/big_test.rs"
 test = false
 doc = false

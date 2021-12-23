@@ -380,7 +380,7 @@ impl FieldDataType {
                         )),
                         "u16" => Ok(FieldDataType::Number(
                             2,
-                            NumberSignage::Signed,
+                            NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
                         "i16" => Ok(FieldDataType::Number(
@@ -885,6 +885,7 @@ impl StructInfo {
             }
             info.fields.reverse();
         }
+
         Ok(info)
     }
 }

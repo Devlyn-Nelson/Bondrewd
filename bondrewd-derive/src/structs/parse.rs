@@ -116,7 +116,8 @@ impl FieldAttrBuilder {
         match meta {
             Meta::NameValue(value) => {
                 if let Some(ident) = value.path.get_ident() {
-                    match ident.to_string().as_str() {
+                    let ident_as_str=  ident.to_string();
+                    match ident_as_str.as_str() {
                         "endianness" => {
                             if let Lit::Str(val) = value.lit {
                                 builder.endianness = Box::new(match val.value().as_str() {
@@ -474,10 +475,12 @@ impl FieldAttrBuilder {
                             }
                         }
                         _ => {
-                            return Err(Error::new(
-                                builder.span(),
-                                "expected attributes that have names such as \"read_from\" or \"reverse\"",
-                            ));
+                            if ident_as_str.as_str() != "" {
+                                return Err(Error::new(
+                                    builder.span(),
+                                    format!("\"{}\" is not a valid attribute", ident_as_str),
+                                ));
+                            }
                         }
                     }
                 }
