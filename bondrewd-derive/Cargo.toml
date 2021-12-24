@@ -22,6 +22,7 @@ syn = "1.0"
 default = []
 slice_fns = []
 hex_fns = []
+setters = []
 
 [dev-dependencies]
 anyhow = "1.0.51"

@@ -121,7 +121,7 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Debug)]
+/*#[derive(Bitfields, Clone, PartialEq, Debug)]
 #[bondrewd(default_endianness = "le")]
 struct SimpleWithFloats {
     #[bondrewd(bit_length = 27)]
@@ -152,4 +152,4 @@ fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     let new_simple = SimpleWithFloats::from_bytes(bytes);
     assert_eq!(simple, new_simple);
     Ok(())
-}
+}*/

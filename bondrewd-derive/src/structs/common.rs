@@ -388,7 +388,14 @@ impl FieldDataType {
                             NumberSignage::Signed,
                             quote! {#type_quote},
                         )),
-                        "f32" => Ok(FieldDataType::Float(4, quote! {#type_quote})),
+                        "f32" => {
+                            if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
+                                if 32 != span.end - span.start {
+                                    return Err(syn::Error::new(field_span, "f32 must be full sized, if this is a problem for you open an issue."));
+                                }
+                            }
+                            Ok(FieldDataType::Float(4, quote! {#type_quote}))
+                        }
                         "u32" => Ok(FieldDataType::Number(
                             4,
                             NumberSignage::Unsigned,
@@ -400,7 +407,14 @@ impl FieldDataType {
                             quote! {#type_quote},
                         )),
                         "char" => Ok(FieldDataType::Char(4, quote! {#type_quote})),
-                        "f64" => Ok(FieldDataType::Float(8, quote! {#type_quote})),
+                        "f64" => {
+                            if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
+                                if 64 != span.end - span.start {
+                                    return Err(syn::Error::new(field_span, "f64 must be full sized, if this is a problem for you open an issue."));
+                                }
+                            }
+                            Ok(FieldDataType::Float(8, quote! {#type_quote}))
+                        }
                         "u64" => Ok(FieldDataType::Number(
                             8,
                             NumberSignage::Unsigned,

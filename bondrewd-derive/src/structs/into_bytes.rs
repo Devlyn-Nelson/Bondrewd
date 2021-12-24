@@ -91,7 +91,7 @@ fn make_set_slice_fn(
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
-    let fn_field_name = format_ident!("set_slice_{}", field_name);
+    let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();
     let min_length = if info.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
@@ -120,7 +120,7 @@ fn make_set_fn(
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
-    let fn_field_name = format_ident!("set_{}", field_name);
+    let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
     Ok(quote! {

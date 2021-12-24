@@ -295,10 +295,27 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         }
     }
 
+    let setters: bool;
+    #[cfg(not(feature = "setters"))]
+    {setters = false;}
+    #[cfg(feature = "setters")]
+    {setters = true;}
+    let setters_quote = if setters {
+        match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
+            Ok(parsed_struct) => parsed_struct,
+            Err(err) => {
+                return TokenStream::from(err.to_compile_error());
+            }
+        }
+    }else{
+        quote!{}
+    };
+
     let getter_setters_quotes = quote! {
         impl #struct_name {
             #peek_quotes
             #set_quotes
+            #setters_quote
         }
     };
     let hex;

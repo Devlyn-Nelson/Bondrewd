@@ -10,7 +10,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-bondrewd = { path = "../../bondrewd", features = ["derive"] }
+arbitrary = { version = "1", features = ["derive"] }
+bondrewd = { path = "../../bondrewd", features = ["derive", "setters"] }
 
 # Prevent this from interfering with workspaces
 [workspace]
