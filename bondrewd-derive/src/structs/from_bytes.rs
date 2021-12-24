@@ -36,7 +36,6 @@ pub fn create_from_bytes_field_quotes(
             } else {
                 None
             },
-            info.total_bytes(),
         )?;
         let peek_call = if !field.attrs.reserve {
             quote! {Self::#peek_name(&input_byte_buffer)}
@@ -140,14 +139,13 @@ fn make_peek_fn(
 fn get_field_quote(
     field: &FieldInfo,
     flip: Option<usize>,
-    struct_size: usize,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let value_retrieval = match field.ty {
         FieldDataType::ElementArray(_, _, _) => {
             let mut buffer = quote! {};
             let sub = field.get_element_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip, struct_size)?;
+                let sub_field_quote = get_field_quote(&sub_field, flip)?;
                 buffer = quote! {
                     #buffer
                     {#sub_field_quote},
@@ -160,7 +158,7 @@ fn get_field_quote(
             let mut buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                let sub_field_quote = get_field_quote(&sub_field, flip, struct_size)?;
+                let sub_field_quote = get_field_quote(&sub_field, flip)?;
                 buffer = quote! {
                     #buffer
                     {#sub_field_quote},
@@ -172,7 +170,7 @@ fn get_field_quote(
         _ => match field.attrs.endianness.as_ref() {
             Endianness::Big => apply_be_math_to_field_access_quote(field, flip)?,
             Endianness::Little => apply_le_math_to_field_access_quote(field, flip)?,
-            Endianness::None => apply_ne_math_to_field_access_quote(field, flip, struct_size)?,
+            Endianness::None => apply_ne_math_to_field_access_quote(field, flip)?,
         },
     };
 
@@ -445,7 +443,6 @@ fn apply_le_math_to_field_access_quote(
 fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
     flip: Option<usize>,
-    struct_size: usize,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
@@ -477,7 +474,6 @@ fn apply_ne_math_to_field_access_quote(
             FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Enum was not given Endianness, please report this.")),
             FieldDataType::Struct(ref size, _) => {
-                let last_index = (amount_of_bits as f64 / 8.0_f64) as usize;
                 let buffer_ident = format_ident!("{}_buffer", field.ident.as_ref());
                 let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
                 if right_shift > 0 {
@@ -492,12 +488,7 @@ fn apply_ne_math_to_field_access_quote(
                         let mut first = quote!{
                             #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
                         };
-                        let operator_bool = if let Some(flip) = flip {
-                            start == 0
-                        } else {
-                            start + 1 == struct_size
-                        };
-                        if !operator_bool {
+                        if available_bits_in_first_byte + (8 * i) < amount_of_bits {
                             first = quote!{
                                 #first
                                 #buffer_ident[#i] |= input_byte_buffer[#start #operator 1] & #next_bit_mask;

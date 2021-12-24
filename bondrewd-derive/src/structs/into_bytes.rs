@@ -30,7 +30,6 @@ pub fn create_into_bytes_field_quotes(
                 None
             },
             true,
-            info.total_bytes(),
         )?;
         if !field.attrs.reserve {
             into_bytes_quote = quote! {
@@ -46,7 +45,6 @@ pub fn create_into_bytes_field_quotes(
                 None
             },
             false,
-            info.total_bytes()
         )?;
         let set_quote = make_set_fn(&field_setter, &field, &info, &clear_quote)?;
         set_fns_quote = quote! {
@@ -140,7 +138,6 @@ fn get_field_quote(
     field: &FieldInfo,
     flip: Option<usize>,
     with_self: bool,
-    struct_size: usize,
 ) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
     let field_name = field.name.clone();
     let quote_field_name = match field.ty {
@@ -170,7 +167,7 @@ fn get_field_quote(
             let mut buffer = quote! {};
             let sub = field.get_element_iter()?;
             for sub_field in sub {
-                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self, struct_size)?;
+                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
                     #sub_field_quote
@@ -187,7 +184,7 @@ fn get_field_quote(
             let mut clear_buffer = quote! {};
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self, struct_size)?;
+                let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
                     #sub_field_quote
@@ -210,7 +207,7 @@ fn get_field_quote(
     match field.attrs.endianness.as_ref() {
         Endianness::Big => apply_be_math_to_field_access_quote(field, quote_field_name, flip),
         Endianness::Little => apply_le_math_to_field_access_quote(field, quote_field_name, flip),
-        Endianness::None => apply_ne_math_to_field_access_quote(field, quote_field_name, flip, struct_size),
+        Endianness::None => apply_ne_math_to_field_access_quote(field, quote_field_name, flip),
     }
 }
 // first token stream is actual setter, but second one is overwrite current bits to 0.
@@ -444,7 +441,6 @@ fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
     flip: Option<usize>,
-    struct_size: usize,
 ) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
         BitMath::from_field(field)?.into_tuple();
@@ -491,8 +487,6 @@ fn apply_ne_math_to_field_access_quote(
             #field_byte_buffer;
         };
         // fill in the rest of the bits
-
-        let last_index = (amount_of_bits as f64 / 8.0_f64) as usize;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
             // because we are applying bits in place we need masks in insure we don't effect other fields
@@ -518,12 +512,7 @@ fn apply_ne_math_to_field_access_quote(
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
                 };
 
-                let operator_bool = if let Some(flip) = flip {
-                    start == 0
-                } else {
-                    start + 1 == struct_size
-                };
-                if !operator_bool {
+                if available_bits_in_first_byte + (8 * i) < amount_of_bits {
                     clear_quote = quote! {
                         #clear_quote
                         output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;//test
