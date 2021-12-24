@@ -18,7 +18,7 @@ pub struct TestInner {
     b_one: bool,
 }
 // 593
-#[derive(Bitfields, Clone, PartialEq,  Debug)]
+#[derive(Bitfields, Clone, PartialEq, Debug)]
 #[bondrewd(default_endianness = "be", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
@@ -46,7 +46,7 @@ pub struct Test {
 }
 
 fn main() {
-    let data: [u8;Test::BYTE_SIZE] = [0;Test::BYTE_SIZE];
+    let data: [u8; Test::BYTE_SIZE] = [0; Test::BYTE_SIZE];
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
     assert_eq!(Test::from_bytes(data.clone()).into_bytes(), data);

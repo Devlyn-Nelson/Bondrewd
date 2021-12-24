@@ -517,7 +517,7 @@ fn apply_ne_math_to_field_access_quote(
                         #clear_quote
                         output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;//test
                     };
-                    full_quote = quote!{
+                    full_quote = quote! {
                         #full_quote
                         output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
                     };

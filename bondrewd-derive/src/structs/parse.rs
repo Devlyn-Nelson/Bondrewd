@@ -116,7 +116,7 @@ impl FieldAttrBuilder {
         match meta {
             Meta::NameValue(value) => {
                 if let Some(ident) = value.path.get_ident() {
-                    let ident_as_str=  ident.to_string();
+                    let ident_as_str = ident.to_string();
                     match ident_as_str.as_str() {
                         "endianness" => {
                             if let Lit::Str(val) = value.lit {
