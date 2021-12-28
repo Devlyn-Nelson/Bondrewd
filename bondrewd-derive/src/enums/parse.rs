@@ -1,6 +1,7 @@
 use proc_macro2::Span;
 use syn::parse::Error;
-use syn::{DeriveInput, Ident, Meta, NestedMeta};
+use syn::{DeriveInput, Expr, Ident, Lit, Meta, NestedMeta};
+use syn::spanned::Spanned;
 
 #[derive(Eq, Debug)]
 pub enum EnumVariantType {
@@ -167,6 +168,21 @@ impl EnumInfo {
         }
     }
 
+    // Parses the Expression, looking for a literal number expression
+    fn parse_lit_discriminant_expr(input: &Expr) -> syn::Result<u8> {
+        match input {
+            Expr::Lit(ref lit) => {
+                match lit.lit {
+                    Lit::Int(ref i) => {
+                        Ok(i.base10_parse()?)
+                    }
+                    _ => Err(syn::Error::new(input.span(), "Non-integer literals for custom discriminant are illegal."))
+                }
+            }
+            _ => Err(syn::Error::new(input.span(), "non-literal expressions for custom discriminant are illegal."))
+        }
+    }
+
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         // get the struct, error out if not a struct
         let data = match input.data {
@@ -209,6 +225,7 @@ impl EnumInfo {
         // data packing/analysis don't seem necessary)
         let mut variants: Vec<EnumVariant> = Default::default();
         let mut invalid_found: Option<usize> = None;
+        let mut variant_continuation_value: Option<u16> = None;
         let last_variant = data.variants.len() - 1;
         for (var, i) in data.variants.iter().zip(0u8..data.variants.len() as u8) {
             let mut finished = false;
@@ -295,22 +312,49 @@ impl EnumInfo {
                     }
                 }
                 _ => {
+                    // Check for an invalid already existing, and if this is the last variant in the variants
                     if invalid_found.is_none() && last_variant == i as usize{
                         variants.push(EnumVariant {
                             name: var.ident.clone(),
                             value: EnumVariantType::CatchAll(i),
                         });
                         invalid_found = Some(i as usize);
-                    }else{
-                        variants.push(EnumVariant {
-                            value: EnumVariantType::UnsignedValue(i),
-                            name: var.ident.clone(),
-                        });
+                    } else {
+                        // This is one of the possible variants to use, check for a custom discriminant
+                        if let Some((_, ref discriminant)) = var.discriminant {
+                            // Parse the discriminant and validate its able to be used
+                            let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
+                            variants.push(EnumVariant {
+                                value: EnumVariantType::UnsignedValue(discriminant_val),
+                                name: var.ident.clone()
+                            });
+
+                            // Make the next used value continue the discriminant.
+                            variant_continuation_value = Some((discriminant_val as u16) + 1);
+                        } else if let Some(val) = variant_continuation_value {
+                            // Check to see if the next variant would cause an out of bounds generation
+                            if val > (u8::MAX as u16) {
+                                return Err(syn::Error::new(var.ident.span(), "variant value generates code out of range of u8"))
+                            }
+
+                            variants.push(EnumVariant {
+                                value: EnumVariantType::UnsignedValue(val as u8),
+                                name: var.ident.clone(),
+                            });
+                            variant_continuation_value = Some(val + 1);
+                        } else {
+                            // This is a simple usage of a bunch of unit variants in a row
+                            variants.push(EnumVariant {
+                                value: EnumVariantType::UnsignedValue(i),
+                                name: var.ident.clone(),
+                            });
+                        }
                     }
                 }
             }
         }
 
+        // Check for variants that produce code that matches the same value
         let amount_of_variants = variants.len();
         for i in 0..amount_of_variants {
             for ii in i + 1..amount_of_variants {
