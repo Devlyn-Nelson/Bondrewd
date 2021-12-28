@@ -1,5 +1,4 @@
 use bondrewd::*;
-use crate::TestCustomContinuationEnum::CustomZeroContinued;
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 #[bondrewd_enum(u8)]
