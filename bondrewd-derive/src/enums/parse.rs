@@ -333,6 +333,7 @@ impl EnumInfo {
                             variant_continuation_value = Some((discriminant_val as u16) + 1);
                         } else if let Some(val) = variant_continuation_value {
                             // Check to see if the next variant would cause an out of bounds generation
+                            // TODO: Check the size of the discriminant based on the `bit_length` of the underlying Enum?
                             if val > (u8::MAX as u16) {
                                 return Err(syn::Error::new(var.ident.span(), "variant value generates code out of range of u8"))
                             }

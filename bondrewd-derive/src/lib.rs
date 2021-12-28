@@ -408,6 +408,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///                         variant will be used).
 /// - [x] Invalid catch (stores the actual primitive in a 1 field Variant).
 /// - [ ] types other than u8.
+/// - [x] Support `u8` literals for Enum Variants
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
