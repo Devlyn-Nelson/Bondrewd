@@ -203,16 +203,36 @@ impl FieldDataType {
         default_endianess: &Endianness,
     ) -> syn::Result<FieldDataType> {
         let data_type = match ty {
-            Type::Path(ref path) => Self::parse_path(&path.path, attrs, ident.span())?,
+            Type::Path(ref path) => {
+                match attrs.ty {
+                    FieldAttrBuilderType::Struct(ref size) => {
+                        FieldDataType::Struct(size.clone(), if let Some(last_segment) = path.path.segments.last() {
+                            let asdf = &last_segment.ident;
+                            quote!{#asdf}
+                        }else{
+                            return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        })
+                    }
+                    FieldAttrBuilderType::Enum(ref size, ref prim) => {
+                        FieldDataType::Enum(quote!{#prim}, size.clone(), if let Some(last_segment) = path.path.segments.last() {
+                            let asdf = &last_segment.ident;
+                            quote!{#asdf}
+                        }else{
+                            return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        })
+                    }
+                    _ => Self::parse_path(&path.path, attrs, ident.span())?,
+                }
+            }
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
                 if let syn::Expr::Lit(ref lit_expr) = array_path.len {
                     if let syn::Lit::Int(ref lit_int) = lit_expr.lit {
                         if let Ok(array_length) = lit_int.base10_parse::<usize>() {
                             match attrs.ty {
-                                FieldAttrBuilderType::ElementArray(element_bit_size) => {
+                                FieldAttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        FieldBuilderRange::Range(range) => {
+                                        FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
@@ -220,7 +240,7 @@ impl FieldDataType {
                                                 ));
                                             }
                                             if range.end - range.start
-                                                != element_bit_size * array_length
+                                                != *element_bit_size * array_length
                                             {
                                                 return Err(
                                                     syn::Error::new(
@@ -229,12 +249,12 @@ impl FieldDataType {
                                                     )
                                                 );
                                             }
-                                            FieldBuilderRange::Range(range)
+                                            FieldBuilderRange::Range(range.clone())
                                         }
-                                        FieldBuilderRange::LastEnd(last_end) => {
+                                        FieldBuilderRange::LastEnd(ref last_end) => {
                                             FieldBuilderRange::Range(
-                                                last_end
-                                                    ..last_end + (array_length * element_bit_size),
+                                                *last_end
+                                                    ..last_end + (array_length * *element_bit_size),
                                             )
                                         }
                                         _ => {
@@ -247,7 +267,11 @@ impl FieldDataType {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
-                                        sub_attrs.ty = FieldAttrBuilderType::None;
+                                        if let Some(ref ty) = sub.as_ref() {
+                                            sub_attrs.ty = ty.clone();
+                                        } else{ 
+                                            sub_attrs.ty = FieldAttrBuilderType::None;
+                                        }
                                     }
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
@@ -263,7 +287,7 @@ impl FieldDataType {
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::BlockArray => {
+                                FieldAttrBuilderType::BlockArray(ref sub) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
@@ -284,11 +308,33 @@ impl FieldDataType {
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                _ => {
+                                FieldAttrBuilderType::Enum(_,_) |
+                                FieldAttrBuilderType::Struct(_) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
-                                        sub_attrs.ty = FieldAttrBuilderType::None;
+                                        sub_attrs.ty = attrs.ty.clone();
+                                    }
+
+                                    let sub_ty = Self::parse(
+                                        &array_path.elem,
+                                        &mut sub_attrs,
+                                        &ident,
+                                        default_endianess,
+                                    )?;
+                                    attrs.endianness = sub_attrs.endianness;
+                                    let type_ident = &sub_ty.type_quote();
+                                    FieldDataType::BlockArray(
+                                        Box::new(SubFieldInfo { ty: sub_ty }),
+                                        array_length,
+                                        quote! {[#type_ident;#array_length]},
+                                    )
+                                }
+                                FieldAttrBuilderType::None => {
+                                    let mut sub_attrs = attrs.clone();
+                                    if let Type::Array(_) = array_path.elem.as_ref() {
+                                    } else {
+                                        sub_attrs.ty = attrs.ty.clone();
                                     }
 
                                     let sub_ty = Self::parse(
@@ -499,7 +545,7 @@ pub struct ElementSubFieldIter {
     pub range: Range<usize>,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: proc_macro2::TokenStream,
+    pub outer_name: Ident,
     pub element_bit_size: usize,
 }
 
@@ -513,8 +559,7 @@ impl Iterator for ElementSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: false,
             };
-            let mut name = self.outer_name.clone();
-            name = quote! {#name[#index]};
+            let name = quote::format_ident!("{}_{}",self.outer_ident.as_ref(), index);
             Some(FieldInfo {
                 ident: self.outer_ident.clone(),
                 attrs,
@@ -535,7 +580,7 @@ pub struct BlockSubFieldIter {
     pub length: usize,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: proc_macro2::TokenStream,
+    pub outer_name: Ident,
     pub bit_length: usize,
     pub total_bytes: usize,
 }
@@ -557,8 +602,7 @@ impl Iterator for BlockSubFieldIter {
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
-            let mut name = self.outer_name.clone();
-            name = quote! {#name[#index]};
+            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(),  index);
             self.length -= 1;
             Some(FieldInfo {
                 ident: self.outer_ident.clone(),
@@ -574,7 +618,7 @@ impl Iterator for BlockSubFieldIter {
 
 #[derive(Clone, Debug)]
 pub struct FieldInfo {
-    pub name: proc_macro2::TokenStream,
+    pub name: Ident,
     pub ident: Box<Ident>,
     pub ty: FieldDataType,
     pub attrs: FieldAttrs,
@@ -695,7 +739,7 @@ impl FieldInfo {
 
         // construct the field we are parsed.
         let new_field = FieldInfo {
-            name: quote! {#ident},
+            name: ident.as_ref().clone(),
             ident: ident.clone(),
             ty: data_type,
             attrs,

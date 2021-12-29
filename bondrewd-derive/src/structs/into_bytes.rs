@@ -4,6 +4,7 @@ use crate::structs::common::{
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::Error;
 
 pub struct IntoBytesOptions {
     pub into_bytes_fn: TokenStream,
@@ -22,21 +23,6 @@ pub fn create_into_bytes_field_quotes(
     // all quote with all of the set functions appended to it.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
-        let (field_setter, _) = get_field_quote(
-            &field,
-            if info.flip {
-                Some(info.total_bytes() - 1)
-            } else {
-                None
-            },
-            true,
-        )?;
-        if !field.attrs.reserve {
-            into_bytes_quote = quote! {
-                #into_bytes_quote
-                #field_setter
-            };
-        }
         let (field_setter, clear_quote) = get_field_quote(
             &field,
             if info.flip {
@@ -46,6 +32,14 @@ pub fn create_into_bytes_field_quotes(
             },
             false,
         )?;
+        if !field.attrs.reserve {
+            let field_name = &field.ident;
+            into_bytes_quote = quote! {
+                #into_bytes_quote
+                let #field_name = self.#field_name;
+                #field_setter
+            };
+        }
         let set_quote = make_set_fn(&field_setter, &field, &info, &clear_quote)?;
         set_fns_quote = quote! {
             #set_fns_quote
@@ -125,7 +119,7 @@ fn make_set_fn(
     let struct_size = info.total_bytes();
     Ok(quote! {
         #[inline]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], #field_name: #type_ident) {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name: #type_ident) {
             #clear_quote
             #field_quote
         }
@@ -165,8 +159,11 @@ fn get_field_quote(
         FieldDataType::ElementArray(_, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let outer_field_name = &field.ident;
             let sub = field.get_element_iter()?;
             for sub_field in sub {
+                let field_name = &sub_field.name;
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -176,14 +173,22 @@ fn get_field_quote(
                     #clear_buffer
                     #clear
                 };
+                de_refs.push(format_ident!("{}", field_name));
             }
+            buffer = quote!{
+                let [#de_refs] = #outer_field_name;
+                #buffer
+            };
             return Ok((buffer, clear_buffer));
         }
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
             let mut clear_buffer = quote! {};
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let outer_field_name = &field.ident;
             let sub = field.get_block_iter()?;
             for sub_field in sub {
+                let field_name = &sub_field.name;
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -193,7 +198,12 @@ fn get_field_quote(
                     #clear_buffer
                     #clear
                 };
+                de_refs.push(format_ident!("{}", field_name));
             }
+            buffer = quote!{
+                let [#de_refs] = #outer_field_name;
+                #buffer
+            };
             return Ok((buffer, clear_buffer));
         }
         _ => {
