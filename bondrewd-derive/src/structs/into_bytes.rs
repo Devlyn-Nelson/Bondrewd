@@ -4,6 +4,7 @@ use crate::structs::common::{
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::Error;
 
 pub struct IntoBytesOptions {
     pub into_bytes_fn: TokenStream,
@@ -22,21 +23,6 @@ pub fn create_into_bytes_field_quotes(
     // all quote with all of the set functions appended to it.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
-        let (field_setter, _) = get_field_quote(
-            &field,
-            if info.flip {
-                Some(info.total_bytes() - 1)
-            } else {
-                None
-            },
-            true,
-        )?;
-        if !field.attrs.reserve {
-            into_bytes_quote = quote! {
-                #into_bytes_quote
-                #field_setter
-            };
-        }
         let (field_setter, clear_quote) = get_field_quote(
             &field,
             if info.flip {
@@ -46,6 +32,14 @@ pub fn create_into_bytes_field_quotes(
             },
             false,
         )?;
+        if !field.attrs.reserve {
+            let field_name = &field.ident;
+            into_bytes_quote = quote! {
+                #into_bytes_quote
+                let #field_name = self.#field_name;
+                #field_setter
+            };
+        }
         let set_quote = make_set_fn(&field_setter, &field, &info, &clear_quote)?;
         set_fns_quote = quote! {
             #set_fns_quote
@@ -125,7 +119,7 @@ fn make_set_fn(
     let struct_size = info.total_bytes();
     Ok(quote! {
         #[inline]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], #field_name: #type_ident) {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name: #type_ident) {
             #clear_quote
             #field_quote
         }
@@ -165,8 +159,11 @@ fn get_field_quote(
         FieldDataType::ElementArray(_, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let outer_field_name = &field.ident;
             let sub = field.get_element_iter()?;
             for sub_field in sub {
+                let field_name = &sub_field.name;
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -176,14 +173,22 @@ fn get_field_quote(
                     #clear_buffer
                     #clear
                 };
+                de_refs.push(format_ident!("{}", field_name));
             }
+            buffer = quote!{
+                let [#de_refs] = #outer_field_name;
+                #buffer
+            };
             return Ok((buffer, clear_buffer));
         }
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
             let mut clear_buffer = quote! {};
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let outer_field_name = &field.ident;
             let sub = field.get_block_iter()?;
             for sub_field in sub {
+                let field_name = &sub_field.name;
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -193,7 +198,12 @@ fn get_field_quote(
                     #clear_buffer
                     #clear
                 };
+                de_refs.push(format_ident!("{}", field_name));
             }
+            buffer = quote!{
+                let [#de_refs] = #outer_field_name;
+                #buffer
+            };
             return Ok((buffer, clear_buffer));
         }
         _ => {
@@ -245,8 +255,11 @@ fn apply_le_math_to_field_access_quote(
         if bits_needed_in_msb == 0 {
             bits_needed_in_msb = 8;
         }
-        let right_shift: i8 =
+        let mut right_shift: i8 =
             (bits_needed_in_msb as i8) - ((available_bits_in_first_byte % 8) as i8);
+        if right_shift == 8 {
+            right_shift = 0;
+        }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
         let first_bit_mask = get_right_and_mask(available_bits_in_first_byte);
@@ -316,17 +329,39 @@ fn apply_le_math_to_field_access_quote(
             };
             let not_current_bit_mask = !current_bit_mask;
             let not_next_bit_mask = !next_bit_mask;
-            clear_quote = quote! {
-                #clear_quote
-                output_byte_buffer[#start] &= #not_current_bit_mask;
-                output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
-            };
-            full_quote = quote! {
-                #full_quote
-                #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
-                output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
-                output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
-            };
+            if available_bits_in_first_byte == 0 && right_shift == 0 {
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                };
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                };
+            }else{
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                };
+                full_quote = quote! {
+                    #full_quote
+                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
+                };
+                if available_bits_in_first_byte + (8 * i) < amount_of_bits {
+                    full_quote = quote! {
+                        #full_quote
+                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                    };
+                    clear_quote = quote! {
+                        #clear_quote
+                        output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
+                    };
+                }
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
+                };
+            }
             i += 1;
         }
         if right_shift > 0 {
