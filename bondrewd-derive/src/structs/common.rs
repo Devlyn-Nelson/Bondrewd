@@ -391,7 +391,7 @@ impl FieldDataType {
                         "f32" => {
                             if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
                                 if 32 != span.end - span.start {
-                                    return Err(syn::Error::new(field_span, "f32 must be full sized, if this is a problem for you open an issue."));
+                                    return Err(syn::Error::new(field_span, format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
                             Ok(FieldDataType::Float(4, quote! {#type_quote}))
@@ -410,7 +410,7 @@ impl FieldDataType {
                         "f64" => {
                             if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
                                 if 64 != span.end - span.start {
-                                    return Err(syn::Error::new(field_span, "f64 must be full sized, if this is a problem for you open an issue."));
+                                    return Err(syn::Error::new(field_span, format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
                             Ok(FieldDataType::Float(8, quote! {#type_quote}))

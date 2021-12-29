@@ -245,8 +245,11 @@ fn apply_le_math_to_field_access_quote(
         if bits_needed_in_msb == 0 {
             bits_needed_in_msb = 8;
         }
-        let right_shift: i8 =
+        let mut right_shift: i8 =
             (bits_needed_in_msb as i8) - ((available_bits_in_first_byte % 8) as i8);
+        if right_shift == 8 {
+            right_shift = 0;
+        }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
         let first_bit_mask = get_right_and_mask(available_bits_in_first_byte);
@@ -316,17 +319,39 @@ fn apply_le_math_to_field_access_quote(
             };
             let not_current_bit_mask = !current_bit_mask;
             let not_next_bit_mask = !next_bit_mask;
-            clear_quote = quote! {
-                #clear_quote
-                output_byte_buffer[#start] &= #not_current_bit_mask;
-                output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
-            };
-            full_quote = quote! {
-                #full_quote
-                #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
-                output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
-                output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
-            };
+            if available_bits_in_first_byte == 0 && right_shift == 0 {
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                };
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                };
+            }else{
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_current_bit_mask;
+                };
+                full_quote = quote! {
+                    #full_quote
+                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
+                };
+                if available_bits_in_first_byte + (8 * i) < amount_of_bits {
+                    full_quote = quote! {
+                        #full_quote
+                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                    };
+                    clear_quote = quote! {
+                        #clear_quote
+                        output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
+                    };
+                }
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
+                };
+            }
             i += 1;
         }
         if right_shift > 0 {

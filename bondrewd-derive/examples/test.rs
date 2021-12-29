@@ -45,6 +45,16 @@ pub struct Test {
     test_struct: TestInner,
 }
 
+#[derive(Bitfields, Clone, PartialEq, Debug)]
+#[bondrewd(default_endianness = "le")]
+struct SimpleWithFloats {
+    #[bondrewd(bit_length = 32)]
+    one: f32,
+    #[bondrewd(bit_length = 64)]
+    two: f64,
+    three: f32,
+}
+
 fn main() {
     let data: [u8; Test::BYTE_SIZE] = [0; Test::BYTE_SIZE];
     assert_eq!(959, Test::BIT_SIZE);
