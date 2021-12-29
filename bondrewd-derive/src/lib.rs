@@ -297,9 +297,13 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 
     let setters: bool;
     #[cfg(not(feature = "setters"))]
-    {setters = false;}
+    {
+        setters = false;
+    }
     #[cfg(feature = "setters")]
-    {setters = true;}
+    {
+        setters = true;
+    }
     let setters_quote = if setters {
         match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
             Ok(parsed_struct) => parsed_struct,
@@ -307,8 +311,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 return TokenStream::from(err.to_compile_error());
             }
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
     let getter_setters_quotes = quote! {
@@ -418,8 +422,14 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    let into = enums::into_bytes::generate_into_bytes(&enum_info);
-    let from = enums::from_bytes::generate_from_bytes(&enum_info);
+    let into = match enums::into_bytes::generate_into_bytes(&enum_info) {
+        Ok(i) => i,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
+    let from = match enums::from_bytes::generate_from_bytes(&enum_info) {
+        Ok(f) => f,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {
