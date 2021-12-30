@@ -40,15 +40,15 @@ pub fn generate_partial_eq(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
     for var in enum_info.variants.iter() {
         let name = &var.name;
         let arm = match var.value {
-            EnumVariantType::UnsignedValue(v) => {
+            EnumVariantType::UnsignedValue(ref v) => {
                 quote! { (Self::#name, #v) => true, }
             },
-            EnumVariantType::CatchAll(_) => {
-                quote! { _ => false, }
-            },
-            EnumVariantType::CatchPrimitive => {
+            EnumVariantType::CatchAll(_) |
+            EnumVariantType::CatchPrimitive(_) |
+            EnumVariantType::Skip(_) => {
                 quote! { _ => false, }
             }
+            
         };
         comp_arms = quote! {
             #comp_arms

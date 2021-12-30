@@ -1,17 +1,16 @@
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
-    FieldDataType, FieldInfo, StructInfo, NumberSignage
+    FieldDataType, FieldInfo, NumberSignage, StructInfo,
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-
 
 pub fn create_into_bytes_field_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
     // all of the fields set functions that disallow numbers that are too large to fit into bit length.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
         let q = make_set_field_quote(&field)?;
-        set_fns_quote = quote!{
+        set_fns_quote = quote! {
             #set_fns_quote
             #q
         };
@@ -155,14 +154,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
             }
         }
         FieldDataType::ElementArray(ref fields, ref length, ref type_ident) => {
-            quote!{
-
-            }
+            quote! {}
         }
         FieldDataType::BlockArray(ref fields, size, ref type_ident) => {
-            quote!{
-
-            }
+            quote! {}
         }
         FieldDataType::Boolean => {
             let field_fn_name = format_ident!("set_{}", field_name);

@@ -33,14 +33,8 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(
-            simple.one,
-            SimpleCustomEnumUsage::peek_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleCustomEnumUsage::peek_slice_two(&bytes)?
-        );
+        assert_eq!(simple.one, SimpleCustomEnumUsage::peek_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleCustomEnumUsage::peek_slice_two(&bytes)?);
         assert_eq!(
             simple.three,
             SimpleCustomEnumUsage::peek_slice_three(&bytes)?
@@ -77,13 +71,13 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let simple = SimpleCustomContinuationEnumUsage {
         one: 0x80,
         two: TestCustomContinuationEnum::CustomOneContinued,
-        three: 0x08
+        three: 0x08,
     };
     assert_eq!(SimpleCustomContinuationEnumUsage::BYTE_SIZE, 3);
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b10000000);
-    assert_eq!(bytes[1], 0b01000000);
+    assert_eq!(bytes[1], 0b00000001);
     assert_eq!(bytes[2], 0b00001000);
     #[cfg(feature = "slice_fns")]
     {
@@ -107,13 +101,18 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
 
     // Setter too
-    SimpleCustomContinuationEnumUsage::write_slice_two(&mut bytes, TestCustomContinuationEnum::CustomZeroContinued);
-    assert_eq!(bytes[1], 0b10000000);
+    SimpleCustomContinuationEnumUsage::write_slice_two(
+        &mut bytes,
+        TestCustomContinuationEnum::CustomZeroContinued,
+    )?;
     let expected = SimpleCustomContinuationEnumUsage {
         one: 0x80,
         two: TestCustomContinuationEnum::CustomZeroContinued,
-        three: 0x08
+        three: 0x08,
     };
-    assert_eq!(SimpleCustomContinuationEnumUsage::from_bytes(bytes), expected);
+    assert_eq!(
+        SimpleCustomContinuationEnumUsage::from_bytes(bytes),
+        expected
+    );
     Ok(())
 }
