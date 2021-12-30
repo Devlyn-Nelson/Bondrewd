@@ -57,6 +57,7 @@ pub struct EnumInfo {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
     pub primitive: Ident,
+    pub partial_eq: bool
 }
 
 enum ParseMetaResult {
@@ -264,6 +265,7 @@ impl EnumInfo {
             }
         };
         let mut primitive_type: Option<Ident> = None;
+        let mut partial_eq = false;
         for attr in &input.attrs {
             match attr.parse_meta()? {
                 Meta::NameValue(_) => {}
@@ -274,16 +276,23 @@ impl EnumInfo {
                             match nested_meta {
                                 NestedMeta::Meta(meta) => match meta {
                                     Meta::Path(path) => {
+                                        // Add an additional check to implement `partial_eq` optionally.
                                         if path.is_ident("u8") {
                                             primitive_type = Some(quote::format_ident!("u8"));
-                                            break;
+                                        } else if path.is_ident("partial_eq") {
+                                            partial_eq = true;
                                         } else {
                                             return Err(syn::Error::new(
                                                 input.ident.span(),
-                                                "the only supported enum type is u8 currently",
+                                                "the only supported enum attributes are u8, partial_eq currently",
                                             ));
                                         }
-                                    }
+
+                                        // Have we found all of the relevant attributes?
+                                        if primitive_type.is_some() && partial_eq {
+                                            break;
+                                        }
+                                    },
                                     _ => {}
                                 },
                                 NestedMeta::Lit(_) => {}
@@ -562,6 +571,7 @@ impl EnumInfo {
 
         let info = EnumInfo {
             name: input.ident.clone(),
+            partial_eq,
             primitive: if let Some(prim) = primitive_type {
                 if prim.to_string().as_str() == "u8" {
                     prim

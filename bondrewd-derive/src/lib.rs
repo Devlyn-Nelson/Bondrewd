@@ -413,6 +413,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// - [x] Invalid catch (stores the actual primitive in a 1 field Variant).
 /// - [ ] types other than u8.
 /// - [x] Support `u8` literals for Enum Variants
+/// - [x] Support for impl of `std::cmp::PartialEq` for the given primitive (currently only u8)
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -430,6 +431,7 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
         Ok(f) => f,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
+    let partial_eq = enums::partial_eq::generate_partial_eq(&enum_info);
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {
@@ -438,5 +440,7 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             #into
             #from
         }
+
+        #partial_eq
     })
 }
