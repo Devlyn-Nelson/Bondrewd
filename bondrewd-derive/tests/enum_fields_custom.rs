@@ -1,4 +1,3 @@
-use crate::TestCustomContinuationEnum::CustomZeroContinued;
 use bondrewd::*;
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
@@ -78,7 +77,7 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b10000000);
-    assert_eq!(bytes[1], 0b01000000);
+    assert_eq!(bytes[1], 0b00000001);
     assert_eq!(bytes[2], 0b00001000);
     #[cfg(feature = "slice_fns")]
     {
@@ -105,8 +104,7 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     SimpleCustomContinuationEnumUsage::write_slice_two(
         &mut bytes,
         TestCustomContinuationEnum::CustomZeroContinued,
-    );
-    assert_eq!(bytes[1], 0b10000000);
+    )?;
     let expected = SimpleCustomContinuationEnumUsage {
         one: 0x80,
         two: TestCustomContinuationEnum::CustomZeroContinued,

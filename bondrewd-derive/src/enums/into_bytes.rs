@@ -47,6 +47,3 @@ pub fn generate_into_bytes(enum_info: &EnumInfo) -> syn::Result<proc_macro2::Tok
         }
     })
 }
-enum asdf {
-    test { f: u8 },
-}

@@ -17,8 +17,8 @@ impl PartialEq for EnumVariantBuilderType {
         match self {
             Self::UnsignedValue => false,
             Self::CatchAll => true,
-            Self::CatchPrimitive(name) => {
-                if let Self::CatchPrimitive(other_name) = other {
+            Self::CatchPrimitive(_name) => {
+                if let Self::CatchPrimitive(_other_name) = other {
                     true
                 } else {
                     false
@@ -78,7 +78,7 @@ impl EnumInfo {
                 if let Some(name) = name_value.get_ident() {
                     match name.to_string().as_str() {
                         "invalid" => {
-                            if let Some(ref name) = invalid_found {
+                            if let Some(_) = invalid_found {
                                 return Ok(ParseMetaResult::InvalidConflict(
                                     var.ident.span(),
                                     var.ident.clone(),
@@ -233,7 +233,6 @@ impl EnumInfo {
         var: &Variant,
         primitive_type: &mut Option<Ident>,
         invalid_found: &mut Option<EnumVariantBuilder>,
-        i: &usize,
     ) -> syn::Result<bool> {
         let mut temp: Option<Ident> = None;
         let mut temp_invalid = invalid_found.clone();
@@ -301,7 +300,6 @@ impl EnumInfo {
         let mut unknown_variants: std::collections::VecDeque<EnumVariantBuilder> =
             Default::default();
         let mut invalid_found: Option<EnumVariantBuilder> = None;
-        let mut out_of_order_indices: usize = 0;
         let last_variant = data.variants.len() - 1;
         for (var, i) in data.variants.iter().zip(0..data.variants.len()) {
             let test_len = literal_variants.len() + unknown_variants. len();
@@ -386,16 +384,12 @@ impl EnumInfo {
                         if let Some((_, ref discriminant)) = var.discriminant {
                             // Parse the discriminant and validate its able to be used
                             let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
-                            if let Some(oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
-                                value: EnumVariantType::UnsignedValue(Literal::usize_unsuffixed(i)),
+                            if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
+                                value: EnumVariantType::Skip(Literal::usize_unsuffixed(discriminant_val)),
                                 name: var.ident.clone(),
                             }) {
                                 return Err(syn::Error::new(var.ident.span(), "Literal Values conflict"));
                             }
-                            literal_variants.insert(i.clone(), EnumVariant{
-                                name: var.ident.clone(),
-                                value: EnumVariantType::Skip(Literal::usize_unsuffixed(i)),
-                            });
                         }else{
                             unknown_variants.push_back(EnumVariantBuilder{
                                 name: var.ident.clone(),
@@ -407,16 +401,16 @@ impl EnumInfo {
                         if let Some((_, ref discriminant)) = var.discriminant {
                             // Parse the discriminant and validate its able to be used
                             let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
-                            if let Some(oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
-                                value: EnumVariantType::Skip(Literal::usize_unsuffixed(i)),
+                            if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
+                                value: EnumVariantType::UnsignedValue(Literal::usize_unsuffixed(discriminant_val)),
                                 name: var.ident.clone(),
                             }) {
                                 return Err(syn::Error::new(var.ident.span(), "Literal Values conflict"));
                             }
-                        } else if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found, &i)? {
-                            unknown_variants.push_back(EnumVariantBuilder{
+                        } else if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found)? {
+                            literal_variants.insert(i, EnumVariant{
                                 name: var.ident.clone(),
-                                value: EnumVariantBuilderType::Skip,
+                                value: EnumVariantType::Skip(Literal::usize_unsuffixed(i)),
                             });
                         } else {
                             // This is a simple usage of a bunch of unit variants in a row
@@ -437,22 +431,26 @@ impl EnumInfo {
         if unknown_variants.len() +literal_variants.len() != last_variant + 1 {
             return Err(Error::new(input.span(), format!("not all fields were parsed [({} + lits:{}) of {}]",unknown_variants.len(), literal_variants.len(), last_variant + 1)))
         }
-        for i in 0.. {
+        for i in 0..=last_variant {
             // TODO need to rework merging of literals and non-literals
-            if let Some(enum_var) = literal_variants.remove(&i) {
-                if let EnumVariantType::Skip(_) = enum_var.value {
-                    if skipped.is_some() {
-                        // CHECK if needed
-                        return Err(syn::Error::new(
-                            enum_var.name.span(),
-                            "two skips. please open issue for this",
-                        ));
+            if literal_variants.contains_key(&i) {
+                if let Some(enum_var) = literal_variants.remove(&i) {
+                    if let EnumVariantType::Skip(_) = enum_var.value {
+                        if skipped.is_some() {
+                            // CHECK if error is needed
+                            return Err(syn::Error::new(
+                                enum_var.name.span(),
+                                "two skips. please open issue for this",
+                            ));
+                        }
+                        skipped = Some(Literal::usize_unsuffixed(i));
+                    } else {
+                        variants.push(enum_var);
                     }
-                    skipped = Some(Literal::usize_unsuffixed(i));
-                } else {
-                    variants.push(enum_var);
+                    continue;
+                }else{
+                    return Err(syn::Error::new(input.span(), "found key but removal failed. please open issue."));
                 }
-                continue;
             }
             if let Some(unknown_variant) = unknown_variants.pop_front() {
                 match unknown_variant.value {
@@ -479,9 +477,7 @@ impl EnumInfo {
                             ));
                         }
                         skipped = Some(Literal::usize_unsuffixed(i));
-                        if i != last_variant{
-                            continue;
-                        }
+                        continue;
                     }
                     EnumVariantBuilderType::UnsignedValue => {
                         variants.push(EnumVariant {
@@ -491,6 +487,42 @@ impl EnumInfo {
                         continue;
                     }
                 }
+            }
+            let key = {
+                if let Some(ref size) = literal_variants.iter().next() {
+                    Some(size.0.clone())
+                }else{
+                    None
+                }
+            };
+            if let Some(lit_index) = key {
+                if let Some(enum_var) = literal_variants.remove(&lit_index) {
+                    if let EnumVariantType::Skip(_) = enum_var.value {
+                        if skipped.is_some() {
+                            // CHECK if needed
+                            return Err(syn::Error::new(
+                                enum_var.name.span(),
+                                "two skips. please open issue for this",
+                            ));
+                        }
+                        skipped = Some(Literal::usize_unsuffixed(i));
+                        continue;
+                    } else {
+                        variants.push(enum_var);
+                        continue;
+                    }
+                }else{
+                    return Err(syn::Error::new(
+                        input.span(),
+                        format!("failed removing key cloned from its first key  [Key:{:?}], please open issue.", key),
+                    ));
+                }
+            }
+            if skipped.is_none() || i != last_variant {
+                return Err(syn::Error::new(
+                    input.span(),
+                    format!("missing variant [{} of {}], please open issue.", i, last_variant + 1),
+                ));
             }
         }
 
@@ -544,7 +576,7 @@ impl EnumInfo {
                     0_usize..=255_usize => {
                         format_ident!("u8")
                     }
-                    256_usize..=65536 => {
+                    256_usize..=65535 => {
                         format_ident!("u16")
                     }
                     65536..=4294967296 => {
