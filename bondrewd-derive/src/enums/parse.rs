@@ -304,6 +304,7 @@ impl EnumInfo {
         let mut out_of_order_indices: usize = 0;
         let last_variant = data.variants.len() - 1;
         for (var, i) in data.variants.iter().zip(0..data.variants.len()) {
+            let test_len = literal_variants.len() + unknown_variants. len();
             match var.fields {
                 syn::Fields::Named(ref named) => {
                     match named.named.len() {
@@ -412,13 +413,11 @@ impl EnumInfo {
                             }) {
                                 return Err(syn::Error::new(var.ident.span(), "Literal Values conflict"));
                             }
-                        } else if invalid_found.is_none() {
-                            if Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found, &i)? {
-                                unknown_variants.push_back(EnumVariantBuilder{
-                                    name: var.ident.clone(),
-                                    value: EnumVariantBuilderType::Skip,
-                                });
-                            }
+                        } else if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found, &i)? {
+                            unknown_variants.push_back(EnumVariantBuilder{
+                                name: var.ident.clone(),
+                                value: EnumVariantBuilderType::Skip,
+                            });
                         } else {
                             // This is a simple usage of a bunch of unit variants in a row
                             unknown_variants.push_back(EnumVariantBuilder {
@@ -429,10 +428,17 @@ impl EnumInfo {
                     }
                 }
             }
+            if unknown_variants.len() + literal_variants.len() == test_len{
+                return Err(Error::new(var.span(), "field skipped, please open issue"));
+            }
         }
         let mut skipped: Option<Literal> = None;
         let mut variants: Vec<EnumVariant> = Default::default();
-        for i in 0..=last_variant {
+        if unknown_variants.len() +literal_variants.len() != last_variant + 1 {
+            return Err(Error::new(input.span(), format!("not all fields were parsed [({} + lits:{}) of {}]",unknown_variants.len(), literal_variants.len(), last_variant + 1)))
+        }
+        for i in 0.. {
+            // TODO need to rework merging of literals and non-literals
             if let Some(enum_var) = literal_variants.remove(&i) {
                 if let EnumVariantType::Skip(_) = enum_var.value {
                     if skipped.is_some() {
@@ -465,7 +471,17 @@ impl EnumInfo {
                         continue;
                     }
                     EnumVariantBuilderType::Skip => {
+                        if skipped.is_some() {
+                            // CHECK if needed
+                            return Err(syn::Error::new(
+                                unknown_variant.name.span(),
+                                "two skips. please open issue for this",
+                            ));
+                        }
                         skipped = Some(Literal::usize_unsuffixed(i));
+                        if i != last_variant{
+                            continue;
+                        }
                     }
                     EnumVariantBuilderType::UnsignedValue => {
                         variants.push(EnumVariant {
@@ -476,46 +492,44 @@ impl EnumInfo {
                     }
                 }
             }
-            if let Some(ref invalid) = invalid_found {
-                if let Some(ref index) = skipped {
-                    if i == last_variant {
-                        variants.push(EnumVariant {
-                            value: match invalid.value {
-                                EnumVariantBuilderType::CatchAll => {
-                                    EnumVariantType::CatchAll(index.clone())
-                                }
-                                EnumVariantBuilderType::CatchPrimitive(ref name) => {
-                                    EnumVariantType::CatchPrimitive(name.clone())
-                                }
-                                _ => {
-                                    return Err(syn::Error::new(
-                                        invalid.name.span(),
-                                        "Invalid found is not an invalid type, please open issue.",
-                                    ));
-                                }
-                            },
-                            name: invalid.name.clone(),
-                        });
-                    } else {
-                        return Err(syn::Error::new(
-                            input.span(),
-                            "Invalid was not last variant, please open issue.",
-                        ));
-                    }
+        }
+
+        if let Some(ref invalid) = invalid_found {
+            if let Some(ref index) = skipped {
+                if variants.len() == last_variant {
+                    variants.push(EnumVariant {
+                        value: match invalid.value {
+                            EnumVariantBuilderType::CatchAll => {
+                                EnumVariantType::CatchAll(index.clone())
+                            }
+                            EnumVariantBuilderType::CatchPrimitive(ref name) => {
+                                EnumVariantType::CatchPrimitive(name.clone())
+                            }
+                            _ => {
+                                return Err(syn::Error::new(
+                                    invalid.name.span(),
+                                    "Invalid found is not an invalid type, please open issue.",
+                                ));
+                            }
+                        },
+                        name: invalid.name.clone(),
+                    });
                 } else {
                     return Err(syn::Error::new(
                         input.span(),
-                        "Invalid found but skip never takes place, please open issue.",
+                        format!("Invalid was not last variant [{} of {}], please open issue.", variants.len(), last_variant + 1),
                     ));
                 }
             } else {
-                return Err(syn::Error::new(input.span(), "No Invalid found"));
+                return Err(syn::Error::new(
+                    input.span(),
+                    "Invalid found but skip never takes place, please open issue.",
+                ));
             }
         }
 
         let info = EnumInfo {
             name: input.ident.clone(),
-            variants,
             primitive: if let Some(prim) = primitive_type {
                 if prim.to_string().as_str() == "u8" {
                     prim
@@ -526,11 +540,22 @@ impl EnumInfo {
                     ));
                 }
             } else {
-                return Err(syn::Error::new(
-                    input.ident.span(),
-                    "add #[bondrewd_enum(u8)] as struct attribute to avoid problems caused by future changed please.",
-                ));
+                match variants.len() {
+                    0_usize..=255_usize => {
+                        format_ident!("u8")
+                    }
+                    256_usize..=65536 => {
+                        format_ident!("u16")
+                    }
+                    65536..=4294967296 => {
+                        format_ident!("u32")
+                    }
+                    _ =>{
+                        return Err(syn::Error::new(input.span(), "too many variants?"));
+                    }
+                }
             },
+            variants,
         };
 
         Ok(info)
