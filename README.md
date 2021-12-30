@@ -144,8 +144,9 @@ fn main() {
 # `enum` Derive features:
 
 * Derive from_primitive and into_primitive.
-* specify a Invalid variant for catching values that don't make sense. otherwise the last value will be used as a catch all.
+* Specify an `Invalid` variant for catching values that don't make sense, otherwise the last value will be used as a catch-all.
   * `#[bondrewd_enum(invalid)]`.
+* Specify custom `u8` literal for discriminants on enum variants 
 * Invalid with primitive. like the Invalid catch all above but it stores the value as a variant field.
 
 # Why Bondrewd

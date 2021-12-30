@@ -1,7 +1,7 @@
 use crate::enums::parse::{EnumInfo, EnumVariantType};
 use quote::quote;
 
-pub fn generate_from_bytes(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
+pub fn generate_from_bytes(enum_info: &EnumInfo) -> syn::Result<proc_macro2::TokenStream> {
     let mut arms = quote! {};
     for var in enum_info.variants.iter() {
         let name = &var.name;
@@ -16,10 +16,22 @@ pub fn generate_from_bytes(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
                     _ => Self::#name,
                 }
             }
-            EnumVariantType::CatchPrimitive => {
-                quote! {
-                    _ => Self::#name(input),
+            EnumVariantType::CatchPrimitive(ref field_name) => {
+                if let Some(ref field_name) = field_name {
+                    quote! {
+                        _ => Self::#name { #field_name = input },
+                    }
+                } else {
+                    quote! {
+                        _ => Self::#name(input),
+                    }
                 }
+            }
+            EnumVariantType::Skip(_) => {
+                return Err(syn::Error::new(
+                    var.name.span(),
+                    "skip got into from bytes, please open issue.",
+                ))
             }
         };
         arms = quote! {
@@ -27,11 +39,11 @@ pub fn generate_from_bytes(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
             #arm
         };
     }
-    quote! {
+    Ok(quote! {
         fn from_primitive(input: u8) -> Self {
             match input {
                 #arms
             }
         }
-    }
+    })
 }

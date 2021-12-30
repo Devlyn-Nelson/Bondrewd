@@ -297,9 +297,13 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 
     let setters: bool;
     #[cfg(not(feature = "setters"))]
-    {setters = false;}
+    {
+        setters = false;
+    }
     #[cfg(feature = "setters")]
-    {setters = true;}
+    {
+        setters = true;
+    }
     let setters_quote = if setters {
         match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
             Ok(parsed_struct) => parsed_struct,
@@ -307,8 +311,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 return TokenStream::from(err.to_compile_error());
             }
         }
-    }else{
-        quote!{}
+    } else {
+        quote! {}
     };
 
     let getter_setters_quotes = quote! {
@@ -408,6 +412,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///                         variant will be used).
 /// - [x] Invalid catch (stores the actual primitive in a 1 field Variant).
 /// - [ ] types other than u8.
+/// - [x] Support `u8` literals for Enum Variants
+/// - [x] Support for impl of `std::cmp::PartialEq` for the given primitive (currently only u8)
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -417,8 +423,15 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    let into = enums::into_bytes::generate_into_bytes(&enum_info);
-    let from = enums::from_bytes::generate_from_bytes(&enum_info);
+    let into = match enums::into_bytes::generate_into_bytes(&enum_info) {
+        Ok(i) => i,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
+    let from = match enums::from_bytes::generate_from_bytes(&enum_info) {
+        Ok(f) => f,
+        Err(err) => return TokenStream::from(err.to_compile_error()),
+    };
+    let partial_eq = enums::partial_eq::generate_partial_eq(&enum_info);
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {
@@ -427,5 +440,7 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             #into
             #from
         }
+
+        #partial_eq
     })
 }
