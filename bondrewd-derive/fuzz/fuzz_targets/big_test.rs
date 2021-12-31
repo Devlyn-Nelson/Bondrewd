@@ -81,13 +81,13 @@ pub struct Test {
     two: i8,
     #[bondrewd(bit_length = 9)]
     three: u16,
-    #[bondrewd(bit_length = 14)]
+    #[bondrewd(bit_length = 14)]//2
     four: i16,
-    #[bondrewd(bit_length = 30)]
+    #[bondrewd(bit_length = 30)]//4
     five: u32,
-    #[bondrewd(bit_length = 27)]
+    #[bondrewd(bit_length = 27)]//7
     six: i32,
-    #[bondrewd(bit_length = 56)]
+    #[bondrewd(bit_length = 56)]//
     seven: u64,
     #[bondrewd(bit_length = 43)]
     eight: i64,
@@ -154,7 +154,7 @@ fuzz_target!(|data: [TestInnerArb;2]| {
     test.test_struct.set_f_two(data[0].f_two);
     test.test_struct.set_b_one(data[0].b_one);
     let bytes = test.clone().into_bytes();
-    println!("{:?}", &bytes);
+    
     let new_test = Test::from_bytes(bytes);
     assert_eq!(new_test, test);
 });

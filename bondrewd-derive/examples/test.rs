@@ -46,8 +46,9 @@ pub struct Test {
 }
 
 fn main() {
-    let data: [u8; Test::BYTE_SIZE] = [0; Test::BYTE_SIZE];
+    let data: [u8; Test::BYTE_SIZE] = [255; Test::BYTE_SIZE];
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
-    assert_eq!(Test::from_bytes(data.clone()).into_bytes(), data);
+    let s = Test::from_bytes(data.clone());
+    assert_eq!(s.into_bytes(), data);
 }

@@ -270,7 +270,7 @@ fn apply_le_math_to_field_access_quote(
         //     }
         // };
         let size = field.ty.size();
-        let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits) {
+        let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
             a
         }else{
             quote!{[0u8;#size]}
@@ -309,7 +309,7 @@ fn apply_le_math_to_field_access_quote(
 
                 full_quote = quote! {
                     #full_quote
-                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#mid_shift);
+                    #field_buffer_name[#i] |= #field_buffer_name[#i].rotate_left(#mid_shift);
                 };
             }
             i += 1;
@@ -645,7 +645,7 @@ fn apply_be_math_to_field_access_quote(
             ));
         }
         let bits_in_last_byte = (amount_of_bits - available_bits_in_first_byte) % 8;
-        // how many times to shift the number right.
+        // how many times to shift the number right(for into_bytes).
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
@@ -707,7 +707,7 @@ fn apply_be_math_to_field_access_quote(
         let output = match field.ty {
             FieldDataType::Number(size, _, ref type_quote) |
             FieldDataType::Enum(ref type_quote, size, _) => {
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip);
+                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_be_bytes({
                         #full_quote
@@ -723,7 +723,7 @@ fn apply_be_math_to_field_access_quote(
                 }else{
                     return Err(syn::Error::new(field.ident.span(), "unsupported floating type"))
                 };
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip);
+                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
                 let apply_field_to_buffer = quote! {
                     #alt_type_quote::from_be_bytes({
                         #full_quote
@@ -732,7 +732,7 @@ fn apply_be_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Char(size, _) => {
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip);
+                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
                 let apply_field_to_buffer = quote! {
                     u32::from_be_bytes({
                         #full_quote
@@ -838,15 +838,15 @@ fn build_number_quote(
     right_shift: i8,
     available_bits_in_first_byte: usize,
     flip: Option<usize>,
-) -> TokenStream {
-    let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits) {
+) -> syn::Result<TokenStream> {
+    let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
         a
     }else{
         quote!{[0u8;#size]}
     };
     let mut full_quote = quote! {
         let mut #field_buffer_name: [u8;#size] = #new_array_quote;
-        #field_buffer_name[#first_bits_index] = input_byte_buffer[#starting_inject_byte] & #first_bit_mask;
+        #field_buffer_name[#first_bits_index] |= input_byte_buffer[#starting_inject_byte] & #first_bit_mask;
     };
     // fill in the rest of the bits
     let mut current_byte_index_in_buffer: usize = if let None = flip {
@@ -898,7 +898,7 @@ fn build_number_quote(
             #field_buffer_name
         };
     }
-    full_quote
+    Ok(full_quote)
 }
 
 fn isolate_sign_bit_mask(bit_index: &usize) -> u8 {
@@ -926,11 +926,89 @@ fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
         _ => 0b10000000,
     }
 }
+fn rotate_primitive_vec(prim: Vec<u8>, right_shift: &i8, field: &FieldInfo) -> syn::Result<Vec<u8>> {
+    // REMEMBER SHIFTS ARE BACKWARD BECAUSE YOU COPIED AND PASTED into_bytes
+    if *right_shift == 0 {
+        return Ok(prim);
+    }
+    let output = match prim.len() {
+        1 => {
+            let mut temp = u8::from_be_bytes([prim[0]]);
+            match *right_shift {
+                i8::MIN..=-1 => {
+                    let left_shift = -*right_shift;
+                    temp = temp.rotate_left(left_shift as u32);
+                }
+                0..=i8::MAX => {
+                    temp = temp.rotate_right(*right_shift as u32);
+                }
+            }
+            temp.to_be_bytes().to_vec()
+        }
+        2 => {
+            let mut temp = u16::from_be_bytes([prim[0], prim[1]]);
+            match *right_shift {
+                i8::MIN..=-1 => {
+                    let left_shift = -*right_shift;
+                    temp = temp.rotate_left(left_shift as u32);
+                }
+                0..=i8::MAX => {
+                    temp = temp.rotate_right(*right_shift as u32);
+                }
+            }
+            temp.to_be_bytes().to_vec()
+        }
+        4 => {
+            let mut temp = u32::from_be_bytes([prim[0], prim[1], prim[2], prim[3]]);
+            match *right_shift {
+                i8::MIN..=-1 => {
+                    let left_shift = -*right_shift;
+                    temp = temp.rotate_left(left_shift as u32);
+                }
+                0..=i8::MAX => {
+                    temp = temp.rotate_right(*right_shift as u32);
+                }
+            }
+            temp.to_be_bytes().to_vec()
+        }
+        8 => {
+            let mut temp = u64::from_be_bytes([prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7]]);
+            match *right_shift {
+                i8::MIN..=-1 => {
+                    let left_shift = -*right_shift;
+                    temp = temp.rotate_left(left_shift as u32);
+                }
+                0..=i8::MAX => {
+                    temp = temp.rotate_right(*right_shift as u32);
+                }
+            }
+            temp.to_be_bytes().to_vec()
+        }
+        16 => {
+            let mut temp = u128::from_be_bytes([prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7], prim[8], prim[9], prim[10], prim[11], prim[12], prim[13], prim[14], prim[15]]);
+            match *right_shift {
+                i8::MIN..=-1 => {
+                    let left_shift = -*right_shift;
+                    temp = temp.rotate_left(left_shift as u32);
+                }
+                0..=i8::MAX => {
+                    temp = temp.rotate_right(*right_shift as u32);
+                }
+            }
+            temp.to_be_bytes().to_vec()
+        }
+        _ => {
+            return Err(syn::Error::new(field.ident.span(), "invalid primitive size"));
+        }
+    };
+    Ok(output)
+}
 
 fn add_sign_fix_quote(
     field: &FieldInfo,
     amount_of_bits: &usize,
-) -> Option<TokenStream> {
+    right_shift: &i8,
+) -> syn::Result<Option<TokenStream>> {
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
@@ -942,7 +1020,7 @@ fn add_sign_fix_quote(
                     Endianness::Little => {
                         (((8 - (amount_of_bits % 8)) + (field.attrs.bit_range.start))%8,field.attrs.bit_range.end % 8)
                     }
-                    Endianness::None => return None,
+                    Endianness::None => return Ok(None),
                 };
                 let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
                 let mut sign_bit = quote! {
@@ -961,6 +1039,7 @@ fn add_sign_fix_quote(
                         buffer.push_back(get_left_and_mask(0));
                     }
                 }
+                buffer = std::collections::VecDeque::from(rotate_primitive_vec(buffer.into(), right_shift, &field)?);
                 let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> = Default::default();
                 match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
@@ -979,15 +1058,15 @@ fn add_sign_fix_quote(
                             }else{false}
                         }{}
                     }
-                    Endianness::None => return None,
+                    Endianness::None => return Ok(None),
                 }
-                return Some(quote! {
+                return Ok(Some(quote! {
                     if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]} 
-                });
+                }));
             }
         }
     }
-    None
+    Ok(None)
 }
 
 fn add_sign_fix_quote_single_bit(
@@ -1000,7 +1079,7 @@ fn add_sign_fix_quote_single_bit(
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
                 let bit_to_isolate = field.attrs.bit_range.start % 8;
-                let sign_mask = isolate_sign_bit_mask(&bit_to_isolate);
+                let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
                 let neg_mask = get_left_and_mask(bit_to_isolate + 1);
                 let mut sign_bit = quote! {
                     (input_byte_buffer[#byte_index] & #sign_mask)
