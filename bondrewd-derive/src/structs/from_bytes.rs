@@ -309,7 +309,7 @@ fn apply_le_math_to_field_access_quote(
 
                 full_quote = quote! {
                     #full_quote
-                    #field_buffer_name[#i] |= #field_buffer_name[#i].rotate_left(#mid_shift);
+                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#mid_shift);
                 };
             }
             i += 1;
