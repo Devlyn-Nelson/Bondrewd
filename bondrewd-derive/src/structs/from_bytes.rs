@@ -428,12 +428,12 @@ fn apply_le_math_to_field_access_quote(
         // both of these could benefit from a return of the number that actually got set.
         let output_quote = match field.ty {
             FieldDataType::Number(_, ref sign, ref ident) => {
-                let field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
+                    field_value = add_sign_fix_quote_single_bit(field_value, &field, &amount_of_bits, &starting_inject_byte);
                     let mut value = quote!{
                         let mut #field_buffer_name = #field_value;
                     };
-                    add_sign_fix_quote_single_bit(&mut value, &field, &amount_of_bits, &field_buffer_name);
                     value = quote!{
                         {
                             #value
@@ -789,12 +789,12 @@ fn apply_be_math_to_field_access_quote(
         // both of these could benefit from a return of the number that actually got set.
         let output_quote = match field.ty {
             FieldDataType::Number(_, ref sign,ref ident) => {
-                let field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
+                    field_value = add_sign_fix_quote_single_bit(field_value, &field, &amount_of_bits, &starting_inject_byte);
                     let mut value = quote!{
                         let mut #field_buffer_name = #field_value;
                     };
-                    add_sign_fix_quote_single_bit(&mut value, &field, &amount_of_bits, &field_buffer_name);
                     value = quote!{
                         {
                             #value
@@ -951,33 +951,26 @@ fn add_sign_fix_quote(
 }
 
 fn add_sign_fix_quote_single_bit(
-    field_quote: &mut TokenStream,
+    field_access: TokenStream,
     field: &FieldInfo,
     amount_of_bits: &usize,
-    field_buffer_quote: &proc_macro2::Ident,
-) {
+    byte_index: &usize,
+) -> TokenStream{
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
-                let bits_in_last_byte = amount_of_bits % 8;
-                let bit_index = 8 - bits_in_last_byte;
-                let sign_mask = isolate_sign_bit_mask(&bit_index);
+                let bit_to_isolate = field.attrs.bit_range.start % 8;
+                let sign_mask = isolate_sign_bit_mask(&bit_to_isolate);
+                let neg_mask = get_left_and_mask(bit_to_isolate + 1);
                 let mut sign_bit = quote! {
-                    (#field_buffer_quote & #sign_mask)
+                    (input_byte_buffer[#byte_index] & #sign_mask)
                 };
-                let take_sign_mask = !sign_mask;
-                if bit_index == 0 {
-                    sign_bit = quote! {
-                        (#sign_bit << #bit_index)
-                    };
-                }
                 let mut add_me = quote! {
-                    #field_quote
-                    #field_buffer_quote = #sign_bit & 0b01111111;
-                    #field_buffer_quote &= #take_sign_mask;
+                    if #sign_bit == #sign_mask {#neg_mask | #field_access} else {0u8 | #field_access} 
                 };
-                std::mem::swap(&mut add_me, field_quote);
+                return add_me;
             }
         }
     }
+    field_access
 }

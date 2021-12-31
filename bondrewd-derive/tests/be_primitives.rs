@@ -129,7 +129,7 @@ struct SimpleWithReserve {
     #[bondrewd(bit_length = 3, reserve)]
     reserve: u8,
     #[bondrewd(bit_length = 4)]
-    two: u8,
+    two: i8,
 }
 
 #[test]
@@ -137,7 +137,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     let mut simple = SimpleWithReserve {
         one: 341,
         reserve: u8::MAX,
-        two: 10,
+        two: -1,
     };
     assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
     #[cfg(feature = "slice_fns")]
@@ -147,7 +147,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
 
     assert_eq!(bytes[0], 0b10101010);
-    assert_eq!(bytes[1], 0b10001010);
+    assert_eq!(bytes[1], 0b10001111);
     #[cfg(feature = "slice_fns")]
     {
         //peeks
