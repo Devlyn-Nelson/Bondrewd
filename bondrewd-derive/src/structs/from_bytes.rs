@@ -270,8 +270,13 @@ fn apply_le_math_to_field_access_quote(
         //     }
         // };
         let size = field.ty.size();
+        let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits) {
+            a
+        }else{
+            quote!{[0u8;#size]}
+        };
         let mut full_quote = quote! {
-            let mut #field_buffer_name: [u8;#size] = [0u8;#size];
+            let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         };
 
         let fields_last_bits_index = (amount_of_bits as f64 / 8.0f64).ceil() as usize - 1;
@@ -336,7 +341,6 @@ fn apply_le_math_to_field_access_quote(
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#left_shift);
             };
         }
-        add_sign_fix_quote(&mut full_quote, &field, &amount_of_bits, &field_buffer_name);
         full_quote = quote! {
             #full_quote
             #field_buffer_name
@@ -835,8 +839,13 @@ fn build_number_quote(
     available_bits_in_first_byte: usize,
     flip: Option<usize>,
 ) -> TokenStream {
+    let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits) {
+        a
+    }else{
+        quote!{[0u8;#size]}
+    };
     let mut full_quote = quote! {
-        let mut #field_buffer_name: [u8;#size] = [0u8;#size];
+        let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         #field_buffer_name[#first_bits_index] = input_byte_buffer[#starting_inject_byte] & #first_bit_mask;
     };
     // fill in the rest of the bits
@@ -886,10 +895,6 @@ fn build_number_quote(
         full_quote = quote! {
             #full_quote
             #field_buffer_name[#final_index] |= input_byte_buffer[#current_byte_index_in_buffer] & #last_bit_mask;
-        };
-        add_sign_fix_quote(&mut full_quote, &field, &amount_of_bits, &field_buffer_name);
-        full_quote = quote! {
-            #full_quote
             #field_buffer_name
         };
     }
@@ -909,45 +914,80 @@ fn isolate_sign_bit_mask(bit_index: &usize) -> u8 {
     }
 }
 
+fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
+    match bit_index {
+        1 => 0b01000000,
+        2 => 0b00100000,
+        3 => 0b00010000,
+        4 => 0b00001000,
+        5 => 0b00000100,
+        6 => 0b00000010,
+        7 => 0b00000001,
+        _ => 0b10000000,
+    }
+}
+
 fn add_sign_fix_quote(
-    field_quote: &mut TokenStream,
     field: &FieldInfo,
     amount_of_bits: &usize,
-    field_buffer_quote: &proc_macro2::Ident,
-) {
+) -> Option<TokenStream> {
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
-                let bits_in_last_byte = amount_of_bits % 8;
-                let bit_index = 8 - bits_in_last_byte;
-                let sign_mask = isolate_sign_bit_mask(&bit_index);
-                let take_sign_mask = !sign_mask;
-                let sign_index = match field.attrs.endianness.as_ref() {
+                let (bit_to_isolate,sign_index) = match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
-                        (size - 1) - (((*amount_of_bits as f64 / 8.0_f64).ceil() - 1_f64) as usize)
+                        // TODO fix bit isolators to fix signed numbers.
+                        (field.attrs.bit_range.start % 8, (field.attrs.bit_range.start / 8))
                     }
                     Endianness::Little => {
-                        ((*amount_of_bits as f64 / 8.0_f64).ceil() - 1_f64) as usize
+                        (((8 - (amount_of_bits % 8)) + (field.attrs.bit_range.start))%8,field.attrs.bit_range.end % 8)
                     }
-                    Endianness::None => return,
+                    Endianness::None => return None,
                 };
+                let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
                 let mut sign_bit = quote! {
-                    (#field_buffer_quote[#sign_index] & #sign_mask)
+                    (input_byte_buffer[#sign_index] & #sign_mask)
                 };
-                if bit_index == 0 {
-                    sign_bit = quote! {
-                        (#sign_bit << #bit_index)
-                    };
+                let mut unused_bits = (size * 8) - amount_of_bits;
+                let mut buffer: std::collections::VecDeque<u8> = Default::default(); 
+                for i in 0..*size {
+                    if unused_bits > 7 {
+                        buffer.push_back(get_left_and_mask(8));
+                        unused_bits -= 8;
+                    }else if unused_bits != 0 {
+                        buffer.push_back(get_left_and_mask(unused_bits));
+                        unused_bits = 0;
+                    }else{
+                        buffer.push_back(get_left_and_mask(0));
+                    }
                 }
-                let mut add_me = quote! {
-                    #field_quote
-                    #field_buffer_quote[0] = #sign_bit & 0b01111111;
-                    #field_buffer_quote[#sign_index] &= #take_sign_mask;
-                };
-                std::mem::swap(&mut add_me, field_quote);
+                let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> = Default::default();
+                match field.attrs.endianness.as_ref() {
+                    Endianness::Big => {
+                        while {
+                            if let Some(c) = buffer.pop_front() {
+                                bit_buffer.push(c);
+                                true
+                            }else{false}
+                        }{}
+                    }
+                    Endianness::Little => {
+                        while {
+                            if let Some(c) = buffer.pop_back() {
+                                bit_buffer.push(c);
+                                true
+                            }else{false}
+                        }{}
+                    }
+                    Endianness::None => return None,
+                }
+                return Some(quote! {
+                    if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]} 
+                });
             }
         }
     }
+    None
 }
 
 fn add_sign_fix_quote_single_bit(
