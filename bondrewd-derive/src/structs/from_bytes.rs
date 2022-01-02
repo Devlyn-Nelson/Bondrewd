@@ -306,14 +306,16 @@ fn apply_le_math_to_field_access_quote(
                         #field_buffer_name[#i] |= input_byte_buffer[#start #operator 1] & #next_bit_mask;
                     }
                 }
-
-                full_quote = quote! {
-                    #full_quote
-                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#mid_shift);
-                };
+                if mid_shift != 0 {
+                    full_quote = quote! {
+                        #full_quote
+                        #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#mid_shift);
+                    };
+                }
             }
             i += 1;
         }
+        let used_bits = available_bits_in_first_byte + (8 * i);
         if right_shift > 0 {
             let start = if let None = flip {
                 starting_inject_byte + i
@@ -321,9 +323,24 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             let right_shift: u32 = right_shift.clone() as u32;
+            if used_bits < amount_of_bits {
+                full_quote = quote! {
+                    #full_quote
+                    #field_buffer_name[#i] |= input_byte_buffer[#start] & #current_bit_mask;
+                    #field_buffer_name[#i] |= input_byte_buffer[#start + 1] & #last_bit_mask;
+                };
+            }else{
+                let mut last_mask = first_bit_mask.clone();
+                if amount_of_bits < used_bits {
+                    last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
+                }
+                full_quote = quote! {
+                    #full_quote
+                    #field_buffer_name[#i] |= input_byte_buffer[#start] & #last_mask;
+                };
+            }
             full_quote = quote! {
                 #full_quote
-                #field_buffer_name[#i] |= input_byte_buffer[#start + 1] & #last_bit_mask;
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#right_shift);
             };
         } else {
@@ -1014,11 +1031,13 @@ fn add_sign_fix_quote(
             if let NumberSignage::Signed = sign {
                 let (bit_to_isolate,sign_index) = match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
-                        // TODO fix bit isolators to fix signed numbers.
-                        (field.attrs.bit_range.start % 8, (field.attrs.bit_range.start / 8))
+                        (field.attrs.bit_range.start % 8, field.attrs.bit_range.start / 8)
                     }
                     Endianness::Little => {
-                        (((8 - (amount_of_bits % 8)) + (field.attrs.bit_range.start))%8,field.attrs.bit_range.end % 8)
+                        let skip_bytes = (amount_of_bits / 8) * 8;
+                        let sign_bit_index = field.attrs.bit_range.start + skip_bytes;
+                        // TODO fix bit isolators to fix signed numbers.
+                        (sign_bit_index % 8, sign_bit_index / 8)
                     }
                     Endianness::None => return Ok(None),
                 };
@@ -1039,10 +1058,10 @@ fn add_sign_fix_quote(
                         buffer.push_back(get_left_and_mask(0));
                     }
                 }
-                buffer = std::collections::VecDeque::from(rotate_primitive_vec(buffer.into(), right_shift, &field)?);
                 let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> = Default::default();
                 match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
+                        buffer = std::collections::VecDeque::from(rotate_primitive_vec(buffer.into(), right_shift, &field)?);
                         while {
                             if let Some(c) = buffer.pop_front() {
                                 bit_buffer.push(c);
@@ -1051,6 +1070,12 @@ fn add_sign_fix_quote(
                         }{}
                     }
                     Endianness::Little => {
+                        if *right_shift > 0 {
+                            buffer = buffer.into_iter().map(|x|x.rotate_right(*right_shift as u32)).collect();
+                        } else if *right_shift < 0 {
+                            let left_shift = -right_shift as u32;
+                            buffer = buffer.into_iter().map(|x|x.rotate_left(left_shift)).collect();
+                        }
                         while {
                             if let Some(c) = buffer.pop_back() {
                                 bit_buffer.push(c);

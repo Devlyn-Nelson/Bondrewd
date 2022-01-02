@@ -20,7 +20,7 @@ pub enum TestInvalid {
 }
 
 #[derive(Bitfields, Clone, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(default_endianness = "le")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -73,13 +73,13 @@ pub struct TestInnerArb {
 }
 // 593
 #[derive(Bitfields, Clone, PartialEq,  Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(default_endianness = "le")]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
     #[bondrewd(bit_length = 4)]
     two: i8,
-    #[bondrewd(bit_length = 9)]
+    #[bondrewd(bit_length = 9)]//0
     three: u16,
     #[bondrewd(bit_length = 14)]//2
     four: i16,

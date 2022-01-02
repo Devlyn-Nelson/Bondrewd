@@ -77,7 +77,7 @@ impl BitMath {
         let zeros_on_left = field.attrs.bit_range.start % 8;
         // NOTE endianness is only for determining how to get the bytes we will apply to the output.
         // calculate how many of the bits will be inside the most significant byte we are adding to.
-        if 8 < zeros_on_left {
+        if 7 < zeros_on_left {
             return Err(syn::Error::new(
                 field.ident.span(),
                 "ne 8 - zeros_on_left = underflow",

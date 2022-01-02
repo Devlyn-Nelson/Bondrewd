@@ -343,10 +343,12 @@ fn apply_le_math_to_field_access_quote(
                     #clear_quote
                     output_byte_buffer[#start] &= #not_current_bit_mask;
                 };
-                full_quote = quote! {
-                    #full_quote
-                    #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
-                };
+                if mid_shift != 0 {
+                    full_quote = quote! {
+                        #full_quote
+                        #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
+                    };
+                }
                 if available_bits_in_first_byte + (8 * i) < amount_of_bits {
                     full_quote = quote! {
                         #full_quote
@@ -364,6 +366,9 @@ fn apply_le_math_to_field_access_quote(
             }
             i += 1;
         }
+        /// bits used after applying the first_bit_mask one more time.
+        let used_bits = available_bits_in_first_byte + (8 * i);
+        // TODO properly handle the last byte currently the shifting is not done right.
         if right_shift > 0 {
             let start = if let None = flip {
                 starting_inject_byte + i
@@ -373,17 +378,37 @@ fn apply_le_math_to_field_access_quote(
             let right_shift: u32 = right_shift.clone() as u32;
             let not_first_bit_mask = !first_bit_mask;
             let not_last_bit_mask = !last_bit_mask;
-            clear_quote = quote! {
-                #clear_quote
-                output_byte_buffer[#start] &= #not_first_bit_mask;
-                output_byte_buffer[#start #operator 1] &= #not_last_bit_mask;
-            };
+            
             full_quote = quote! {
                 #full_quote
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
-                output_byte_buffer[#start] |= #field_buffer_name[#i] & #first_bit_mask;
-                output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #last_bit_mask;
             };
+            if used_bits < amount_of_bits {
+                clear_quote = quote!{
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_first_bit_mask;
+                    output_byte_buffer[#start #operator 1] &= #not_last_bit_mask;
+                };
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start] |= #field_buffer_name[#i] & #first_bit_mask;
+                    output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #last_bit_mask;
+                };
+            }else{
+                let mut last_mask = first_bit_mask.clone();
+                if amount_of_bits <= used_bits {
+                    last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
+                }
+                let not_last_mask = !last_mask;
+                clear_quote = quote!{
+                    #clear_quote
+                    output_byte_buffer[#start] &= #not_last_mask;
+                };
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start] |= #field_buffer_name[#i] & #last_mask;
+                };
+            }
         } else {
             let start = if let None = flip {
                 starting_inject_byte + i
@@ -392,14 +417,18 @@ fn apply_le_math_to_field_access_quote(
             };
             // this should give us the last index of the field
             let left_shift: u32 = right_shift.clone().abs() as u32;
-            let not_first_bit_mask = !first_bit_mask;
+            let mut last_mask = first_bit_mask.clone();
+            if amount_of_bits <= used_bits {
+                last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
+            }
+            let not_last_mask = !last_mask;
             clear_quote = quote! {
                 #clear_quote
-                output_byte_buffer[#start] &= #not_first_bit_mask;
+                output_byte_buffer[#start] &= #not_last_mask;
             };
             full_quote = quote! {
                 #full_quote
-                output_byte_buffer[#start] |= (#field_buffer_name[#i].rotate_left(#left_shift)) & #first_bit_mask;
+                output_byte_buffer[#start] |= (#field_buffer_name[#i].rotate_left(#left_shift)) & #last_mask;// fix this mask
             };
         }
 
