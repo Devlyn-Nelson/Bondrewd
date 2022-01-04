@@ -738,8 +738,11 @@ fn apply_be_math_to_field_access_quote(
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
         // used byte in the buffer.
-        let right_shift: i8 =
+        let mut right_shift: i8 =
             ((amount_of_bits % 8) as i8) - ((available_bits_in_first_byte % 8) as i8);
+        if right_shift < 0 {
+            right_shift += 8
+        }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
         let first_bit_mask = get_right_and_mask(available_bits_in_first_byte);
@@ -832,8 +835,8 @@ fn apply_be_math_to_field_access_quote(
         let not_last_bit_mask = !last_bit_mask;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
-            if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
-                for i in first_bits_index + 1usize..field.ty.size() {
+            if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
+                for i in first_bits_index + 1usize..(amount_of_bits as f64 / 8.0).ceil() as usize {
                     clear_quote = quote! {
                         #clear_quote
                         output_byte_buffer[#current_byte_index_in_buffer] = 0u8;
@@ -858,9 +861,9 @@ fn apply_be_math_to_field_access_quote(
                 output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[0] & #last_bit_mask;
             };
         } else {
-            // no shift or left shift (this means the last byte contains the last bits)
-            if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
-                for i in first_bits_index + 1..field.ty.size() - 1 {
+            // no shift
+            if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
+                for i in first_bits_index + 1..(amount_of_bits as f64 / 8.0).ceil() as usize - 1 {
                     full_quote = quote! {
                         #full_quote
                         output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#i];

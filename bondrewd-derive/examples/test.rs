@@ -44,5 +44,48 @@ pub struct Test {
     #[bondrewd(struct_size = 75, bit_length = 593)]
     test_struct: TestInner,
 }
+#[derive(Bitfields)]
+#[bondrewd(default_endianness = "be")]
+struct SimpleExample {
+    // fields that are as expected do not require attributes.
+    one: bool,
+    two: f32,
+    #[bondrewd(bit_length = 14)]
+    three: i16,
+    #[bondrewd(bit_length = 6)]
+    four: u8,
+}
+
 fn main(){
+    /*assert_eq!(7, SimpleExample::BYTE_SIZE);
+    assert_eq!(53, SimpleExample::BIT_SIZE);
+    let mut bytes = SimpleExample {
+        one: false,
+        two: 0,
+        three: -1034,
+        four: 63,
+    }.into_bytes();
+    // one_two_three_four in binary. the last 3 bits are unused.
+    assert_eq!([
+        0b0_1100000,
+        0b01000100,
+        0b00000000,
+        0b00000000,
+        0b0_1110111,
+        0b1110110_1,
+        0b11111000
+    ], bytes);
+    assert_eq!(false, SimpleExample::read_one(&bytes));
+    assert_eq!(-4.5, SimpleExample::read_two(&bytes));
+    assert_eq!(-1034, SimpleExample::read_three(&bytes));
+    assert_eq!(63, SimpleExample::read_four(&bytes));
+    SimpleExample::write_one(&mut bytes, true);
+    SimpleExample::write_two(&mut bytes, 5.5);
+    SimpleExample::write_three(&mut bytes, 511);
+    SimpleExample::write_four(&mut bytes, 0);
+    let reconstructed = SimpleExample::from_bytes(bytes);
+    assert_eq!(true,reconstructed.one);
+    assert_eq!(5.5,reconstructed.two);
+    assert_eq!(511,reconstructed.three);
+    assert_eq!(0,reconstructed.four);*/
 }

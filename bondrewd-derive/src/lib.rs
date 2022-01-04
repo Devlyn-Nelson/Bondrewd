@@ -12,11 +12,12 @@
 //! wide effects (bit position, default field endianness, ..), can be found on the
 //! [`Bitfields Derive`](Bitfields) page.
 //!
-//! For example we can define a data structure with 5 total bytes as:
-//! - a field named one will be the first 3 bits.
-//! - a field named two will be the next 19 bits.
-//! - a field named six will be the next 14 bits.
-//! - a field named four will be the next 4 bits.
+//! For example we can define a data structure with 7 total bytes as:
+//! - a boolean field named one will be the first bit.
+//! - a floating point field named two will be the next 32 bits. floats must be full sized
+//! currently.
+//! - a signed integer field named three will be the next 14 bits.
+//! - an unsigned integer field named four will be the next 6 bits.
 //!
 //! ```
 //! // Users code
@@ -117,13 +118,16 @@
 //!         let one = self.one;
 //!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
 //!         let two = self.two;
-//!         let two_bytes = (two.to_bits().rotate_left(7u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[3usize] & 127u8;
-//!         output_byte_buffer[1usize] |= two_bytes[3usize] & 128u8;
+//!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
+//!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
+//!         output_byte_buffer[1usize] |= two_bytes[1usize];
+//!         output_byte_buffer[2usize] |= two_bytes[2usize];
+//!         output_byte_buffer[3usize] |= two_bytes[3usize];
+//!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
 //!         let three = self.three;
-//!         let three_bytes = (three.rotate_left(1u32)).to_be_bytes();
-//!         output_byte_buffer[4usize] |= three_bytes[0usize] & 127u8;
-//!         output_byte_buffer[5usize] |= three_bytes[1usize] & 254u8;
+//!         let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
+//!         output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
+//!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
 //!         let four = self.four;
 //!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
 //!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
@@ -153,26 +157,29 @@
 //!         f32::from_bits(
 //!             u32::from_be_bytes({
 //!                 let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
-//!                 two_bytes[3usize] |= input_byte_buffer[0usize] & 127u8;
-//!                 two_bytes[3usize] |= input_byte_buffer[1usize] & 128u8;
+//!                 two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                 two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                 two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                 two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                 two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
 //!                 two_bytes
 //!             })
-//!             .rotate_right(7u32),
+//!             .rotate_left(1u32),
 //!         )
 //!     }
 //!     #[inline]
 //!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> i16 {
 //!         i16::from_be_bytes({
 //!             let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8) == 64u8 {
-//!                 [128u8, 1u8]
+//!                 [1u8, 128u8]
 //!             } else {
 //!                 [0u8; 2usize]
 //!             };
-//!             three_bytes[0usize] |= input_byte_buffer[4usize] & 127u8;
-//!             three_bytes[1usize] |= input_byte_buffer[5usize] & 254u8;
+//!             three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!             three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
 //!             three_bytes
 //!         })
-//!         .rotate_right(1u32)
+//!         .rotate_left(7u32)
 //!     }
 //!     #[inline]
 //!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> u8 {
@@ -192,18 +199,24 @@
 //!     #[inline]
 //!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) {
 //!         output_byte_buffer[0usize] &= 128u8;
-//!         output_byte_buffer[1usize] &= 127u8;
-//!         let two_bytes = (two.to_bits().rotate_left(7u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[3usize] & 127u8;
-//!         output_byte_buffer[1usize] |= two_bytes[3usize] & 128u8;
+//!         output_byte_buffer[1usize] = 0u8;
+//!         output_byte_buffer[2usize] = 0u8;
+//!         output_byte_buffer[3usize] = 0u8;
+//!         output_byte_buffer[4usize] &= 127u8;
+//!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
+//!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
+//!         output_byte_buffer[1usize] |= two_bytes[1usize];
+//!         output_byte_buffer[2usize] |= two_bytes[2usize];
+//!         output_byte_buffer[3usize] |= two_bytes[3usize];
+//!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
 //!     }
 //!     #[inline]
 //!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: i16) {
 //!         output_byte_buffer[4usize] &= 128u8;
 //!         output_byte_buffer[5usize] &= 1u8;
-//!         let three_bytes = (three.rotate_left(1u32)).to_be_bytes();
-//!         output_byte_buffer[4usize] |= three_bytes[0usize] & 127u8;
-//!         output_byte_buffer[5usize] |= three_bytes[1usize] & 254u8;
+//!         let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
+//!         output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
+//!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
 //!     }
 //!     #[inline]
 //!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) {
@@ -228,7 +241,11 @@ use quote::{format_ident, quote};
 use syn::{parse_macro_input, DeriveInput};
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
-/// sized u8 arrays access.
+/// sized u8 arrays access. this crate is designed so that attributes are only required for fields that
+/// are not what you would expect without the attribute. for example if you provide a u8 fields with no 
+/// attributes, the field would be assumed to be the next 8 bits after the field before it. if a field 
+/// of bool type without attributes is defined, the field would be assumed to be the next bit after
+/// the field before it.
 ///
 /// # Supported Field Types
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
@@ -256,8 +273,68 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
 /// - `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
 /// - `reserve` defines that this field should be ignored in from and into bytes functions.
+///     - reserve attribute is only supported for primitive types currently.
 /// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
 /// it out. using a rust range in quotes.
+/// 
+/// # Simple Example
+/// this example is on the front page for bondrewd-derive. here we will be adding some asserts to show what
+/// to expect.
+/// i will be defining a data structure with 7 total bytes as:
+/// - a boolean field named one will be the first bit.
+/// - a floating point field named two will be the next 32 bits. floats must be full sized
+/// currently.
+/// - a signed integer field named three will be the next 14 bits.
+/// - an unsigned integer field named four will be the next 6 bits.
+/// - because these fields do not add up to a power of 2 the last 3 bits will be unused.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleExample {
+///     // fields that are as expected do not require attributes.
+///     one: bool,
+///     two: f32,
+///     #[bondrewd(bit_length = 14)]
+///     three: i16,
+///     #[bondrewd(bit_length = 6)]
+///     four: u8,
+/// }
+/// 
+/// fn main(){
+///     assert_eq!(7, SimpleExample::BYTE_SIZE);
+///     assert_eq!(53, SimpleExample::BIT_SIZE);
+///     let mut bytes = SimpleExample {
+///         one: false,
+///         two: -4.25,
+///         three: -1034,
+///         four: 63,
+///     }.into_bytes();
+///     // one_two_three_four in binary. the last 3 bits are unused.
+///     assert_eq!([
+///         0b0_1100000,
+///         0b01000100,
+///         0b00000000,
+///         0b00000000,
+///         0b0_1110111,
+///         0b1110110_1,
+///         0b11111000
+///     ], bytes);
+///     assert_eq!(false, SimpleExample::read_one(&bytes));
+///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
+///     assert_eq!(63, SimpleExample::read_four(&bytes));
+///     SimpleExample::write_one(&mut bytes, true);
+///     SimpleExample::write_two(&mut bytes, 5.5);
+///     SimpleExample::write_three(&mut bytes, 511);
+///     SimpleExample::write_four(&mut bytes, 0);
+///     let reconstructed = SimpleExample::from_bytes(bytes);
+///     assert_eq!(true,reconstructed.one);
+///     assert_eq!(5.5,reconstructed.two);
+///     assert_eq!(511,reconstructed.three);
+///     assert_eq!(0,reconstructed.four);
+/// }
+/// ```
 ///
 /// # Bitfield Array Example
 /// ```
@@ -301,7 +378,199 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: [Simple; 2],
 /// }
 /// ```
-/// # BitfieldEnum as Field Example
+/// # Reserve Examples
+/// reserve fields tell bondrewd to not include logic for reading or writing the field in the from and
+/// into bytes functions. currently only primitive types are supported.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct ReserveExample {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+///     #[bondrewd(bit_length = 10, reserve)]
+///     reserve: u16
+/// }
+/// fn main() {
+///     assert_eq!(3, ReserveExample::BYTE_SIZE);
+///     assert_eq!(24, ReserveExample::BIT_SIZE);
+///     let mut bytes = ReserveExample {
+///         one: 127,
+///         two: 127,
+///         reserve: 1023,
+///     }.into_bytes();
+///     assert_eq!([0b11111111, 0b11111100, 0b00000000], bytes);
+///     assert_eq!(127,ReserveExample::read_one(&bytes));
+///     assert_eq!(127,ReserveExample::read_two(&bytes));
+///     assert_eq!(0,ReserveExample::read_reserve(&bytes));
+///     // quick note write_reserve will actually change the bytes in the byte array.
+///     ReserveExample::write_reserve(&mut bytes, 42);
+///     assert_eq!(42,ReserveExample::read_reserve(&bytes));
+///     // but again from/into bytes doesn't care.
+///     let reconstructed = ReserveExample::from_bytes(bytes);
+///     assert_eq!(127,reconstructed.one);
+///     assert_eq!(127,reconstructed.two);
+///     assert_eq!(0,reconstructed.reserve);
+/// }
+/// ```
+/// reserves do not need to be at the end.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
+/// struct ReserveExample {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 10, reserve)]
+///     reserve: u16,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, ReserveExample::BYTE_SIZE);
+///     assert_eq!(24, ReserveExample::BIT_SIZE);
+///     let mut bytes = ReserveExample {
+///         one: 127,
+///         two: 127,
+///         reserve: 1023,
+///     }.into_bytes();
+///     assert_eq!(127, ReserveExample::read_one(&bytes));
+///     assert_eq!(127, ReserveExample::read_two(&bytes));
+///     assert_eq!(0, ReserveExample::read_reserve(&bytes));
+///     ReserveExample::write_reserve(&mut bytes, 42);
+///     assert_eq!(42, ReserveExample::read_reserve(&bytes));
+///     let reconstructed = ReserveExample::from_bytes(bytes);
+///     assert_eq!(127,reconstructed.one);
+///     assert_eq!(127,reconstructed.two);
+///     assert_eq!(0,reconstructed.reserve);
+/// }
+/// ```
+/// # Fill Bytes Example
+/// fill bytes is used here to make the total output byte size 3 bytes. if fill bytes attribute was not
+/// present the total output byte size would be 2.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
+/// struct FilledBytes {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytes::BYTE_SIZE);
+///     assert_eq!(24, FilledBytes::BIT_SIZE);
+/// }
+/// ```
+/// here im going to compare the example above to the closest alternative using a reserve field:
+/// - FilledBytes only has 2 field, so only 2 fields are required for instantiation, where as ReservedBytes
+/// still needs a value for the reserve field despite from/into bytes not using the value anyway.
+/// - ReservedBytes has 2 extra function that FilledBytes does not, write_reserve and read_reserve.
+/// - one more thing to consider is reserve fields are currently confined to primitives, if more than 128
+/// reserve bits are required at the end, fill_bytes is the only supported way of doing this.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct ReservedBytes {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+///     #[bondrewd(bit_length = 10, reserve)]
+///     reserve: u16
+/// }
+/// fn main() {
+///     assert_eq!(3, ReservedBytes::BYTE_SIZE);
+///     assert_eq!(24, ReservedBytes::BIT_SIZE);
+/// }
+/// ```
+/// * i use a block array for reserve because that is what the filled bits are described as within Bondrewd.
+/// # Enforce Bits Example
+/// these 3 examples all attempt to have near the same end results. a total output of 3 bytes, but the last
+/// 10 of them will be reserved (should be ignored and assumed to be 0).
+/// 
+/// in this first example we are defining all 24 total bits as 3 fields marking the last field of 10 bits
+/// with the reserve attribute, this reserve attribute is only here for making a comparison in the next
+/// example and should be ignored in this context because it is not necessary.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", enforce_bytes = 3)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+///     #[bondrewd(bit_length = 10, reserve)]
+///     reserve: u16
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// fill bytes is used here to show that fill_bytes does NOT effect how enforce bytes works. enforce bytes
+/// will check the total bit length before the bits are filled.
+/// 
+/// 
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// here we can see that enforce bits fails when you include the filled bits in the enforcement
+/// attributes value.
+/// ```compile_fail
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bytes = 3)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// # Enum Examples
+/// for enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
+/// ```
+/// use bondrewd::*;
+/// #[derive(BitfieldEnum)]
+/// enum SimpleEnum {
+///     Zero,
+///     One,
+///     Two,
+///     Three,
+/// }
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "le")]
+/// struct StructWithEnumExample {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+///     two: SimpleEnum,
+///     #[bondrewd(bit_length = 3)]
+///     three: u8,
+/// }
+/// ```
 /// ```
 /// use bondrewd::*;
 /// #[derive(BitfieldEnum)]
@@ -324,99 +593,6 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: [Simple; 3],
 /// }
 /// ```
-/// # Fill Bits Example
-/// ```
-/// use bondrewd::*;
-/// // fill bytes is used here to make the total output byte size 3 bytes.
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
-/// struct FilledBytes {
-///     #[bondrewd(bit_length = 7)]
-///     one: u8,
-///     #[bondrewd(bit_length = 7)]
-///     two: u8,
-/// }
-/// fn main() {
-///     assert_eq!(3, FilledBytes::BYTE_SIZE);
-///     assert_eq!(24, FilledBytes::BIT_SIZE);
-/// }
-/// ```
-/// # Enforce Bits Example
-/// ```
-/// use bondrewd::*;
-/// // fill bytes is used here to show that fill_bytes does NOT effect how enforce bytes works.
-/// // enforce bytes will check the bit length before the bits are filled.
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
-/// struct FilledBytesEnforced {
-///     #[bondrewd(bit_length = 7)]
-///     one: u8,
-///     #[bondrewd(bit_length = 7)]
-///     two: u8,
-/// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
-/// ```
-/// ```compile_fail
-/// use bondrewd::*;
-/// // here we can see that enforce bits fails when you include the filled bits in the enforcement
-/// // attribute.
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bytes = 3)]
-/// struct FilledBytesEnforced {
-///     #[bondrewd(bit_length = 7)]
-///     one: u8,
-///     #[bondrewd(bit_length = 7)]
-///     two: u8,
-/// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
-/// ```
-/// ```
-/// use bondrewd::*;
-/// // if you want the last reserve bits to be included in the bit enforcement you must include a
-/// // field with a reserve attribute.
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_bytes = 3)]
-/// struct FilledBytesEnforced {
-///     #[bondrewd(bit_length = 7)]
-///     one: u8,
-///     #[bondrewd(bit_length = 7)]
-///     two: u8,
-///     #[bondrewd(bit_length = 10, reserve)]
-///     reserve: u16
-/// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
-/// ```
-/// # Enum Example
-/// for enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
-/// ```
-/// use bondrewd::*;
-/// #[derive(BitfieldEnum)]
-/// enum SimpleEnum {
-///     Zero,
-///     One,
-///     Two,
-///     Three,
-/// }
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "le")]
-/// struct StructWithEnumExample {
-///     #[bondrewd(bit_length = 3)]
-///     one: u8,
-///     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
-///     two: SimpleEnum,
-///     #[bondrewd(bit_length = 3)]
-///     three: u8,
-/// }
-/// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -428,6 +604,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
+    // println!("{:?}", struct_info);
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
     let struct_name = format_ident!("{}", struct_info.name);

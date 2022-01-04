@@ -980,8 +980,8 @@ impl StructInfo {
                     return Err(syn::Error::new(
                         info.name.span(),
                         format!(
-                            "Bit Size Enforcement [{} != {}]",
-                            expected_total_bits, bit_size
+                            "Bit Enforcement failed because bondrewd detected {} total bits used by defined fields, but the bit enforcement attribute is defined as {} bits.",
+                            bit_size, expected_total_bits
                         ),
                     ));
                 }
