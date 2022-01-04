@@ -287,7 +287,7 @@ impl FieldDataType {
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::BlockArray(ref sub) => {
+                                FieldAttrBuilderType::BlockArray(_) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {

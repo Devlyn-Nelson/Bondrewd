@@ -25,9 +25,9 @@ fn to_bytes_simple_with_element_array_spanning() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithArray::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithArray::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithArray::peek_slice_three(&bytes)?);
+        assert_eq!(simple.one, SimpleWithArray::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithArray::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithArray::read_slice_three(&bytes)?);
     }
 
     // from_bytes

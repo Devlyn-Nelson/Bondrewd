@@ -14,18 +14,26 @@ enum NoInvalidEnum {
     Three,
 }
 
+#[derive(BitfieldEnum, PartialEq, Debug)]
+enum InferPrimitiveTypeWithInvalidEnum {
+    Zero,
+    One,
+    Two,
+    Three,
+}
+
 #[test]
-fn enum_auto_catch_all() {
-    assert!(NoInvalidEnum::from_primitive(0u8).into_primitive() == 0);
-    assert!(NoInvalidEnum::from_primitive(1u8).into_primitive() == 1);
-    assert!(NoInvalidEnum::from_primitive(2u8).into_primitive() == 2);
-    assert!(NoInvalidEnum::from_primitive(3u8).into_primitive() == 3);
+fn enum_infer_primitive_type_with_auto_catch_all() {
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(0u8).into_primitive() == 0);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(1u8).into_primitive() == 1);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(2u8).into_primitive() == 2);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(3u8).into_primitive() == 3);
 
     // test the catch all functionality
-    assert!(NoInvalidEnum::from_primitive(4u8).into_primitive() == 3);
-    assert!(NoInvalidEnum::from_primitive(5u8).into_primitive() == 3);
-    assert!(NoInvalidEnum::from_primitive(154u8).into_primitive() == 3);
-    assert!(NoInvalidEnum::from_primitive(255u8).into_primitive() == 3);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(4u8).into_primitive() == 3);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(5u8).into_primitive() == 3);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(154u8).into_primitive() == 3);
+    assert!(InferPrimitiveTypeWithInvalidEnum::from_primitive(255u8).into_primitive() == 3);
 }
 
 #[derive(BitfieldEnum, PartialEq, Debug)]

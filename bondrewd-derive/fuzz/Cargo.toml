@@ -18,7 +18,13 @@ bondrewd = { path = "../../bondrewd", features = ["derive", "setters"] }
 members = ["."]
 
 [[bin]]
-name = "big-test"
-path = "fuzz_targets/big_test.rs"
+name = "le-test"
+path = "fuzz_targets/primitives_le.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "be-test"
+path = "fuzz_targets/primitives_be.rs"
 test = false
 doc = false

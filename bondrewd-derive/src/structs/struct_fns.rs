@@ -1,5 +1,4 @@
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
     FieldDataType, FieldInfo, NumberSignage, StructInfo,
 };
 use proc_macro2::TokenStream;
@@ -49,7 +48,6 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     NumberSignage::Unsigned => {
                         let max: u128 = 2_u128.pow(bit_length as u32) - 1;
                         let max_lit = proc_macro2::Literal::u128_unsuffixed(max);
-                        let min_lit = proc_macro2::Literal::u128_unsuffixed(0);
                         full_quote = quote! {
                             if value > #max_lit {
                                 self.#field_name = #max_lit;
@@ -101,6 +99,9 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     if value > #max_lit {
                         self.#field_name = #max_lit;
                         #max_lit
+                    }else if value < #min_lit {
+                        self.#field_name = #min_lit;
+                        #min_lit
                     }else {
                         #full_quote
                     }
@@ -113,7 +114,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Enum(_, ref size, ref type_ident) => {
+        FieldDataType::Enum(_, _, ref type_ident) => {
             let field_fn_name = format_ident!("set_{}", field_name);
             quote! {
                 fn #field_fn_name(&mut self, value: #type_ident) {
@@ -121,7 +122,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Struct(ref size, ref type_ident) => {
+        FieldDataType::Struct(_, ref type_ident) => {
             let field_fn_name = format_ident!("{}_mut_ref", field_name);
             quote! {
                 fn #field_fn_name(&mut self) -> &mut #type_ident {
@@ -153,10 +154,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::ElementArray(ref fields, ref length, ref type_ident) => {
+        FieldDataType::ElementArray(_, _, _) => {
             quote! {}
         }
-        FieldDataType::BlockArray(ref fields, size, ref type_ident) => {
+        FieldDataType::BlockArray(_, _, _) => {
             quote! {}
         }
         FieldDataType::Boolean => {

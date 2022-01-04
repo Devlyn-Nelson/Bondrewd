@@ -36,15 +36,15 @@ fn to_bytes_simple_with_enum_spanning() -> anyhow::Result<()> {
         //peeks
         assert_eq!(
             simple.one,
-            SimpleWithSingleByteSpanningEnum::peek_slice_one(&bytes)?
+            SimpleWithSingleByteSpanningEnum::read_slice_one(&bytes)?
         );
         assert_eq!(
             simple.two,
-            SimpleWithSingleByteSpanningEnum::peek_slice_two(&bytes)?
+            SimpleWithSingleByteSpanningEnum::read_slice_two(&bytes)?
         );
         assert_eq!(
             simple.three,
-            SimpleWithSingleByteSpanningEnum::peek_slice_three(&bytes)?
+            SimpleWithSingleByteSpanningEnum::read_slice_three(&bytes)?
         );
     }
 

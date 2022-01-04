@@ -34,10 +34,10 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, Simple::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, Simple::peek_slice_three(&bytes)?);
-        assert_eq!(simple.four, Simple::peek_slice_four(&bytes)?);
+        assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, Simple::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, Simple::read_slice_three(&bytes)?);
+        assert_eq!(simple.four, Simple::read_slice_four(&bytes)?);
     }
 
     // from_bytes
@@ -71,9 +71,9 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithFlip::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithFlip::peek_slice_three(&bytes)?);
+        assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithFlip::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithFlip::read_slice_three(&bytes)?);
     }
 
     // from_bytes
@@ -107,11 +107,11 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithReadFromBack::peek_slice_two(&bytes)?);
+        assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithReadFromBack::read_slice_two(&bytes)?);
         assert_eq!(
             simple.three,
-            SimpleWithReadFromBack::peek_slice_three(&bytes)?
+            SimpleWithReadFromBack::read_slice_three(&bytes)?
         );
     }
 
@@ -151,9 +151,9 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithReserve::peek_slice_one(&bytes)?);
-        assert_eq!(0, SimpleWithReserve::peek_slice_reserve(&bytes)?);
-        assert_eq!(simple.two, SimpleWithReserve::peek_slice_two(&bytes)?);
+        assert_eq!(simple.one, SimpleWithReserve::read_slice_one(&bytes)?);
+        assert_eq!(0, SimpleWithReserve::read_slice_reserve(&bytes)?);
+        assert_eq!(simple.two, SimpleWithReserve::read_slice_two(&bytes)?);
         // TODO write more set slice tests
         SimpleWithReserve::write_slice_one(&mut bytes, 0)?;
         SimpleWithReserve::write_slice_reserve(&mut bytes, 7)?;
@@ -162,10 +162,10 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         simple.two = 0;
     }
     #[cfg(feature = "slice_fns")]
-    assert_eq!(7, SimpleWithReserve::peek_reserve(&bytes));
+    assert_eq!(7, SimpleWithReserve::read_reserve(&bytes));
     #[cfg(not(feature = "slice_fns"))]
-    assert_eq!(0, SimpleWithReserve::peek_reserve(&bytes));
-    assert!(SimpleWithReserve::peek_reserve(&bytes) != simple.reserve);
+    assert_eq!(0, SimpleWithReserve::read_reserve(&bytes));
+    assert!(SimpleWithReserve::read_reserve(&bytes) != simple.reserve);
     simple.reserve = 0;
     // from_bytes
     let new_simple = SimpleWithReserve::from_bytes(bytes);

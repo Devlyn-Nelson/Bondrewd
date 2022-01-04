@@ -2,9 +2,15 @@
 //!
 //! Provides a proc macro for compressing a data structure with data which can be expressed with bit
 //! lengths that are not a power of Two.
-//! # Derive Generated Functions:
-//! - Conversion between a sized u8 array and the rust structure you define.
-//! - Peek and Set functions that allow the field to be accessed or overwritten within a sized u8 array.
+//! 
+//! # Derive Bitfields
+//! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait 
+//! which offers from\into bytes functions that are non-failable and convert the struct from/into sized 
+//! u8 arrays ([u8; {total_bit_length * 8}]).
+//! - read and write functions that allow the field to be accessed or overwritten within a sized u8 array.
+//! - how each field is handled (bit length, endianness, ..), as well as structure wide effects 
+//! (bit position, default field endianness, ..), can be found on the [`Bitfields Derive`](Bitfields)
+//! page.
 //!
 //! For example we can define a data structure with 5 total bytes as:
 //! - a field named one will be the first 3 bits.
@@ -19,65 +25,101 @@
 //! #[derive(Bitfields)]
 //! #[bondrewd(default_endianness = "be")]
 //! struct SimpleExample {
-//!     #[bondrewd(bit_length = 3)]
-//!     one: u8,
-//!     #[bondrewd(bit_length = 19)]
-//!     two: u32,
+//!     // fields that are as expected do not require attributes.
+//!     one: bool,
+//!     two: f32,
 //!     #[bondrewd(bit_length = 14)]
-//!     six: u16,
-//!     #[bondrewd(bit_length = 4)]
+//!     three: i16,
+//!     #[bondrewd(bit_length = 6)]
 //!     four: u8,
 //! }
 //! ```
 //! ```compile_fail
 //! // Generated Code
-//! impl Bitfields<5usize> for SimpleExample {
-//!     const BIT_SIZE: usize = 40usize;
-//!     fn into_bytes(self) -> [u8; 5usize] { .. }
-//!     fn from_bytes([u8; 5usize]) -> Self { .. }
+//! impl Bitfields<7usize> for SimpleExample {
+//!     const BIT_SIZE: usize = 53usize;
+//!     fn into_bytes(self) -> [u8; 7usize] { .. }
+//!     fn from_bytes(mut input_byte_buffer: [u8; 7usize]) -> Self { .. }
 //! }
 //! impl SimpleExample {
-//!     pub fn peek_one(&[u8; 5usize]) -> u8 { .. }
-//!     pub fn peek_two(&[u8; 5usize]) -> u32 { .. }
-//!     pub fn peek_six(&[u8; 5usize]) -> u16 { .. }
-//!     pub fn peek_four(&[u8; 5usize]) -> u8 { .. }
-//!     pub fn set_one(&mut [u8; 5usize], u8) { .. }
-//!     pub fn set_two(&mut [u8; 5usize], u32) { .. }
-//!     pub fn set_six(&mut [u8; 5usize], u16) { .. }
-//!     pub fn set_four(&mut [u8; 5usize], u8) { .. }
+//!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool { .. }
+//!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 { .. }
+//!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> i16 { .. }
+//!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> u8 { .. }
+//!     pub fn write_one(output_byte_buffer: &mut [u8; 7usize], mut one: bool) { .. }
+//!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) { .. }
+//!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: i16) { .. }
+//!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) { .. }
 //! }
 //! ```
-//! # Supported Field Types
-//! * All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
-//! * Enums which implement the BitfieldEnum trait in bondrewd.
-//! * Structs which implement the Bitfield trait in bondrewd.
-//!
-//! # Struct Attributes
-//! * `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields.
-//! * `read_from = {"msb0" or "lsb0"}` defines bit positioning. which end of the byte array to start at.
-//! * `enforce_bytes = {BYTES}` defines a required resulting BIT_SIZE divided by 8 of the structure in condensed form.
-//! * `enforce_bits = {BYTES}` defines a required resulting BIT_SIZE of the structure in condensed form.
-//! * `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
-//! * `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
-//!
-//! # Field Attributes
-//! * `bit_length = {BITS}` define the total amount of bits to use when condensed.
-//! * `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
-//! * `endianness = {"le" or "be"}` define per field endianess.
-//! * `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first. (default array type)
-//! * `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first. (default array type)
-//! * `element_bit_length = {BITS}` describes a bit length for each element of an array.
-//! * `element_byte_length = {BYTES}` describes a byte length for each element of an array.
-//! * `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
-//! * `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
-//! * `reserve` defines that this field should be ignored in from and into bytes functions.
-//! * /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
-//! it out. using a rust range in quotes.
-//!
-//! # Crate Features:
+//! # Derive BitfieldEnum
+//! - Implements the [`BitfieldEnum`](https://docs.rs/bondrewd/latest/bondrewd/trait.BitfieldEnum.html)
+//! trait which offers from\into primitive functions that are non-failable and convert the enum from/into
+//! a primitive type (u8 is the only currently testing primitive).
+//! - more information about controlling the end result (define variant values, define a catch/invalid
+//! variant) can be found on the [`BitfieldEnum Derive`](BitfieldEnum) page.
+//! 
+//! ```
+//! // Users code
+//! use bondrewd::*;
+//! #[derive(BitfieldEnum, PartialEq, Debug)]
+//! enum SimpleEnum {
+//!     Zero,
+//!     One,
+//!     Six = 6,
+//!     Two,
+//! }
+//! #[derive(Bitfields)]
+//! #[bondrewd(default_endianness = "le")]
+//! struct StructWithEnumExample {
+//!     #[bondrewd(bit_length = 3)]
+//!     one: u8,
+//!     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+//!     two: SimpleEnum,
+//!     #[bondrewd(bit_length = 3)]
+//!     three: u8,
+//! }
+//! ```
+//! ```compile_fail
+//! impl bondrewd::BitfieldEnum for SimpleEnum {
+//!     type Primitive = u8;
+//!     fn into_primitive(self) -> u8 {
+//!         match self {
+//!             Self::Zero => 0,
+//!             Self::One => 1,
+//!             Self::Six => 6,
+//!             Self::Two => 2,
+//!         }
+//!     }
+//!     fn from_primitive(input: u8) -> Self {
+//!         match input {
+//!             0 => Self::Zero,
+//!             1 => Self::One,
+//!             6 => Self::Six,
+//!             _ => Self::Two,
+//!         }
+//!     }
+//! }
+//! // Generated Struct Code
+//! impl Bitfields<1usize> for StructWithEnumExample {
+//! const BIT_SIZE: usize = 8usize;
+//!     fn into_bytes(self) -> [u8; 1usize] {..}
+//!     fn from_bytes(mut input_byte_buffer: [u8; 1usize]) -> Self {..}
+//! }
+//! impl StructWithEnumExample {
+//!     pub fn read_one(input_byte_buffer: &[u8; 1usize]) -> u8 {..}
+//!     pub fn read_two(input_byte_buffer: &[u8; 1usize]) -> SimpleEnum {..}
+//!     pub fn read_three(input_byte_buffer: &[u8; 1usize]) -> u8 {..}
+//!     pub fn write_one(output_byte_buffer: &mut [u8; 1usize], mut one: u8) {..}
+//!     pub fn write_two(output_byte_buffer: &mut [u8; 1usize], mut two: SimpleEnum) {..}
+//!     pub fn write_three(output_byte_buffer: &mut [u8; 1usize], mut three: u8) {..}
+//! }
+//! ```
+//! 
+//! # Other Crate Features
 //! * `slice_fns` generates slice functions:
-//!     * `fn peek_slice_{field}(&[u8]) -> Result<{field_type}, BondrewdSliceError> {}`
-//!     * `fn set_slice_{field}(&mut [u8], {field_type}) -> Result<(), BondrewdSliceError> {}`
+//!     * `fn read_slice_{field}(&[u8]) -> [Result<{field_type}, bondrewd::BondrewdSliceError>] {}`
+//!     * `fn set_slice_{field}(&mut [u8], {field_type}) -> [Result<(), bondrewd::BondrewdSliceError>] {}`
 //! * `hex_fns` provided from/into hex functions like from/into bytes. the hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd STRUCT_SIZE. hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
@@ -86,100 +128,114 @@
 //! ### Full Example Generated code
 //! ```
 //! use bondrewd::*;
-//! struct SimpleFull {
-//!     one: u8,
-//!     two: u32,
-//!     six: u16,
+//! struct SimpleExample {
+//!     one: bool,
+//!     two: f32,
+//!     three: i16,
 //!     four: u8,
 //! }
-//! impl Bitfields<5usize> for SimpleFull {
-//!     const BIT_SIZE: usize = 40usize;
-//!     fn into_bytes(self) -> [u8; 5usize] {
-//!         let mut output_byte_buffer: [u8; 5usize] = [0u8; 5usize];
-//!         output_byte_buffer[0usize] |= ((self.one as u8) << 5usize) & 224u8;
-//!         let two_bytes = (self.two.rotate_left(2u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[1usize] & 31u8;
-//!         output_byte_buffer[1usize] |= two_bytes[2usize];
-//!         output_byte_buffer[2usize] |= two_bytes[3usize] & 252u8;
-//!         let six_bytes = (self.six.rotate_right(4u32)).to_be_bytes();
-//!         output_byte_buffer[2usize] |= six_bytes[0usize] & 3u8;
-//!         output_byte_buffer[3usize] |= six_bytes[1usize];
-//!         output_byte_buffer[4usize] |= six_bytes[0] & 240u8;
-//!         output_byte_buffer[4usize] |= ((self.four as u8) << 0usize) & 15u8;
+//! impl Bitfields<7usize> for SimpleExample {
+//!     const BIT_SIZE: usize = 53usize;
+//!     fn into_bytes(self) -> [u8; 7usize] {
+//!         let mut output_byte_buffer: [u8; 7usize] = [0u8; 7usize];
+//!         let one = self.one;
+//!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
+//!         let two = self.two;
+//!         let two_bytes = (two.to_bits().rotate_left(7u32)).to_be_bytes();
+//!         output_byte_buffer[0usize] |= two_bytes[3usize] & 127u8;
+//!         output_byte_buffer[1usize] |= two_bytes[3usize] & 128u8;
+//!         let three = self.three;
+//!         let three_bytes = (three.rotate_left(1u32)).to_be_bytes();
+//!         output_byte_buffer[4usize] |= three_bytes[0usize] & 127u8;
+//!         output_byte_buffer[5usize] |= three_bytes[1usize] & 254u8;
+//!         let four = self.four;
+//!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
+//!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
+//!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
 //!         output_byte_buffer
 //!     }
-//!     fn from_bytes(mut input_byte_buffer: [u8; 5usize]) -> Self {
-//!         let one = Self::peek_one(&input_byte_buffer);
-//!         let two = Self::peek_two(&input_byte_buffer);
-//!         let six = Self::peek_six(&input_byte_buffer);
-//!         let four = Self::peek_four(&input_byte_buffer);
+//!     fn from_bytes(mut input_byte_buffer: [u8; 7usize]) -> Self {
+//!         let one = Self::read_one(&input_byte_buffer);
+//!         let two = Self::read_two(&input_byte_buffer);
+//!         let three = Self::read_three(&input_byte_buffer);
+//!         let four = Self::read_four(&input_byte_buffer);
 //!         Self {
 //!             one,
 //!             two,
-//!             six,
+//!             three,
 //!             four,
 //!         }
 //!     }
 //! }
-//! impl SimpleFull {
+//! impl SimpleExample {
 //!     #[inline]
-//!     pub fn peek_one(input_byte_buffer: &[u8; 5usize]) -> u8 {
-//!         ((input_byte_buffer[0usize] & 224u8) >> 5usize) as u8
+//!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool {
+//!         (((input_byte_buffer[0usize] & 128u8) >> 7usize) != 0)
 //!     }
 //!     #[inline]
-//!     pub fn peek_two(input_byte_buffer: &[u8; 5usize]) -> u32 {
-//!         u32::from_be_bytes({
-//!             let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
-//!             two_bytes[1usize] = input_byte_buffer[0usize] & 31u8;
-//!             two_bytes[2usize] |= input_byte_buffer[1usize];
-//!             two_bytes[3usize] |= input_byte_buffer[2usize] & 252u8;
-//!             two_bytes
+//!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 {
+//!         f32::from_bits(
+//!             u32::from_be_bytes({
+//!                 let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                 two_bytes[3usize] |= input_byte_buffer[0usize] & 127u8;
+//!                 two_bytes[3usize] |= input_byte_buffer[1usize] & 128u8;
+//!                 two_bytes
+//!             })
+//!             .rotate_right(7u32),
+//!         )
+//!     }
+//!     #[inline]
+//!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> i16 {
+//!         i16::from_be_bytes({
+//!             let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8) == 64u8 {
+//!                 [128u8, 1u8]
+//!             } else {
+//!                 [0u8; 2usize]
+//!             };
+//!             three_bytes[0usize] |= input_byte_buffer[4usize] & 127u8;
+//!             three_bytes[1usize] |= input_byte_buffer[5usize] & 254u8;
+//!             three_bytes
 //!         })
-//!         .rotate_right(2u32)
+//!         .rotate_right(1u32)
 //!     }
 //!     #[inline]
-//!     pub fn peek_six(input_byte_buffer: &[u8; 5usize]) -> u16 {
-//!         u16::from_be_bytes({
-//!             let mut six_bytes: [u8; 2usize] = [0u8; 2usize];
-//!             six_bytes[0usize] = input_byte_buffer[2usize] & 3u8;
-//!             six_bytes[1usize] |= input_byte_buffer[3usize];
-//!             six_bytes[0] |= input_byte_buffer[4usize] & 240u8;
-//!             six_bytes
+//!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> u8 {
+//!         u8::from_be_bytes({
+//!             let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!             four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!             four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!             four_bytes
 //!         })
-//!         .rotate_left(4u32)
+//!         .rotate_left(5u32)
 //!     }
 //!     #[inline]
-//!     pub fn peek_four(input_byte_buffer: &[u8; 5usize]) -> u8 {
-//!         ((input_byte_buffer[4usize] & 15u8) >> 0usize) as u8
+//!     pub fn write_one(output_byte_buffer: &mut [u8; 7usize], mut one: bool) {
+//!         output_byte_buffer[0usize] &= 127u8;
+//!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
 //!     }
 //!     #[inline]
-//!     pub fn set_one(output_byte_buffer: &mut [u8; 5usize], one: u8) {
-//!         output_byte_buffer[0usize] &= 31u8;
-//!         output_byte_buffer[0usize] |= ((one as u8) << 5usize) & 224u8;
+//!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) {
+//!         output_byte_buffer[0usize] &= 128u8;
+//!         output_byte_buffer[1usize] &= 127u8;
+//!         let two_bytes = (two.to_bits().rotate_left(7u32)).to_be_bytes();
+//!         output_byte_buffer[0usize] |= two_bytes[3usize] & 127u8;
+//!         output_byte_buffer[1usize] |= two_bytes[3usize] & 128u8;
 //!     }
 //!     #[inline]
-//!     pub fn set_two(output_byte_buffer: &mut [u8; 5usize], two: u32) {
-//!         output_byte_buffer[0usize] &= 224u8;
-//!         output_byte_buffer[2usize] &= 3u8;
-//!         let two_bytes = (two.rotate_left(2u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[1usize] & 31u8;
-//!         output_byte_buffer[1usize] |= two_bytes[2usize];
-//!         output_byte_buffer[2usize] |= two_bytes[3usize] & 252u8;
+//!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: i16) {
+//!         output_byte_buffer[4usize] &= 128u8;
+//!         output_byte_buffer[5usize] &= 1u8;
+//!         let three_bytes = (three.rotate_left(1u32)).to_be_bytes();
+//!         output_byte_buffer[4usize] |= three_bytes[0usize] & 127u8;
+//!         output_byte_buffer[5usize] |= three_bytes[1usize] & 254u8;
 //!     }
 //!     #[inline]
-//!     pub fn set_six(output_byte_buffer: &mut [u8; 5usize], six: u16) {
-//!         output_byte_buffer[2usize] &= 252u8;
-//!         output_byte_buffer[3usize] = 0u8;
-//!         output_byte_buffer[4usize] &= 15u8;
-//!         let six_bytes = (six.rotate_right(4u32)).to_be_bytes();
-//!         output_byte_buffer[2usize] |= six_bytes[0usize] & 3u8;
-//!         output_byte_buffer[3usize] |= six_bytes[1usize];
-//!         output_byte_buffer[4usize] |= six_bytes[0] & 240u8;
-//!     }
-//!     #[inline]
-//!     pub fn set_four(output_byte_buffer: &mut [u8; 5usize], four: u8) {
-//!         output_byte_buffer[4usize] &= 240u8;
-//!         output_byte_buffer[4usize] |= ((four as u8) << 0usize) & 15u8;
+//!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) {
+//!         output_byte_buffer[5usize] &= 254u8;
+//!         output_byte_buffer[6usize] &= 7u8;
+//!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
+//!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
+//!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
 //!     }
 //! }
 //! ```
@@ -197,47 +253,35 @@ use syn::{parse_macro_input, DeriveInput};
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access.
+/// 
+/// # Supported Field Types
+/// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
+///     - Floats currently must be full sized.
+///     - Its important to know that there is a small runtime cost for signed numbers.
+/// - Enums which implement the BitfieldEnum trait in bondrewd.
+/// - Structs which implement the Bitfield trait in bondrewd.
 ///
-/// # Struct Derive Tasks
-/// - [x] Little Endian primitives
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-/// - [x] Big Endian primitives
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-/// - [x] Struct
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-/// - [x] Enum
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-/// - [x] Element Arrays
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-/// - [x] Block Arrays
-///     - [x] Impl peek_{field} and set_{field} functions.
-///     - [x] Impl into_bytes.
-///     - [x] Impl from_bytes.
-///     - [x] Impl peek_slice_{field} and set_slice_{field} functions.
-///     - [x] use this array type automatically if no attributes are provided.
-/// - [x] bit size enforcement as an option to ensure proper struct sizing
-///     - [x] full bytes attribute (BIT_SIZE % 8 == 0)
-///     - [x] total bit/bytes length enforcement by a specified amount of
-///             bits or bytes.
-/// - [x] read_direction ( the bit order is reversed with no runtime cost)
-/// - [x] flip (flip the entire byte order with no runtime cost)
-/// - [x] reserve fields which don't get read or written in into or from bytes functions.
-/// * primitives should exclude usize and isize due to ambiguous sizing
+/// # Struct Attributes
+/// - `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields.
+/// - `read_from = {"msb0" or "lsb0"}` defines bit positioning. which end of the byte array to start at.
+/// - `enforce_bytes = {BYTES}` defines a required resulting BIT_SIZE divided by 8 of the structure in condensed form.
+/// - `enforce_bits = {BYTES}` defines a required resulting BIT_SIZE of the structure in condensed form.
+/// - `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
+/// - `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
+///
+/// # Field Attributes
+/// - `bit_length = {BITS}` define the total amount of bits to use when condensed.
+/// - `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
+/// - `endianness = {"le" or "be"}` define per field endianess.
+/// - `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first. (default array type)
+/// - `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first. (default array type)
+/// - `element_bit_length = {BITS}` describes a bit length for each element of an array.
+/// - `element_byte_length = {BYTES}` describes a byte length for each element of an array.
+/// - `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
+/// - `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
+/// - `reserve` defines that this field should be ignored in from and into bytes functions.
+/// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
+/// it out. using a rust range in quotes.
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -404,16 +448,24 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
-///
-/// # Enum Derive Tasks
-/// - [x] from_primitive.
-/// - [x] into_primitive.
-/// - [x] Invalid flag (Invalid values will be dropped an a generic no field
-///                         variant will be used).
-/// - [x] Invalid catch (stores the actual primitive in a 1 field Variant).
-/// - [ ] types other than u8.
-/// - [x] Support `u8` literals for Enum Variants
-/// - [x] Support for impl of `std::cmp::PartialEq` for the given primitive (currently only u8)
+/// 
+/// # Features
+/// - Generates code for the BitfieldEnum trait which allows an enum to be used by Bitfield structs.
+/// - Literal values. ex. `Variant = 0,`
+/// - Automatic Value Assignment for non-literal variants. Variants are assigned values starting from 0
+/// incrementing by 1 skipping values taken by literal definitions (That means you can mix and match
+/// inferred values a code defined literal values).
+/// - Catch Variants
+///     - Catch Value is a variant that will store values that don't match the reset of the variants.
+///     using a Catch Value is as simple as making a variant with a primitive value (if the bondrewd_enum
+///     attribute is present the primitive types must match). ex `InvalidVariant(u8),`.
+///     - Catch All variant is used to insure that Results are not needed. Catch all will generate a
+///     `_ => {..}` match arm so that enums don't need to have as many variants as there are values in 
+///     the defined primitive. Catch all can be defined with a `#[invalid]` attribute or last variant will
+///     Automatically become a catch all if no Catch is defined.
+/// 
+/// # Other Features
+/// - Support for implementation of [`std::cmp::PartialEq`] for the given primitive (currently only u8)
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

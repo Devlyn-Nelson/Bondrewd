@@ -49,9 +49,9 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithStruct::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithStruct::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithStruct::peek_slice_three(&bytes)?);
+        assert_eq!(simple.one, SimpleWithStruct::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithStruct::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithStruct::read_slice_three(&bytes)?);
     }
 
     // from_bytes
@@ -99,15 +99,15 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
         //peeks
         assert_eq!(
             simple.one,
-            SimpleWithStructWithFlip::peek_slice_one(&bytes)?
+            SimpleWithStructWithFlip::read_slice_one(&bytes)?
         );
         assert_eq!(
             simple.two,
-            SimpleWithStructWithFlip::peek_slice_two(&bytes)?
+            SimpleWithStructWithFlip::read_slice_two(&bytes)?
         );
         assert_eq!(
             simple.three,
-            SimpleWithStructWithFlip::peek_slice_three(&bytes)?
+            SimpleWithStructWithFlip::read_slice_three(&bytes)?
         );
     }
     // from_bytes
@@ -160,15 +160,15 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
         //peeks
         assert_eq!(
             simple.one,
-            SimpleWithSingleByteSpanningStruct::peek_slice_one(&bytes)?
+            SimpleWithSingleByteSpanningStruct::read_slice_one(&bytes)?
         );
         assert_eq!(
             simple.two,
-            SimpleWithSingleByteSpanningStruct::peek_slice_two(&bytes)?
+            SimpleWithSingleByteSpanningStruct::read_slice_two(&bytes)?
         );
         assert_eq!(
             simple.three,
-            SimpleWithSingleByteSpanningStruct::peek_slice_three(&bytes)?
+            SimpleWithSingleByteSpanningStruct::read_slice_three(&bytes)?
         );
     }
 
@@ -210,15 +210,15 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
         //peeks
         assert_eq!(
             simple.one,
-            SimpleWithSingleByteNonSpanningStruct::peek_slice_one(&bytes)?
+            SimpleWithSingleByteNonSpanningStruct::read_slice_one(&bytes)?
         );
         assert_eq!(
             simple.two,
-            SimpleWithSingleByteNonSpanningStruct::peek_slice_two(&bytes)?
+            SimpleWithSingleByteNonSpanningStruct::read_slice_two(&bytes)?
         );
         assert_eq!(
             simple.three,
-            SimpleWithSingleByteNonSpanningStruct::peek_slice_three(&bytes)?
+            SimpleWithSingleByteNonSpanningStruct::read_slice_three(&bytes)?
         );
     }
 

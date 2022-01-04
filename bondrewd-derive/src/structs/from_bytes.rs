@@ -28,7 +28,7 @@ pub fn create_from_bytes_field_quotes(
     let mut peek_fns_quote = quote! {};
     for field in info.fields.iter() {
         let field_name = &field.ident;
-        let peek_name = format_ident!("peek_{}", field_name.as_ref());
+        let peek_name = format_ident!("read_{}", field_name.as_ref());
         let field_extractor = get_field_quote(
             &field,
             if info.flip {
@@ -97,7 +97,7 @@ fn make_peek_slice_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("peek_slice_{}", field.ident.as_ref().clone());
+    let field_name = format_ident!("read_slice_{}", field.ident.as_ref().clone());
     let type_ident = field.ty.type_quote();
     let min_length = if info.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
@@ -123,7 +123,7 @@ fn make_peek_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("peek_{}", field.ident.as_ref().clone());
+    let field_name = format_ident!("read_{}", field.ident.as_ref().clone());
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
     Ok(quote! {
@@ -918,19 +918,6 @@ fn build_number_quote(
     Ok(full_quote)
 }
 
-fn isolate_sign_bit_mask(bit_index: &usize) -> u8 {
-    match bit_index {
-        7 => 0b01000000,
-        6 => 0b00100000,
-        5 => 0b00010000,
-        4 => 0b00001000,
-        3 => 0b00000100,
-        2 => 0b00000010,
-        1 => 0b00000001,
-        _ => 0b10000000,
-    }
-}
-
 fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
     match bit_index {
         1 => 0b01000000,
@@ -1042,12 +1029,12 @@ fn add_sign_fix_quote(
                     Endianness::None => return Ok(None),
                 };
                 let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
-                let mut sign_bit = quote! {
+                let sign_bit = quote! {
                     (input_byte_buffer[#sign_index] & #sign_mask)
                 };
                 let mut unused_bits = (size * 8) - amount_of_bits;
                 let mut buffer: std::collections::VecDeque<u8> = Default::default(); 
-                for i in 0..*size {
+                for _i in 0..*size {
                     if unused_bits > 7 {
                         buffer.push_back(get_left_and_mask(8));
                         unused_bits -= 8;
@@ -1106,10 +1093,10 @@ fn add_sign_fix_quote_single_bit(
                 let bit_to_isolate = field.attrs.bit_range.start % 8;
                 let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
                 let neg_mask = get_left_and_mask(bit_to_isolate + 1);
-                let mut sign_bit = quote! {
+                let sign_bit = quote! {
                     (input_byte_buffer[#byte_index] & #sign_mask)
                 };
-                let mut add_me = quote! {
+                let add_me = quote! {
                     if #sign_bit == #sign_mask {#neg_mask | #field_access} else {0u8 | #field_access} 
                 };
                 return add_me;

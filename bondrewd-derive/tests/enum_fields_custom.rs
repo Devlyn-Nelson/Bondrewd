@@ -33,11 +33,11 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleCustomEnumUsage::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleCustomEnumUsage::peek_slice_two(&bytes)?);
+        assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
         assert_eq!(
             simple.three,
-            SimpleCustomEnumUsage::peek_slice_three(&bytes)?
+            SimpleCustomEnumUsage::read_slice_three(&bytes)?
         );
     }
 
@@ -84,15 +84,15 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
         //peeks
         assert_eq!(
             simple.one,
-            SimpleCustomContinuationEnumUsage::peek_slice_one(&bytes)?
+            SimpleCustomContinuationEnumUsage::read_slice_one(&bytes)?
         );
         assert_eq!(
             simple.two,
-            SimpleCustomContinuationEnumUsage::peek_slice_two(&bytes)?
+            SimpleCustomContinuationEnumUsage::read_slice_two(&bytes)?
         );
         assert_eq!(
             simple.three,
-            SimpleCustomContinuationEnumUsage::peek_slice_three(&bytes)?
+            SimpleCustomContinuationEnumUsage::read_slice_three(&bytes)?
         );
     }
 

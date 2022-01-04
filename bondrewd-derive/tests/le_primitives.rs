@@ -34,10 +34,10 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, Simple::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, Simple::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, Simple::peek_slice_three(&bytes)?);
-        assert_eq!(simple.four, Simple::peek_slice_four(&bytes)?);
+        assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, Simple::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, Simple::read_slice_three(&bytes)?);
+        assert_eq!(simple.four, Simple::read_slice_four(&bytes)?);
     }
 
     // from_bytes
@@ -71,9 +71,9 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithFlip::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithFlip::peek_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithFlip::peek_slice_three(&bytes)?);
+        assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithFlip::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithFlip::read_slice_three(&bytes)?);
     }
 
     // from_bytes
@@ -107,11 +107,11 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithReadFromBack::peek_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithReadFromBack::peek_slice_two(&bytes)?);
+        assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithReadFromBack::read_slice_two(&bytes)?);
         assert_eq!(
             simple.three,
-            SimpleWithReadFromBack::peek_slice_three(&bytes)?
+            SimpleWithReadFromBack::read_slice_three(&bytes)?
         );
     }
 
@@ -142,9 +142,9 @@ fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     #[cfg(feature = "slice_fns")]
     {
         //peeks
-        assert_eq!(simple.one, SimpleWithFloats::peek_slice_one(&bytes)?);
-        //assert_eq!(simple.two, SimpleWithFloats::peek_slice_two(&bytes)?);
-        //assert_eq!(simple.three, SimpleWithFloats::peek_slice_three(&bytes)?);
+        assert_eq!(simple.one, SimpleWithFloats::read_slice_one(&bytes)?);
+        //assert_eq!(simple.two, SimpleWithFloats::read_slice_two(&bytes)?);
+        //assert_eq!(simple.three, SimpleWithFloats::read_slice_three(&bytes)?);
     }
 
     // from_bytes

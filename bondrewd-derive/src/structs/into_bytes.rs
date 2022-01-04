@@ -4,7 +4,6 @@ use crate::structs::common::{
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::Error;
 
 pub struct IntoBytesOptions {
     pub into_bytes_fn: TokenStream,
@@ -366,9 +365,8 @@ fn apply_le_math_to_field_access_quote(
             }
             i += 1;
         }
-        /// bits used after applying the first_bit_mask one more time.
+        // bits used after applying the first_bit_mask one more time.
         let used_bits = available_bits_in_first_byte + (8 * i);
-        // TODO properly handle the last byte currently the shifting is not done right.
         if right_shift > 0 {
             let start = if let None = flip {
                 starting_inject_byte + i
