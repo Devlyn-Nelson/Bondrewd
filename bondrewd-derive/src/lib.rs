@@ -2,14 +2,14 @@
 //!
 //! Provides a proc macro for compressing a data structure with data which can be expressed with bit
 //! lengths that are not a power of Two.
-//! 
+//!
 //! # Derive Bitfields
-//! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait 
-//! which offers from\into bytes functions that are non-failable and convert the struct from/into sized 
+//! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
+//! which offers from\into bytes functions that are non-failable and convert the struct from/into sized
 //! u8 arrays ([u8; {total_bit_length * 8}]).
 //! - read and write functions that allow the field to be accessed or overwritten within a sized u8 array.
 //! - More information about how each field is handled (bit length, endianness, ..), as well as structure
-//! wide effects (bit position, default field endianness, ..), can be found on the 
+//! wide effects (bit position, default field endianness, ..), can be found on the
 //! [`Bitfields Derive`](Bitfields) page.
 //!
 //! For example we can define a data structure with 5 total bytes as:
@@ -57,7 +57,7 @@
 //! a primitive type (u8 is the only currently testing primitive).
 //! - more information about controlling the end result (define variant values, define a catch/invalid
 //! variant) can be found on the [`BitfieldEnum Derive`](BitfieldEnum) page.
-//! 
+//!
 //! ```
 //! // Users code
 //! use bondrewd::*;
@@ -114,7 +114,7 @@
 //!     pub fn write_three(output_byte_buffer: &mut [u8; 1usize], mut three: u8) {..}
 //! }
 //! ```
-//! 
+//!
 //! # Other Crate Features
 //! * `slice_fns` generates slice functions:
 //!     * `fn read_slice_{field}(&[u8]) -> [Result<{field_type}, bondrewd::BondrewdSliceError>] {}`
@@ -252,7 +252,7 @@ use syn::{parse_macro_input, DeriveInput};
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access.
-/// 
+///
 /// # Supported Field Types
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
@@ -281,7 +281,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `reserve` defines that this field should be ignored in from and into bytes functions.
 /// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
 /// it out. using a rust range in quotes.
-/// 
+///
 /// # Bitfield Array Example
 /// ```
 /// use bondrewd::*;
@@ -314,7 +314,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u16,
 ///     four: i8,
 /// }
-/// 
+///
 /// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithStruct {
@@ -322,6 +322,23 @@ use syn::{parse_macro_input, DeriveInput};
 ///     one: Simple,
 ///     #[bondrewd(struct_size = 7)]
 ///     two: [Simple; 2],
+/// }
+/// ```
+/// # Fill Bits Example
+/// ```
+/// use bondrewd::*;
+/// // fill bytes is used here to make the total output byte size 3 bytes.
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
+/// struct FilledBytes {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytes::BYTE_SIZE);
+///     assert_eq!(24, FilledBytes::BIT_SIZE);
 /// }
 /// ```
 /// # Enum Example
@@ -337,6 +354,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
+    println!("{:?}", struct_info);
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
     let struct_name = format_ident!("{}", struct_info.name);
@@ -492,7 +510,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
-/// 
+///
 /// # Features
 /// - Generates code for the BitfieldEnum trait which allows an enum to be used by Bitfield structs.
 /// - Literal values. ex. `Variant = 0,`
@@ -504,13 +522,13 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     using a Catch Value is as simple as making a variant with a primitive value (if the bondrewd_enum
 ///     attribute is present the primitive types must match). ex `InvalidVariant(u8),`.
 ///     - Catch All variant is used to insure that Results are not needed. Catch all will generate a
-///     `_ => {..}` match arm so that enums don't need to have as many variants as there are values in 
+///     `_ => {..}` match arm so that enums don't need to have as many variants as there are values in
 ///     the defined primitive. Catch all can be defined with a `#[bondrewd_enum(invalid)]` attribute or last variant will
 ///     Automatically become a catch all if no Catch is defined.
-/// 
+///
 /// # Other Features
 /// - Support for implementation of [`std::cmp::PartialEq`] for the given primitive (currently only u8)
-/// 
+///
 /// # Typical Example
 /// ```
 /// use bondrewd::*;
@@ -526,23 +544,23 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// into_primitive Truth Table
-/// 
+///
 /// | Variant | output |
 /// |---------|--------|
 /// | Zero    | 0      |
 /// | One     | 1      |
 /// | Two     | 2      |
 /// | Three   | 3      |
-/// 
+///
 /// from_primitive Truth Table
-/// 
+///
 /// | input   | Variant |
 /// |---------|---------|
 /// | 0       | Zero    |
 /// | 1       | One     |
 /// | 2       | Two     |
 /// | 3..=MAX | Three   |
-/// 
+///
 /// # Custom Catch All Example
 /// ```
 /// use bondrewd::*;
@@ -557,16 +575,16 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// into_primitive Truth Table
-/// 
+///
 /// | Variant | output |
 /// |---------|--------|
 /// | Zero    | 0      |
 /// | One     | 1      |
 /// | Two     | 2      |
 /// | Three   | 3      |
-/// 
+///
 /// from_primitive Truth Table
-/// 
+///
 /// | input   | Variant |
 /// |---------|---------|
 /// | 0       | Zero    |
@@ -574,7 +592,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// | 2       | Two     |
 /// | 3       | Three   |
 /// | 4..=MAX | One     |
-/// 
+///
 /// # Catch Value Example
 /// ```
 /// use bondrewd::*;
@@ -587,23 +605,23 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// into_primitive Truth Table
-/// 
+///
 /// | Variant      | output |
 /// |--------------|--------|
 /// | Zero         | 0      |
 /// | One          | 1      |
 /// | Two          | 2      |
 /// | Three(value) | value  |
-/// 
+///
 /// from_primitive Truth Table
-/// 
+///
 /// | input   | Variant      |
 /// |---------|--------------|
 /// | 0       | Zero         |
 /// | 1       | One          |
 /// | 2       | Two          |
 /// | 3..=MAX | Three(input) |
-/// 
+///
 /// # Literals Example
 /// ```
 /// use bondrewd::*;
@@ -623,7 +641,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// into_primitive Truth Table
-/// 
+///
 /// | Variant | output |
 /// |---------|--------|
 /// | Nine    | 9      |
@@ -631,9 +649,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// | Zero    | 0      |
 /// | Five    | 5      |
 /// | Two     | 2      |
-/// 
+///
 /// from_primitive Truth Table
-/// 
+///
 /// | input    | Variant |
 /// |----------|---------|
 /// | 0        | Zero    |

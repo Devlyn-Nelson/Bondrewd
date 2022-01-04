@@ -158,7 +158,8 @@ fn get_field_quote(
         FieldDataType::ElementArray(_, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
-            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
+                Default::default();
             let outer_field_name = &field.ident;
             let sub = field.get_element_iter()?;
             for sub_field in sub {
@@ -174,7 +175,7 @@ fn get_field_quote(
                 };
                 de_refs.push(format_ident!("{}", field_name));
             }
-            buffer = quote!{
+            buffer = quote! {
                 let [#de_refs] = #outer_field_name;
                 #buffer
             };
@@ -183,7 +184,8 @@ fn get_field_quote(
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
             let mut clear_buffer = quote! {};
-            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> = Default::default();
+            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
+                Default::default();
             let outer_field_name = &field.ident;
             let sub = field.get_block_iter()?;
             for sub_field in sub {
@@ -199,7 +201,7 @@ fn get_field_quote(
                 };
                 de_refs.push(format_ident!("{}", field_name));
             }
-            buffer = quote!{
+            buffer = quote! {
                 let [#de_refs] = #outer_field_name;
                 #buffer
             };
@@ -337,7 +339,7 @@ fn apply_le_math_to_field_access_quote(
                     #clear_quote
                     output_byte_buffer[#start] &= #not_current_bit_mask;
                 };
-            }else{
+            } else {
                 clear_quote = quote! {
                     #clear_quote
                     output_byte_buffer[#start] &= #not_current_bit_mask;
@@ -376,13 +378,13 @@ fn apply_le_math_to_field_access_quote(
             let right_shift: u32 = right_shift.clone() as u32;
             let not_first_bit_mask = !first_bit_mask;
             let not_last_bit_mask = !last_bit_mask;
-            
+
             full_quote = quote! {
                 #full_quote
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
             };
             if used_bits < amount_of_bits {
-                clear_quote = quote!{
+                clear_quote = quote! {
                     #clear_quote
                     output_byte_buffer[#start] &= #not_first_bit_mask;
                     output_byte_buffer[#start #operator 1] &= #not_last_bit_mask;
@@ -392,13 +394,13 @@ fn apply_le_math_to_field_access_quote(
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #first_bit_mask;
                     output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #last_bit_mask;
                 };
-            }else{
+            } else {
                 let mut last_mask = first_bit_mask.clone();
                 if amount_of_bits <= used_bits {
                     last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
                 }
                 let not_last_mask = !last_mask;
-                clear_quote = quote!{
+                clear_quote = quote! {
                     #clear_quote
                     output_byte_buffer[#start] &= #not_last_mask;
                 };

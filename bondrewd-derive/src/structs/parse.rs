@@ -202,21 +202,11 @@ impl FieldAttrBuilder {
                         "enum_primitive" => {
                             if let Lit::Str(val) = value.lit {
                                 let mut ty = Some(match val.value().as_str() {
-                                    "u8" => {
-                                        FieldAttrBuilderType::Enum(1, format_ident!("u8"))
-                                    }
-                                    "u16" => {
-                                        FieldAttrBuilderType::Enum(2, format_ident!("u16"))
-                                    }
-                                    "u32" => {
-                                        FieldAttrBuilderType::Enum(4, format_ident!("u32"))
-                                    }
-                                    "u64" => {
-                                        FieldAttrBuilderType::Enum(8, format_ident!("u64"))
-                                    }
-                                    "u128" => {
-                                        FieldAttrBuilderType::Enum(16, format_ident!("u128"))
-                                    }
+                                    "u8" => FieldAttrBuilderType::Enum(1, format_ident!("u8")),
+                                    "u16" => FieldAttrBuilderType::Enum(2, format_ident!("u16")),
+                                    "u32" => FieldAttrBuilderType::Enum(4, format_ident!("u32")),
+                                    "u64" => FieldAttrBuilderType::Enum(8, format_ident!("u64")),
+                                    "u128" => FieldAttrBuilderType::Enum(16, format_ident!("u128")),
                                     _ => {
                                         return Err(syn::Error::new(
                                             builder.span(),
@@ -245,9 +235,7 @@ impl FieldAttrBuilder {
                         "struct_size" => {
                             if let Lit::Int(val) = value.lit {
                                 let mut ty = Some(match val.base10_parse::<usize>() {
-                                    Ok(byte_length) => {
-                                        FieldAttrBuilderType::Struct(byte_length)
-                                    }
+                                    Ok(byte_length) => FieldAttrBuilderType::Struct(byte_length),
                                     Err(err) => {
                                         return Err(Error::new(
                                             builder.span(),

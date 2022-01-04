@@ -270,11 +270,12 @@ fn apply_le_math_to_field_access_quote(
         //     }
         // };
         let size = field.ty.size();
-        let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
-            a
-        }else{
-            quote!{[0u8;#size]}
-        };
+        let new_array_quote =
+            if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
+                a
+            } else {
+                quote! {[0u8;#size]}
+            };
         let mut full_quote = quote! {
             let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         };
@@ -295,7 +296,7 @@ fn apply_le_math_to_field_access_quote(
                     #full_quote
                     #field_buffer_name[#i] |= input_byte_buffer[#start];
                 };
-            }else{
+            } else {
                 full_quote = quote! {
                     #full_quote
                     #field_buffer_name[#i] |= input_byte_buffer[#start] & #current_bit_mask;
@@ -329,7 +330,7 @@ fn apply_le_math_to_field_access_quote(
                     #field_buffer_name[#i] |= input_byte_buffer[#start] & #current_bit_mask;
                     #field_buffer_name[#i] |= input_byte_buffer[#start + 1] & #last_bit_mask;
                 };
-            }else{
+            } else {
                 let mut last_mask = first_bit_mask.clone();
                 if amount_of_bits < used_bits {
                     last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
@@ -856,11 +857,12 @@ fn build_number_quote(
     available_bits_in_first_byte: usize,
     flip: Option<usize>,
 ) -> syn::Result<TokenStream> {
-    let new_array_quote = if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
-        a
-    }else{
-        quote!{[0u8;#size]}
-    };
+    let new_array_quote =
+        if let Some(a) = add_sign_fix_quote(&field, &amount_of_bits, &right_shift)? {
+            a
+        } else {
+            quote! {[0u8;#size]}
+        };
     let mut full_quote = quote! {
         let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         #field_buffer_name[#first_bits_index] |= input_byte_buffer[#starting_inject_byte] & #first_bit_mask;
@@ -930,7 +932,11 @@ fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
         _ => 0b10000000,
     }
 }
-fn rotate_primitive_vec(prim: Vec<u8>, right_shift: &i8, field: &FieldInfo) -> syn::Result<Vec<u8>> {
+fn rotate_primitive_vec(
+    prim: Vec<u8>,
+    right_shift: &i8,
+    field: &FieldInfo,
+) -> syn::Result<Vec<u8>> {
     // REMEMBER SHIFTS ARE BACKWARD BECAUSE YOU COPIED AND PASTED into_bytes
     if *right_shift == 0 {
         return Ok(prim);
@@ -976,7 +982,9 @@ fn rotate_primitive_vec(prim: Vec<u8>, right_shift: &i8, field: &FieldInfo) -> s
             temp.to_be_bytes().to_vec()
         }
         8 => {
-            let mut temp = u64::from_be_bytes([prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7]]);
+            let mut temp = u64::from_be_bytes([
+                prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7],
+            ]);
             match *right_shift {
                 i8::MIN..=-1 => {
                     let left_shift = -*right_shift;
@@ -989,7 +997,10 @@ fn rotate_primitive_vec(prim: Vec<u8>, right_shift: &i8, field: &FieldInfo) -> s
             temp.to_be_bytes().to_vec()
         }
         16 => {
-            let mut temp = u128::from_be_bytes([prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7], prim[8], prim[9], prim[10], prim[11], prim[12], prim[13], prim[14], prim[15]]);
+            let mut temp = u128::from_be_bytes([
+                prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7], prim[8],
+                prim[9], prim[10], prim[11], prim[12], prim[13], prim[14], prim[15],
+            ]);
             match *right_shift {
                 i8::MIN..=-1 => {
                     let left_shift = -*right_shift;
@@ -1002,7 +1013,10 @@ fn rotate_primitive_vec(prim: Vec<u8>, right_shift: &i8, field: &FieldInfo) -> s
             temp.to_be_bytes().to_vec()
         }
         _ => {
-            return Err(syn::Error::new(field.ident.span(), "invalid primitive size"));
+            return Err(syn::Error::new(
+                field.ident.span(),
+                "invalid primitive size",
+            ));
         }
     };
     Ok(output)
@@ -1016,10 +1030,11 @@ fn add_sign_fix_quote(
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
-                let (bit_to_isolate,sign_index) = match field.attrs.endianness.as_ref() {
-                    Endianness::Big => {
-                        (field.attrs.bit_range.start % 8, field.attrs.bit_range.start / 8)
-                    }
+                let (bit_to_isolate, sign_index) = match field.attrs.endianness.as_ref() {
+                    Endianness::Big => (
+                        field.attrs.bit_range.start % 8,
+                        field.attrs.bit_range.start / 8,
+                    ),
                     Endianness::Little => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
                         let sign_bit_index = field.attrs.bit_range.start + skip_bytes;
@@ -1033,47 +1048,62 @@ fn add_sign_fix_quote(
                     (input_byte_buffer[#sign_index] & #sign_mask)
                 };
                 let mut unused_bits = (size * 8) - amount_of_bits;
-                let mut buffer: std::collections::VecDeque<u8> = Default::default(); 
+                let mut buffer: std::collections::VecDeque<u8> = Default::default();
                 for _i in 0..*size {
                     if unused_bits > 7 {
                         buffer.push_back(get_left_and_mask(8));
                         unused_bits -= 8;
-                    }else if unused_bits != 0 {
+                    } else if unused_bits != 0 {
                         buffer.push_back(get_left_and_mask(unused_bits));
                         unused_bits = 0;
-                    }else{
+                    } else {
                         buffer.push_back(get_left_and_mask(0));
                     }
                 }
-                let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> = Default::default();
+                let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> =
+                    Default::default();
                 match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
-                        buffer = std::collections::VecDeque::from(rotate_primitive_vec(buffer.into(), right_shift, &field)?);
+                        buffer = std::collections::VecDeque::from(rotate_primitive_vec(
+                            buffer.into(),
+                            right_shift,
+                            &field,
+                        )?);
                         while {
                             if let Some(c) = buffer.pop_front() {
                                 bit_buffer.push(c);
                                 true
-                            }else{false}
-                        }{}
+                            } else {
+                                false
+                            }
+                        } {}
                     }
                     Endianness::Little => {
                         if *right_shift > 0 {
-                            buffer = buffer.into_iter().map(|x|x.rotate_right(*right_shift as u32)).collect();
+                            buffer = buffer
+                                .into_iter()
+                                .map(|x| x.rotate_right(*right_shift as u32))
+                                .collect();
                         } else if *right_shift < 0 {
                             let left_shift = -right_shift as u32;
-                            buffer = buffer.into_iter().map(|x|x.rotate_left(left_shift)).collect();
+                            buffer = buffer
+                                .into_iter()
+                                .map(|x| x.rotate_left(left_shift))
+                                .collect();
                         }
                         while {
                             if let Some(c) = buffer.pop_back() {
                                 bit_buffer.push(c);
                                 true
-                            }else{false}
-                        }{}
+                            } else {
+                                false
+                            }
+                        } {}
                     }
                     Endianness::None => return Ok(None),
                 }
                 return Ok(Some(quote! {
-                    if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]} 
+                    if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]}
                 }));
             }
         }
@@ -1086,7 +1116,7 @@ fn add_sign_fix_quote_single_bit(
     field: &FieldInfo,
     amount_of_bits: &usize,
     byte_index: &usize,
-) -> TokenStream{
+) -> TokenStream {
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
         if *amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
@@ -1097,7 +1127,7 @@ fn add_sign_fix_quote_single_bit(
                     (input_byte_buffer[#byte_index] & #sign_mask)
                 };
                 let add_me = quote! {
-                    if #sign_bit == #sign_mask {#neg_mask | #field_access} else {0u8 | #field_access} 
+                    if #sign_bit == #sign_mask {#neg_mask | #field_access} else {0u8 | #field_access}
                 };
                 return add_me;
             }

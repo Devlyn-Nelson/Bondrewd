@@ -39,22 +39,26 @@ fn main() {
         },
         mtm1_xyz: [-413, -605, 342],
         mtm2_xyz: [52.6, -14.85, -1.2],
-        mtm3_xyz: [StatusMagnetometer {
-            mtm1: true,
-            mtm2: true,
-            mtm3: true,
-            reserved: 0,
-        }, StatusMagnetometer {
-            mtm1: true,
-            mtm2: true,
-            mtm3: true,
-            reserved: 0,
-        }, StatusMagnetometer {
-            mtm1: true,
-            mtm2: true,
-            mtm3: true,
-            reserved: 0,
-        }],
+        mtm3_xyz: [
+            StatusMagnetometer {
+                mtm1: true,
+                mtm2: true,
+                mtm3: true,
+                reserved: 0,
+            },
+            StatusMagnetometer {
+                mtm1: true,
+                mtm2: true,
+                mtm3: true,
+                reserved: 0,
+            },
+            StatusMagnetometer {
+                mtm1: true,
+                mtm2: true,
+                mtm3: true,
+                reserved: 0,
+            },
+        ],
     };
     let bytes = og.clone().into_hex_upper();
     let mut hex_from_bytes = String::new();

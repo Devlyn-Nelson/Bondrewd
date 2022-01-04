@@ -57,7 +57,7 @@ pub struct EnumInfo {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
     pub primitive: Ident,
-    pub partial_eq: bool
+    pub partial_eq: bool,
 }
 
 enum ParseMetaResult {
@@ -292,7 +292,7 @@ impl EnumInfo {
                                         if primitive_type.is_some() && partial_eq {
                                             break;
                                         }
-                                    },
+                                    }
                                     _ => {}
                                 },
                                 NestedMeta::Lit(_) => {}
@@ -311,7 +311,7 @@ impl EnumInfo {
         let mut invalid_found: Option<EnumVariantBuilder> = None;
         let last_variant = data.variants.len() - 1;
         for (var, i) in data.variants.iter().zip(0..data.variants.len()) {
-            let test_len = literal_variants.len() + unknown_variants. len();
+            let test_len = literal_variants.len() + unknown_variants.len();
             match var.fields {
                 syn::Fields::Named(ref named) => {
                     match named.named.len() {
@@ -431,14 +431,22 @@ impl EnumInfo {
                     }
                 }
             }
-            if unknown_variants.len() + literal_variants.len() == test_len{
+            if unknown_variants.len() + literal_variants.len() == test_len {
                 return Err(Error::new(var.span(), "field skipped, please open issue"));
             }
         }
         let mut skipped: Option<Literal> = None;
         let mut variants: Vec<EnumVariant> = Default::default();
-        if unknown_variants.len() +literal_variants.len() != last_variant + 1 {
-            return Err(Error::new(input.span(), format!("not all fields were parsed [({} + lits:{}) of {}]",unknown_variants.len(), literal_variants.len(), last_variant + 1)))
+        if unknown_variants.len() + literal_variants.len() != last_variant + 1 {
+            return Err(Error::new(
+                input.span(),
+                format!(
+                    "not all fields were parsed [({} + lits:{}) of {}]",
+                    unknown_variants.len(),
+                    literal_variants.len(),
+                    last_variant + 1
+                ),
+            ));
         }
         for i in 0..=last_variant {
             // TODO need to rework merging of literals and non-literals
@@ -457,8 +465,11 @@ impl EnumInfo {
                         variants.push(enum_var);
                     }
                     continue;
-                }else{
-                    return Err(syn::Error::new(input.span(), "found key but removal failed. please open issue."));
+                } else {
+                    return Err(syn::Error::new(
+                        input.span(),
+                        "found key but removal failed. please open issue.",
+                    ));
                 }
             }
             if let Some(unknown_variant) = unknown_variants.pop_front() {
@@ -500,7 +511,7 @@ impl EnumInfo {
             let key = {
                 if let Some(ref size) = literal_variants.iter().next() {
                     Some(size.0.clone())
-                }else{
+                } else {
                     None
                 }
             };
@@ -520,7 +531,7 @@ impl EnumInfo {
                         variants.push(enum_var);
                         continue;
                     }
-                }else{
+                } else {
                     return Err(syn::Error::new(
                         input.span(),
                         format!("failed removing key cloned from its first key  [Key:{:?}], please open issue.", key),
@@ -530,7 +541,11 @@ impl EnumInfo {
             if skipped.is_none() || i != last_variant {
                 return Err(syn::Error::new(
                     input.span(),
-                    format!("missing variant [{} of {}], please open issue.", i, last_variant + 1),
+                    format!(
+                        "missing variant [{} of {}], please open issue.",
+                        i,
+                        last_variant + 1
+                    ),
                 ));
             }
         }
@@ -558,7 +573,11 @@ impl EnumInfo {
                 } else {
                     return Err(syn::Error::new(
                         input.span(),
-                        format!("Invalid was not last variant [{} of {}], please open issue.", variants.len(), last_variant + 1),
+                        format!(
+                            "Invalid was not last variant [{} of {}], please open issue.",
+                            variants.len(),
+                            last_variant + 1
+                        ),
                     ));
                 }
             } else {
@@ -592,7 +611,7 @@ impl EnumInfo {
                     65536..=4294967296 => {
                         format_ident!("u32")
                     }
-                    _ =>{
+                    _ => {
                         return Err(syn::Error::new(input.span(), "too many variants?"));
                     }
                 }

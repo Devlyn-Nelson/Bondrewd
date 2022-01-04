@@ -1,6 +1,4 @@
-use crate::structs::common::{
-    FieldDataType, FieldInfo, NumberSignage, StructInfo,
-};
+use crate::structs::common::{FieldDataType, FieldInfo, NumberSignage, StructInfo};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 

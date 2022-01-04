@@ -203,34 +203,38 @@ impl FieldDataType {
         default_endianess: &Endianness,
     ) -> syn::Result<FieldDataType> {
         let data_type = match ty {
-            Type::Path(ref path) => {
-                match attrs.ty {
-                    FieldAttrBuilderType::Struct(ref size) => {
-                        FieldDataType::Struct(size.clone(), if let Some(last_segment) = path.path.segments.last() {
-                            let asdf = &last_segment.ident;
-                            quote!{#asdf}
-                        }else{
-                            return Err(syn::Error::new(ident.span(), "field has no Type?"));
-                        })
-                    }
-                    FieldAttrBuilderType::Enum(ref size, ref prim) => {
-                        FieldDataType::Enum(quote!{#prim}, size.clone(), if let Some(last_segment) = path.path.segments.last() {
-                            let asdf = &last_segment.ident;
-                            quote!{#asdf}
-                        }else{
-                            return Err(syn::Error::new(ident.span(), "field has no Type?"));
-                        })
-                    }
-                    _ => Self::parse_path(&path.path, attrs, ident.span())?,
-                }
-            }
+            Type::Path(ref path) => match attrs.ty {
+                FieldAttrBuilderType::Struct(ref size) => FieldDataType::Struct(
+                    size.clone(),
+                    if let Some(last_segment) = path.path.segments.last() {
+                        let asdf = &last_segment.ident;
+                        quote! {#asdf}
+                    } else {
+                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                    },
+                ),
+                FieldAttrBuilderType::Enum(ref size, ref prim) => FieldDataType::Enum(
+                    quote! {#prim},
+                    size.clone(),
+                    if let Some(last_segment) = path.path.segments.last() {
+                        let asdf = &last_segment.ident;
+                        quote! {#asdf}
+                    } else {
+                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                    },
+                ),
+                _ => Self::parse_path(&path.path, attrs, ident.span())?,
+            },
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
                 if let syn::Expr::Lit(ref lit_expr) = array_path.len {
                     if let syn::Lit::Int(ref lit_int) = lit_expr.lit {
                         if let Ok(array_length) = lit_int.base10_parse::<usize>() {
                             match attrs.ty {
-                                FieldAttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
+                                FieldAttrBuilderType::ElementArray(
+                                    ref element_bit_size,
+                                    ref sub,
+                                ) => {
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
                                         FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
@@ -269,7 +273,7 @@ impl FieldDataType {
                                     } else {
                                         if let Some(ref ty) = sub.as_ref() {
                                             sub_attrs.ty = ty.clone();
-                                        } else{ 
+                                        } else {
                                             sub_attrs.ty = FieldAttrBuilderType::None;
                                         }
                                     }
@@ -308,8 +312,8 @@ impl FieldDataType {
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::Enum(_,_) |
-                                FieldAttrBuilderType::Struct(_) => {
+                                FieldAttrBuilderType::Enum(_, _)
+                                | FieldAttrBuilderType::Struct(_) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
@@ -559,7 +563,7 @@ impl Iterator for ElementSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: false,
             };
-            let name = quote::format_ident!("{}_{}",self.outer_ident.as_ref(), index);
+            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             Some(FieldInfo {
                 ident: self.outer_ident.clone(),
                 attrs,
@@ -602,7 +606,7 @@ impl Iterator for BlockSubFieldIter {
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
-            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(),  index);
+            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             self.length -= 1;
             Some(FieldInfo {
                 ident: self.outer_ident.clone(),
@@ -780,6 +784,7 @@ pub struct StructInfo {
     pub enforcement: StructEnforcement,
     pub fields: Vec<FieldInfo>,
     pub default_endianess: Endianness,
+    pub fill_bits: Option<usize>,
 }
 
 impl StructInfo {
@@ -842,7 +847,28 @@ impl StructInfo {
                             Err(err) => {
                                 return Err(syn::Error::new(
                                     info.name.span(),
-                                    format!("failed parsing enforce_bytes value [{}]", err),
+                                    format!("failed parsing enforce_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("fill_bytes") {
+                    if let Lit::Int(val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if info.fill_bits.is_none() {
+                                    info.fill_bits = Some(value * 8);
+                                } else {
+                                    return Err(syn::Error::new(
+                                        info.name.span(),
+                                        format!("multiple fill_bits values"),
+                                    ));
+                                }
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    info.name.span(),
+                                    format!("failed parsing fill_bits value [{}]", err),
                                 ))
                             }
                         }
@@ -892,6 +918,7 @@ impl StructInfo {
             enforcement: StructEnforcement::NoRules,
             fields: Default::default(),
             default_endianess: Endianness::None,
+            fill_bits: None,
         };
         for attr in input.attrs.iter() {
             let meta = attr.parse_meta()?;
@@ -934,6 +961,36 @@ impl StructInfo {
                     ));
                 }
             }
+        }
+
+        // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
+        if let Some(fill_bits) = info.fill_bits {
+            let first_bit = if let Some(last_range) = info.fields.iter().last() {
+                last_range.attrs.bit_range.end.clone()
+            } else {
+                0_usize
+            };
+            let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
+            let ident = quote::format_ident!(
+                "[u8;{}]",
+                fill_bytes_size
+            );
+            info.fields.push(FieldInfo {
+                name: quote::format_ident!("bondrewd_fill_bits"),
+                ident: Box::new(ident.clone()),
+                attrs: FieldAttrs {
+                    bit_range: first_bit..fill_bits,
+                    endianness: Box::new(Endianness::Big),
+                    reserve: true,
+                },
+                ty: FieldDataType::BlockArray(
+                    Box::new(SubFieldInfo {
+                        ty: FieldDataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                    }),
+                    fill_bits - first_bit,
+                    quote!{[u8;#fill_bytes_size]},
+                ),
+            });
         }
 
         if info.lsb_zero {

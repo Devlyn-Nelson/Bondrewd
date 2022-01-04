@@ -45,17 +45,17 @@ pub struct Test {
     test_struct: TestInner,
 }
 
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-struct SimpleExample {
-    // fields that are as expected do not require attributes.
-    one: bool,
-    two: f32,
-    #[bondrewd(bit_length = 14)]
-    three: i16,
-    #[bondrewd(bit_length = 6)]
-    four: u8,
+// fill bytes is used here to make the total output byte size 3 bytes.
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "be", fill_bytes = 3)]
+struct FilledBytes {
+    #[bondrewd(bit_length = 7)]
+    one: u8,
+    #[bondrewd(bit_length = 7)]
+    two: u8,
 }
 
 fn main() {
+    assert_eq!(3, FilledBytes::BYTE_SIZE);
+    assert_eq!(24, FilledBytes::BIT_SIZE);
 }
