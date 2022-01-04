@@ -19,7 +19,6 @@ quote = "1.0"
 syn = "1.0"
 
 [features]
-default = []
 slice_fns = []
 hex_fns = []
 setters = []
