@@ -8,7 +8,7 @@ The major features of the crate are:
 * Associated functions to `read/write` a single field instead of decoding/encoding a whole structure, saving many instructions
 * Ability to decode/encode C-like enums from integer types
 * Pure-rust typing with attributes to assign endianness/bit-length/bit-positioning/...
-* All generated code is safe, with only one failable type used for encoding slices
+* by default no failable functions are generated. Two Error types exist but are within crate features `"slice_fns"` and `"hex_fns"`.
 * Compress structures into small amounts of bits, or use to expand large data structures across many bytes
 * All generated code is `no_std` capable and 100% safe code.
 
@@ -111,7 +111,7 @@ fn main() {
   * `#[bondrewd(reverse)]`
 * Bit 0 positioning with `Msb0` or `Lsb0` with only small compile time cost.
   * `#[bondrewd(read_from = "ZERO_BIT_LOCATION")]`. `ZERO_BIT_LOCATION` can be `mbs0` or `lsb0`.
-* Peek functions to unpack on a per fields basis. Useful if you only need a couple fields but would rather not unpack the entire structure.
+* Read functions to unpack on a per fields basis. Useful if you only need a couple fields but would rather not unpack the entire structure.
   * `read_{field_name}()` and `read_slice_{field_name}()`.
 * Bit Size Enforcement. Specify how many used bits/bytes you expect the output to have.
   * `#[bondrewd(enforce_bits = {AMOUNT_OF_BITS})]`
@@ -161,7 +161,7 @@ So, to remedy these issues, we needed a bitfields implementation that allowed us
 Both `modular_bitfields/packed_struct` are great/stable libraries, and an existing, performant and correct implementation of either of these libraries would be sufficient for almost all use cases.
 However, this crate looks to fill the following from these two crates:
 
-* Peek functions via associated functions. Unpack on a per field basis.
+* Read functions via associated functions. Unpack on a per field basis.
 * Natural typing, using primitives directly with proc-macro attributes.
   * Neither ModularBitfields or PackedStruct do this for fields that have bit lengths that are not powers of 2.
 * Enum Field support that can catch invalid numbers without panics. 
