@@ -1,6 +1,6 @@
 # Bondrewd
 
-A proc-macro crate to safely and efficiently implement `from_bytes/to_bytes` for structures composed of primitive types and arrays.
+A proc-macro crate to safely and efficiently implement `from_bytes/into_bytes` for structures composed of primitive types and arrays.
 
 The major features of the crate are:
 
