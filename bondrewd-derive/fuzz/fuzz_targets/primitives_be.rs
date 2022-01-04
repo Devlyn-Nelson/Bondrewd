@@ -1,7 +1,7 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use bondrewd::{Bitfields, BitfieldEnum};
-use bondrewd::{Bitfields as BitfieldsDerive, BitfieldEnum as BitfieldEnumDerive};
+use bondrewd::Bitfields;
+use bondrewd_derive::{Bitfields as BitfieldsDerive, BitfieldEnum as BitfieldEnumDerive};
 
 #[derive(BitfieldEnumDerive, Clone, PartialEq,  Debug)]
 #[bondrewd_enum(u8)]

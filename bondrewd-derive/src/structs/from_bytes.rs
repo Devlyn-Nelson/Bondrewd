@@ -882,8 +882,8 @@ fn build_number_quote(
     };
     if right_shift > 0 {
         // right shift (this means that the last bits are in the first byte)
-        if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
-            for i in first_bits_index + 1usize..(amount_of_bits as f64 / 8.0).ceil() as usize {
+        if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+            for i in first_bits_index + 1usize..field.ty.size() {
                 full_quote = quote! {
                     #full_quote
                     #field_buffer_name[#i] |= input_byte_buffer[#current_byte_index_in_buffer] ;
@@ -902,8 +902,8 @@ fn build_number_quote(
         };
     } else {
         // no shift or left shift (this means the last byte contains the last bits)
-        if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
-            for i in first_bits_index + 1..(amount_of_bits as f64 / 8.0).ceil() as usize - 1 {
+        if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+            for i in first_bits_index + 1..field.ty.size() - 1 {
                 full_quote = quote! {
                     #full_quote
                     #field_buffer_name[#i] |= input_byte_buffer[#current_byte_index_in_buffer];

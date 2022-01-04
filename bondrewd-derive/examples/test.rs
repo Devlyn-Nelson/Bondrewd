@@ -1,7 +1,7 @@
 use bondrewd::*;
 
 #[derive(Bitfields, Clone, PartialEq, Debug)]
-#[bondrewd(default_endianness = "le", enforce_bits = "593")]
+#[bondrewd(default_endianness = "be", enforce_bits = "593")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -19,7 +19,7 @@ pub struct TestInner {
 }
 // 593
 #[derive(Bitfields, Clone, PartialEq, Debug)]
-#[bondrewd(default_endianness = "le", enforce_bits = 959)]
+#[bondrewd(default_endianness = "be", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -43,17 +43,6 @@ pub struct Test {
     ten: i128,
     #[bondrewd(struct_size = 75, bit_length = 593)]
     test_struct: TestInner,
-}
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-struct SimpleExample {
-    // fields that are as expected do not require attributes.
-    one: bool,
-    two: f32,
-    #[bondrewd(bit_length = 14)]
-    three: i16,
-    #[bondrewd(bit_length = 6)]
-    four: u8,
 }
 
 fn main(){

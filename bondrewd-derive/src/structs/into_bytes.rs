@@ -835,8 +835,8 @@ fn apply_be_math_to_field_access_quote(
         let not_last_bit_mask = !last_bit_mask;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
-            if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
-                for i in first_bits_index + 1usize..(amount_of_bits as f64 / 8.0).ceil() as usize {
+            if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+                for i in first_bits_index + 1usize..field.ty.size() {
                     clear_quote = quote! {
                         #clear_quote
                         output_byte_buffer[#current_byte_index_in_buffer] = 0u8;
@@ -862,8 +862,8 @@ fn apply_be_math_to_field_access_quote(
             };
         } else {
             // no shift
-            if available_bits_in_first_byte + bits_in_last_byte < amount_of_bits {
-                for i in first_bits_index + 1..(amount_of_bits as f64 / 8.0).ceil() as usize - 1 {
+            if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+                for i in first_bits_index + 1..field.ty.size() - 1 {
                     full_quote = quote! {
                         #full_quote
                         output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#i];
