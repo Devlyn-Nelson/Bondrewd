@@ -5,7 +5,7 @@ A proc-macro crate to safely and efficiently implement `from_bytes/to_bytes` for
 The major features of the crate are:
 
 * Decode/encode big or little endian data structures
-* Associated functions to `peek/set` a single field instead of decoding/encoding a whole structure, saving many instructions
+* Associated functions to `read/write` a single field instead of decoding/encoding a whole structure, saving many instructions
 * Ability to decode/encode C-like enums from integer types
 * Pure-rust typing with attributes to assign endianness/bit-length/bit-positioning/...
 * All generated code is safe, with only one failable type used for encoding slices
@@ -80,14 +80,14 @@ fn main() {
   let bytes = packet.clone().into_bytes();
   
   // Play with some of the fields
-  match CcsdsPacketHeader::peek_sequence_flags(&bytes) {
+  match CcsdsPacketHeader::read_sequence_flags(&bytes) {
     CcsdsPacketSequenceFlags::Unsegmented => println!("Unsegmented!"),
     CcsdsPacketSequenceFlags::End => println!("End!"),
     _ => println!("Something else")
   }
   
   // Set the secondary header flag
-  CcsdsPacketHeader::set_sec_hdr_flag(&mut bytes, false);
+  CcsdsPacketHeader::write_sec_hdr_flag(&mut bytes, false);
   
   // Get back from bytes, check them
   let new_packet = CcsdsPacketHeader::from_bytes(bytes);
@@ -112,7 +112,7 @@ fn main() {
 * Bit 0 positioning with `Msb0` or `Lsb0` with only small compile time cost.
   * `#[bondrewd(read_from = "ZERO_BIT_LOCATION")]`. `ZERO_BIT_LOCATION` can be `mbs0` or `lsb0`.
 * Peek functions to unpack on a per fields basis. Useful if you only need a couple fields but would rather not unpack the entire structure.
-  * `peek_{field_name}()` and `peek_slice_{field_name}()`.
+  * `read_{field_name}()` and `read_slice_{field_name}()`.
 * Bit Size Enforcement. Specify how many used bits/bytes you expect the output to have.
   * `#[bondrewd(enforce_bits = {AMOUNT_OF_BITS})]`
   * `#[bondrewd(enforce_bytes = {AMOUNT_OF_BYTES})]`
@@ -138,7 +138,7 @@ fn main() {
     * `#[bondrewd(block_bit_length = {TOTAL_AMOUNT_OF_BITS})]`
     * `#[bondrewd(block_byte_length = {TOTAL_AMOUNT_OF_BYTES})]`
 * Auto reserve fields. If the structures total bit amount is not a multiple of 8, the unused bits at the end will be ignored.
-* Ignore reserve fields. peek_ and peek_slice_ functions are still generated but into_bytes and from_bytes will just use zeros
+* Ignore reserve fields. read_ and read_slice_ functions are still generated but into_bytes and from_bytes will just use zeros
   * `#[bondrewd(reserve)]`
 
 # `enum` Derive features:
