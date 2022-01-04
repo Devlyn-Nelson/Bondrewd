@@ -407,7 +407,23 @@ impl EnumInfo {
                         }
                     } else {
                         // This is one of the possible variants to use, check for a custom discriminant
-                        if let Some((_, ref discriminant)) = var.discriminant {
+                         if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found)? {
+                            if let Some((_, ref discriminant)) = var.discriminant {
+                                // Parse the discriminant and validate its able to be used
+                                let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
+                                if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
+                                    value: EnumVariantType::Skip(Literal::usize_unsuffixed(discriminant_val)),
+                                    name: var.ident.clone(),
+                                }) {
+                                    return Err(syn::Error::new(var.ident.span(), "Literal Values conflict"));
+                                }
+                            }else{
+                                literal_variants.insert(i, EnumVariant{
+                                    name: var.ident.clone(),
+                                    value: EnumVariantType::Skip(Literal::usize_unsuffixed(i)),
+                                });
+                            }
+                        } else if let Some((_, ref discriminant)) = var.discriminant {
                             // Parse the discriminant and validate its able to be used
                             let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
                             if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
@@ -416,11 +432,6 @@ impl EnumInfo {
                             }) {
                                 return Err(syn::Error::new(var.ident.span(), "Literal Values conflict"));
                             }
-                        } else if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found)? {
-                            literal_variants.insert(i, EnumVariant{
-                                name: var.ident.clone(),
-                                value: EnumVariantType::Skip(Literal::usize_unsuffixed(i)),
-                            });
                         } else {
                             // This is a simple usage of a bunch of unit variants in a row
                             unknown_variants.push_back(EnumVariantBuilder {

@@ -169,7 +169,7 @@
 //! impl SimpleExample {
 //!     #[inline]
 //!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool {
-//!         (((input_byte_buffer[0usize] & 128u8) >> 7usize) != 0)
+//!         ((input_byte_buffer[0usize] & 128u8) != 0)
 //!     }
 //!     #[inline]
 //!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 {
@@ -263,8 +263,8 @@ use syn::{parse_macro_input, DeriveInput};
 /// # Struct Attributes
 /// - `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields.
 /// - `read_from = {"msb0" or "lsb0"}` defines bit positioning. which end of the byte array to start at.
-/// - `enforce_bytes = {BYTES}` defines a required resulting BIT_SIZE divided by 8 of the structure in condensed form.
-/// - `enforce_bits = {BYTES}` defines a required resulting BIT_SIZE of the structure in condensed form.
+/// - `enforce_bytes = {BYTES}` adds a check that requires total bytes defined by fields to equal provided BYTES.
+/// - `enforce_bits = {BITS}` adds a check that requires total bits defined by fields to equal provided BITS.
 /// - `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
 /// - `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
 ///
@@ -324,6 +324,29 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: [Simple; 2],
 /// }
 /// ```
+/// # BitfieldEnum as Field Example
+/// ```
+/// use bondrewd::*;
+/// #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
+/// enum Simple {
+///     One,
+///     Two,
+///     Three,
+///     Four,
+/// }
+///
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleWithStruct {
+///     // bit length is not required for enums but in this case where only 4 possible variants are in
+///     // our enums 2 bits is all that is needed. also note using more bits than possible variants is
+///     // not a problem because the catch all system will protect you from bad inputs.
+///     #[bondrewd(bit_length = 2, enum_primitive = "u8")]
+///     one: Simple,
+///     #[bondrewd(element_bit_length = 2, enum_primitive = "u8")]
+///     two: [Simple; 3],
+/// }
+/// ```
 /// # Fill Bits Example
 /// ```
 /// use bondrewd::*;
@@ -341,6 +364,60 @@ use syn::{parse_macro_input, DeriveInput};
 ///     assert_eq!(24, FilledBytes::BIT_SIZE);
 /// }
 /// ```
+/// # Enforce Bits Example
+/// ```
+/// use bondrewd::*;
+/// // fill bytes is used here to show that fill_bytes does NOT effect how enforce bytes works.
+/// // enforce bytes will check the bit length before the bits are filled.
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// ```compile_fail
+/// use bondrewd::*;
+/// // here we can see that enforce bits fails when you include the filled bits in the enforcement
+/// // attribute.
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bytes = 3)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// ```
+/// use bondrewd::*;
+/// // if you want the last reserve bits to be included in the bit enforcement you must include a
+/// // field with a reserve attribute.
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be", enforce_bytes = 3)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+///     #[bondrewd(bit_length = 10, reserve)]
+///     reserve: u16
+/// }
+/// fn main() {
+///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
 /// # Enum Example
 /// examples for enums are on the [BitfieldEnum Derive](BitfieldEnum) page.
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
@@ -354,7 +431,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    println!("{:?}", struct_info);
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
     let struct_name = format_ident!("{}", struct_info.name);
@@ -531,7 +607,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///
 /// # Typical Example
 /// ```
-/// use bondrewd::*;
+/// use bondrewd::BitfieldEnum;
 /// // the primitive type will be assumed to be u8 because there are less than
 /// // 256 variants. also any value above 3 passed into from_primitive will
 /// // will be caught as a Three due to the catch all system.
@@ -542,28 +618,23 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,
 ///     Three,
 /// }
+/// 
+/// fn main(){
+///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
+///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
+///     for i in 3..=u8::MAX {
+///         assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
+///     }
+/// }
 /// ```
-/// into_primitive Truth Table
-///
-/// | Variant | output |
-/// |---------|--------|
-/// | Zero    | 0      |
-/// | One     | 1      |
-/// | Two     | 2      |
-/// | Three   | 3      |
-///
-/// from_primitive Truth Table
-///
-/// | input   | Variant |
-/// |---------|---------|
-/// | 0       | Zero    |
-/// | 1       | One     |
-/// | 2       | Two     |
-/// | 3..=MAX | Three   |
-///
 /// # Custom Catch All Example
 /// ```
-/// use bondrewd::*;
+/// use bondrewd::BitfieldEnum;
 /// // in this case three will no longer be a catch all because one is...
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
 /// enum SimpleEnum {
@@ -573,29 +644,24 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,
 ///     Three,
 /// }
+/// 
+/// fn main(){
+///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
+///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
+///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
+///     for i in 4..=u8::MAX {
+///         assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(i));
+///     }
+/// }
 /// ```
-/// into_primitive Truth Table
-///
-/// | Variant | output |
-/// |---------|--------|
-/// | Zero    | 0      |
-/// | One     | 1      |
-/// | Two     | 2      |
-/// | Three   | 3      |
-///
-/// from_primitive Truth Table
-///
-/// | input   | Variant |
-/// |---------|---------|
-/// | 0       | Zero    |
-/// | 1       | One     |
-/// | 2       | Two     |
-/// | 3       | Three   |
-/// | 4..=MAX | One     |
-///
 /// # Catch Value Example
 /// ```
-/// use bondrewd::*;
+/// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
 /// enum SimpleEnum {
 ///     Zero,
@@ -603,28 +669,22 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,
 ///     Three(u8),
 /// }
+/// 
+/// fn main(){
+///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
+///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+///     for i in 3..=u8::MAX {
+///         assert_eq!(SimpleEnum::Three(i), SimpleEnum::from_primitive(i));
+///     }
+/// }
 /// ```
-/// into_primitive Truth Table
-///
-/// | Variant      | output |
-/// |--------------|--------|
-/// | Zero         | 0      |
-/// | One          | 1      |
-/// | Two          | 2      |
-/// | Three(value) | value  |
-///
-/// from_primitive Truth Table
-///
-/// | input   | Variant      |
-/// |---------|--------------|
-/// | 0       | Zero         |
-/// | 1       | One          |
-/// | 2       | Two          |
-/// | 3..=MAX | Three(input) |
-///
 /// # Literals Example
 /// ```
-/// use bondrewd::*;
+/// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
 /// enum SimpleEnum {
 ///     Nine = 9,
@@ -639,29 +699,29 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     // given the second available value
 ///     Two,
 /// }
+///
+/// fn main(){
+///     assert_eq!(SimpleEnum::Nine.into_primitive(), 9);
+///     assert_eq!(SimpleEnum::Nine, SimpleEnum::from_primitive(9));
+///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
+///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+///     assert_eq!(SimpleEnum::Five.into_primitive(), 5);
+///     assert_eq!(SimpleEnum::Five, SimpleEnum::from_primitive(5));
+///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+///     // Invalid tests
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(3));
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(4));
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(6));
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(7));
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(8));
+///     for i in 10..=u8::MAX {
+///         assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(i));
+///     }
+/// }
 /// ```
-/// into_primitive Truth Table
-///
-/// | Variant | output |
-/// |---------|--------|
-/// | Nine    | 9      |
-/// | One     | 1      |
-/// | Zero    | 0      |
-/// | Five    | 5      |
-/// | Two     | 2      |
-///
-/// from_primitive Truth Table
-///
-/// | input    | Variant |
-/// |----------|---------|
-/// | 0        | Zero    |
-/// | 1        | One     |
-/// | 2        | Two     |
-/// | 3 or 4   | Zero    |
-/// | 5        | Five    |
-/// | 6..8     | Zero    |
-/// | 9        | Nine    |
-/// | 10..=MAX | Zero    |
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     // TODO added the ability to give a Catch Value Variant a Literal value.

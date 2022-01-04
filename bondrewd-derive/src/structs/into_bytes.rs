@@ -22,6 +22,9 @@ pub fn create_into_bytes_field_quotes(
     // all quote with all of the set functions appended to it.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
+        if field.attrs.reserve.is_fake_field() {
+            continue;
+        }
         let (field_setter, clear_quote) = get_field_quote(
             &field,
             if info.flip {
@@ -31,7 +34,7 @@ pub fn create_into_bytes_field_quotes(
             },
             false,
         )?;
-        if !field.attrs.reserve {
+        if !field.attrs.reserve.is_reserve_field() {
             let field_name = &field.ident;
             into_bytes_quote = quote! {
                 #into_bytes_quote

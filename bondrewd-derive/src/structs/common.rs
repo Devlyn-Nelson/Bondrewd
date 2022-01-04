@@ -525,10 +525,35 @@ impl FieldDataType {
 }
 
 #[derive(Clone, Debug)]
+pub enum ReserveFieldOption {
+    NotReserve,
+    ReserveField,
+    FakeReserveField,
+}
+
+impl ReserveFieldOption {
+    pub fn is_reserve_field(&self) -> bool {
+        match self {
+            Self::FakeReserveField => true,
+            Self::ReserveField => true,
+            Self::NotReserve => false,
+        }
+    }
+
+    pub fn is_fake_field(&self) -> bool {
+        match self {
+            Self::FakeReserveField => true,
+            Self::ReserveField => false,
+            Self::NotReserve => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FieldAttrs {
     pub endianness: Box<Endianness>,
     pub bit_range: Range<usize>,
-    pub reserve: bool,
+    pub reserve: ReserveFieldOption,
 }
 
 impl FieldAttrs {
@@ -561,7 +586,7 @@ impl Iterator for ElementSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..start + self.element_bit_size,
                 endianness: self.endianness.clone(),
-                reserve: false,
+                reserve: ReserveFieldOption::NotReserve,
             };
             let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             Some(FieldInfo {
@@ -602,7 +627,7 @@ impl Iterator for BlockSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..(start + ty_size),
                 endianness: self.endianness.clone(),
-                reserve: false,
+                reserve: ReserveFieldOption::NotReserve,
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
@@ -971,24 +996,21 @@ impl StructInfo {
                 0_usize
             };
             let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
-            let ident = quote::format_ident!(
-                "[u8;{}]",
-                fill_bytes_size
-            );
+            let ident = quote::format_ident!("bondrewd_fill_bits");
             info.fields.push(FieldInfo {
-                name: quote::format_ident!("bondrewd_fill_bits"),
-                ident: Box::new(ident.clone()),
+                name: ident.clone(),
+                ident: Box::new(ident),
                 attrs: FieldAttrs {
                     bit_range: first_bit..fill_bits,
                     endianness: Box::new(Endianness::Big),
-                    reserve: true,
+                    reserve: ReserveFieldOption::FakeReserveField,
                 },
                 ty: FieldDataType::BlockArray(
                     Box::new(SubFieldInfo {
                         ty: FieldDataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
                     }),
-                    fill_bits - first_bit,
-                    quote!{[u8;#fill_bytes_size]},
+                    fill_bytes_size,
+                    quote! {[u8;#fill_bytes_size]},
                 ),
             });
         }

@@ -4,7 +4,7 @@ use std::ops::Range;
 use syn::parse::Error;
 use syn::{Ident, Lit, Meta, NestedMeta};
 
-use crate::structs::common::{Endianness, FieldAttrs, FieldInfo};
+use crate::structs::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
 
 pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
@@ -16,7 +16,11 @@ impl TryFromAttrBuilderError {
         FieldAttrs {
             endianness: self.endianness,
             bit_range,
-            reserve: self.reserve,
+            reserve: if self.reserve {
+                ReserveFieldOption::ReserveField
+            } else {
+                ReserveFieldOption::NotReserve
+            },
         }
     }
 }
@@ -572,7 +576,11 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
             Ok(FieldAttrs {
                 endianness: self.endianness,
                 bit_range: bit_range,
-                reserve: self.reserve,
+                reserve: if self.reserve {
+                    ReserveFieldOption::ReserveField
+                } else {
+                    ReserveFieldOption::NotReserve
+                },
             })
         } else {
             Err(TryFromAttrBuilderError {

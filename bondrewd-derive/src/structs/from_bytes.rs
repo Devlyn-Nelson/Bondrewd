@@ -27,6 +27,9 @@ pub fn create_from_bytes_field_quotes(
     // all quote with all of the peek functions appended to it.
     let mut peek_fns_quote = quote! {};
     for field in info.fields.iter() {
+        if field.attrs.reserve.is_fake_field() {
+            continue;
+        }
         let field_name = &field.ident;
         let peek_name = format_ident!("read_{}", field_name.as_ref());
         let field_extractor = get_field_quote(
@@ -37,7 +40,7 @@ pub fn create_from_bytes_field_quotes(
                 None
             },
         )?;
-        let peek_call = if !field.attrs.reserve {
+        let peek_call = if !field.attrs.reserve.is_reserve_field() {
             quote! {Self::#peek_name(&input_byte_buffer)}
         } else {
             // TODO make this detect the type to use.
@@ -470,7 +473,7 @@ fn apply_le_math_to_field_access_quote(
                 }
             }
             FieldDataType::Boolean => {
-                quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) != 0}
+                quote!{(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
             }
             FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char not supported for single byte insert logic")),
             FieldDataType::Enum(ref primitive_ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #primitive_ident},
@@ -615,12 +618,11 @@ fn apply_ne_math_to_field_access_quote(
                 "calculating ne shift_left failed",
             ));
         }
-        let shift_left = (8 - amount_of_bits) - (field.attrs.bit_range.start % 8);
 
         let output = match field.ty {
             FieldDataType::Number(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Number was not given Endianness, please report this")),
             FieldDataType::Boolean => {
-                quote!{(((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) != 0)}
+                quote!{(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
             }
             FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char not supported for single byte insert logic")),
             FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Enum was given Endianness which should be described by the struct implementing Bitfield")),
@@ -831,7 +833,7 @@ fn apply_be_math_to_field_access_quote(
                 }
             }
             FieldDataType::Boolean => {
-                quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) != 0}
+                quote!{(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
             }
             FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char not supported for single byte insert logic")),
             FieldDataType::Enum(ref primitive_ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #primitive_ident},
