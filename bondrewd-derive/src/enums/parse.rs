@@ -393,7 +393,7 @@ impl EnumInfo {
                         if let Some((_, ref discriminant)) = var.discriminant {
                             // Parse the discriminant and validate its able to be used
                             let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
-                            if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
+                            if let Some(_oh_no) = literal_variants.insert(discriminant_val.clone(), EnumVariant{
                                 value: EnumVariantType::Skip(Literal::usize_unsuffixed(discriminant_val)),
                                 name: var.ident.clone(),
                             }) {
@@ -460,10 +460,9 @@ impl EnumInfo {
             ));
         }
         for i in 0..=last_variant {
-            // TODO need to rework merging of literals and non-literals
             if literal_variants.contains_key(&i) {
                 if let Some(enum_var) = literal_variants.remove(&i) {
-                    if let EnumVariantType::Skip(_) = enum_var.value {
+                    if let EnumVariantType::Skip(ref lit) = enum_var.value {
                         if skipped.is_some() {
                             // CHECK if error is needed
                             return Err(syn::Error::new(
@@ -471,7 +470,7 @@ impl EnumInfo {
                                 "two skips. please open issue for this",
                             ));
                         }
-                        skipped = Some(Literal::usize_unsuffixed(i));
+                        skipped = Some(lit.clone());
                     } else {
                         variants.push(enum_var);
                     }
@@ -528,7 +527,7 @@ impl EnumInfo {
             };
             if let Some(lit_index) = key {
                 if let Some(enum_var) = literal_variants.remove(&lit_index) {
-                    if let EnumVariantType::Skip(_) = enum_var.value {
+                    if let EnumVariantType::Skip(lit) = enum_var.value {
                         if skipped.is_some() {
                             // CHECK if needed
                             return Err(syn::Error::new(
@@ -536,7 +535,7 @@ impl EnumInfo {
                                 "two skips. please open issue for this",
                             ));
                         }
-                        skipped = Some(Literal::usize_unsuffixed(i));
+                        skipped = Some(lit.clone());
                         continue;
                     } else {
                         variants.push(enum_var);

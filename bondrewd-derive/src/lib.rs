@@ -60,26 +60,17 @@
 //!
 //! ```
 //! // Users code
-//! use bondrewd::*;
-//! #[derive(BitfieldEnum, PartialEq, Debug)]
+//! use bondrewd::BitfieldEnum;
+//! #[derive(BitfieldEnum)]
 //! enum SimpleEnum {
 //!     Zero,
 //!     One,
 //!     Six = 6,
 //!     Two,
 //! }
-//! #[derive(Bitfields)]
-//! #[bondrewd(default_endianness = "le")]
-//! struct StructWithEnumExample {
-//!     #[bondrewd(bit_length = 3)]
-//!     one: u8,
-//!     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
-//!     two: SimpleEnum,
-//!     #[bondrewd(bit_length = 3)]
-//!     three: u8,
-//! }
 //! ```
 //! ```compile_fail
+//! // Generated Struct Code
 //! impl bondrewd::BitfieldEnum for SimpleEnum {
 //!     type Primitive = u8;
 //!     fn into_primitive(self) -> u8 {
@@ -98,20 +89,6 @@
 //!             _ => Self::Two,
 //!         }
 //!     }
-//! }
-//! // Generated Struct Code
-//! impl Bitfields<1usize> for StructWithEnumExample {
-//! const BIT_SIZE: usize = 8usize;
-//!     fn into_bytes(self) -> [u8; 1usize] {..}
-//!     fn from_bytes(mut input_byte_buffer: [u8; 1usize]) -> Self {..}
-//! }
-//! impl StructWithEnumExample {
-//!     pub fn read_one(input_byte_buffer: &[u8; 1usize]) -> u8 {..}
-//!     pub fn read_two(input_byte_buffer: &[u8; 1usize]) -> SimpleEnum {..}
-//!     pub fn read_three(input_byte_buffer: &[u8; 1usize]) -> u8 {..}
-//!     pub fn write_one(output_byte_buffer: &mut [u8; 1usize], mut one: u8) {..}
-//!     pub fn write_two(output_byte_buffer: &mut [u8; 1usize], mut two: SimpleEnum) {..}
-//!     pub fn write_three(output_byte_buffer: &mut [u8; 1usize], mut three: u8) {..}
 //! }
 //! ```
 //!
@@ -285,7 +262,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// # Bitfield Array Example
 /// ```
 /// use bondrewd::*;
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithArray {
 ///     // each u8 in the array contains 4 bits of useful information.
@@ -303,7 +280,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// # Bitfield Struct as Field Example
 /// ```
 /// use bondrewd::*;
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct Simple {
 ///     #[bondrewd(bit_length = 3)]
@@ -315,7 +292,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     four: i8,
 /// }
 ///
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithStruct {
 ///     #[bondrewd(struct_size = 7)]
@@ -327,7 +304,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// # BitfieldEnum as Field Example
 /// ```
 /// use bondrewd::*;
-/// #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
+/// #[derive(BitfieldEnum)]
 /// enum Simple {
 ///     One,
 ///     Two,
@@ -335,7 +312,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     Four,
 /// }
 ///
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithStruct {
 ///     // bit length is not required for enums but in this case where only 4 possible variants are in
@@ -351,7 +328,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// use bondrewd::*;
 /// // fill bytes is used here to make the total output byte size 3 bytes.
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
 /// struct FilledBytes {
 ///     #[bondrewd(bit_length = 7)]
@@ -369,7 +346,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// use bondrewd::*;
 /// // fill bytes is used here to show that fill_bytes does NOT effect how enforce bytes works.
 /// // enforce bytes will check the bit length before the bits are filled.
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
@@ -386,7 +363,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// use bondrewd::*;
 /// // here we can see that enforce bits fails when you include the filled bits in the enforcement
 /// // attribute.
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bytes = 3)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
@@ -403,7 +380,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// use bondrewd::*;
 /// // if you want the last reserve bits to be included in the bit enforcement you must include a
 /// // field with a reserve attribute.
-/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be", enforce_bytes = 3)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
@@ -419,7 +396,27 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Enum Example
-/// examples for enums are on the [BitfieldEnum Derive](BitfieldEnum) page.
+/// for enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
+/// ```
+/// use bondrewd::*;
+/// #[derive(BitfieldEnum)]
+/// enum SimpleEnum {
+///     Zero,
+///     One,
+///     Two,
+///     Three,
+/// }
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "le")]
+/// struct StructWithEnumExample {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+///     two: SimpleEnum,
+///     #[bondrewd(bit_length = 3)]
+///     three: u8,
+/// }
+/// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -632,6 +629,36 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     }
 /// }
 /// ```
+/// # Literal Example
+/// ```
+/// use bondrewd::BitfieldEnum;
+/// #[derive(BitfieldEnum, PartialEq, Debug)]
+/// enum SimpleEnum {
+///     Life = 42,
+///     Min = 0,
+///     U8Max = 255,
+///     Unlucky = 13,
+/// }
+/// 
+/// fn main(){
+///     assert_eq!(SimpleEnum::Life.into_primitive(), 42);
+///     assert_eq!(SimpleEnum::Life, SimpleEnum::from_primitive(42));
+///     assert_eq!(SimpleEnum::Min.into_primitive(), 0);
+///     assert_eq!(SimpleEnum::Min, SimpleEnum::from_primitive(0));
+///     assert_eq!(SimpleEnum::U8Max.into_primitive(), 255);
+///     assert_eq!(SimpleEnum::U8Max, SimpleEnum::from_primitive(255));
+///     assert_eq!(SimpleEnum::Unlucky.into_primitive(), 13);
+///     for i in 1..=13 {
+///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
+///     }
+///     for i in 14..42 {
+///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
+///     }
+///     for i in 43..u8::MAX {
+///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
+///     }
+/// }
+/// ```
 /// # Custom Catch All Example
 /// ```
 /// use bondrewd::BitfieldEnum;
@@ -682,7 +709,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     }
 /// }
 /// ```
-/// # Literals Example
+/// # Complex Example
 /// ```
 /// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]

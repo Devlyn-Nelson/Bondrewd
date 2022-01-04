@@ -44,18 +44,5 @@ pub struct Test {
     #[bondrewd(struct_size = 75, bit_length = 593)]
     test_struct: TestInner,
 }
-
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
-struct SimpleExample {
-    // fields that are as expected do not require attributes.
-    one: bool,
-    two: f32,
-    #[bondrewd(bit_length = 14)]
-    three: i16,
-    #[bondrewd(bit_length = 6)]
-    four: u8,
-}
-
 fn main(){
 }
