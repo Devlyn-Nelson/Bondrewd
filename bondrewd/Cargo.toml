@@ -11,7 +11,7 @@ readme = "../README.md"
 repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 
 [dependencies]
-bondrewd-derive = { path = "0.3.4", optional = true }
+bondrewd-derive = { version = "0.3.4", optional = true }
 
 [features]
 derive = ["bondrewd-derive"]
