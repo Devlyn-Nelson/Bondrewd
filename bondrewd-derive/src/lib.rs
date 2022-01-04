@@ -8,16 +8,15 @@
 //! which offers from\into bytes functions that are non-failable and convert the struct from/into sized 
 //! u8 arrays ([u8; {total_bit_length * 8}]).
 //! - read and write functions that allow the field to be accessed or overwritten within a sized u8 array.
-//! - how each field is handled (bit length, endianness, ..), as well as structure wide effects 
-//! (bit position, default field endianness, ..), can be found on the [`Bitfields Derive`](Bitfields)
-//! page.
+//! - More information about how each field is handled (bit length, endianness, ..), as well as structure
+//! wide effects (bit position, default field endianness, ..), can be found on the 
+//! [`Bitfields Derive`](Bitfields) page.
 //!
 //! For example we can define a data structure with 5 total bytes as:
 //! - a field named one will be the first 3 bits.
 //! - a field named two will be the next 19 bits.
 //! - a field named six will be the next 14 bits.
 //! - a field named four will be the next 4 bits.
-//!
 //!
 //! ```
 //! // Users code
@@ -282,6 +281,51 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `reserve` defines that this field should be ignored in from and into bytes functions.
 /// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
 /// it out. using a rust range in quotes.
+/// 
+/// # Bitfield Array Example
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleWithArray {
+///     // each u8 in the array contains 4 bits of useful information.
+///     #[bondrewd(element_bit_length = 4)]
+///     one: [u8; 4],
+///     // due to no attributes being present for field `two`, no bits are missing and the type of array
+///     // shouldn't matter bondrewd will use block array logic. also boolean values are assumed to be 1
+///     // bit so this will produce 5 bits in an output.
+///     two: [bool; 5],
+///     // the total amount bits in the array. [{4 bits},{8 bits},{8 bits}]
+///     #[bondrewd(block_bit_length = 20)]
+///     three: [u8; 3],
+/// }
+/// ```
+/// # Bitfield Struct as Field Example
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct Simple {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(bit_length = 27)]
+///     two: char,
+///     #[bondrewd(bit_length = 14)]
+///     three: u16,
+///     four: i8,
+/// }
+/// 
+/// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleWithStruct {
+///     #[bondrewd(struct_size = 7)]
+///     one: Simple,
+///     #[bondrewd(struct_size = 7)]
+///     two: [Simple; 2],
+/// }
+/// ```
+/// # Enum Example
+/// examples for enums are on the [BitfieldEnum Derive](BitfieldEnum) page.
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -461,13 +505,148 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     attribute is present the primitive types must match). ex `InvalidVariant(u8),`.
 ///     - Catch All variant is used to insure that Results are not needed. Catch all will generate a
 ///     `_ => {..}` match arm so that enums don't need to have as many variants as there are values in 
-///     the defined primitive. Catch all can be defined with a `#[invalid]` attribute or last variant will
+///     the defined primitive. Catch all can be defined with a `#[bondrewd_enum(invalid)]` attribute or last variant will
 ///     Automatically become a catch all if no Catch is defined.
 /// 
 /// # Other Features
 /// - Support for implementation of [`std::cmp::PartialEq`] for the given primitive (currently only u8)
+/// 
+/// # Typical Example
+/// ```
+/// use bondrewd::*;
+/// // the primitive type will be assumed to be u8 because there are less than
+/// // 256 variants. also any value above 3 passed into from_primitive will
+/// // will be caught as a Three due to the catch all system.
+/// #[derive(BitfieldEnum, PartialEq, Debug)]
+/// enum SimpleEnum {
+///     Zero,
+///     One,
+///     Two,
+///     Three,
+/// }
+/// ```
+/// into_primitive Truth Table
+/// 
+/// | Variant | output |
+/// |---------|--------|
+/// | Zero    | 0      |
+/// | One     | 1      |
+/// | Two     | 2      |
+/// | Three   | 3      |
+/// 
+/// from_primitive Truth Table
+/// 
+/// | input   | Variant |
+/// |---------|---------|
+/// | 0       | Zero    |
+/// | 1       | One     |
+/// | 2       | Two     |
+/// | 3..=MAX | Three   |
+/// 
+/// # Custom Catch All Example
+/// ```
+/// use bondrewd::*;
+/// // in this case three will no longer be a catch all because one is...
+/// #[derive(BitfieldEnum, PartialEq, Debug)]
+/// enum SimpleEnum {
+///     Zero,
+///     #[bondrewd_enum(invalid)]
+///     One,
+///     Two,
+///     Three,
+/// }
+/// ```
+/// into_primitive Truth Table
+/// 
+/// | Variant | output |
+/// |---------|--------|
+/// | Zero    | 0      |
+/// | One     | 1      |
+/// | Two     | 2      |
+/// | Three   | 3      |
+/// 
+/// from_primitive Truth Table
+/// 
+/// | input   | Variant |
+/// |---------|---------|
+/// | 0       | Zero    |
+/// | 1       | One     |
+/// | 2       | Two     |
+/// | 3       | Three   |
+/// | 4..=MAX | One     |
+/// 
+/// # Catch Value Example
+/// ```
+/// use bondrewd::*;
+/// #[derive(BitfieldEnum, PartialEq, Debug)]
+/// enum SimpleEnum {
+///     Zero,
+///     One,
+///     Two,
+///     Three(u8),
+/// }
+/// ```
+/// into_primitive Truth Table
+/// 
+/// | Variant      | output |
+/// |--------------|--------|
+/// | Zero         | 0      |
+/// | One          | 1      |
+/// | Two          | 2      |
+/// | Three(value) | value  |
+/// 
+/// from_primitive Truth Table
+/// 
+/// | input   | Variant      |
+/// |---------|--------------|
+/// | 0       | Zero         |
+/// | 1       | One          |
+/// | 2       | Two          |
+/// | 3..=MAX | Three(input) |
+/// 
+/// # Literals Example
+/// ```
+/// use bondrewd::*;
+/// #[derive(BitfieldEnum, PartialEq, Debug)]
+/// enum SimpleEnum {
+///     Nine = 9,
+///     // because variant `One` is the first non-literal variant it will be
+///     // given the first available value
+///     One,
+///     // Literals can still be a catch all.
+///     #[bondrewd_enum(invalid)]
+///     Zero = 0,
+///     Five = 5,
+///     // because variant `One` is the second non-literal variant it will be
+///     // given the second available value
+///     Two,
+/// }
+/// ```
+/// into_primitive Truth Table
+/// 
+/// | Variant | output |
+/// |---------|--------|
+/// | Nine    | 9      |
+/// | One     | 1      |
+/// | Zero    | 0      |
+/// | Five    | 5      |
+/// | Two     | 2      |
+/// 
+/// from_primitive Truth Table
+/// 
+/// | input    | Variant |
+/// |----------|---------|
+/// | 0        | Zero    |
+/// | 1        | One     |
+/// | 2        | Two     |
+/// | 3 or 4   | Zero    |
+/// | 5        | Five    |
+/// | 6..8     | Zero    |
+/// | 9        | Nine    |
+/// | 10..=MAX | Zero    |
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
+    // TODO added the ability to give a Catch Value Variant a Literal value.
     let input = parse_macro_input!(input as DeriveInput);
     let enum_info = match EnumInfo::parse(&input) {
         Ok(parsed_enum) => parsed_enum,
