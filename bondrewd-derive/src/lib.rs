@@ -255,24 +255,37 @@ use syn::{parse_macro_input, DeriveInput};
 /// - Structs which implement the Bitfield trait in bondrewd.
 ///
 /// # Struct Attributes
-/// - `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields.
+/// - `default_endianness = {"le" or "be"}` describes a default endianness for primitive fields. 
+/// [example](#simple-example)
 /// - `read_from = {"msb0" or "lsb0"}` defines bit positioning. which end of the byte array to start at.
-/// - `enforce_bytes = {BYTES}` adds a check that requires total bytes defined by fields to equal provided BYTES.
-/// - `enforce_bits = {BITS}` adds a check that requires total bits defined by fields to equal provided BITS.
-/// - `enforce_full_bytes` defines that the resulting BIT_SIZE is required to be a multiple of 8.
-/// - `reverse` defines that the entire byte array should be reversed before reading. no runtime cost.
+/// - `enforce_bytes = {BYTES}` adds a check that requires total bytes defined by fields to equal provided
+/// BYTES. [example](#enforce-bits-example)
+/// - `enforce_bits = {BITS}` adds a check that requires total bits defined by fields to equal provided
+/// BITS. [example](#enforce-bits-example)
+/// - `enforce_full_bytes` adds a check that requires total bits defined by fields to equal a multiple of 8.
+/// - `fill_bytes = {BYTES}` will force the output/input byte array size to be the provided SIZE amount of
+/// bytes. [example](#fill-bytes-example)
+/// - `reverse` defines that the entire byte array should be read backward (first index becomes last index).
+/// no runtime cost.
 ///
 /// # Field Attributes
-/// - `bit_length = {BITS}` define the total amount of bits to use when condensed.
-/// - `byte_length = {BYTES}` define the total amount of bytes to use when condensed.
+/// - `bit_length = {BITS}` define the total amount of bits to use when condensed. [example](#simple-example)
+/// - `byte_length = {BYTES}` define the total amount of bytes to use when condensed. [example](#simple-example)
 /// - `endianness = {"le" or "be"}` define per field endianess.
-/// - `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first. (default array type)
-/// - `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes first. (default array type)
+/// - `block_bit_length = {BITS}` describes a bit length for the entire array dropping lower indexes first.
+/// (default array type). [example](#bitfield-array-example)
+/// - `block_byte_length = {BYTES}` describes a byte length for the entire array dropping lower indexes
+/// first. (default array type). [example](#bitfield-array-example)
 /// - `element_bit_length = {BITS}` describes a bit length for each element of an array.
+/// [example](#bitfield-array-example)
 /// - `element_byte_length = {BYTES}` describes a byte length for each element of an array.
+/// [example](#bitfield-array-example)
 /// - `enum_primitive = "u8"` defines the size of the enum. the BitfieldEnum currently only supports u8.
-/// - `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the BYTE_SIZE const defined in said trait.
+/// [example](#enum-examples)
+/// - `struct_size = {SIZE}` defines the field as a struct which implements the Bitfield trait and the
+/// BYTE_SIZE const defined in said trait. [example](#bitfield-struct-as-field-example)
 /// - `reserve` defines that this field should be ignored in from and into bytes functions.
+/// [example](#reserve-examples)
 ///     - reserve attribute is only supported for primitive types currently.
 /// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
 /// it out. using a rust range in quotes.
@@ -497,7 +510,6 @@ use syn::{parse_macro_input, DeriveInput};
 ///     assert_eq!(24, ReservedBytes::BIT_SIZE);
 /// }
 /// ```
-/// * i use a block array for reserve because that is what the filled bits are described as within Bondrewd.
 /// # Enforce Bits Example
 /// these 3 examples all attempt to have near the same end results. a total output of 3 bytes, but the last
 /// 10 of them will be reserved (should be ignored and assumed to be 0).
@@ -834,10 +846,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     assert_eq!(SimpleEnum::U8Max.into_primitive(), 255);
 ///     assert_eq!(SimpleEnum::U8Max, SimpleEnum::from_primitive(255));
 ///     assert_eq!(SimpleEnum::Unlucky.into_primitive(), 13);
-///     for i in 1..=13 {
-///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
-///     }
-///     for i in 14..42 {
+///     // check all values not defined and 13 get detected as Unlucky
+///     for i in 1..42 {
 ///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
 ///     }
 ///     for i in 43..u8::MAX {
@@ -846,16 +856,19 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// # Custom Catch All Example
+/// This example shows that we can mark any variant as the catch all variant.
+/// in this case Bondrewd will give One the value of 1 and make One catch all values not defined because
+/// of the invalid attribute. because no literals are present variants will be assigned values, the lower
+/// the variant in the list the higher the value assigned.
 /// ```
 /// use bondrewd::BitfieldEnum;
-/// // in this case three will no longer be a catch all because one is...
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
 /// enum SimpleEnum {
-///     Zero,
+///     Zero, // assigned 0
 ///     #[bondrewd_enum(invalid)]
-///     One,
-///     Two,
-///     Three,
+///     One, // assigned 1
+///     Two, // assigned 2
+///     Three, // assigned 3
 /// }
 /// 
 /// fn main(){
@@ -867,12 +880,18 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
 ///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
 ///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
+///     // remaining possible values are caught as One.
 ///     for i in 4..=u8::MAX {
 ///         assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(i));
 ///     }
 /// }
 /// ```
 /// # Catch Value Example
+/// in some cases we might need to know what the invalid value passed into from_primitive actually was. in
+/// my own code there is a enum field that gets encrypted and would become pretty much any value and cause
+/// panics in the library i used before writing Bondrewd. to fix this Bondrewd offers the ability to make 1
+/// variant a tuple or struct variant with exactly one field which must be the primitive type the enum
+/// gets converted to/from, than the variant values not covered will be stored in the field.
 /// ```
 /// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
@@ -896,6 +915,12 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// # Complex Example
+/// here we expect:
+/// - SimpleEnum::Nine = 9,
+/// - SimpleEnum::One  = 1,
+/// - SimpleEnum::Zero = 0 and accept 3, 4, 6, 7, 8, and 10..u8::MAX in from_primitive(),
+/// - SimpleEnum::Five = 5,
+/// - SimpleEnum::Two  = 2,
 /// ```
 /// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]
