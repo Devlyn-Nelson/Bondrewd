@@ -310,25 +310,34 @@ use syn::{parse_macro_input, DeriveInput};
 ///         three: -1034,
 ///         four: 63,
 ///     }.into_bytes();
-///     // one_two_three_four in binary. the last 3 bits are unused.
+///     // check the output binary is correct. (i did math by hand
+///     // to get the binary). each field is separated by a underscore
+///     // in the binary assert to make it easy to see.
 ///     assert_eq!([
-///         0b0_1100000,
-///         0b01000100,
-///         0b00000000,
-///         0b00000000,
-///         0b0_1110111,
-///         0b1110110_1,
-///         0b11111000
+///         0b0_1100000, // one_two,
+///         0b01000100,  // two,
+///         0b00000000,  // two,
+///         0b00000000,  // two,
+///         0b0_1110111, // two_three,
+///         0b1110110_1, // three_four,
+///         0b11111_000, // four_unused
 ///     ], bytes);
+///     // use read functions to get the fields value without
+///     // doing a from_bytes call.
 ///     assert_eq!(false, SimpleExample::read_one(&bytes));
 ///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
 ///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
 ///     assert_eq!(63, SimpleExample::read_four(&bytes));
+///     // overwrite the values with new ones in the byte array.
 ///     SimpleExample::write_one(&mut bytes, true);
 ///     SimpleExample::write_two(&mut bytes, 5.5);
 ///     SimpleExample::write_three(&mut bytes, 511);
 ///     SimpleExample::write_four(&mut bytes, 0);
+///     // from bytes uses the read function so there is no need to
+///     // assert the read functions again.
 ///     let reconstructed = SimpleExample::from_bytes(bytes);
+///     // check the values read by from bytes and check if they are
+///     // what we wrote to the bytes NOT the origanal values.
 ///     assert_eq!(true,reconstructed.one);
 ///     assert_eq!(5.5,reconstructed.two);
 ///     assert_eq!(511,reconstructed.three);
