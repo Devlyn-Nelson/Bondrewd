@@ -1183,7 +1183,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
 ///   
 /// Important Note: u8 is the only primitive type i have tested. My newest code should be able to handle
-/// all primitive types but again, i have not tested any primitive type other than u8.
+/// all primitive types but, to reiterate, i have NOT tested any primitive type other than u8.
 ///
 /// # Features
 /// - Generates code for the BitfieldEnum trait which allows an enum to be used by Bitfield structs.
