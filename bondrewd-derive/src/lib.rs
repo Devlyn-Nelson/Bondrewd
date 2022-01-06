@@ -991,6 +991,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u8,
 /// }
 /// ```
+/// Enums can also be used in [arrays](#bitfield-array-examples)
 /// ```
 /// use bondrewd::*;
 /// #[derive(BitfieldEnum)]
