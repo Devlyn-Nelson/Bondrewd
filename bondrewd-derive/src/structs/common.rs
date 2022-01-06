@@ -196,6 +196,19 @@ impl FieldDataType {
             }
         }
     }
+    fn get_element_bit_length(&self) -> usize {
+        match self {
+            Self::Boolean => 1,
+            Self::Char(_,_) => 32,
+            Self::Number(ref size, _, _) => size * 8,
+            Self::Enum(_, ref size, _) => size * 8,
+            Self::Float(ref size, _) => size * 8,
+            Self::Struct(ref size, _) => size * 8,
+            Self::BlockArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
+            Self::ElementArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
+        }
+    }
+
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut FieldAttrBuilder,
@@ -335,21 +348,53 @@ impl FieldDataType {
                                     )
                                 }
                                 FieldAttrBuilderType::None => {
+                                    
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
-                                        sub_attrs.ty = attrs.ty.clone();
+                                        sub_attrs.ty = FieldAttrBuilderType::None;
                                     }
-
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
                                         &ident,
                                         default_endianess,
                                     )?;
-                                    attrs.endianness = sub_attrs.endianness;
+                                    attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
+                                        FieldBuilderRange::Range(ref range) => {
+                                            if range.end < range.start {
+                                                return Err(syn::Error::new(
+                                                    ident.span(),
+                                                    "range end is less than range start",
+                                                ));
+                                            }
+                                            if range.end - range.start % array_length != 0
+                                            {
+                                                return Err(
+                                                    syn::Error::new(
+                                                        ident.span(),
+                                                        "Array Inference failed because given total bit_length does not split up evenly between elements"
+                                                    )
+                                                );
+                                            }
+                                            FieldBuilderRange::Range(range.clone())
+                                        }
+                                        FieldBuilderRange::LastEnd(ref last_end) => {
+                                            let element_bit_length = sub_ty.get_element_bit_length();
+                                            FieldBuilderRange::Range(
+                                                *last_end
+                                                    ..last_end + (array_length * element_bit_length),
+                                            )
+                                        }
+                                        _ => {
+                                            return Err(syn::Error::new(
+                                                ident.span(),
+                                                "failed getting Range for element array",
+                                            ));
+                                        }
+                                    };
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::BlockArray(
+                                    FieldDataType::ElementArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},

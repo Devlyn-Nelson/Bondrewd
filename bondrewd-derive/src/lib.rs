@@ -259,8 +259,8 @@ use syn::{parse_macro_input, DeriveInput};
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
-/// - Enums which implement the BitfieldEnum trait in bondrewd.
-/// - Structs which implement the Bitfield trait in bondrewd.
+/// - Enums which implement the BitfieldEnum trait in Bondrewd.
+/// - Structs which implement the Bitfield trait in Bondrewd.
 ///
 /// # Struct Attributes
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. 
@@ -283,17 +283,17 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
 /// - `endianness = {"le" or "be"}` Define per field endianess. [example](#endianness-examples)
 /// - `block_bit_length = {BITS}` Describes a bit length for the entire array dropping lower indexes first.
-/// (default array type). [example](#bitfield-array-examples)
+/// [example](#bitfield-array-examples)
 /// - `block_byte_length = {BYTES}` Describes a byte length for the entire array dropping lower indexes
-/// first. (default array type). [example](#bitfield-array-examples)
-/// - `element_bit_length = {BITS}` Describes a bit length for each element of an array.
-/// [example](#bitfield-array-examples)
-/// - `element_byte_length = {BYTES}` Describes a byte length for each element of an array.
-/// [example](#bitfield-array-examples)
+/// first. [example](#bitfield-array-examples)
+/// - `element_bit_length = {BITS}` Describes a bit length for each element of an array. (default array
+/// type). [example](#bitfield-array-examples)
+/// - `element_byte_length = {BYTES}` Describes a byte length for each element of an array. (default array
+/// type). [example](#bitfield-array-examples)
 /// - `enum_primitive = "u8"` Defines the size of the enum. the BitfieldEnum currently only supports u8.
 /// [example](#enum-examples)
 /// - `struct_size = {SIZE}` Defines the field as a struct which implements the Bitfield trait and the
-/// BYTE_SIZE const defined in said trait. [example](#bitfield-struct-as-field-example)
+/// BYTE_SIZE const defined in said trait. [example](#bitfield-struct-as-field-examples)
 /// - `reserve` Defines that this field should be ignored in from and into bytes functions.
 /// [example](#reserve-examples)
 ///     - reserve attribute is only supported for primitive types currently.
@@ -368,7 +368,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Reverse Example
-/// Reverse simply makes bondrewd index the bytes in the output/input buffers in the opposite order. 
+/// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order. 
 /// First index becomes last index and last index becomes the first.
 /// ```
 /// use bondrewd::*;
@@ -629,14 +629,28 @@ use syn::{parse_macro_input, DeriveInput};
 ///     one: [u8; 4],
 ///     // due to no attributes being present for field `two`, 
 ///     // no bits are missing and the type of array shouldn't
-///     // matter bondrewd will use block array logic. also boolean
+///     // matter, Bondrewd will use element array logic. also boolean
 ///     // values are assumed to be 1 bit so this will produce
 ///     // 5 bits in an output.
+///     #[bondrewd(element_bit_length = 1)]
 ///     two: [bool; 5],
 ///     // the total amount bits in the array should be 20.
 ///     // [{4 bits},{8 bits},{8 bits}]
 ///     #[bondrewd(block_bit_length = 20)]
 ///     three: [u8; 3],
+/// }
+/// 
+/// fn main() {
+///     let test = SimpleWithArray {
+///         // the first 4 bits in index 0 and 2 are 1's to show
+///         // that they will not be in the final result due to
+///         // each element being set to 4 bits, meaning the values
+///         // in those indices will become 0 after into_bytes is called.
+///         one: [0b11110000, 0b00001111, 0b11110000, 0b00001001],
+///         two: [false, true, false, true, false],
+///         three: [u8::MAX, 0, 0b10101010],
+///     };
+///     assert_eq!(test.into_bytes(), [0b0000_1111, 0b0000_1001, 0b01010_111, 0b1_0000000, 0b0_1010101, 0b0_0000000]);
 /// }
 /// ```
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
@@ -699,7 +713,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Reserve Examples
-/// Reserve fields tell bondrewd to not include logic for reading or writing the field in the from and
+/// Reserve fields tell Bondrewd to not include logic for reading or writing the field in the from and
 /// into bytes functions. Currently only primitive types are supported.
 /// ```
 /// use bondrewd::*;
@@ -849,7 +863,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// This Example fails to build because only 14 bits are being defined by fields and `enforce_bytes` 
-/// is telling bondrewd to expect 24 bits to be used by defined fields.
+/// is telling Bondrewd to expect 24 bits to be used by defined fields.
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
