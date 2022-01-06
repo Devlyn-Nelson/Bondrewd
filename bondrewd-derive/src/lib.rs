@@ -648,9 +648,17 @@ use syn::{parse_macro_input, DeriveInput};
 ///         // in those indices will become 0 after into_bytes is called.
 ///         one: [0b11110000, 0b00001111, 0b11110000, 0b00001001],
 ///         two: [false, true, false, true, false],
+///         // its also worth noting that index 0 here will lose the 4
+///         // most significant bits.
 ///         three: [u8::MAX, 0, 0b10101010],
 ///     };
-///     assert_eq!(test.into_bytes(), [0b0000_1111, 0b0000_1001, 0b01010_111, 0b1_0000000, 0b0_1010101, 0b0_0000000]);
+///     assert_eq!(test.into_bytes(), 
+///         [0b0000_1111,  // one[0 and 1]
+///          0b0000_1001,  // one[2 and 3]
+///          0b01010_111,  // two and three[0]
+///          0b1_0000000,  // remaining three[0] and three[1]
+///          0b0_1010101,  // remaining three[1] and three[2]
+///          0b0_0000000]);// remaining three[2] and 7 unused bits.
 /// }
 /// ```
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
@@ -823,11 +831,54 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Enforce Bits Examples
-/// These 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the last
-/// 10 of them will be reserved/unused (should be ignored and assumed to be 0).
+/// Enforce Bits/Bytes Main purpose is to act as a compile time check to ensure how many bit you think
+/// are being use is the actual amount of bits being used.  
+/// Here i have 2 fields with a total defined bit-length of 6, and then an undecorated boolean field. I
+/// also have trust issues so i want to verify that the bool is only using 1 bit making the total bit
+/// length of the struct 7 bits. Adding `enforce_bits = 7` will force a compiler error if the calculated
+/// total bit length is not 7.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", enforce_bits = 7)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 4)]
+///     one: u8,
+///     #[bondrewd(bit_length = 2)]
+///     two: u8,
+///     three: bool
+/// }
+/// fn main() {
+///     assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// Here is the same example where but i messed up the bit_length of the first field making the total 8
+/// instead of 7. 
+/// ```compile_fail
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", enforce_bits = 7)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 5)]
+///     one: u8,
+///     #[bondrewd(bit_length = 2)]
+///     two: u8,
+///     three: bool
+/// }
+/// fn main() {
+///     assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+///   
+/// These next 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the
+/// last 10 of them will be reserved/unused (should be ignored and assumed to be 0).
 /// 
-/// In this first example we are defining all 24 total bits as 3 fields marking the last field of 10 bits
-/// with the reserve attribute because we don't want from/into bytes functions to process the field.
+/// In this first example i will be showing what a struct might look like without fill bytes, then in the
+/// second example i will show the the same end result but without a reserve field. First will be defining
+/// all 24 total bits as 3 fields marking the last field of 10 bits with the reserve attribute
+/// because we don't want from/into bytes functions to process those bytes.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -845,23 +896,10 @@ use syn::{parse_macro_input, DeriveInput};
 ///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// }
 /// ```
-/// `fill_bytes` is used here to show that `fill_bytes` does NOT effect how `enforce_bytes` works. 
+/// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works. 
 /// `enforce_bytes` will check the total bit length before the bits are filled.
-/// ```
-/// use bondrewd::*;
-/// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
-/// struct FilledBytesEnforced {
-///     #[bondrewd(bit_length = 7)]
-///     one: u8,
-///     #[bondrewd(bit_length = 7)]
-///     two: u8,
-/// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
-/// ```
+///   
+/// Here i am telling Bondrewd to make the total bit length 3 bytes using `fill_bytes`.
 /// This Example fails to build because only 14 bits are being defined by fields and `enforce_bytes` 
 /// is telling Bondrewd to expect 24 bits to be used by defined fields.
 /// ```compile_fail
@@ -874,8 +912,26 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
+/// ```
+/// To fix this we need to make sure our enforcement value is the amount fo bits defined by the fields NOT
+/// the expected FilledBytesEnforced::BYTE_SIZE.
+///   
+/// Here is the Correct usage of these two attributes working together.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
 /// fn main() {
 ///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+///     // we are enforcing 14 bits but fill_bytes is creating
+///     // an imaginary reserve field from bit index 14 to
+///     // index 23
 ///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// }
 /// ```
