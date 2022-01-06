@@ -272,6 +272,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
 /// BITS. [example](#enforce-bits-examples)
 /// - `enforce_full_bytes` Adds a check that requires total bits defined by fields to equal a multiple of 8.
+/// [example](#enforce-full-bytes-example)
 /// - `fill_bytes = {BYTES}` Will force the output/input byte array size to be the provided SIZE amount of
 /// bytes. [example](#fill-bytes-examples)
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
@@ -862,6 +863,40 @@ use syn::{parse_macro_input, DeriveInput};
 /// fn main() {
 ///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 ///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// }
+/// ```
+/// # Enforce Full Bytes Example
+/// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
+/// total bits determined from the defined fields is not a multiple of 8. This was included for those
+/// like me that get paranoid they entered something in wrong.
+/// ```compile_fail
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", enforce_full_bytes)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+/// }
+/// ```
+/// In this case if we still wanted fields one and two to remain 7 bits we need to add another field
+/// to use the remaining 2 bits.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", enforce_full_bytes)]
+/// struct FilledBytesEnforced {
+///     #[bondrewd(bit_length = 7)]
+///     one: u8,
+///     #[bondrewd(bit_length = 7)]
+///     two: u8,
+///     #[bondrewd(bit_length = 2, reserve)]
+///     reserve: u16
+/// }
+/// fn main() {
+///     assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
+///     assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
 /// }
 /// ```
 /// # Enum Examples
