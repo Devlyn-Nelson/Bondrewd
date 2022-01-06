@@ -283,7 +283,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
 /// - `endianness = {"le" or "be"}` Define per field endianess. [example](#endianness-examples)
 /// - `block_bit_length = {BITS}` Describes a bit length for the entire array dropping lower indexes first.
-/// (default array type). [example](#bitfield-array-examplse)
+/// (default array type). [example](#bitfield-array-examples)
 /// - `block_byte_length = {BYTES}` Describes a byte length for the entire array dropping lower indexes
 /// first. (default array type). [example](#bitfield-array-examples)
 /// - `element_bit_length = {BITS}` Describes a bit length for each element of an array.
