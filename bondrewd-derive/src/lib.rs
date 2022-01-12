@@ -101,11 +101,57 @@
 //! }
 //! ```
 //!
-//! # Other Crate Features
-//! * `slice_fns` generates slice functions:
-//!     * `fn read_slice_{field}(&[u8]) -> [Result<{field_type}, bondrewd::BondrewdSliceError>] {}`
-//!     * `fn set_slice_{field}(&mut [u8], {field_type}) -> [Result<(), bondrewd::BondrewdSliceError>] {}`
-//! * `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
+//! # Crate Features
+//! Slice functions are convenience functions for reading/wring single or multiple fields without reading
+//! the entire structure. Bondrewd will provided 2 ways to access the field:
+//! * single field access
+//!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
+//!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
+//! * multiple field access
+//!     * `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
+//!       this function will check the size of the slice, if the slice is big enough it will return
+//!       a structure with no fields. the structure will be the same name as the input structure with
+//!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
+//!       structures fields, the naming is the same as the standard `read_{field}` functions.
+//!         * `fn read_{field}(&self) -> {field_type} { .. }`
+//!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
+//!       this function will check the size of the slice, if the slice is big enough it will return
+//!       a structure with no fields. the structure will be the same name as the input structure with
+//!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
+//!       of the input structures fields, the naming is the same as the standard `read_{field}` and
+//!       `write_{field}` functions.
+//!         * `fn read_{field}(&self) -> {field_type} { .. }`
+//!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
+//! Slice Example API generated: example Cargo.toml Bondrewd dependency
+//! `bondrewd = { version = "^0.1", features = ["derive", "slice_fns"] }`
+//! ```compile_fail
+//! impl Simple {
+//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn write_slice_one(output_byte_buffer: &mut [u8], one: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn write_slice_two(output_byte_buffer: &mut [u8], two: bool) -> Result<(), BitfieldSliceError> { .. }
+//!     #[inline]
+//!     pub fn write_slice_three(output_byte_buffer: &mut [u8], three: u8) -> Result<(), BitfieldSliceError> { .. }
+//! }
+//! struct SimpleChecked<'a> {
+//!     buffer: &'a [u8],
+//! }
+//! impl<'a> SimpleChecked<'a> { .. }
+//!     #[inline]
+//!     pub fn read_two(&self) -> bool { .. }
+//!     #[inline]
+//!     pub fn read_three(&self) -> u8 { .. }
+//! }
+//! ```
+//! 
+//! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd STRUCT_SIZE. Hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
 //! arrays so we could eliminate sizing errors.
@@ -1177,11 +1223,12 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         #hex_fns_quote
     };
 
-    #[cfg(feature = "slice_fns")]
-    {
+    if slice_fns {
         let vis = struct_info.vis;
         let checked_ident = format_ident!("{}Checked", &struct_name);
+        let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
         let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+        let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
         let to_bytes_quote = quote!{
             #to_bytes_quote
             #vis struct #checked_ident<'a> {
@@ -1190,10 +1237,18 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             impl<'a> #checked_ident<'a> {
                 #unchecked_functions
             }
+            #vis struct #checked_mut_ident<'a> {
+                buffer: &'a mut [u8],
+            }
+            impl<'a> #checked_mut_ident<'a> {
+                #unchecked_functions
+                #unchecked_mut_functions
+            }
         };
-        return TokenStream::from(to_bytes_quote);
+        TokenStream::from(to_bytes_quote)
+    }else{
+        TokenStream::from(to_bytes_quote)
     }
-    TokenStream::from(to_bytes_quote)
 
     
 }

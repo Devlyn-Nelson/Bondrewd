@@ -16,14 +16,25 @@ fn main() -> anyhow::Result<()> {
         two: true,
         three: 1,
     };
-    let bytes = test.into_bytes();
+    let mut bytes = test.into_bytes();
     if let Ok(checked_struct) = Simple::check_slice(&bytes){
-        assert_eq!(checked_struct.one(), 2);
-        assert_eq!(checked_struct.two(), true);
-        assert_eq!(checked_struct.three(), 1);
+        assert_eq!(checked_struct.read_one(), 2);
+        assert_eq!(checked_struct.read_two(), true);
+        assert_eq!(checked_struct.read_three(), 1);
     }else{
         panic!("check failed");
     };
     assert_eq!(bytes, [0b0010_1001]);
+    if let Ok(mut checked_struct) = Simple::check_slice_mut(&mut bytes){
+        checked_struct.write_one(4);
+        checked_struct.write_two(false);
+        checked_struct.write_three(2);
+        assert_eq!(checked_struct.read_one(), 4);
+        assert_eq!(checked_struct.read_two(), false);
+        assert_eq!(checked_struct.read_three(), 2);
+    }else{
+        panic!("mut check failed");
+    };
+    assert_eq!(bytes, [0b0100_0010]);
     Ok(())
 }
