@@ -1177,7 +1177,25 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         #hex_fns_quote
     };
 
+    #[cfg(feature = "slice_fns")]
+    {
+        let vis = struct_info.vis;
+        let checked_ident = format_ident!("{}Checked", &struct_name);
+        let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+        let to_bytes_quote = quote!{
+            #to_bytes_quote
+            #vis struct #checked_ident<'a> {
+                buffer: &'a [u8],
+            }
+            impl<'a> #checked_ident<'a> {
+                #unchecked_functions
+            }
+        };
+        return TokenStream::from(to_bytes_quote);
+    }
     TokenStream::from(to_bytes_quote)
+
+    
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
