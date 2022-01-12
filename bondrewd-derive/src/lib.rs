@@ -110,13 +110,13 @@
 //! * multiple field access
 //!     * `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
 //!       this function will check the size of the slice, if the slice is big enough it will return
-//!       a structure with no fields. the structure will be the same name as the input structure with
+//!       a checked structure. the structure will be the same name as the input structure with
 //!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
 //!       structures fields, the naming is the same as the standard `read_{field}` functions.
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
 //!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
 //!       this function will check the size of the slice, if the slice is big enough it will return
-//!       a structure with no fields. the structure will be the same name as the input structure with
+//!       a checked structure. the structure will be the same name as the input structure with
 //!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
 //!       of the input structures fields, the naming is the same as the standard `read_{field}` and
 //!       `write_{field}` functions.
@@ -133,21 +133,41 @@
 //!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldSliceError> { .. }
 //!     #[inline]
 //!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldSliceError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_one(output_byte_buffer: &mut [u8], one: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldSliceError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_two(output_byte_buffer: &mut [u8], two: bool) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldSliceError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_three(output_byte_buffer: &mut [u8], three: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldSliceError> { .. }
 //! }
 //! struct SimpleChecked<'a> {
 //!     buffer: &'a [u8],
 //! }
-//! impl<'a> SimpleChecked<'a> { .. }
+//! impl<'a> SimpleChecked<'a> {
+//!     #[inline]
+//!     pub fn read_one(&self) -> u8 { .. }
 //!     #[inline]
 //!     pub fn read_two(&self) -> bool { .. }
 //!     #[inline]
 //!     pub fn read_three(&self) -> u8 { .. }
+//! }
+//! struct SimpleCheckedMut<'a> {
+//!     buffer: &'a mut [u8],
+//! }
+//! impl<'a> SimpleCheckedMut<'a> {
+//!     #[inline]
+//!     pub fn read_one(&self) -> u8 { .. }
+//!     #[inline]
+//!     pub fn read_two(&self) -> bool { .. }
+//!     #[inline]
+//!     pub fn read_three(&self) -> u8 { .. }
+//!     #[inline]
+//!     pub fn write_one(&mut self, one: u8) { .. }
+//!     #[inline]
+//!     pub fn write_two(&mut self, two: bool) { .. }
+//!     #[inline]
+//!     pub fn write_three(&mut self, three: u8) { .. }
 //! }
 //! ```
 //! 
