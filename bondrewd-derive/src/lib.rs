@@ -104,36 +104,41 @@
 //! # Crate Features
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
-//! * single field access
+//! * Single field access. These are functions that are added along side the standard read/write field
+//! functions in the impl for the input structure. read/write slice functions will check the length of
+//! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present and
+//! return BitfieldSliceError if not enough bytes are present.
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
 //!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
-//! * multiple field access
+//! * Multiple field access.
 //!     * `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
-//!       this function will check the size of the slice, if the slice is big enough it will return
+//!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
 //!       structures fields, the naming is the same as the standard `read_{field}` functions.
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
 //!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
-//!       this function will check the size of the slice, if the slice is big enough it will return
+//!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
 //!       of the input structures fields, the naming is the same as the standard `read_{field}` and
 //!       `write_{field}` functions.
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
-//! Slice Example API generated: example Cargo.toml Bondrewd dependency
-//! `bondrewd = { version = "^0.1", features = ["derive", "slice_fns"] }`
+//!   
+//! Example Cargo.toml Bondrewd dependency  
+//! `bondrewd = { version = "^0.1", features = ["derive", "slice_fns"] }`  
+//! Example Generated Slice Api:
 //! ```compile_fail
 //! impl Simple {
 //!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldSliceError> { .. }
+//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldSliceError> { .. }
 //!     #[inline]
 //!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
 //!     #[inline]
 //!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldSliceError> { .. }
 //!     #[inline]
 //!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
-//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldSliceError> { .. }
 //!     #[inline]
 //!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldSliceError> { .. }
 //!     #[inline]
