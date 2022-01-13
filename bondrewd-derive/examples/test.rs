@@ -2,10 +2,12 @@ use bondrewd::*;
 
 #[derive(Bitfields, Clone)]
 #[bondrewd(default_endianness = "be")]
+///
 struct Simple {
     #[bondrewd(bit_length = 4)]
     one: u8,
     two: bool,
+    /// hello
     #[bondrewd(bit_length = 3)]
     three: u8,
 }
