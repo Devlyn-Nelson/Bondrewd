@@ -155,6 +155,21 @@ fuzz_target!(|data: [TestInnerArb;2]| {
     test.test_struct.set_f_two(data[0].f_two);
     test.test_struct.set_b_one(data[0].b_one);
     let bytes = test.clone().into_bytes();
+
+    if let Ok(checked) = Test::check_slice(&bytes) {
+        assert_eq!(checked.one(), test.one);
+        assert_eq!(checked.two(), test.two);
+        assert_eq!(checked.three(), test.three);
+        assert_eq!(checked.four(), test.four);
+        assert_eq!(checked.five(), test.five);
+        assert_eq!(checked.six(), test.six);
+        assert_eq!(checked.seven(), test.seven);
+        assert_eq!(checked.eight(), test.eight);
+        assert_eq!(checked.nine(), test.nine);
+        assert_eq!(checked.ten(), test.ten);
+    }else{
+        panic!("checking slice failed");
+    }
     
     let new_test = Test::from_bytes(bytes);
     assert_eq!(new_test, test);

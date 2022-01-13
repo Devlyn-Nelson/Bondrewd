@@ -842,7 +842,6 @@ pub enum StructEnforcement {
     EnforceBitAmount(usize),
 }
 
-#[derive(Debug)]
 pub struct StructInfo {
     pub name: Ident,
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
@@ -855,6 +854,7 @@ pub struct StructInfo {
     pub fields: Vec<FieldInfo>,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
+    pub vis: syn::Visibility,
 }
 
 impl StructInfo {
@@ -989,6 +989,7 @@ impl StructInfo {
             fields: Default::default(),
             default_endianess: Endianness::None,
             fill_bits: None,
+            vis: input.vis.clone(),
         };
         for attr in input.attrs.iter() {
             let meta = attr.parse_meta()?;

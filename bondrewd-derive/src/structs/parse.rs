@@ -532,7 +532,7 @@ impl FieldAttrBuilder {
                             }
                         }
                         _ => {
-                            if ident_as_str.as_str() != "" {
+                            if ident_as_str.as_str() != "doc" {
                                 return Err(Error::new(
                                     builder.span(),
                                     format!("\"{}\" is not a valid attribute", ident_as_str),
