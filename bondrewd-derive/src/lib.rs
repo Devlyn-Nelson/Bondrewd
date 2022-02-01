@@ -1273,6 +1273,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             impl<'a> #checked_mut_ident<'a> {
                 #unchecked_functions
                 #unchecked_mut_functions
+                pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                    Self{
+                        buffer: data
+                    }
+                }
             }
         };
         TokenStream::from(to_bytes_quote)
