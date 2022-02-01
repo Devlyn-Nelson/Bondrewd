@@ -1261,6 +1261,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
             impl<'a> #checked_ident<'a> {
                 #unchecked_functions
+                pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                    Self{
+                        buffer: data
+                    }
+                }
             }
             #vis struct #checked_mut_ident<'a> {
                 buffer: &'a mut [u8],
