@@ -18,3 +18,4 @@ bondrewd-derive = { version = "^0.3", optional = true }
 derive = ["bondrewd-derive"]
 slice_fns = ["bondrewd-derive/slice_fns"]
 hex_fns = ["bondrewd-derive/hex_fns"]
+std = []
