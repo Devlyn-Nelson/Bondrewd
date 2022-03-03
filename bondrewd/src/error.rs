@@ -3,8 +3,8 @@
 #[derive(Debug)]
 pub struct BitfieldSliceError(pub usize, pub usize);
 
-impl std::fmt::Display for BitfieldSliceError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BitfieldSliceError {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             fmt,
             "expected {} bytes, {} bytes were provided.",
@@ -12,13 +12,15 @@ impl std::fmt::Display for BitfieldSliceError {
         )
     }
 }
+
+#[cfg(feature = "std")]
 impl std::error::Error for BitfieldSliceError {}
 
 #[derive(Debug)]
 pub struct BitfieldHexError(pub char, pub usize);
 
-impl std::fmt::Display for BitfieldHexError {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for BitfieldHexError {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             fmt,
             "found Invalid character {} @ index {}.",

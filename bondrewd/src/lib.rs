@@ -1,3 +1,5 @@
+#![no_std]
+
 //! Defined Traits for bondrewd-derive.
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 pub trait Bitfields<const SIZE: usize> {
