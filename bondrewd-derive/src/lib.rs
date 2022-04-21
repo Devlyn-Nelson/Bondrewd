@@ -367,9 +367,25 @@ use syn::{parse_macro_input, DeriveInput};
 /// BYTE_SIZE const defined in said trait. [example](#bitfield-struct-as-field-examples)
 /// - `reserve` Defines that this field should be ignored in from and into bytes functions.
 /// [example](#reserve-examples)
-///     - reserve attribute is only supported for primitive types currently.
-/// - /!Untested!\ `bits = "RANGE"` - define the bit indexes yourself rather than let the proc macro figure
-/// it out. using a rust range in quotes.
+///     - Reserve requires the fields type to impl ['Default'](https://doc.rust-lang.org/std/default/trait.Default.html).
+/// due to from_bytes needed to provided a value.
+/// 
+/// # Experimental Field Attributes
+/// if you decide to use these remember that they have not been exhaustively tested. when using
+/// experimental attributes please be careful and report unexpected behavior to our github issues.
+/// - `bits = "{RANGE}"` - Define the bit indexes yourself rather than let the proc macro figure
+/// it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
+/// above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
+/// - `read_only` - Bondrewd will not include writing/into_bytes logic for the field.
+/// - `overlapping_bits = {BITS}` - Tells bondrewd that the provided BITS amount is shared
+///  with at least 1 other field and should not be included in the overall structure size.
+/// - `redundant` - Tells bondrewd that this field's bits are all shared by at least one other field.
+/// Bondrewd will not include the bit length in the structures overall bit length 
+/// (because they are redundant).
+///     - Bondrewd will read the assigned bits but will not write.
+///     - This behaves exactly as combining the attributes: 
+///         - `read_only`
+///         - `overlapping_bits = {FIELD_BIT_LENGTH}` FIELD_BIT_LENGTH being the total amount of bits that the field uses.
 /// 
 /// # Simple Example
 /// This example is on the front page for bondrewd-derive. Here i will be adding some asserts to show what
@@ -380,7 +396,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// currently.
 /// - A signed integer field named three will be the next 14 bits.
 /// - An unsigned integer field named four will be the next 6 bits.
-/// - Because these fields do not add up to a power of 2 the last 3 bits will be unused.
+/// - Because these fields do not add up to a number divisible by 8 the last 3 bits will be unused.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -777,7 +793,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // bytes to store 4 SimpleEnums, we can use 1 byte.
 ///     #[bondrewd(enum_primitive = "u8", element_bit_length = 2)]
 ///     one_byte_four_values: [SimpleEnum; 4],
-///     // again if the size doesn't need to change not array attribute
+///     // again if the size doesn't need to change, no array attribute
 ///     // is needed.
 ///     #[bondrewd(struct_size = 7)]
 ///     waste_a_byte: [SimpleStruct; 2],
@@ -1083,6 +1099,243 @@ use syn::{parse_macro_input, DeriveInput};
 ///     one: Simple,
 ///     #[bondrewd(element_bit_length = 2, enum_primitive = "u8")]
 ///     two: [Simple; 3],
+/// }
+/// ```
+/// # Bits Attribute Example
+/// First i will replicate the [Simple Example](#simple-example) to show an equivalent use.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleExample {
+///     // fields that are as expected do not require attributes.
+///     // #[bondrewd(bits = "0..1")] this could be used but is not needed.
+///     one: bool,
+///     // #[bondrewd(bits = "1..33")] this could be used but is not needed.
+///     two: f32,
+///     #[bondrewd(bits = "33..47")]
+///     three: i16,
+///     #[bondrewd(bits = "47..53")]
+///     four: u8,
+/// }
+/// 
+/// fn main(){
+///     assert_eq!(7, SimpleExample::BYTE_SIZE);
+///     assert_eq!(53, SimpleExample::BIT_SIZE);
+///     let mut bytes = SimpleExample {
+///         one: false,
+///         two: -4.25,
+///         three: -1034,
+///         four: 63,
+///     }.into_bytes();
+///     // check the output binary is correct. (i did math by hand
+///     // to get the binary). each field is separated by a underscore
+///     // in the binary assert to make it easy to see.
+///     assert_eq!([
+///         0b0_1100000, // one_two,
+///         0b01000100,  // two,
+///         0b00000000,  // two,
+///         0b00000000,  // two,
+///         0b0_1110111, // two_three,
+///         0b1110110_1, // three_four,
+///         0b11111_000, // four_unused
+///     ], bytes);
+///     // use read functions to get the fields value without
+///     // doing a from_bytes call.
+///     assert_eq!(false, SimpleExample::read_one(&bytes));
+///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
+///     assert_eq!(63, SimpleExample::read_four(&bytes));
+///     // overwrite the values with new ones in the byte array.
+///     SimpleExample::write_one(&mut bytes, true);
+///     SimpleExample::write_two(&mut bytes, 5.5);
+///     SimpleExample::write_three(&mut bytes, 511);
+///     SimpleExample::write_four(&mut bytes, 0);
+///     // from bytes uses the read function so there is no need to
+///     // assert the read functions again.
+///     let reconstructed = SimpleExample::from_bytes(bytes);
+///     // check the values read by from bytes and check if they are
+///     // what we wrote to the bytes NOT the origanal values.
+///     assert_eq!(true,reconstructed.one);
+///     assert_eq!(5.5,reconstructed.two);
+///     assert_eq!(511,reconstructed.three);
+///     assert_eq!(0,reconstructed.four);
+/// }
+/// ```
+/// # Redundant Examples
+/// In this example we will has fields share data. flags in the example will represent a u8 storing
+/// multiple boolean flags, but all of the flags within are also fields in the struct. if we mark
+/// flags as `redundant` above the boolean flag fields then flags will be "read_only"(effects nothing 
+/// during an into_bytes() call).
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleExample {
+///     // fields that are as expected do not require attributes.
+///     one: bool,
+///     two: f32,
+///     #[bondrewd(bit_length = 14)]
+///     three: i16,
+///     // the field is above the bits it shares because bondrewd
+///     // will get the last non-shared set of bits to base its start from.
+///     #[bondrewd(redundant, bit_length = 6)]
+///     flags: u8,
+///     flag_one: bool,
+///     flag_two: bool,
+///     flag_three: bool,
+///     flag_four: bool,
+///     flag_five: bool,
+///     flag_six: bool,
+/// }
+/// 
+/// fn main(){
+///     assert_eq!(7, SimpleExample::BYTE_SIZE);
+///     assert_eq!(53, SimpleExample::BIT_SIZE);
+///     let mut bytes = SimpleExample {
+///         one: false,
+///         two: -4.25,
+///         three: -1034,
+///         flags: 0,
+///         flag_one: true,
+///         flag_two: true,
+///         flag_three: true,
+///         flag_four: true,
+///         flag_five: true,
+///         flag_six: true,
+///     }.into_bytes();
+///     // check the output binary is correct. (i did math by hand
+///     // to get the binary). each field is separated by a underscore
+///     // in the binary assert to make it easy to see.
+///     assert_eq!([
+///         0b0_1100000, // one_two,
+///         0b01000100,  // two,
+///         0b00000000,  // two,
+///         0b00000000,  // two,
+///         0b0_1110111, // two_three,
+///         0b1110110_1, // three_four,
+///         0b11111_000, // four_unused
+///     ], bytes);
+///     // use read functions to get the fields value without
+///     // doing a from_bytes call.
+///     assert_eq!(false, SimpleExample::read_one(&bytes));
+///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
+///     // notice i can still use the read calls for the redundant field.
+///     assert_eq!(63, SimpleExample::read_flags(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_one(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_two(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_three(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_four(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_five(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+///     // overwrite the values with new ones in the byte array.
+///     SimpleExample::write_one(&mut bytes, true);
+///     SimpleExample::write_two(&mut bytes, 5.5);
+///     SimpleExample::write_three(&mut bytes, 511);
+///     // notice i can still use the write calls for the redundant field.
+///     SimpleExample::write_flags(&mut bytes, 0);
+///     // from bytes uses the read function so there is no need to
+///     // assert the read functions again.
+///     let reconstructed = SimpleExample::from_bytes(bytes);
+///     // check the values read by from bytes and check if they are
+///     // what we wrote to the bytes NOT the origanal values.
+///     assert_eq!(true,reconstructed.one);
+///     assert_eq!(5.5,reconstructed.two);
+///     assert_eq!(511,reconstructed.three);
+///     assert_eq!(0,reconstructed.flags);
+///     assert_eq!(false,reconstructed.flag_one);
+///     assert_eq!(false,reconstructed.flag_two);
+///     assert_eq!(false,reconstructed.flag_three);
+///     assert_eq!(false,reconstructed.flag_four);
+///     assert_eq!(false,reconstructed.flag_five);
+///     assert_eq!(false,reconstructed.flag_six);
+/// }
+/// ```
+/// we can also have the flags below if we use the `bits` attribute.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be")]
+/// struct SimpleExample {
+///     // fields that are as expected do not require attributes.
+///     one: bool,
+///     two: f32,
+///     #[bondrewd(bit_length = 14)]
+///     three: i16,
+///     // the field is above the bits it shares because bondrewd
+///     // will get the last non-shared set of bits to base its start from.
+///     flag_one: bool,
+///     flag_two: bool,
+///     flag_three: bool,
+///     flag_four: bool,
+///     flag_five: bool,
+///     flag_six: bool,
+///     #[bondrewd(redundant, bits = "47..53")]
+///     flags: u8,
+/// }
+/// 
+/// fn main(){
+///     assert_eq!(7, SimpleExample::BYTE_SIZE);
+///     assert_eq!(53, SimpleExample::BIT_SIZE);
+///     let mut bytes = SimpleExample {
+///         one: false,
+///         two: -4.25,
+///         three: -1034,
+///         flags: 0,
+///         flag_one: true,
+///         flag_two: true,
+///         flag_three: true,
+///         flag_four: true,
+///         flag_five: true,
+///         flag_six: true,
+///     }.into_bytes();
+///     // check the output binary is correct. (i did math by hand
+///     // to get the binary). each field is separated by a underscore
+///     // in the binary assert to make it easy to see.
+///     assert_eq!([
+///         0b0_1100000, // one_two,
+///         0b01000100,  // two,
+///         0b00000000,  // two,
+///         0b00000000,  // two,
+///         0b0_1110111, // two_three,
+///         0b1110110_1, // three_four,
+///         0b11111_000, // four_unused
+///     ], bytes);
+///     // use read functions to get the fields value without
+///     // doing a from_bytes call.
+///     assert_eq!(false, SimpleExample::read_one(&bytes));
+///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
+///     // notice i can still use the read calls for the redundant field.
+///     assert_eq!(63, SimpleExample::read_flags(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_one(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_two(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_three(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_four(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_five(&bytes));
+///     assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+///     // overwrite the values with new ones in the byte array.
+///     SimpleExample::write_one(&mut bytes, true);
+///     SimpleExample::write_two(&mut bytes, 5.5);
+///     SimpleExample::write_three(&mut bytes, 511);
+///     // notice i can still use the write calls for the redundant field.
+///     SimpleExample::write_flags(&mut bytes, 0);
+///     // from bytes uses the read function so there is no need to
+///     // assert the read functions again.
+///     let reconstructed = SimpleExample::from_bytes(bytes);
+///     // check the values read by from bytes and check if they are
+///     // what we wrote to the bytes NOT the origanal values.
+///     assert_eq!(true,reconstructed.one);
+///     assert_eq!(5.5,reconstructed.two);
+///     assert_eq!(511,reconstructed.three);
+///     assert_eq!(0,reconstructed.flags);
+///     assert_eq!(false,reconstructed.flag_one);
+///     assert_eq!(false,reconstructed.flag_two);
+///     assert_eq!(false,reconstructed.flag_three);
+///     assert_eq!(false,reconstructed.flag_four);
+///     assert_eq!(false,reconstructed.flag_five);
+///     assert_eq!(false,reconstructed.flag_six);
 /// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]

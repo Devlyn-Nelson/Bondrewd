@@ -172,3 +172,52 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
     Ok(())
 }
+
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "be")]
+struct SimpleDuplicateData {
+    one: bool,
+    two: bool,
+    three: bool,
+    four: bool,
+    five: bool,
+    six: bool,
+    seven: bool,
+    eight: bool,
+    #[bondrewd(bits = "0..8", redundant)]
+    dup: u8,
+    nine: u8,
+}
+
+#[test]
+fn be_duplicate_data() -> anyhow::Result<()> {
+    let data = SimpleDuplicateData { one: false,
+        two: false,
+        three: false,
+        four: false,
+        five: false,
+        six: false,
+        seven: false,
+        eight: false,
+        dup: 0,
+        nine: u8::MAX,
+    };
+    assert_eq!(SimpleDuplicateData::BYTE_SIZE, 2);
+    let bytes = data.into_bytes();
+    assert_eq!(bytes[0], 0);
+    assert_eq!(bytes[1], u8::MAX);
+    let new_data = SimpleDuplicateData::from_bytes(bytes);
+
+    assert_eq!(new_data.one, false);
+    assert_eq!(new_data.two, false);
+    assert_eq!(new_data.three, false);
+    assert_eq!(new_data.four, false);
+    assert_eq!(new_data.five, false);
+    assert_eq!(new_data.six, false);
+    assert_eq!(new_data.seven, false);
+    assert_eq!(new_data.eight, false);
+    assert_eq!(new_data.dup, 0);
+    assert_eq!(new_data.nine, u8::MAX);
+
+    Ok(())
+}

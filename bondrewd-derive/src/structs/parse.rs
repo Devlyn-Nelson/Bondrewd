@@ -6,9 +6,12 @@ use syn::{Ident, Lit, Meta, NestedMeta};
 
 use crate::structs::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
 
+use super::common::OverlapOptions;
+
 pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
-    pub reserve: bool,
+    pub reserve: ReserveFieldOption,
+    pub overlap: OverlapOptions,
 }
 
 impl TryFromAttrBuilderError {
@@ -16,11 +19,8 @@ impl TryFromAttrBuilderError {
         FieldAttrs {
             endianness: self.endianness,
             bit_range,
-            reserve: if self.reserve {
-                ReserveFieldOption::ReserveField
-            } else {
-                ReserveFieldOption::NotReserve
-            },
+            reserve: self.reserve,
+            overlap: self.overlap,
         }
     }
 }
@@ -66,7 +66,8 @@ pub struct FieldAttrBuilder {
     pub endianness: Box<Endianness>,
     pub bit_range: FieldBuilderRange,
     pub ty: FieldAttrBuilderType,
-    pub reserve: bool,
+    pub reserve: ReserveFieldOption,
+    pub overlap: OverlapOptions,
 }
 
 impl FieldAttrBuilder {
@@ -76,7 +77,8 @@ impl FieldAttrBuilder {
             endianness: Box::new(Endianness::None),
             bit_range: FieldBuilderRange::None,
             ty: FieldAttrBuilderType::None,
-            reserve: false,
+            reserve: ReserveFieldOption::NotReserve,
+            overlap: OverlapOptions::None,
         }
     }
 
@@ -531,6 +533,25 @@ impl FieldAttrBuilder {
                                 ));
                             }
                         }
+                        "overlapping_bits" => {
+                            if let Lit::Int(val) = value.lit {
+                                match val.base10_parse::<usize>() {
+                                    Ok(bits) => 
+                                        builder.overlap = OverlapOptions::Allow(bits),
+                                    Err(err) => {
+                                        return Err(Error::new(
+                                            builder.span(),
+                                            format!("overlapping_bits must provided a number that can be parsed as a usize [{}]", err),
+                                        ));
+                                    }
+                                };
+                            } else {
+                                return Err(Error::new(
+                                    builder.span(),
+                                    format!("defining a overlapping_bits requires a Int Literal"),
+                                ));
+                            }
+                        }
                         _ => {
                             if ident_as_str.as_str() != "doc" {
                                 return Err(Error::new(
@@ -546,7 +567,19 @@ impl FieldAttrBuilder {
                 if let Some(ident) = path.get_ident() {
                     match ident.to_string().as_str() {
                         "reserve" => {
-                            builder.reserve = true;
+                            builder.reserve = ReserveFieldOption::ReserveField;
+                        }
+                        "read_only" => {
+                            builder.reserve = ReserveFieldOption::ReadOnly;
+                        }
+                        // TODO  can not enable this until i figure out a way to express exactly the amount
+                        // of overlapping bits.
+                        /*"allow_overlap" => {
+                            builder.overlap = OverlapOptions::Allow;
+                        }*/
+                        "redundant" => {
+                            builder.overlap = OverlapOptions::Redundant;
+                            builder.reserve = ReserveFieldOption::ReadOnly;
                         }
                         _ => {}
                     }
@@ -576,16 +609,14 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
             Ok(FieldAttrs {
                 endianness: self.endianness,
                 bit_range: bit_range,
-                reserve: if self.reserve {
-                    ReserveFieldOption::ReserveField
-                } else {
-                    ReserveFieldOption::NotReserve
-                },
+                reserve: self.reserve,
+                overlap: self.overlap,
             })
         } else {
             Err(TryFromAttrBuilderError {
                 endianness: self.endianness,
                 reserve: self.reserve,
+                overlap: self.overlap,
             })
         }
     }

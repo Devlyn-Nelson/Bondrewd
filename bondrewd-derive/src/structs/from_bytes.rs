@@ -60,12 +60,10 @@ pub fn create_from_bytes_field_quotes(
                 None
             },
         )?;
-        let peek_call = if !field.attrs.reserve.is_reserve_field() {
+        let peek_call = if field.attrs.reserve.read_field() {
             quote! {Self::#peek_name(&input_byte_buffer)}
         } else {
-            // TODO make this detect the type to use.
-            let type_quote = field.ty.type_quote();
-            quote! {0 as #type_quote}
+            quote! { Default::default() }
         };
         from_bytes_quote = quote! {
             #from_bytes_quote

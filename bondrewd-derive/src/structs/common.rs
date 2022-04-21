@@ -574,14 +574,25 @@ pub enum ReserveFieldOption {
     NotReserve,
     ReserveField,
     FakeReserveField,
+    ReadOnly,
 }
 
 impl ReserveFieldOption {
-    pub fn is_reserve_field(&self) -> bool {
+    pub fn write_field(&self) -> bool {
         match self {
-            Self::FakeReserveField => true,
-            Self::ReserveField => true,
-            Self::NotReserve => false,
+            Self::FakeReserveField => false,
+            Self::ReserveField => false,
+            Self::NotReserve => true,
+            Self::ReadOnly => false,
+        }
+    }
+
+    pub fn read_field(&self) -> bool {
+        match self {
+            Self::FakeReserveField => false,
+            Self::ReserveField => false,
+            Self::NotReserve => true,
+            Self::ReadOnly => true,
         }
     }
 
@@ -590,6 +601,31 @@ impl ReserveFieldOption {
             Self::FakeReserveField => true,
             Self::ReserveField => false,
             Self::NotReserve => false,
+            Self::ReadOnly => false,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum OverlapOptions {
+    None,
+    Allow(usize),
+    Redundant,
+}
+
+impl OverlapOptions {
+    pub fn enabled(&self) -> bool {
+        if let Self::None = self {
+            false
+        }else{
+            true
+        }
+    }
+    pub fn is_redundant(&self) -> bool {
+        if let Self::Redundant = self {
+            true
+        }else{
+            false
         }
     }
 }
@@ -599,6 +635,7 @@ pub struct FieldAttrs {
     pub endianness: Box<Endianness>,
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
+    pub overlap: OverlapOptions,
 }
 
 impl FieldAttrs {
@@ -621,6 +658,8 @@ pub struct ElementSubFieldIter {
     pub ty: FieldDataType,
     pub outer_name: Ident,
     pub element_bit_size: usize,
+    pub reserve: ReserveFieldOption,
+    pub overlap: OverlapOptions,
 }
 
 impl Iterator for ElementSubFieldIter {
@@ -631,7 +670,8 @@ impl Iterator for ElementSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..start + self.element_bit_size,
                 endianness: self.endianness.clone(),
-                reserve: ReserveFieldOption::NotReserve,
+                reserve: self.reserve.clone(),
+                overlap: self.overlap.clone(),
             };
             let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             Some(FieldInfo {
@@ -657,6 +697,8 @@ pub struct BlockSubFieldIter {
     pub outer_name: Ident,
     pub bit_length: usize,
     pub total_bytes: usize,
+    pub reserve: ReserveFieldOption,
+    pub overlap: OverlapOptions,
 }
 
 impl Iterator for BlockSubFieldIter {
@@ -672,7 +714,8 @@ impl Iterator for BlockSubFieldIter {
             let attrs = FieldAttrs {
                 bit_range: start..(start + ty_size),
                 endianness: self.endianness.clone(),
-                reserve: ReserveFieldOption::NotReserve,
+                reserve: self.reserve.clone(),
+                overlap: self.overlap.clone(),
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
@@ -700,6 +743,9 @@ pub struct FieldInfo {
 
 impl FieldInfo {
     fn overlapping(&self, other: &Self) -> bool {
+        if self.attrs.overlap.enabled() || other.attrs.overlap.enabled() {
+            return false;
+        }
         // check that self's start is not within other's range
         if self.attrs.bit_range.start >= other.attrs.bit_range.start {
             if self.attrs.bit_range.start == other.attrs.bit_range.start
@@ -730,8 +776,19 @@ impl FieldInfo {
     }
 
     #[inline]
+    // this returns how many bits of the fields pertain to total structure bits.
+    // where as attrs.bit_length() give you bits the fields actually needs.
     pub fn bit_size(&self) -> usize {
-        self.attrs.bit_range.end - self.attrs.bit_range.start
+        if self.attrs.overlap.is_redundant(){
+            0
+        }else{
+            let minus = if let OverlapOptions::Allow(skip) = self.attrs.overlap {
+                skip
+            }else{
+                0
+            };
+            (self.attrs.bit_range.end - self.attrs.bit_range.start) - minus
+        }
     }
 
     #[inline]
@@ -750,6 +807,8 @@ impl FieldInfo {
                 starting_bit_index: self.attrs.bit_range.start,
                 range: 0..*array_length,
                 ty: sub_field.ty.clone(),
+                overlap: self.attrs.overlap.clone(),
+                reserve: self.attrs.reserve.clone(),
             })
         } else {
             Err(syn::Error::new(
@@ -771,6 +830,8 @@ impl FieldInfo {
                 length: array_length.clone(),
                 ty: sub_field.ty.clone(),
                 total_bytes: array_length.clone(),
+                reserve: self.attrs.reserve.clone(),
+                overlap: self.attrs.overlap.clone(),
             })
         } else {
             Err(syn::Error::new(
@@ -787,8 +848,10 @@ impl FieldInfo {
             return Err(Error::new(Span::call_site(), "all fields must be named"));
         };
         // parse all attrs. which will also give us the bit locations
+        // NOTE read only attribute assumes that the value should not effect the placement of the rest og
+        let last_relevant_field = struct_info.fields.iter().filter(|x| !x.attrs.overlap.is_redundant()).last();
         let mut attrs_builder =
-            FieldAttrBuilder::parse(&field, struct_info.fields.last(), ident.clone())?;
+            FieldAttrBuilder::parse(&field, last_relevant_field, ident.clone())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
             &field.ty,
@@ -804,7 +867,7 @@ impl FieldInfo {
             Ok(attr) => attr,
             Err(fix_me) => {
                 let mut start = 0;
-                if let Some(last_value) = struct_info.fields.last() {
+                if let Some(last_value) = last_relevant_field {
                     start = last_value.attrs.bit_range.end;
                 }
                 fix_me.fix(start..start + (data_type.size() * 8))
@@ -861,7 +924,7 @@ impl StructInfo {
     pub fn total_bits(&self) -> usize {
         let mut total: usize = 0;
         for field in self.fields.iter() {
-            total += field.attrs.bit_length();
+            total += field.bit_size();
         }
         total
     }
@@ -1050,6 +1113,7 @@ impl StructInfo {
                     bit_range: first_bit..fill_bits,
                     endianness: Box::new(Endianness::Big),
                     reserve: ReserveFieldOption::FakeReserveField,
+                    overlap: OverlapOptions::None,
                 },
                 ty: FieldDataType::BlockArray(
                     Box::new(SubFieldInfo {

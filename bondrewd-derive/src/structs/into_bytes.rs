@@ -53,7 +53,7 @@ pub fn create_into_bytes_field_quotes(
             },
             false,
         )?;
-        if !field.attrs.reserve.is_reserve_field() {
+        if field.attrs.reserve.write_field() {
             let field_name = &field.ident;
             into_bytes_quote = quote! {
                 #into_bytes_quote
