@@ -376,12 +376,14 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `bits = "{RANGE}"` - Define the bit indexes yourself rather than let the proc macro figure
 /// it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
 /// above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
+/// [example](#bits-attribute-example)
 /// - `read_only` - Bondrewd will not include writing/into_bytes logic for the field.
 /// - `overlapping_bits = {BITS}` - Tells bondrewd that the provided BITS amount is shared
 ///  with at least 1 other field and should not be included in the overall structure size.
 /// - `redundant` - Tells bondrewd that this field's bits are all shared by at least one other field.
 /// Bondrewd will not include the bit length in the structures overall bit length
 /// (because they are redundant).
+/// [example](#redundant-examples)
 ///     - Bondrewd will read the assigned bits but will not write.
 ///     - This behaves exactly as combining the attributes:
 ///         - `read_only`
