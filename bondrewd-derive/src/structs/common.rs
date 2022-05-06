@@ -1,7 +1,7 @@
 use crate::structs::parse::{
     FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
 };
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::ops::Range;
 use syn::parse::Error;
@@ -636,6 +636,7 @@ pub struct FieldAttrs {
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    pub dyn_size: Option<TokenStream>,
 }
 
 impl FieldAttrs {
@@ -672,6 +673,7 @@ impl Iterator for ElementSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                dyn_size: None,
             };
             let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             Some(FieldInfo {
@@ -716,6 +718,7 @@ impl Iterator for BlockSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                dyn_size: None,
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
@@ -1114,6 +1117,7 @@ impl StructInfo {
                     endianness: Box::new(Endianness::Big),
                     reserve: ReserveFieldOption::FakeReserveField,
                     overlap: OverlapOptions::None,
+                    dyn_size: None,
                 },
                 ty: FieldDataType::BlockArray(
                     Box::new(SubFieldInfo {

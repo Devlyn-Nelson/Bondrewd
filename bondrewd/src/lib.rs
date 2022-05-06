@@ -9,6 +9,13 @@ pub trait Bitfields<const SIZE: usize> {
     fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 
+pub trait BitfieldsDyn {
+    const MIN_BYTE_SIZE: usize;
+    const MIN_BIT_SIZE: usize;
+    fn into_bytes(self) -> Vec<u8>;
+    fn from_bytes(input_byte_buffer: Vec<u8>) -> Self;
+}
+
 pub trait BitfieldEnum {
     type Primitive;
     fn from_primitive(prim: Self::Primitive) -> Self;

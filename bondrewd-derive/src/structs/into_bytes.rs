@@ -643,7 +643,7 @@ fn apply_ne_math_to_field_access_quote(
         } else if right_shift < 0 {
             return Err(syn::Error::new(
                 field.ident.span(),
-                "left shifting struct was removed to see if it would ever happened",
+                "left shifting structs was removed to see if it would ever happen, please report this here https://github.com/Devlyn-Nelson/Bondrewd/issues",
             ));
             /* left shift (this means that the last bits are in the first byte)
             // because we are applying bits in place we need masks in insure we don't effect other fields

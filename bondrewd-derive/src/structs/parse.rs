@@ -1,4 +1,4 @@
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::format_ident;
 use std::ops::Range;
 use syn::parse::Error;
@@ -12,6 +12,7 @@ pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    pub dyn_size: Option<TokenStream>,
 }
 
 impl TryFromAttrBuilderError {
@@ -21,6 +22,7 @@ impl TryFromAttrBuilderError {
             bit_range,
             reserve: self.reserve,
             overlap: self.overlap,
+            dyn_size: self.dyn_size,
         }
     }
 }
@@ -68,6 +70,7 @@ pub struct FieldAttrBuilder {
     pub ty: FieldAttrBuilderType,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    pub dyn_size: Option<TokenStream>,
 }
 
 impl FieldAttrBuilder {
@@ -79,6 +82,7 @@ impl FieldAttrBuilder {
             ty: FieldAttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
+            dyn_size: None,
         }
     }
 
@@ -552,6 +556,19 @@ impl FieldAttrBuilder {
                                 ));
                             }
                         }
+                        "dyn_size" => {
+                            if let Lit::Str(val) = value.lit {
+                                // TODO add the logic for making a quote that will get the size 
+                                // of the Dynamically sized struct at runtime.
+                                // TODO also need to make sure that dyn_size fields are at the end
+                                // of byte string. so if "flip" (the structure has the )
+                            } else {
+                                return Err(Error::new(
+                                    builder.span(),
+                                    format!("defining a struct_size requires a Int Literal"),
+                                ));
+                            }
+                        }
                         _ => {
                             if ident_as_str.as_str() != "doc" {
                                 return Err(Error::new(
@@ -611,12 +628,14 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
                 bit_range: bit_range,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                dyn_size: self.dyn_size,
             })
         } else {
             Err(TryFromAttrBuilderError {
                 endianness: self.endianness,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                dyn_size: self.dyn_size,
             })
         }
     }
