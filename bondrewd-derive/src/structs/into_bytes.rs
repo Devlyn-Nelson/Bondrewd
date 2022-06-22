@@ -133,6 +133,7 @@ fn make_set_slice_fn(
     };
     let comment = format!("Returns `Ok(())` if the bits for the {field_name} field in provided mutable slice can be written to, otherwise a `BitfieldSliceError` will be returned");
     Ok(quote! {
+        #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), BitfieldSliceError> {
             let slice_length = output_byte_buffer.len();

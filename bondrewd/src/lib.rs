@@ -7,9 +7,9 @@ pub trait Bitfields<const SIZE: usize> {
     const BYTE_SIZE: usize = SIZE;
     /// Total amount of Bits the Bitfields within this structure take to contain in a fixed size array.
     const BIT_SIZE: usize;
-    /// Inserts the values of the Bitfields in this structure into a fixed size array consuming the structure.
+    /// Inserts the values of the Bitfields in this structure into a fixed size array, consuming the structure.
     ///
-    /// Returns a fixed sized array containing the Bitfields of the provided structure.
+    /// Returns a fixed sized byte array containing the Bitfields of the provided structure.
     fn into_bytes(self) -> [u8; SIZE];
     /// Extracts the values of the Bitfields in this structure from a fixed size array while consuming it.
     ///
@@ -35,8 +35,21 @@ where
 {
     const UPPERS: &'static [u8; 16] = b"0123456789ABCDEF";
     const LOWERS: &'static [u8; 16] = b"0123456789abcdef";
+    /// Extracts the values of the Bitfields in this structure from a hex encoded fixed size byte array
+    /// while consuming it.
+    ///
+    /// Returns Self with the fields containing the extracted values from provided hex encoded fixed size
+    /// array of bytes.
     fn from_hex(hex: [u8; SIZE]) -> Result<Self, BitfieldHexError>;
+    /// Inserts the values of the Bitfields in this structure into a fixed size array with upper case hex
+    /// encoding, consuming the structure.
+    ///
+    /// Returns a hex encoded fixed sized byte array containing the Bitfields of the provided structure.
     fn into_hex_upper(self) -> [u8; SIZE];
+    /// Inserts the values of the Bitfields in this structure into a fixed size array with lower case hex
+    /// encoding, consuming the structure.
+    ///
+    /// Returns a hex encoded fixed sized byte array containing the Bitfields of the provided structure.
     fn into_hex_lower(self) -> [u8; SIZE];
 }
 
