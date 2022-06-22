@@ -22,8 +22,10 @@ pub fn create_into_bytes_field_quotes(
     let mut set_slice_fns_option = if set_slice {
         let checked_ident = format_ident!("{}CheckedMut", &info.name);
         let check_size = info.total_bytes();
+        let comment = format!("Returns a structure which allows you to read/write any field for a {} from/to provided mutable slice.", &info.name);
         Some((
             quote! {
+                #[doc = #comment]
                 pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, BitfieldSliceError> {
                     let buf_len = buffer.len();
                     if buf_len >= #check_size {
@@ -35,9 +37,11 @@ pub fn create_into_bytes_field_quotes(
                     }
                 }
             },
-            quote! {}
+            quote! {},
         ))
-    } else { None };
+    } else {
+        None
+    };
     // all quote with all of the set functions appended to it.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
@@ -69,7 +73,8 @@ pub fn create_into_bytes_field_quotes(
 
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
             let set_slice_quote = make_set_slice_fn(&field_setter, &field, &info, &clear_quote)?;
-            let set_slice_unchecked_quote = make_set_slice_unchecked_fn(&field_setter, &field, &clear_quote)?;
+            let set_slice_unchecked_quote =
+                make_set_slice_unchecked_fn(&field_setter, &field, &clear_quote)?;
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
                 #set_slice_quote
@@ -102,7 +107,7 @@ pub fn create_into_bytes_field_quotes(
             set_slice_field_fns: Some(set_slice_field_fns),
             set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
         })
-    }else{
+    } else {
         Ok(IntoBytesOptions {
             into_bytes_fn,
             set_field_fns: set_fns_quote,
@@ -126,8 +131,9 @@ fn make_set_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
+    let comment = format!("Returns `Ok(())` if the bits for the {field_name} field in provided mutable slice can be written to, otherwise a `BitfieldSliceError` will be returned");
     Ok(quote! {
-        #[inline]
+        #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), BitfieldSliceError> {
             let slice_length = output_byte_buffer.len();
             if slice_length < #min_length {
@@ -149,8 +155,12 @@ fn make_set_slice_unchecked_fn(
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
+    let comment = format!(
+        "Writes to the bits for the {field_name} field in the provided pre-checked mutable slice."
+    );
     Ok(quote! {
         #[inline]
+        #[doc = #comment]
         pub fn #fn_field_name(&mut self, #field_name: #type_ident) {
             let output_byte_buffer: &mut [u8] = self.buffer;
             #clear_quote
@@ -169,8 +179,10 @@ fn make_set_fn(
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
+    let comment = format!("Writes to the bits for the {field_name} field in the provided array with a size of {struct_size}.");
     Ok(quote! {
         #[inline]
+        #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name: #type_ident) {
             #clear_quote
             #field_quote

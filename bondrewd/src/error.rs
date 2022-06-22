@@ -1,9 +1,13 @@
+#[cfg(not(feature = "std"))]
+use core::fmt;
 /// Currently there is only 1 error type which is not enough bytes provided to slice at field.
 /// (amount of bytes provided , amount of bytes required)
-#[cfg(feature = "std")] 
+#[cfg(feature = "std")]
 use std::fmt;
-#[cfg(not(feature = "std"))] 
-use core::fmt;
+
+/// Error type describing that not enough bytes were provided in a slice.
+/// The first value contains the provided amount of bytes.
+/// The second value contains the expected amount of bytes.
 #[derive(Debug)]
 pub struct BitfieldSliceError(pub usize, pub usize);
 

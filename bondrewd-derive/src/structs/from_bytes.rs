@@ -28,8 +28,13 @@ pub fn create_from_bytes_field_quotes(
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
         let checked_ident = format_ident!("{}Checked", &info.name);
         let check_size = info.total_bytes();
+        let comment = format!(
+            "Returns a structure which allows you to read any field for a {} from provided slice.",
+            &info.name
+        );
         Some((
             quote! {
+                #[doc = #comment]
                 pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, BitfieldSliceError> {
                     let buf_len = buffer.len();
                     if buf_len >= #check_size {
@@ -41,9 +46,11 @@ pub fn create_from_bytes_field_quotes(
                     }
                 }
             },
-            quote! {}
+            quote! {},
         ))
-    } else { None };
+    } else {
+        None
+    };
     // all quote with all of the peek functions appended to it.
     let mut peek_fns_quote = quote! {};
     for field in info.fields.iter() {
@@ -80,14 +87,17 @@ pub fn create_from_bytes_field_quotes(
             #peek_quote
         };
 
-        if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) = peek_slice_fns_option {
+        if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
+            peek_slice_fns_option
+        {
             let peek_slice_quote = make_peek_slice_fn(&field_extractor, &field, &info)?;
-            let peek_slice_unchecked_quote = make_peek_slice_unchecked_fn(&field_extractor, &field)?;
+            let peek_slice_unchecked_quote =
+                make_peek_slice_unchecked_fn(&field_extractor, &field)?;
             let mut the_peek_slice_fns_quote_temp = quote! {
                 #the_peek_slice_fns_quote
                 #peek_slice_quote
             };
-            let mut unchecked_quote_temp = quote!{
+            let mut unchecked_quote_temp = quote! {
                 #unchecked_quote
                 #peek_slice_unchecked_quote
             };
@@ -116,7 +126,7 @@ pub fn create_from_bytes_field_quotes(
             peek_slice_field_fns: Some(peek_slice_field_fns),
             peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
         })
-    }else{
+    } else {
         Ok(FromBytesOptions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
@@ -138,8 +148,10 @@ fn make_peek_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
+    let comment = format!("Returns `Ok(())` if the bits for the {field_name} field in provided slice can be read, otherwise a `BitfieldSliceError` will be returned");
     Ok(quote! {
         #[inline]
+        #[doc = #comment]
         pub fn #field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
@@ -159,8 +171,12 @@ fn make_peek_slice_unchecked_fn(
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("read_{}", field.ident.as_ref().clone());
     let type_ident = field.ty.type_quote();
+    let comment = format!(
+        "Reads from the bits for the {field_name} field in the provided pre-checked slice."
+    );
     Ok(quote! {
         #[inline]
+        #[doc = #comment]
         pub fn #field_name(&self) -> #type_ident {
             let input_byte_buffer: &[u8] = self.buffer;
             #field_quote
@@ -176,8 +192,10 @@ fn make_peek_fn(
     let field_name = format_ident!("read_{}", field.ident.as_ref().clone());
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
+    let comment = format!("Reads from the bits for the {field_name} field in the provided array with a size of {struct_size}.");
     Ok(quote! {
         #[inline]
+        #[doc = #comment]
         pub fn #field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
             #field_quote
         }

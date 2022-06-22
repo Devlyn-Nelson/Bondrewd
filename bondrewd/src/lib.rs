@@ -3,9 +3,17 @@
 //! Defined Traits for bondrewd-derive.
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 pub trait Bitfields<const SIZE: usize> {
+    /// Total amount of Bytes the Bitfields within this structure take to contain in a fixed size array.
     const BYTE_SIZE: usize = SIZE;
+    /// Total amount of Bits the Bitfields within this structure take to contain in a fixed size array.
     const BIT_SIZE: usize;
+    /// Inserts the values of the Bitfields in this structure into a fixed size array consuming the structure.
+    ///
+    /// Returns a fixed sized array containing the Bitfields of the provided structure.
     fn into_bytes(self) -> [u8; SIZE];
+    /// Extracts the values of the Bitfields in this structure from a fixed size array while consuming it.
+    ///
+    /// Returns Self with the fields containing the extracted values from provided fixed size array of bytes.
     fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 

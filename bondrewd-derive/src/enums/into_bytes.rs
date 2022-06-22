@@ -39,7 +39,9 @@ pub fn generate_into_bytes(enum_info: &EnumInfo) -> syn::Result<proc_macro2::Tok
             #arm
         };
     }
+    let comment = format!("Returns a u8 representing a Variant of `#name`.");
     Ok(quote! {
+        #[doc = #comment]
         fn into_primitive(self) -> u8 {
             match self {
                 #arms

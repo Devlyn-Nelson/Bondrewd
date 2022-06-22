@@ -18,7 +18,7 @@ struct SimpleExample {
     flag_six: bool,
 }
 
-fn main(){
+fn main() {
     assert_eq!(7, SimpleExample::BYTE_SIZE);
     assert_eq!(53, SimpleExample::BIT_SIZE);
     let mut bytes = SimpleExample {
@@ -32,19 +32,23 @@ fn main(){
         flag_four: true,
         flag_five: true,
         flag_six: true,
-    }.into_bytes();
+    }
+    .into_bytes();
     // check the output binary is correct. (i did math by hand
     // to get the binary). each field is separated by a underscore
     // in the binary assert to make it easy to see.
-    assert_eq!([
-        0b0_1100000, // one_two,
-        0b01000100,  // two,
-        0b00000000,  // two,
-        0b00000000,  // two,
-        0b0_1110111, // two_three,
-        0b1110110_1, // three_four,
-        0b11111_000, // four_unused
-    ], bytes);
+    assert_eq!(
+        [
+            0b0_1100000, // one_two,
+            0b01000100,  // two,
+            0b00000000,  // two,
+            0b00000000,  // two,
+            0b0_1110111, // two_three,
+            0b1110110_1, // three_four,
+            0b11111_000, // four_unused
+        ],
+        bytes
+    );
     // use read functions to get the fields value without
     // doing a from_bytes call.
     assert_eq!(false, SimpleExample::read_one(&bytes));
@@ -61,8 +65,8 @@ fn main(){
     let reconstructed = SimpleExample::from_bytes(bytes);
     // check the values read by from bytes and check if they are
     // what we wrote to the bytes NOT the origanal values.
-    assert_eq!(true,reconstructed.one);
-    assert_eq!(5.5,reconstructed.two);
-    assert_eq!(511,reconstructed.three);
-    assert_eq!(0,reconstructed.flags);
+    assert_eq!(true, reconstructed.one);
+    assert_eq!(5.5, reconstructed.two);
+    assert_eq!(511, reconstructed.three);
+    assert_eq!(0, reconstructed.flags);
 }

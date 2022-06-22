@@ -536,8 +536,7 @@ impl FieldAttrBuilder {
                         "overlapping_bits" => {
                             if let Lit::Int(val) = value.lit {
                                 match val.base10_parse::<usize>() {
-                                    Ok(bits) => 
-                                        builder.overlap = OverlapOptions::Allow(bits),
+                                    Ok(bits) => builder.overlap = OverlapOptions::Allow(bits),
                                     Err(err) => {
                                         return Err(Error::new(
                                             builder.span(),

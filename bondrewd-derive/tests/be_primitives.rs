@@ -191,7 +191,8 @@ struct SimpleDuplicateData {
 
 #[test]
 fn be_duplicate_data() -> anyhow::Result<()> {
-    let data = SimpleDuplicateData { one: false,
+    let data = SimpleDuplicateData {
+        one: false,
         two: false,
         three: false,
         four: false,

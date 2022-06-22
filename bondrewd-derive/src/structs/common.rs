@@ -199,7 +199,7 @@ impl FieldDataType {
     fn get_element_bit_length(&self) -> usize {
         match self {
             Self::Boolean => 1,
-            Self::Char(_,_) => 32,
+            Self::Char(_, _) => 32,
             Self::Number(ref size, _, _) => size * 8,
             Self::Enum(_, ref size, _) => size * 8,
             Self::Float(ref size, _) => size * 8,
@@ -348,7 +348,6 @@ impl FieldDataType {
                                     )
                                 }
                                 FieldAttrBuilderType::None => {
-                                    
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
@@ -368,8 +367,7 @@ impl FieldDataType {
                                                     "range end is less than range start",
                                                 ));
                                             }
-                                            if range.end - range.start % array_length != 0
-                                            {
+                                            if range.end - range.start % array_length != 0 {
                                                 return Err(
                                                     syn::Error::new(
                                                         ident.span(),
@@ -380,10 +378,12 @@ impl FieldDataType {
                                             FieldBuilderRange::Range(range.clone())
                                         }
                                         FieldBuilderRange::LastEnd(ref last_end) => {
-                                            let element_bit_length = sub_ty.get_element_bit_length();
+                                            let element_bit_length =
+                                                sub_ty.get_element_bit_length();
                                             FieldBuilderRange::Range(
                                                 *last_end
-                                                    ..last_end + (array_length * element_bit_length),
+                                                    ..last_end
+                                                        + (array_length * element_bit_length),
                                             )
                                         }
                                         _ => {
@@ -617,14 +617,14 @@ impl OverlapOptions {
     pub fn enabled(&self) -> bool {
         if let Self::None = self {
             false
-        }else{
+        } else {
             true
         }
     }
     pub fn is_redundant(&self) -> bool {
         if let Self::Redundant = self {
             true
-        }else{
+        } else {
             false
         }
     }
@@ -779,12 +779,12 @@ impl FieldInfo {
     // this returns how many bits of the fields pertain to total structure bits.
     // where as attrs.bit_length() give you bits the fields actually needs.
     pub fn bit_size(&self) -> usize {
-        if self.attrs.overlap.is_redundant(){
+        if self.attrs.overlap.is_redundant() {
             0
-        }else{
+        } else {
             let minus = if let OverlapOptions::Allow(skip) = self.attrs.overlap {
                 skip
-            }else{
+            } else {
                 0
             };
             (self.attrs.bit_range.end - self.attrs.bit_range.start) - minus
@@ -849,7 +849,11 @@ impl FieldInfo {
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = struct_info.fields.iter().filter(|x| !x.attrs.overlap.is_redundant()).last();
+        let last_relevant_field = struct_info
+            .fields
+            .iter()
+            .filter(|x| !x.attrs.overlap.is_redundant())
+            .last();
         let mut attrs_builder =
             FieldAttrBuilder::parse(&field, last_relevant_field, ident.clone())?;
         // check the field for supported types.

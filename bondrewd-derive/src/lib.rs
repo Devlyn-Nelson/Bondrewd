@@ -175,7 +175,7 @@
 //!     pub fn write_three(&mut self, three: u8) { .. }
 //! }
 //! ```
-//! 
+//!
 //! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd STRUCT_SIZE. Hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
@@ -321,8 +321,8 @@ use syn::{parse_macro_input, DeriveInput};
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access. This crate is designed so that attributes are only required for fields that
-/// are not what you would expect without the attribute. For example if you provide a u8 fields with no 
-/// attributes, the field would be assumed to be the next 8 bits after the field before it. If a field 
+/// are not what you would expect without the attribute. For example if you provide a u8 fields with no
+/// attributes, the field would be assumed to be the next 8 bits after the field before it. If a field
 /// of bool type without attributes is defined, the field would be assumed to be the next bit after
 /// the field before it.
 ///
@@ -334,7 +334,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - Structs which implement the Bitfield trait in Bondrewd.
 ///
 /// # Struct Attributes
-/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. 
+/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
@@ -369,7 +369,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// [example](#reserve-examples)
 ///     - Reserve requires the fields type to impl ['Default'](https://doc.rust-lang.org/std/default/trait.Default.html).
 /// due to from_bytes needed to provided a value.
-/// 
+///
 /// # Experimental Field Attributes
 /// if you decide to use these remember that they have not been exhaustively tested. when using
 /// experimental attributes please be careful and report unexpected behavior to our github issues.
@@ -380,13 +380,13 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `overlapping_bits = {BITS}` - Tells bondrewd that the provided BITS amount is shared
 ///  with at least 1 other field and should not be included in the overall structure size.
 /// - `redundant` - Tells bondrewd that this field's bits are all shared by at least one other field.
-/// Bondrewd will not include the bit length in the structures overall bit length 
+/// Bondrewd will not include the bit length in the structures overall bit length
 /// (because they are redundant).
 ///     - Bondrewd will read the assigned bits but will not write.
-///     - This behaves exactly as combining the attributes: 
+///     - This behaves exactly as combining the attributes:
 ///         - `read_only`
 ///         - `overlapping_bits = {FIELD_BIT_LENGTH}` FIELD_BIT_LENGTH being the total amount of bits that the field uses.
-/// 
+///
 /// # Simple Example
 /// This example is on the front page for bondrewd-derive. Here i will be adding some asserts to show what
 /// to expect.
@@ -410,7 +410,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 6)]
 ///     four: u8,
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(7, SimpleExample::BYTE_SIZE);
 ///     assert_eq!(53, SimpleExample::BIT_SIZE);
@@ -455,7 +455,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Reverse Example
-/// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order. 
+/// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order.
 /// First index becomes last index and last index becomes the first.
 /// ```
 /// use bondrewd::*;
@@ -466,7 +466,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u8,
 ///     four: u8,
 /// }
-/// 
+///
 /// #[derive(Bitfields)]
 /// #[bondrewd(reverse)]
 /// struct ExampleReversed {
@@ -475,7 +475,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u8,
 ///     four: u8,
 /// }
-/// 
+///
 /// fn main() {
 ///     let test = Example {
 ///         one: 0,
@@ -510,7 +510,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 3)]
 ///     three: u8,
 /// }
-/// 
+///
 /// #[derive(Bitfields)]
 /// #[bondrewd(read_from = "lsb0")]
 /// struct ExampleLSB {
@@ -521,7 +521,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 3)]
 ///     three: u8,
 /// }
-/// 
+///
 /// fn main() {
 ///     let test_msb = ExampleMSB {
 ///         one: 0,
@@ -536,7 +536,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // in msb0 field one is the first 2 bits followed by field two
 ///     // then field three is the last 3 bits.
 ///     assert_eq!(test_msb.into_bytes(), [0b00_101_000]);
-///     // in msb0 field three is the first 3 bits followed by field 
+///     // in msb0 field three is the first 3 bits followed by field
 ///     // 2 then field one being the last 2 bits
 ///     assert_eq!(test_lsb.into_bytes(), [0b000_101_00]);
 /// }
@@ -556,7 +556,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     three: u8,
 /// }
-/// 
+///
 /// #[derive(Bitfields)]
 /// #[bondrewd(read_from = "lsb0", reverse)]
 /// struct ExampleLSB {
@@ -567,7 +567,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     three: u8,
 /// }
-/// 
+///
 /// fn main() {
 ///     let test_msb = ExampleMSB {
 ///         one: 0,
@@ -589,7 +589,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - Default endianness which will give provided endianness to all fields that require endianness but
 /// do not have it defined.
 /// - Per field endianess which defines the endianness of a particular field.
-/// 
+///
 /// Default endianness and per fields endianness can also be used in the same struct
 /// ```
 /// use bondrewd::*;
@@ -603,7 +603,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(endianness = "le")]
 ///     two: u16,
 /// }
-/// 
+///
 /// fn main() {
 ///     let test = SimpleExample {
 ///         one: 5,
@@ -625,7 +625,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // because this field does not use more than 1 byte, endianness is not required.
 ///     three: bool,
 /// }
-/// 
+///
 /// fn main() {
 ///     let test = SimpleExample {
 ///         one: 5,
@@ -637,9 +637,9 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// # Bitfield Struct as Field Examples
-/// Inner structs must implement the 
+/// Inner structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
-/// `struct_size = {BYTE_SIZE}, the BYTE_SIZE being the number of bytes in the outputs byte array or 
+/// `struct_size = {BYTE_SIZE}, the BYTE_SIZE being the number of bytes in the outputs byte array or
 /// value in the traits const BYTE_SIZE.
 /// ```
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
@@ -690,7 +690,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(struct_size = 1, bit_length = 4)]
 ///     two: Simple,
 /// }
-/// 
+///
 /// fn main() {
 ///     // SimpleWithStruct uses the amount of bits that 2
 ///     // Simple structures would use.
@@ -714,7 +714,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // each u8 in the array contains 4 bits of useful information.
 ///     #[bondrewd(element_bit_length = 4)]
 ///     one: [u8; 4],
-///     // due to no attributes being present for field `two`, 
+///     // due to no attributes being present for field `two`,
 ///     // no bits are missing and the type of array shouldn't
 ///     // matter, Bondrewd will use element array logic. also boolean
 ///     // values are assumed to be 1 bit so this will produce
@@ -726,7 +726,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(block_bit_length = 20)]
 ///     three: [u8; 3],
 /// }
-/// 
+///
 /// fn main() {
 ///     let test = SimpleWithArray {
 ///         // the first 4 bits in index 0 and 2 are 1's to show
@@ -739,7 +739,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///         // most significant bits.
 ///         three: [u8::MAX, 0, 0b10101010],
 ///     };
-///     assert_eq!(test.into_bytes(), 
+///     assert_eq!(test.into_bytes(),
 ///         [0b0000_1111,  // one[0 and 1]
 ///          0b0000_1001,  // one[2 and 3]
 ///          0b01010_111,  // two and three[0]
@@ -749,11 +749,11 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
-/// - If bit_length of the structs or enums needs to be smaller than the output of either into_bytes or 
+/// - If bit_length of the structs or enums needs to be smaller than the output of either into_bytes or
 /// into_primitive then it is recommended to use element arrays.
 /// - Block Arrays, in my opinion, shouldn't be used for Structs or Enums. because in the below example
 /// if the compressed_structures field was to use `block_bit_length = 104` the array would use
-/// 48 bits for index 0 and 56 bits for index 1. 
+/// 48 bits for index 0 and 56 bits for index 1.
 /// ```
 /// // this struct uses 52 total bits which means the total
 /// // BYTE_SIZE is 7.
@@ -769,7 +769,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u16,
 ///     four: i8,
 /// }
-/// 
+///
 /// // this enum has 4 variants therefore only uses 2 bits
 /// // out of 8 in the primitive type.
 /// #[derive(BitfieldEnum)]
@@ -783,7 +783,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct ArraysWithStructsAndEnums {
-///     // if the bit size should be the full size of the primitive, only 
+///     // if the bit size should be the full size of the primitive, only
 ///     // the enum attribute is needed.
 ///     #[bondrewd(enum_primitive = "u8")]
 ///     four_byte_four_values: [SimpleEnum; 4],
@@ -799,7 +799,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     waste_a_byte: [SimpleStruct; 2],
 ///     // if we want to compress the 2 struct in the array we can
 ///     // take advantage of the fact our struct is only using 52 out
-///     // of 56 bits in the compressed/byte form by adding 
+///     // of 56 bits in the compressed/byte form by adding
 ///     // element bit length = 52. this will make the total size of
 ///     // the 2 structs in compressed/byte form 104 bits instead of
 ///     // 112.
@@ -941,7 +941,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 /// ```
 /// Here is the same example where but i messed up the bit_length of the first field making the total 8
-/// instead of 7. 
+/// instead of 7.
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -961,7 +961,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///   
 /// These next 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the
 /// last 10 of them will be reserved/unused (should be ignored and assumed to be 0).
-/// 
+///
 /// In this first example i will be showing what a struct might look like without fill bytes, then in the
 /// second example i will show the the same end result but without a reserve field. First will be defining
 /// all 24 total bits as 3 fields marking the last field of 10 bits with the reserve attribute
@@ -983,11 +983,11 @@ use syn::{parse_macro_input, DeriveInput};
 ///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// }
 /// ```
-/// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works. 
+/// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works.
 /// `enforce_bytes` will check the total bit length before the bits are filled.
 ///   
 /// Here i am telling Bondrewd to make the total bit length 3 bytes using `fill_bytes`.
-/// This Example fails to build because only 14 bits are being defined by fields and `enforce_bytes` 
+/// This Example fails to build because only 14 bits are being defined by fields and `enforce_bytes`
 /// is telling Bondrewd to expect 24 bits to be used by defined fields.
 /// ```compile_fail
 /// use bondrewd::*;
@@ -1118,7 +1118,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bits = "47..53")]
 ///     four: u8,
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(7, SimpleExample::BYTE_SIZE);
 ///     assert_eq!(53, SimpleExample::BIT_SIZE);
@@ -1165,7 +1165,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// # Redundant Examples
 /// In this example we will has fields share data. flags in the example will represent a u8 storing
 /// multiple boolean flags, but all of the flags within are also fields in the struct. if we mark
-/// flags as `redundant` above the boolean flag fields then flags will be "read_only"(effects nothing 
+/// flags as `redundant` above the boolean flag fields then flags will be "read_only"(effects nothing
 /// during an into_bytes() call).
 /// ```
 /// use bondrewd::*;
@@ -1188,7 +1188,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     flag_five: bool,
 ///     flag_six: bool,
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(7, SimpleExample::BYTE_SIZE);
 ///     assert_eq!(53, SimpleExample::BIT_SIZE);
@@ -1274,7 +1274,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(redundant, bits = "47..53")]
 ///     flags: u8,
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(7, SimpleExample::BYTE_SIZE);
 ///     assert_eq!(53, SimpleExample::BIT_SIZE);
@@ -1507,25 +1507,33 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
         let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
         let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
-        let to_bytes_quote = quote!{
+        let comment = format!("A Structure which provides functions for getting the values of the fields of a {struct_name} from its bitfield form.");
+        let comment_mut = format!("A Structure which provides functions for getting and setting the values of the fields of a {struct_name} from its bitfield form.");
+        let unchecked_comment = format!("Panics if resulting {checked_ident} does not contain enough bytes to read a field that is attempted to be read.");
+        let unchecked_comment_mut = format!("Panics if resulting {checked_mut_ident} does not contain enough bytes to read a field that is attempted to be read or written.");
+        let to_bytes_quote = quote! {
             #to_bytes_quote
+            #[doc = #comment]
             #vis struct #checked_ident<'a> {
                 buffer: &'a [u8],
             }
             impl<'a> #checked_ident<'a> {
                 #unchecked_functions
+                #[doc = #unchecked_comment]
                 pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
                     Self{
                         buffer: data
                     }
                 }
             }
+            #[doc = #comment_mut]
             #vis struct #checked_mut_ident<'a> {
                 buffer: &'a mut [u8],
             }
             impl<'a> #checked_mut_ident<'a> {
                 #unchecked_functions
                 #unchecked_mut_functions
+                #[doc = #unchecked_comment_mut]
                 pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
                     Self{
                         buffer: data
@@ -1534,11 +1542,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
         };
         TokenStream::from(to_bytes_quote)
-    }else{
+    } else {
         TokenStream::from(to_bytes_quote)
     }
-
-    
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.
@@ -1579,7 +1585,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,  // assigned value 2
 ///     Three,// assigned value 3
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
@@ -1592,7 +1598,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///         assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
 ///     }
 /// }
-/// 
+///
 /// ```
 /// If you do not want the last variant to be a
 /// catch all you must either:
@@ -1609,7 +1615,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     U8Max = 255,
 ///     Unlucky = 13,
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(SimpleEnum::Life.into_primitive(), 42);
 ///     assert_eq!(SimpleEnum::Life, SimpleEnum::from_primitive(42));
@@ -1639,7 +1645,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two, // assigned 2
 ///     Three, // assigned 3 and catches invalid values
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
@@ -1668,7 +1674,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two, // assigned 2
 ///     Three, // assigned 3
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
@@ -1699,7 +1705,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,
 ///     Three(u8),
 /// }
-/// 
+///
 /// fn main(){
 ///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
