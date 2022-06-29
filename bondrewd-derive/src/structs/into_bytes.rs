@@ -22,7 +22,7 @@ pub fn create_into_bytes_field_quotes(
     let mut set_slice_fns_option = if set_slice {
         let checked_ident = format_ident!("{}CheckedMut", &info.name);
         let check_size = info.total_bytes();
-        let comment = format!("Returns a structure which allows you to read/write any field for a {} from/to provided mutable slice.", &info.name);
+        let comment = format!("Returns a structure which allows you to read/write any field for a [{}] from/to provided mutable slice.", &info.name);
         Some((
             quote! {
                 #[doc = #comment]
@@ -124,6 +124,7 @@ fn make_set_slice_fn(
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();
     let min_length = if info.flip {
@@ -131,7 +132,7 @@ fn make_set_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns `Ok(())` if the bits for the `{field_name}` field in provided mutable slice can be written to, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
+    let comment = format!("Returns `Ok(())` if the bits {} through {} for the `{field_name}` field in `input_byte_buffer` could be written to, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -154,10 +155,11 @@ fn make_set_slice_unchecked_fn(
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let comment = format!(
-        "Writes to the bits for the `{field_name}` field in the provided pre-checked mutable slice."
+        "Writes to the bits {} through {} for the `{field_name}` field in the provided pre-checked mutable slice.", bit_range.start, bit_range.end - 1
     );
     Ok(quote! {
         #[inline]
@@ -177,10 +179,12 @@ fn make_set_fn(
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
-    let comment = format!("Writes to the bits for the `{field_name}` field in the provided {struct_size} byte array.");
+    let struct_name = &info.name;
+    let comment = format!("Writes `{field_name}` to the bits {} through {} for the `{field_name}` field of a [{struct_name}] in `output_byte_buffer`.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]

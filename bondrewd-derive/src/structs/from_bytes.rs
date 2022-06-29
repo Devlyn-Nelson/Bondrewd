@@ -29,7 +29,7 @@ pub fn create_from_bytes_field_quotes(
         let checked_ident = format_ident!("{}Checked", &info.name);
         let check_size = info.total_bytes();
         let comment = format!(
-            "Returns a structure which allows you to read any field for a {} from provided slice.",
+            "Returns a structure which allows you to read any field for a [{}] from provided slice.",
             &info.name
         );
         Some((
@@ -141,19 +141,20 @@ fn make_peek_slice_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = field.ident.as_ref().clone();
-    let fn_name = format_ident!("read_slice_{field_name}");
+    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let fn_field_name = format_ident!("read_slice_{field_name}");
+    let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let min_length = if info.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns `Ok(())` if the bits for the `{field_name}` field in provided slice can be read, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
+    let comment = format!("Returns `Ok(())` if the bits {} through {} for the `{field_name}` field in `input_byte_buffer` could be read, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
+        pub fn #fn_field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
                 Err(BitfieldSliceError(slice_length, #min_length))
@@ -170,11 +171,12 @@ fn make_peek_slice_unchecked_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = field.ident.as_ref().clone();
-    let fn_name = format_ident!("read_{field_name}");
+    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let fn_field_name = format_ident!("read_{field_name}");
+    let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let comment = format!(
-        "Reads from the bits for the `{field_name}` field in the provided pre-checked slice."
+        "Reads the bits {} through {} for the `{field_name}` field in the pre-checked slice.", bit_range.start, bit_range.end - 1
     );
     Ok(quote! {
         #[inline]
@@ -191,15 +193,16 @@ fn make_peek_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = field.ident.as_ref().clone();
-    let fn_name = format_ident!("read_{field_name}");
+    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let fn_field_name = format_ident!("read_{field_name}");
+    let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
-    let comment = format!("Reads from the bits for the `{field_name}` field in the provided {struct_size} byte array.");
+    let comment = format!("Reads the bits {} through {} for the `{field_name}` field in `input_byte_buffer`.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
+        pub fn #fn_field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
             #field_quote
         }
     })
