@@ -141,7 +141,8 @@ fn make_peek_slice_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("read_slice_{}", field.ident.as_ref().clone());
+    let field_name = field.ident.as_ref().clone();
+    let fn_name = format_ident!("read_slice_{field_name}");
     let type_ident = field.ty.type_quote();
     let min_length = if info.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
@@ -152,7 +153,7 @@ fn make_peek_slice_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
+        pub fn #fn_name(input_byte_buffer: &[u8]) -> Result<#type_ident, BitfieldSliceError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
                 Err(BitfieldSliceError(slice_length, #min_length))
@@ -169,7 +170,8 @@ fn make_peek_slice_unchecked_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("read_{}", field.ident.as_ref().clone());
+    let field_name = field.ident.as_ref().clone();
+    let fn_name = format_ident!("read_{field_name}");
     let type_ident = field.ty.type_quote();
     let comment = format!(
         "Reads from the bits for the {field_name} field in the provided pre-checked slice."
@@ -177,7 +179,7 @@ fn make_peek_slice_unchecked_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #field_name(&self) -> #type_ident {
+        pub fn #fn_name(&self) -> #type_ident {
             let input_byte_buffer: &[u8] = self.buffer;
             #field_quote
         }
@@ -189,14 +191,15 @@ fn make_peek_fn(
     field: &FieldInfo,
     info: &StructInfo,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("read_{}", field.ident.as_ref().clone());
+    let field_name = field.ident.as_ref().clone();
+    let fn_name = format_ident!("read_{field_name}");
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
     let comment = format!("Reads from the bits for the {field_name} field in the provided array with a size of {struct_size}.");
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
+        pub fn #fn_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
             #field_quote
         }
     })
