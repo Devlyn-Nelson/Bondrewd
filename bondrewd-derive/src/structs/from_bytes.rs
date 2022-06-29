@@ -149,7 +149,7 @@ fn make_peek_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns `Ok(())` if the bits for the {field_name} field in provided slice can be read, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
+    let comment = format!("Returns `Ok(())` if the bits for the `{field_name}` field in provided slice can be read, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -174,7 +174,7 @@ fn make_peek_slice_unchecked_fn(
     let fn_name = format_ident!("read_{field_name}");
     let type_ident = field.ty.type_quote();
     let comment = format!(
-        "Reads from the bits for the {field_name} field in the provided pre-checked slice."
+        "Reads from the bits for the `{field_name}` field in the provided pre-checked slice."
     );
     Ok(quote! {
         #[inline]
@@ -195,7 +195,7 @@ fn make_peek_fn(
     let fn_name = format_ident!("read_{field_name}");
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
-    let comment = format!("Reads from the bits for the {field_name} field in the provided {struct_size} byte array.");
+    let comment = format!("Reads from the bits for the `{field_name}` field in the provided {struct_size} byte array.");
     Ok(quote! {
         #[inline]
         #[doc = #comment]

@@ -131,7 +131,7 @@ fn make_set_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns `Ok(())` if the bits for the {field_name} field in provided mutable slice can be written to, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
+    let comment = format!("Returns `Ok(())` if the bits for the `{field_name}` field in provided mutable slice can be written to, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned");
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -157,7 +157,7 @@ fn make_set_slice_unchecked_fn(
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let comment = format!(
-        "Writes to the bits for the {field_name} field in the provided pre-checked mutable slice."
+        "Writes to the bits for the `{field_name}` field in the provided pre-checked mutable slice."
     );
     Ok(quote! {
         #[inline]
@@ -180,7 +180,7 @@ fn make_set_fn(
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
-    let comment = format!("Writes to the bits for the {field_name} field in the provided {struct_size} byte array.");
+    let comment = format!("Writes to the bits for the `{field_name}` field in the provided {struct_size} byte array.");
     Ok(quote! {
         #[inline]
         #[doc = #comment]

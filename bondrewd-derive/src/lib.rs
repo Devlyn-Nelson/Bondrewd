@@ -1511,8 +1511,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
         let comment = format!("A Structure which provides functions for getting the values of the fields of a [{struct_name}] from its bitfield form.");
         let comment_mut = format!("A Structure which provides functions for getting and setting the values of the fields of a [{struct_name}] from its bitfield form.");
-        let unchecked_comment = format!("Panics if resulting {checked_ident} does not contain enough bytes to read a field that is attempted to be read.");
-        let unchecked_comment_mut = format!("Panics if resulting {checked_mut_ident} does not contain enough bytes to read a field that is attempted to be read or written.");
+        let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+        let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
         let to_bytes_quote = quote! {
             #to_bytes_quote
             #[doc = #comment]
