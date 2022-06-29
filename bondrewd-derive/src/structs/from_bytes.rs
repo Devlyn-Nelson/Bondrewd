@@ -181,7 +181,7 @@ fn make_peek_slice_unchecked_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_name(&self) -> #type_ident {
+        pub fn #fn_field_name(&self) -> #type_ident {
             let input_byte_buffer: &[u8] = self.buffer;
             #field_quote
         }
