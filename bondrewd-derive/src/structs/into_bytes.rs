@@ -22,7 +22,7 @@ pub fn create_into_bytes_field_quotes(
     let mut set_slice_fns_option = if set_slice {
         let checked_ident = format_ident!("{}CheckedMut", &info.name);
         let check_size = info.total_bytes();
-        let comment = format!("Returns a structure which allows you to read/write any field for a [{}] from/to provided mutable slice.", &info.name);
+        let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{}` from/to provided mutable slice.", &info.name);
         Some((
             quote! {
                 #[doc = #comment]
@@ -74,7 +74,7 @@ pub fn create_into_bytes_field_quotes(
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
             let set_slice_quote = make_set_slice_fn(&field_setter, &field, &info, &clear_quote)?;
             let set_slice_unchecked_quote =
-                make_set_slice_unchecked_fn(&field_setter, &field, &clear_quote)?;
+                make_set_slice_unchecked_fn(&field_setter, &field, &info, &clear_quote)?;
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
                 #set_slice_quote
@@ -127,12 +127,13 @@ fn make_set_slice_fn(
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
     let min_length = if info.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns `Ok(())` if the bits {} through {} for the `{field_name}` field in `input_byte_buffer` could be written to, otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned", bit_range.start, bit_range.end - 1);
+    let comment = format!("Writes to bits {} through {} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -152,14 +153,16 @@ fn make_set_slice_fn(
 fn make_set_slice_unchecked_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
+    info: &StructInfo,
     clear_quote: &TokenStream,
 ) -> syn::Result<TokenStream> {
     let field_name = format_ident!("{}", field.ident.as_ref().clone());
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
     let comment = format!(
-        "Writes to the bits {} through {} for the `{field_name}` field in the provided pre-checked mutable slice.", bit_range.start, bit_range.end - 1
+        "Writes to bits {} through {} in pre-checked mutable slice, setting the `{field_name}` field of a [{struct_name}] in bitfield form.", bit_range.start, bit_range.end - 1
     );
     Ok(quote! {
         #[inline]
@@ -184,7 +187,7 @@ fn make_set_fn(
     let type_ident = field.ty.type_quote();
     let struct_size = info.total_bytes();
     let struct_name = &info.name;
-    let comment = format!("Writes `{field_name}` to the bits {} through {} for the `{field_name}` field of a [{struct_name}] in `output_byte_buffer`.", bit_range.start, bit_range.end - 1);
+    let comment = format!("Writes to bits {} through {} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
