@@ -114,11 +114,7 @@ pub enum Endianness {
 
 impl Endianness {
     fn has_endianness(&self) -> bool {
-        if let Self::None = self {
-            false
-        } else {
-            true
-        }
+        !matches!(self, Self::None)
     }
     fn perhaps_endianness(&mut self, size: usize) -> bool {
         if let Self::None = self {
@@ -161,11 +157,11 @@ impl FieldDataType {
     /// byte size of actual rust type .
     pub fn size(&self) -> usize {
         match self {
-            Self::Number(ref size, _, _) => size.clone(),
-            Self::Float(ref size, _) => size.clone(),
-            Self::Enum(_, ref size, _) => size.clone(),
-            Self::Struct(ref size, _) => size.clone(),
-            Self::Char(ref size, _) => size.clone(),
+            Self::Number(ref size, _, _) => *size,
+            Self::Float(ref size, _) => *size,
+            Self::Enum(_, ref size, _) => *size,
+            Self::Struct(ref size, _) => *size,
+            Self::Char(ref size, _) => *size,
             Self::ElementArray(ref fields, ref length, _) => fields.ty.size() * length,
             Self::BlockArray(ref fields, size, _) => fields.ty.size() * size,
             Self::Boolean => 1,
@@ -218,7 +214,7 @@ impl FieldDataType {
         let data_type = match ty {
             Type::Path(ref path) => match attrs.ty {
                 FieldAttrBuilderType::Struct(ref size) => FieldDataType::Struct(
-                    size.clone(),
+                    *size,
                     if let Some(last_segment) = path.path.segments.last() {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
@@ -228,7 +224,7 @@ impl FieldDataType {
                 ),
                 FieldAttrBuilderType::Enum(ref size, ref prim) => FieldDataType::Enum(
                     quote! {#prim},
-                    size.clone(),
+                    *size,
                     if let Some(last_segment) = path.path.segments.last() {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
@@ -283,17 +279,15 @@ impl FieldDataType {
                                     };
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
+                                    } else if let Some(ref ty) = sub.as_ref() {
+                                        sub_attrs.ty = ty.clone();
                                     } else {
-                                        if let Some(ref ty) = sub.as_ref() {
-                                            sub_attrs.ty = ty.clone();
-                                        } else {
-                                            sub_attrs.ty = FieldAttrBuilderType::None;
-                                        }
+                                        sub_attrs.ty = FieldAttrBuilderType::None;
                                     }
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        &ident,
+                                        ident,
                                         default_endianess,
                                     )?;
 
@@ -314,7 +308,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        &ident,
+                                        ident,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -336,7 +330,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        &ident,
+                                        ident,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -356,7 +350,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        &ident,
+                                        ident,
                                         default_endianess,
                                     )?;
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
@@ -423,18 +417,14 @@ impl FieldDataType {
         };
         // if the type is a number and its endianess is None (numbers should have endianess) then we
         // apply the structs default (which might also be None)
-        if data_type.is_number() {
-            if !attrs.endianness.perhaps_endianness(data_type.size()) {
-                if default_endianess.has_endianness() {
-                    attrs.endianness = Box::new(default_endianess.clone());
-                } else {
-                    if data_type.size() == 1 {
-                        let mut big = Endianness::Big;
-                        std::mem::swap(attrs.endianness.as_mut(), &mut big);
-                    } else {
-                        return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
-                    }
-                }
+        if data_type.is_number() && !attrs.endianness.perhaps_endianness(data_type.size()) {
+            if default_endianess.has_endianness() {
+                attrs.endianness = Box::new(default_endianess.clone());
+            } else if data_type.size() == 1 {
+                let mut big = Endianness::Big;
+                std::mem::swap(attrs.endianness.as_mut(), &mut big);
+            } else {
+                return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
             }
         }
 
@@ -457,8 +447,7 @@ impl FieldDataType {
                     match field_type_name.as_str() {
                         "bool" => match attrs.bit_range {
                             FieldBuilderRange::LastEnd(start) => {
-                                attrs.bit_range =
-                                    FieldBuilderRange::Range(start.clone()..start + 1);
+                                attrs.bit_range = FieldBuilderRange::Range(start..start + 1);
                                 Ok(FieldDataType::Boolean)
                             }
                             _ => Ok(FieldDataType::Boolean),
@@ -532,7 +521,7 @@ impl FieldDataType {
                         )),
                         "usize" | "isize" => Err(Error::new(
                             field_span,
-                            format!("usize and isize are not supported due to ambiguous sizing"),
+                            "usize and isize are not supported due to ambiguous sizing".to_string(),
                         )),
                         _ => Err(Error::new(
                             field_span,
@@ -615,18 +604,10 @@ pub enum OverlapOptions {
 
 impl OverlapOptions {
     pub fn enabled(&self) -> bool {
-        if let Self::None = self {
-            false
-        } else {
-            true
-        }
+        !matches!(self, Self::None)
     }
     pub fn is_redundant(&self) -> bool {
-        if let Self::Redundant = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Redundant)
     }
 }
 
@@ -747,30 +728,28 @@ impl FieldInfo {
             return false;
         }
         // check that self's start is not within other's range
-        if self.attrs.bit_range.start >= other.attrs.bit_range.start {
-            if self.attrs.bit_range.start == other.attrs.bit_range.start
-                || self.attrs.bit_range.start < other.attrs.bit_range.end
-            {
-                return true;
-            }
+        if self.attrs.bit_range.start >= other.attrs.bit_range.start
+            && (self.attrs.bit_range.start == other.attrs.bit_range.start
+                || self.attrs.bit_range.start < other.attrs.bit_range.end)
+        {
+            return true;
         }
         // check that other's start is not within self's range
-        if other.attrs.bit_range.start >= self.attrs.bit_range.start {
-            if other.attrs.bit_range.start == self.attrs.bit_range.start
-                || other.attrs.bit_range.start < self.attrs.bit_range.end
-            {
-                return true;
-            }
+        if other.attrs.bit_range.start >= self.attrs.bit_range.start
+            && (other.attrs.bit_range.start == self.attrs.bit_range.start
+                || other.attrs.bit_range.start < self.attrs.bit_range.end)
+        {
+            return true;
         }
-        if self.attrs.bit_range.end > other.attrs.bit_range.start {
-            if self.attrs.bit_range.end <= other.attrs.bit_range.end {
-                return true;
-            }
+        if self.attrs.bit_range.end > other.attrs.bit_range.start
+            && self.attrs.bit_range.end <= other.attrs.bit_range.end
+        {
+            return true;
         }
-        if other.attrs.bit_range.end > self.attrs.bit_range.start {
-            if other.attrs.bit_range.end <= self.attrs.bit_range.end {
-                return true;
-            }
+        if other.attrs.bit_range.end > self.attrs.bit_range.start
+            && other.attrs.bit_range.end <= self.attrs.bit_range.end
+        {
+            return true;
         }
         false
     }
@@ -827,9 +806,9 @@ impl FieldInfo {
                 endianness: self.attrs.endianness.clone(),
                 bit_length,
                 starting_bit_index: self.attrs.bit_range.start,
-                length: array_length.clone(),
+                length: *array_length,
                 ty: sub_field.ty.clone(),
-                total_bytes: array_length.clone(),
+                total_bytes: *array_length,
                 reserve: self.attrs.reserve.clone(),
                 overlap: self.attrs.overlap.clone(),
             })
@@ -854,8 +833,7 @@ impl FieldInfo {
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
-        let mut attrs_builder =
-            FieldAttrBuilder::parse(&field, last_relevant_field, ident.clone())?;
+        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.clone())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
             &field.ty,
@@ -998,7 +976,7 @@ impl StructInfo {
                                 } else {
                                     return Err(syn::Error::new(
                                         info.name.span(),
-                                        format!("multiple fill_bits values"),
+                                        "multiple fill_bits values".to_string(),
                                     ));
                                 }
                             }
@@ -1065,8 +1043,8 @@ impl StructInfo {
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
         let fields = match data.fields {
-            syn::Fields::Named(ref named_fields) => named_fields.named.iter().map(|x| x.clone()).collect::<Vec<syn::Field>>(),
-            syn::Fields::Unnamed(ref fields) => fields.unnamed.iter().map(|x| x.clone()).collect::<Vec<syn::Field>>(),
+            syn::Fields::Named(ref named_fields) => named_fields.named.iter().cloned().collect::<Vec<syn::Field>>(),
+            syn::Fields::Unnamed(ref fields) => fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>(),
             syn::Fields::Unit => return Err(Error::new(data.struct_token.span, "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it.")),
         };
 
@@ -1104,7 +1082,7 @@ impl StructInfo {
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
         if let Some(fill_bits) = info.fill_bits {
             let first_bit = if let Some(last_range) = info.fields.iter().last() {
-                last_range.attrs.bit_range.end.clone()
+                last_range.attrs.bit_range.end
             } else {
                 0_usize
             };

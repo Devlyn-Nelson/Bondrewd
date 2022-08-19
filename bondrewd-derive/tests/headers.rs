@@ -69,9 +69,15 @@ fn cycle_header_be() -> anyhow::Result<()> {
 
     let end = 2_u32.pow(24) - 1;
     while header.virtual_channel_frame_count != end {
-        header.virtual_channel_frame_count+=1;
-        AosFrameHeaderBe::write_virtual_channel_frame_count(&mut bytes, header.virtual_channel_frame_count);
-        assert_eq!(header.virtual_channel_frame_count, AosFrameHeaderBe::read_virtual_channel_frame_count(&bytes))
+        header.virtual_channel_frame_count += 1;
+        AosFrameHeaderBe::write_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderBe::read_virtual_channel_frame_count(&bytes)
+        )
     }
 
     Ok(())
@@ -135,9 +141,15 @@ fn cycle_header_le() -> anyhow::Result<()> {
 
     let end = 2_u32.pow(24) - 1;
     while header.virtual_channel_frame_count != end {
-        header.virtual_channel_frame_count+=1;
-        AosFrameHeaderLe::write_virtual_channel_frame_count(&mut bytes, header.virtual_channel_frame_count);
-        assert_eq!(header.virtual_channel_frame_count, AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes))
+        header.virtual_channel_frame_count += 1;
+        AosFrameHeaderLe::write_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes)
+        )
     }
 
     Ok(())

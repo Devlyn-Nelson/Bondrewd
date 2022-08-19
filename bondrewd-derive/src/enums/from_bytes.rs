@@ -40,7 +40,8 @@ pub fn generate_from_bytes(enum_info: &EnumInfo) -> syn::Result<proc_macro2::Tok
         };
     }
     let struct_name = &enum_info.name;
-    let comment = format!("Returns `{struct_name}` Variant that was represented by the provided `u8`.");
+    let comment =
+        format!("Returns `{struct_name}` Variant that was represented by the provided `u8`.");
     Ok(quote! {
         #[doc = #comment]
         fn from_primitive(input: u8) -> Self {

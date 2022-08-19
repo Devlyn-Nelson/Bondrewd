@@ -17,19 +17,11 @@ impl PartialEq for EnumVariantBuilderType {
         match self {
             Self::UnsignedValue => false,
             Self::CatchAll => true,
-            Self::CatchPrimitive(_name) => {
-                if let Self::CatchPrimitive(_other_name) = other {
-                    true
-                } else {
-                    false
-                }
+            Self::CatchPrimitive(_) => {
+                matches!(other, Self::CatchPrimitive(_))
             }
             Self::Skip => {
-                if let Self::Skip = other {
-                    true
-                } else {
-                    false
-                }
+                matches!(other, Self::Skip)
             }
         }
     }
@@ -79,11 +71,11 @@ impl EnumInfo {
                 if let Some(name) = name_value.get_ident() {
                     match name.to_string().as_str() {
                         "invalid" => {
-                            if let Some(_) = invalid_found {
-                                return Ok(ParseMetaResult::InvalidConflict(
+                            if invalid_found.is_some() {
+                                Ok(ParseMetaResult::InvalidConflict(
                                     var.ident.span(),
                                     var.ident.clone(),
-                                ));
+                                ))
                             } else {
                                 match var.fields {
                                     syn::Fields::Named(ref named) => match named.named.len() {
@@ -91,8 +83,8 @@ impl EnumInfo {
                                             if let syn::Type::Path(ref path) = named.named[0].ty {
                                                 if let Some(prim_ident) = path.path.get_ident() {
                                                     if let Some(ref prim_ty) = primitive_type {
-                                                        if prim_ident.to_string()
-                                                            != prim_ty.to_string()
+                                                        if prim_ty
+                                                            != prim_ident
                                                         {
                                                             return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
                                                         }
@@ -134,7 +126,7 @@ impl EnumInfo {
                                             Ok(ParseMetaResult::FoundInvalid)
                                         }
                                         _ => {
-                                            return Err(syn::Error::new(var.ident.span(), "Invalid Variants must have either no fields or 1 field containing the primitive type the enum will become"));
+                                            Err(syn::Error::new(var.ident.span(), "Invalid Variants must have either no fields or 1 field containing the primitive type the enum will become"))
                                         }
                                     },
                                     syn::Fields::Unnamed(ref unnamed) => {
@@ -143,7 +135,7 @@ impl EnumInfo {
                                                 if let syn::Type::Path(ref path) = unnamed.unnamed[0].ty {
                                                     if let Some(prim_ident) = path.path.get_ident(){
                                                         if let Some(ref prim_ty) = primitive_type {
-                                                            if prim_ident.to_string() != prim_ty.to_string() {
+                                                            if prim_ty != prim_ident {
                                                                 return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
                                                             }
                                                         }else{
@@ -165,7 +157,7 @@ impl EnumInfo {
                                                 Ok(ParseMetaResult::FoundInvalid)
                                             }
                                             _ => {
-                                                return Err(syn::Error::new(var.ident.span(), "Variants must have either no fields or 1 field containing the primitive type the enum will become"))
+                                                Err(syn::Error::new(var.ident.span(), "Variants must have either no fields or 1 field containing the primitive type the enum will become"))
                                             }
                                         }
                                     }
@@ -238,7 +230,7 @@ impl EnumInfo {
         let mut temp: Option<Ident> = None;
         let mut temp_invalid = invalid_found.clone();
         for attr in attrs {
-            match Self::parse_meta(attr.parse_meta()?, &mut temp_invalid, &mut temp, &var)? {
+            match Self::parse_meta(attr.parse_meta()?, &mut temp_invalid, &mut temp, var)? {
                 ParseMetaResult::FoundInvalid => {
                     std::mem::swap(&mut temp, primitive_type);
                     std::mem::swap(&mut temp_invalid, invalid_found);
@@ -274,26 +266,23 @@ impl EnumInfo {
                     if meta_list.path.is_ident("bondrewd_enum") {
                         for nested_meta in meta_list.nested {
                             match nested_meta {
-                                NestedMeta::Meta(meta) => match meta {
-                                    Meta::Path(path) => {
-                                        // Add an additional check to implement `partial_eq` optionally.
-                                        if path.is_ident("u8") {
-                                            primitive_type = Some(quote::format_ident!("u8"));
-                                        } else if path.is_ident("partial_eq") {
-                                            partial_eq = true;
-                                        } else {
-                                            return Err(syn::Error::new(
-                                                input.ident.span(),
-                                                "the only supported enum attributes are u8, partial_eq currently",
-                                            ));
-                                        }
-
-                                        // Have we found all of the relevant attributes?
-                                        if primitive_type.is_some() && partial_eq {
-                                            break;
-                                        }
+                                NestedMeta::Meta(meta) => if let Meta::Path(path) = meta {
+                                    // Add an additional check to implement `partial_eq` optionally.
+                                    if path.is_ident("u8") {
+                                        primitive_type = Some(quote::format_ident!("u8"));
+                                    } else if path.is_ident("partial_eq") {
+                                        partial_eq = true;
+                                    } else {
+                                        return Err(syn::Error::new(
+                                            input.ident.span(),
+                                            "the only supported enum attributes are u8, partial_eq currently",
+                                        ));
                                     }
-                                    _ => {}
+
+                                    // Have we found all of the relevant attributes?
+                                    if primitive_type.is_some() && partial_eq {
+                                        break;
+                                    }
                                 },
                                 NestedMeta::Lit(_) => {}
                             }
@@ -319,7 +308,7 @@ impl EnumInfo {
                             if let syn::Type::Path(ref path) = named.named[0].ty {
                                 if let Some(prim_ident) = path.path.get_ident(){
                                     if let Some(ref prim_ty) = primitive_type {
-                                        if prim_ident.to_string() != prim_ty.to_string() {
+                                        if prim_ty != prim_ident {
                                             return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
                                         }
                                     }else{
@@ -356,7 +345,7 @@ impl EnumInfo {
                             if let syn::Type::Path(ref path) = unnamed.unnamed[0].ty {
                                 if let Some(prim_ident) = path.path.get_ident(){
                                     if let Some(ref prim_ty) = primitive_type {
-                                        if prim_ident.to_string() != prim_ty.to_string() {
+                                        if prim_ty != prim_ident {
                                             return Err(syn::Error::new(var.ident.span(), "primitive type does not match enums defined primitive type"));
                                         }
                                     }else{
@@ -393,7 +382,7 @@ impl EnumInfo {
                         if let Some((_, ref discriminant)) = var.discriminant {
                             // Parse the discriminant and validate its able to be used
                             let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
-                            if let Some(_oh_no) = literal_variants.insert(discriminant_val.clone(), EnumVariant{
+                            if let Some(_oh_no) = literal_variants.insert(discriminant_val, EnumVariant{
                                 value: EnumVariantType::Skip(Literal::usize_unsuffixed(discriminant_val)),
                                 name: var.ident.clone(),
                             }) {
@@ -407,7 +396,7 @@ impl EnumInfo {
                         }
                     } else {
                         // This is one of the possible variants to use, check for a custom discriminant
-                         if invalid_found.is_none() && Self::parse_attrs(&var.attrs, &var, &mut primitive_type, &mut invalid_found)? {
+                         if invalid_found.is_none() && Self::parse_attrs(&var.attrs, var, &mut primitive_type, &mut invalid_found)? {
                             if let Some((_, ref discriminant)) = var.discriminant {
                                 // Parse the discriminant and validate its able to be used
                                 let discriminant_val = Self::parse_lit_discriminant_expr(discriminant)?;
@@ -518,13 +507,7 @@ impl EnumInfo {
                     }
                 }
             }
-            let key = {
-                if let Some(ref size) = literal_variants.iter().next() {
-                    Some(size.0.clone())
-                } else {
-                    None
-                }
-            };
+            let key = { literal_variants.iter().next().as_ref().map(|size| *size.0) };
             if let Some(lit_index) = key {
                 if let Some(enum_var) = literal_variants.remove(&lit_index) {
                     if let EnumVariantType::Skip(lit) = enum_var.value {

@@ -37,8 +37,8 @@ fn enum_partial_eq_tests() -> anyhow::Result<()> {
     let simple_three = TestPartialEqEnum::Three;
     let simple_invalid = TestPartialEqEnum::Invalid;
 
-    assert_eq!(simple_one, 1 as u8);
-    assert_eq!(simple_three, 3 as u8);
+    assert_eq!(simple_one, 1_u8);
+    assert_eq!(simple_three, 3_u8);
     for i in 0..u8::MAX {
         assert_ne!(simple_invalid, i);
     }
@@ -48,8 +48,8 @@ fn enum_partial_eq_tests() -> anyhow::Result<()> {
     let custom_three = TestPartialEqCustomEnum::CustomThree;
     let custom_invalid = TestPartialEqCustomEnum::Invalid;
 
-    assert_eq!(custom_one, 0x20 as u8);
-    assert_eq!(custom_three, 0x40 as u8);
+    assert_eq!(custom_one, 0x20_u8);
+    assert_eq!(custom_three, 0x40_u8);
     for i in 0..u8::MAX {
         assert_ne!(custom_invalid, i);
     }

@@ -1,6 +1,6 @@
 use bondrewd::*;
 
-#[derive(Bitfields, Debug, Clone, PartialEq)]
+#[derive(Bitfields, Debug, Clone, PartialEq, Eq)]
 #[bondrewd(default_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
 pub struct StatusMagnetometer {
     mtm1: bool,

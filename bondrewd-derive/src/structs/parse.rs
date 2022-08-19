@@ -234,7 +234,7 @@ impl FieldAttrBuilder {
                             } else {
                                 return Err(Error::new(
                                     builder.span(),
-                                    format!("defining a struct_size requires a Int Literal"),
+                                    "defining a struct_size requires a Int Literal".to_string(),
                                 ));
                             }
                         }
@@ -263,7 +263,7 @@ impl FieldAttrBuilder {
                             } else {
                                 return Err(Error::new(
                                     builder.span(),
-                                    format!("defining a struct_size requires a Int Literal"),
+                                    "defining a struct_size requires a Int Literal".to_string(),
                                 ));
                             }
                         }
@@ -547,7 +547,8 @@ impl FieldAttrBuilder {
                             } else {
                                 return Err(Error::new(
                                     builder.span(),
-                                    format!("defining a overlapping_bits requires a Int Literal"),
+                                    "defining a overlapping_bits requires a Int Literal"
+                                        .to_string(),
                                 ));
                             }
                         }
@@ -607,7 +608,7 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
         if let FieldBuilderRange::Range(bit_range) = self.bit_range {
             Ok(FieldAttrs {
                 endianness: self.endianness,
-                bit_range: bit_range,
+                bit_range,
                 reserve: self.reserve,
                 overlap: self.overlap,
             })

@@ -413,48 +413,46 @@ use syn::{parse_macro_input, DeriveInput};
 ///     four: u8,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(7, SimpleExample::BYTE_SIZE);
-///     assert_eq!(53, SimpleExample::BIT_SIZE);
-///     let mut bytes = SimpleExample {
-///         one: false,
-///         two: -4.25,
-///         three: -1034,
-///         four: 63,
-///     }.into_bytes();
-///     // check the output binary is correct. (i did math by hand
-///     // to get the binary). each field is separated by a underscore
-///     // in the binary assert to make it easy to see.
-///     assert_eq!([
-///         0b0_1100000, // one_two,
-///         0b01000100,  // two,
-///         0b00000000,  // two,
-///         0b00000000,  // two,
-///         0b0_1110111, // two_three,
-///         0b1110110_1, // three_four,
-///         0b11111_000, // four_unused
-///     ], bytes);
-///     // use read functions to get the fields value without
-///     // doing a from_bytes call.
-///     assert_eq!(false, SimpleExample::read_one(&bytes));
-///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
-///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
-///     assert_eq!(63, SimpleExample::read_four(&bytes));
-///     // overwrite the values with new ones in the byte array.
-///     SimpleExample::write_one(&mut bytes, true);
-///     SimpleExample::write_two(&mut bytes, 5.5);
-///     SimpleExample::write_three(&mut bytes, 511);
-///     SimpleExample::write_four(&mut bytes, 0);
-///     // from bytes uses the read function so there is no need to
-///     // assert the read functions again.
-///     let reconstructed = SimpleExample::from_bytes(bytes);
-///     // check the values read by from bytes and check if they are
-///     // what we wrote to the bytes NOT the origanal values.
-///     assert_eq!(true,reconstructed.one);
-///     assert_eq!(5.5,reconstructed.two);
-///     assert_eq!(511,reconstructed.three);
-///     assert_eq!(0,reconstructed.four);
-/// }
+/// assert_eq!(7, SimpleExample::BYTE_SIZE);
+/// assert_eq!(53, SimpleExample::BIT_SIZE);
+/// let mut bytes = SimpleExample {
+///     one: false,
+///     two: -4.25,
+///     three: -1034,
+///     four: 63,
+/// }.into_bytes();
+/// // check the output binary is correct. (i did math by hand
+/// // to get the binary). each field is separated by a underscore
+/// // in the binary assert to make it easy to see.
+/// assert_eq!([
+///     0b0_1100000, // one_two,
+///     0b01000100,  // two,
+///     0b00000000,  // two,
+///     0b00000000,  // two,
+///     0b0_1110111, // two_three,
+///     0b1110110_1, // three_four,
+///     0b11111_000, // four_unused
+/// ], bytes);
+/// // use read functions to get the fields value without
+/// // doing a from_bytes call.
+/// assert_eq!(false, SimpleExample::read_one(&bytes));
+/// assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+/// assert_eq!(-1034, SimpleExample::read_three(&bytes));
+/// assert_eq!(63, SimpleExample::read_four(&bytes));
+/// // overwrite the values with new ones in the byte array.
+/// SimpleExample::write_one(&mut bytes, true);
+/// SimpleExample::write_two(&mut bytes, 5.5);
+/// SimpleExample::write_three(&mut bytes, 511);
+/// SimpleExample::write_four(&mut bytes, 0);
+/// // from bytes uses the read function so there is no need to
+/// // assert the read functions again.
+/// let reconstructed = SimpleExample::from_bytes(bytes);
+/// // check the values read by from bytes and check if they are
+/// // what we wrote to the bytes NOT the origanal values.
+/// assert_eq!(true,reconstructed.one);
+/// assert_eq!(5.5,reconstructed.two);
+/// assert_eq!(511,reconstructed.three);
+/// assert_eq!(0,reconstructed.four);
 /// ```
 /// # Reverse Example
 /// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order.
@@ -478,22 +476,20 @@ use syn::{parse_macro_input, DeriveInput};
 ///     four: u8,
 /// }
 ///
-/// fn main() {
-///     let test = Example {
-///         one: 0,
-///         two: u8::MAX,
-///         three: 0,
-///         four: 0b01010101,
-///     };
-///     let test_reverse = ExampleReversed {
-///         one: 0,
-///         two: u8::MAX,
-///         three: 0,
-///         four: 0b01010101,
-///     };
-///     assert_eq!(test.into_bytes(), [0b00000000, 0b11111111, 0b000000, 0b01010101]);
-///     assert_eq!(test_reverse.into_bytes(), [0b01010101, 0b000000, 0b11111111, 0b00000000]);
-/// }
+/// let test = Example {
+///     one: 0,
+///     two: u8::MAX,
+///     three: 0,
+///     four: 0b01010101,
+/// };
+/// let test_reverse = ExampleReversed {
+///     one: 0,
+///     two: u8::MAX,
+///     three: 0,
+///     four: 0b01010101,
+/// };
+/// assert_eq!(test.into_bytes(), [0b00000000, 0b11111111, 0b000000, 0b01010101]);
+/// assert_eq!(test_reverse.into_bytes(), [0b01010101, 0b000000, 0b11111111, 0b00000000]);
 /// ```
 /// # Bit Positioning Examples
 /// Here Bit positioning will control where bit 0 is. for example if you have a field with 2 bits then
@@ -524,24 +520,22 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u8,
 /// }
 ///
-/// fn main() {
-///     let test_msb = ExampleMSB {
-///         one: 0,
-///         two: 5,
-///         three: 0,
-///     };
-///     let test_lsb = ExampleLSB {
-///         one: 0,
-///         two: 5,
-///         three: 0,
-///     };
-///     // in msb0 field one is the first 2 bits followed by field two
-///     // then field three is the last 3 bits.
-///     assert_eq!(test_msb.into_bytes(), [0b00_101_000]);
-///     // in msb0 field three is the first 3 bits followed by field
-///     // 2 then field one being the last 2 bits
-///     assert_eq!(test_lsb.into_bytes(), [0b000_101_00]);
-/// }
+/// let test_msb = ExampleMSB {
+///     one: 0,
+///     two: 5,
+///     three: 0,
+/// };
+/// let test_lsb = ExampleLSB {
+///     one: 0,
+///     two: 5,
+///     three: 0,
+/// };
+/// // in msb0 field one is the first 2 bits followed by field two
+/// // then field three is the last 3 bits.
+/// assert_eq!(test_msb.into_bytes(), [0b00_101_000]);
+/// // in msb0 field three is the first 3 bits followed by field
+/// // 2 then field one being the last 2 bits
+/// assert_eq!(test_lsb.into_bytes(), [0b000_101_00]);
 /// ```
 /// When using `reverse` and `read_from` in the same structure:
 /// - `lsb0` would begin at the least significant bit in the first byte.
@@ -570,21 +564,19 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: u8,
 /// }
 ///
-/// fn main() {
-///     let test_msb = ExampleMSB {
-///         one: 0,
-///         two: u8::MAX,
-///         three: 0,
-///     };
-///     let test_lsb = ExampleLSB {
-///         one: 0,
-///         two: u8::MAX,
-///         three: 0,
-///     };
-///     // here the 1's belong to feild two. i hope this is understandable.
-///     assert_eq!(test_msb.into_bytes(), [0b10000000, 0b00000111]);
-///     assert_eq!(test_lsb.into_bytes(), [0b11100000, 0b00000001]);
-/// }
+/// let test_msb = ExampleMSB {
+///     one: 0,
+///     two: u8::MAX,
+///     three: 0,
+/// };
+/// let test_lsb = ExampleLSB {
+///     one: 0,
+///     two: u8::MAX,
+///     three: 0,
+/// };
+/// // here the 1's belong to feild two. i hope this is understandable.
+/// assert_eq!(test_msb.into_bytes(), [0b10000000, 0b00000111]);
+/// assert_eq!(test_lsb.into_bytes(), [0b11100000, 0b00000001]);
 /// ```
 /// # Endianness Examples
 /// There are 2 ways to define endianess of fields that require endianness (multi-byte numbers, char, ...)
@@ -606,14 +598,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: u16,
 /// }
 ///
-/// fn main() {
-///     let test = SimpleExample {
-///         one: 5,
-///         two: 5,
-///     };
-///     // check that each field are in the correct endianness
-///     assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000]);
-/// }
+/// let test = SimpleExample {
+///     one: 5,
+///     two: 5,
+/// };
+/// // check that each field are in the correct endianness
+/// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000]);
 /// ```
 /// If you define the endianness of all values that require it default_endianness is not required.
 /// ```
@@ -628,15 +618,13 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: bool,
 /// }
 ///
-/// fn main() {
-///     let test = SimpleExample {
-///         one: 5,
-///         two: 5,
-///         three: true,
-///     };
-///     // check that each field are in the correct endianness
-///     assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000, 0b10000000]);
-/// }
+/// let test = SimpleExample {
+///     one: 5,
+///     two: 5,
+///     three: true,
+/// };
+/// // check that each field are in the correct endianness
+/// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000, 0b10000000]);
 /// ```
 /// # Bitfield Struct as Field Examples
 /// Inner structs must implement the
@@ -693,14 +681,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: Simple,
 /// }
 ///
-/// fn main() {
-///     // SimpleWithStruct uses the amount of bits that 2
-///     // Simple structures would use.
-///     assert_eq!(SimpleWithStruct::BIT_SIZE, Simple::BIT_SIZE * 2);
-///     // But both structures use 1 byte.
-///     assert_eq!(SimpleWithStruct::BYTE_SIZE, 1);
-///     assert_eq!(SimpleWithStruct::BYTE_SIZE, Simple::BYTE_SIZE);
-/// }
+/// // SimpleWithStruct uses the amount of bits that 2
+/// // Simple structures would use.
+/// assert_eq!(SimpleWithStruct::BIT_SIZE, Simple::BIT_SIZE * 2);
+/// // But both structures use 1 byte.
+/// assert_eq!(SimpleWithStruct::BYTE_SIZE, 1);
+/// assert_eq!(SimpleWithStruct::BYTE_SIZE, Simple::BYTE_SIZE);
 /// ```
 /// # Bitfield Array Examples
 /// There are 2 types of arrays in Bondrewd:
@@ -729,26 +715,24 @@ use syn::{parse_macro_input, DeriveInput};
 ///     three: [u8; 3],
 /// }
 ///
-/// fn main() {
-///     let test = SimpleWithArray {
-///         // the first 4 bits in index 0 and 2 are 1's to show
-///         // that they will not be in the final result due to
-///         // each element being set to 4 bits, meaning the values
-///         // in those indices will become 0 after into_bytes is called.
-///         one: [0b11110000, 0b00001111, 0b11110000, 0b00001001],
-///         two: [false, true, false, true, false],
-///         // its also worth noting that index 0 here will lose the 4
-///         // most significant bits.
-///         three: [u8::MAX, 0, 0b10101010],
-///     };
-///     assert_eq!(test.into_bytes(),
-///         [0b0000_1111,  // one[0 and 1]
-///          0b0000_1001,  // one[2 and 3]
-///          0b01010_111,  // two and three[0]
-///          0b1_0000000,  // remaining three[0] and three[1]
-///          0b0_1010101,  // remaining three[1] and three[2]
-///          0b0_0000000]);// remaining three[2] and 7 unused bits.
-/// }
+/// let test = SimpleWithArray {
+///     // the first 4 bits in index 0 and 2 are 1's to show
+///     // that they will not be in the final result due to
+///     // each element being set to 4 bits, meaning the values
+///     // in those indices will become 0 after into_bytes is called.
+///     one: [0b11110000, 0b00001111, 0b11110000, 0b00001001],
+///     two: [false, true, false, true, false],
+///     // its also worth noting that index 0 here will lose the 4
+///     // most significant bits.
+///     three: [u8::MAX, 0, 0b10101010],
+/// };
+/// assert_eq!(test.into_bytes(),
+///     [0b0000_1111,  // one[0 and 1]
+///      0b0000_1001,  // one[2 and 3]
+///      0b01010_111,  // two and three[0]
+///      0b1_0000000,  // remaining three[0] and three[1]
+///      0b0_1010101,  // remaining three[1] and three[2]
+///      0b0_0000000]);// remaining three[2] and 7 unused bits.
 /// ```
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
 /// - If bit_length of the structs or enums needs to be smaller than the output of either into_bytes or
@@ -824,27 +808,25 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 10, reserve)]
 ///     reserve: u16
 /// }
-/// fn main() {
-///     assert_eq!(3, ReserveExample::BYTE_SIZE);
-///     assert_eq!(24, ReserveExample::BIT_SIZE);
-///     let mut bytes = ReserveExample {
-///         one: 127,
-///         two: 127,
-///         reserve: 1023,
-///     }.into_bytes();
-///     assert_eq!([0b11111111, 0b11111100, 0b00000000], bytes);
-///     assert_eq!(127,ReserveExample::read_one(&bytes));
-///     assert_eq!(127,ReserveExample::read_two(&bytes));
-///     assert_eq!(0,ReserveExample::read_reserve(&bytes));
-///     // quick note write_reserve will actually change the bytes in the byte array.
-///     ReserveExample::write_reserve(&mut bytes, 42);
-///     assert_eq!(42,ReserveExample::read_reserve(&bytes));
-///     // but again from/into bytes doesn't care.
-///     let reconstructed = ReserveExample::from_bytes(bytes);
-///     assert_eq!(127,reconstructed.one);
-///     assert_eq!(127,reconstructed.two);
-///     assert_eq!(0,reconstructed.reserve);
-/// }
+/// assert_eq!(3, ReserveExample::BYTE_SIZE);
+/// assert_eq!(24, ReserveExample::BIT_SIZE);
+/// let mut bytes = ReserveExample {
+///     one: 127,
+///     two: 127,
+///     reserve: 1023,
+/// }.into_bytes();
+/// assert_eq!([0b11111111, 0b11111100, 0b00000000], bytes);
+/// assert_eq!(127,ReserveExample::read_one(&bytes));
+/// assert_eq!(127,ReserveExample::read_two(&bytes));
+/// assert_eq!(0,ReserveExample::read_reserve(&bytes));
+/// // quick note write_reserve will actually change the bytes in the byte array.
+/// ReserveExample::write_reserve(&mut bytes, 42);
+/// assert_eq!(42,ReserveExample::read_reserve(&bytes));
+/// // but again from/into bytes doesn't care.
+/// let reconstructed = ReserveExample::from_bytes(bytes);
+/// assert_eq!(127,reconstructed.one);
+/// assert_eq!(127,reconstructed.two);
+/// assert_eq!(0,reconstructed.reserve);
 /// ```
 /// Reserves do not need to be at the end.
 /// ```
@@ -859,24 +841,22 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
-/// fn main() {
-///     assert_eq!(3, ReserveExample::BYTE_SIZE);
-///     assert_eq!(24, ReserveExample::BIT_SIZE);
-///     let mut bytes = ReserveExample {
-///         one: 127,
-///         two: 127,
-///         reserve: 1023,
-///     }.into_bytes();
-///     assert_eq!(127, ReserveExample::read_one(&bytes));
-///     assert_eq!(127, ReserveExample::read_two(&bytes));
-///     assert_eq!(0, ReserveExample::read_reserve(&bytes));
-///     ReserveExample::write_reserve(&mut bytes, 42);
-///     assert_eq!(42, ReserveExample::read_reserve(&bytes));
-///     let reconstructed = ReserveExample::from_bytes(bytes);
-///     assert_eq!(127,reconstructed.one);
-///     assert_eq!(127,reconstructed.two);
-///     assert_eq!(0,reconstructed.reserve);
-/// }
+/// assert_eq!(3, ReserveExample::BYTE_SIZE);
+/// assert_eq!(24, ReserveExample::BIT_SIZE);
+/// let mut bytes = ReserveExample {
+///     one: 127,
+///     two: 127,
+///     reserve: 1023,
+/// }.into_bytes();
+/// assert_eq!(127, ReserveExample::read_one(&bytes));
+/// assert_eq!(127, ReserveExample::read_two(&bytes));
+/// assert_eq!(0, ReserveExample::read_reserve(&bytes));
+/// ReserveExample::write_reserve(&mut bytes, 42);
+/// assert_eq!(42, ReserveExample::read_reserve(&bytes));
+/// let reconstructed = ReserveExample::from_bytes(bytes);
+/// assert_eq!(127,reconstructed.one);
+/// assert_eq!(127,reconstructed.two);
+/// assert_eq!(0,reconstructed.reserve);
 /// ```
 /// # Fill Bytes Examples
 /// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
@@ -891,10 +871,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
-/// fn main() {
-///     assert_eq!(3, FilledBytes::BYTE_SIZE);
-///     assert_eq!(24, FilledBytes::BIT_SIZE);
-/// }
+/// assert_eq!(3, FilledBytes::BYTE_SIZE);
+/// assert_eq!(24, FilledBytes::BIT_SIZE);
 /// ```
 /// Here im going to compare the example above to the closest alternative using a reserve field:
 /// - FilledBytes only has 2 field, so only 2 fields are required for instantiation, where as ReservedBytes
@@ -914,10 +892,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 10, reserve)]
 ///     reserve: u16
 /// }
-/// fn main() {
-///     assert_eq!(3, ReservedBytes::BYTE_SIZE);
-///     assert_eq!(24, ReservedBytes::BIT_SIZE);
-/// }
+/// assert_eq!(3, ReservedBytes::BYTE_SIZE);
+/// assert_eq!(24, ReservedBytes::BIT_SIZE);
 /// ```
 /// # Enforce Bits Examples
 /// Enforce Bits/Bytes Main purpose is to act as a compile time check to ensure how many bit you think
@@ -937,10 +913,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: u8,
 ///     three: bool
 /// }
-/// fn main() {
-///     assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
-/// }
+/// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
+/// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
 /// Here is the same example where but i messed up the bit_length of the first field making the total 8
 /// instead of 7.
@@ -955,10 +929,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: u8,
 ///     three: bool
 /// }
-/// fn main() {
-///     assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
-/// }
+/// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
+/// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
 ///   
 /// These next 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the
@@ -980,10 +952,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 10, reserve)]
 ///     reserve: u16
 /// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
+/// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+/// assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// ```
 /// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works.
 /// `enforce_bytes` will check the total bit length before the bits are filled.
@@ -1016,13 +986,11 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
-/// fn main() {
-///     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
-///     // we are enforcing 14 bits but fill_bytes is creating
-///     // an imaginary reserve field from bit index 14 to
-///     // index 23
-///     assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
-/// }
+/// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+/// // we are enforcing 14 bits but fill_bytes is creating
+/// // an imaginary reserve field from bit index 14 to
+/// // index 23
+/// assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// ```
 /// # Enforce Full Bytes Example
 /// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
@@ -1053,10 +1021,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///     #[bondrewd(bit_length = 2, reserve)]
 ///     reserve: u16
 /// }
-/// fn main() {
-///     assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
-///     assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
-/// }
+/// assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
+/// assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
 /// ```
 /// # Enum Examples
 /// For enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
@@ -1121,48 +1087,46 @@ use syn::{parse_macro_input, DeriveInput};
 ///     four: u8,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(7, SimpleExample::BYTE_SIZE);
-///     assert_eq!(53, SimpleExample::BIT_SIZE);
-///     let mut bytes = SimpleExample {
-///         one: false,
-///         two: -4.25,
-///         three: -1034,
-///         four: 63,
-///     }.into_bytes();
-///     // check the output binary is correct. (i did math by hand
-///     // to get the binary). each field is separated by a underscore
-///     // in the binary assert to make it easy to see.
-///     assert_eq!([
-///         0b0_1100000, // one_two,
-///         0b01000100,  // two,
-///         0b00000000,  // two,
-///         0b00000000,  // two,
-///         0b0_1110111, // two_three,
-///         0b1110110_1, // three_four,
-///         0b11111_000, // four_unused
-///     ], bytes);
-///     // use read functions to get the fields value without
-///     // doing a from_bytes call.
-///     assert_eq!(false, SimpleExample::read_one(&bytes));
-///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
-///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
-///     assert_eq!(63, SimpleExample::read_four(&bytes));
-///     // overwrite the values with new ones in the byte array.
-///     SimpleExample::write_one(&mut bytes, true);
-///     SimpleExample::write_two(&mut bytes, 5.5);
-///     SimpleExample::write_three(&mut bytes, 511);
-///     SimpleExample::write_four(&mut bytes, 0);
-///     // from bytes uses the read function so there is no need to
-///     // assert the read functions again.
-///     let reconstructed = SimpleExample::from_bytes(bytes);
-///     // check the values read by from bytes and check if they are
-///     // what we wrote to the bytes NOT the origanal values.
-///     assert_eq!(true,reconstructed.one);
-///     assert_eq!(5.5,reconstructed.two);
-///     assert_eq!(511,reconstructed.three);
-///     assert_eq!(0,reconstructed.four);
-/// }
+/// assert_eq!(7, SimpleExample::BYTE_SIZE);
+/// assert_eq!(53, SimpleExample::BIT_SIZE);
+/// let mut bytes = SimpleExample {
+///     one: false,
+///     two: -4.25,
+///     three: -1034,
+///     four: 63,
+/// }.into_bytes();
+/// // check the output binary is correct. (i did math by hand
+/// // to get the binary). each field is separated by a underscore
+/// // in the binary assert to make it easy to see.
+/// assert_eq!([
+///     0b0_1100000, // one_two,
+///     0b01000100,  // two,
+///     0b00000000,  // two,
+///     0b00000000,  // two,
+///     0b0_1110111, // two_three,
+///     0b1110110_1, // three_four,
+///     0b11111_000, // four_unused
+/// ], bytes);
+/// // use read functions to get the fields value without
+/// // doing a from_bytes call.
+/// assert_eq!(false, SimpleExample::read_one(&bytes));
+/// assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+/// assert_eq!(-1034, SimpleExample::read_three(&bytes));
+/// assert_eq!(63, SimpleExample::read_four(&bytes));
+/// // overwrite the values with new ones in the byte array.
+/// SimpleExample::write_one(&mut bytes, true);
+/// SimpleExample::write_two(&mut bytes, 5.5);
+/// SimpleExample::write_three(&mut bytes, 511);
+/// SimpleExample::write_four(&mut bytes, 0);
+/// // from bytes uses the read function so there is no need to
+/// // assert the read functions again.
+/// let reconstructed = SimpleExample::from_bytes(bytes);
+/// // check the values read by from bytes and check if they are
+/// // what we wrote to the bytes NOT the origanal values.
+/// assert_eq!(true,reconstructed.one);
+/// assert_eq!(5.5,reconstructed.two);
+/// assert_eq!(511,reconstructed.three);
+/// assert_eq!(0,reconstructed.four);
 /// ```
 /// # Redundant Examples
 /// In this example we will has fields share data. flags in the example will represent a u8 storing
@@ -1191,68 +1155,66 @@ use syn::{parse_macro_input, DeriveInput};
 ///     flag_six: bool,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(7, SimpleExample::BYTE_SIZE);
-///     assert_eq!(53, SimpleExample::BIT_SIZE);
-///     let mut bytes = SimpleExample {
-///         one: false,
-///         two: -4.25,
-///         three: -1034,
-///         flags: 0,
-///         flag_one: true,
-///         flag_two: true,
-///         flag_three: true,
-///         flag_four: true,
-///         flag_five: true,
-///         flag_six: true,
-///     }.into_bytes();
-///     // check the output binary is correct. (i did math by hand
-///     // to get the binary). each field is separated by a underscore
-///     // in the binary assert to make it easy to see.
-///     assert_eq!([
-///         0b0_1100000, // one_two,
-///         0b01000100,  // two,
-///         0b00000000,  // two,
-///         0b00000000,  // two,
-///         0b0_1110111, // two_three,
-///         0b1110110_1, // three_four,
-///         0b11111_000, // four_unused
-///     ], bytes);
-///     // use read functions to get the fields value without
-///     // doing a from_bytes call.
-///     assert_eq!(false, SimpleExample::read_one(&bytes));
-///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
-///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
-///     // notice i can still use the read calls for the redundant field.
-///     assert_eq!(63, SimpleExample::read_flags(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_one(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_two(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_three(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_four(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_five(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_six(&bytes));
-///     // overwrite the values with new ones in the byte array.
-///     SimpleExample::write_one(&mut bytes, true);
-///     SimpleExample::write_two(&mut bytes, 5.5);
-///     SimpleExample::write_three(&mut bytes, 511);
-///     // notice i can still use the write calls for the redundant field.
-///     SimpleExample::write_flags(&mut bytes, 0);
-///     // from bytes uses the read function so there is no need to
-///     // assert the read functions again.
-///     let reconstructed = SimpleExample::from_bytes(bytes);
-///     // check the values read by from bytes and check if they are
-///     // what we wrote to the bytes NOT the origanal values.
-///     assert_eq!(true,reconstructed.one);
-///     assert_eq!(5.5,reconstructed.two);
-///     assert_eq!(511,reconstructed.three);
-///     assert_eq!(0,reconstructed.flags);
-///     assert_eq!(false,reconstructed.flag_one);
-///     assert_eq!(false,reconstructed.flag_two);
-///     assert_eq!(false,reconstructed.flag_three);
-///     assert_eq!(false,reconstructed.flag_four);
-///     assert_eq!(false,reconstructed.flag_five);
-///     assert_eq!(false,reconstructed.flag_six);
-/// }
+/// assert_eq!(7, SimpleExample::BYTE_SIZE);
+/// assert_eq!(53, SimpleExample::BIT_SIZE);
+/// let mut bytes = SimpleExample {
+///     one: false,
+///     two: -4.25,
+///     three: -1034,
+///     flags: 0,
+///     flag_one: true,
+///     flag_two: true,
+///     flag_three: true,
+///     flag_four: true,
+///     flag_five: true,
+///     flag_six: true,
+/// }.into_bytes();
+/// // check the output binary is correct. (i did math by hand
+/// // to get the binary). each field is separated by a underscore
+/// // in the binary assert to make it easy to see.
+/// assert_eq!([
+///     0b0_1100000, // one_two,
+///     0b01000100,  // two,
+///     0b00000000,  // two,
+///     0b00000000,  // two,
+///     0b0_1110111, // two_three,
+///     0b1110110_1, // three_four,
+///     0b11111_000, // four_unused
+/// ], bytes);
+/// // use read functions to get the fields value without
+/// // doing a from_bytes call.
+/// assert_eq!(false, SimpleExample::read_one(&bytes));
+/// assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+/// assert_eq!(-1034, SimpleExample::read_three(&bytes));
+/// // notice i can still use the read calls for the redundant field.
+/// assert_eq!(63, SimpleExample::read_flags(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_one(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_two(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_three(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_four(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_five(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+/// // overwrite the values with new ones in the byte array.
+/// SimpleExample::write_one(&mut bytes, true);
+/// SimpleExample::write_two(&mut bytes, 5.5);
+/// SimpleExample::write_three(&mut bytes, 511);
+/// // notice i can still use the write calls for the redundant field.
+/// SimpleExample::write_flags(&mut bytes, 0);
+/// // from bytes uses the read function so there is no need to
+/// // assert the read functions again.
+/// let reconstructed = SimpleExample::from_bytes(bytes);
+/// // check the values read by from bytes and check if they are
+/// // what we wrote to the bytes NOT the origanal values.
+/// assert_eq!(true,reconstructed.one);
+/// assert_eq!(5.5,reconstructed.two);
+/// assert_eq!(511,reconstructed.three);
+/// assert_eq!(0,reconstructed.flags);
+/// assert_eq!(false,reconstructed.flag_one);
+/// assert_eq!(false,reconstructed.flag_two);
+/// assert_eq!(false,reconstructed.flag_three);
+/// assert_eq!(false,reconstructed.flag_four);
+/// assert_eq!(false,reconstructed.flag_five);
+/// assert_eq!(false,reconstructed.flag_six);
 /// ```
 /// we can also have the flags below if we use the `bits` attribute.
 /// ```
@@ -1277,68 +1239,66 @@ use syn::{parse_macro_input, DeriveInput};
 ///     flags: u8,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(7, SimpleExample::BYTE_SIZE);
-///     assert_eq!(53, SimpleExample::BIT_SIZE);
-///     let mut bytes = SimpleExample {
-///         one: false,
-///         two: -4.25,
-///         three: -1034,
-///         flags: 0,
-///         flag_one: true,
-///         flag_two: true,
-///         flag_three: true,
-///         flag_four: true,
-///         flag_five: true,
-///         flag_six: true,
-///     }.into_bytes();
-///     // check the output binary is correct. (i did math by hand
-///     // to get the binary). each field is separated by a underscore
-///     // in the binary assert to make it easy to see.
-///     assert_eq!([
-///         0b0_1100000, // one_two,
-///         0b01000100,  // two,
-///         0b00000000,  // two,
-///         0b00000000,  // two,
-///         0b0_1110111, // two_three,
-///         0b1110110_1, // three_four,
-///         0b11111_000, // four_unused
-///     ], bytes);
-///     // use read functions to get the fields value without
-///     // doing a from_bytes call.
-///     assert_eq!(false, SimpleExample::read_one(&bytes));
-///     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
-///     assert_eq!(-1034, SimpleExample::read_three(&bytes));
-///     // notice i can still use the read calls for the redundant field.
-///     assert_eq!(63, SimpleExample::read_flags(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_one(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_two(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_three(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_four(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_five(&bytes));
-///     assert_eq!(true,SimpleExample::read_flag_six(&bytes));
-///     // overwrite the values with new ones in the byte array.
-///     SimpleExample::write_one(&mut bytes, true);
-///     SimpleExample::write_two(&mut bytes, 5.5);
-///     SimpleExample::write_three(&mut bytes, 511);
-///     // notice i can still use the write calls for the redundant field.
-///     SimpleExample::write_flags(&mut bytes, 0);
-///     // from bytes uses the read function so there is no need to
-///     // assert the read functions again.
-///     let reconstructed = SimpleExample::from_bytes(bytes);
-///     // check the values read by from bytes and check if they are
-///     // what we wrote to the bytes NOT the origanal values.
-///     assert_eq!(true,reconstructed.one);
-///     assert_eq!(5.5,reconstructed.two);
-///     assert_eq!(511,reconstructed.three);
-///     assert_eq!(0,reconstructed.flags);
-///     assert_eq!(false,reconstructed.flag_one);
-///     assert_eq!(false,reconstructed.flag_two);
-///     assert_eq!(false,reconstructed.flag_three);
-///     assert_eq!(false,reconstructed.flag_four);
-///     assert_eq!(false,reconstructed.flag_five);
-///     assert_eq!(false,reconstructed.flag_six);
-/// }
+/// assert_eq!(7, SimpleExample::BYTE_SIZE);
+/// assert_eq!(53, SimpleExample::BIT_SIZE);
+/// let mut bytes = SimpleExample {
+///     one: false,
+///     two: -4.25,
+///     three: -1034,
+///     flags: 0,
+///     flag_one: true,
+///     flag_two: true,
+///     flag_three: true,
+///     flag_four: true,
+///     flag_five: true,
+///     flag_six: true,
+/// }.into_bytes();
+/// // check the output binary is correct. (i did math by hand
+/// // to get the binary). each field is separated by a underscore
+/// // in the binary assert to make it easy to see.
+/// assert_eq!([
+///     0b0_1100000, // one_two,
+///     0b01000100,  // two,
+///     0b00000000,  // two,
+///     0b00000000,  // two,
+///     0b0_1110111, // two_three,
+///     0b1110110_1, // three_four,
+///     0b11111_000, // four_unused
+/// ], bytes);
+/// // use read functions to get the fields value without
+/// // doing a from_bytes call.
+/// assert_eq!(false, SimpleExample::read_one(&bytes));
+/// assert_eq!(-4.25, SimpleExample::read_two(&bytes));
+/// assert_eq!(-1034, SimpleExample::read_three(&bytes));
+/// // notice i can still use the read calls for the redundant field.
+/// assert_eq!(63, SimpleExample::read_flags(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_one(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_two(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_three(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_four(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_five(&bytes));
+/// assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+/// // overwrite the values with new ones in the byte array.
+/// SimpleExample::write_one(&mut bytes, true);
+/// SimpleExample::write_two(&mut bytes, 5.5);
+/// SimpleExample::write_three(&mut bytes, 511);
+/// // notice i can still use the write calls for the redundant field.
+/// SimpleExample::write_flags(&mut bytes, 0);
+/// // from bytes uses the read function so there is no need to
+/// // assert the read functions again.
+/// let reconstructed = SimpleExample::from_bytes(bytes);
+/// // check the values read by from bytes and check if they are
+/// // what we wrote to the bytes NOT the origanal values.
+/// assert_eq!(true,reconstructed.one);
+/// assert_eq!(5.5,reconstructed.two);
+/// assert_eq!(511,reconstructed.three);
+/// assert_eq!(0,reconstructed.flags);
+/// assert_eq!(false,reconstructed.flag_one);
+/// assert_eq!(false,reconstructed.flag_two);
+/// assert_eq!(false,reconstructed.flag_three);
+/// assert_eq!(false,reconstructed.flag_four);
+/// assert_eq!(false,reconstructed.flag_five);
+/// assert_eq!(false,reconstructed.flag_six);
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
@@ -1588,17 +1548,15 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Three,// assigned value 3
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
-///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
-///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
-///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
-///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
-///     for i in 3..=u8::MAX {
-///         assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::One.into_primitive(), 1);
+/// assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+/// assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+/// assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+/// assert_eq!(SimpleEnum::Three.into_primitive(), 3);
+/// for i in 3..=u8::MAX {
+///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
 /// }
 ///
 /// ```
@@ -1618,21 +1576,19 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Unlucky = 13,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Life.into_primitive(), 42);
-///     assert_eq!(SimpleEnum::Life, SimpleEnum::from_primitive(42));
-///     assert_eq!(SimpleEnum::Min.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Min, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::U8Max.into_primitive(), 255);
-///     assert_eq!(SimpleEnum::U8Max, SimpleEnum::from_primitive(255));
-///     assert_eq!(SimpleEnum::Unlucky.into_primitive(), 13);
-///     // check all values not defined and 13 get detected as Unlucky
-///     for i in 1..42 {
-///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
-///     }
-///     for i in 43..u8::MAX {
-///         assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Life.into_primitive(), 42);
+/// assert_eq!(SimpleEnum::Life, SimpleEnum::from_primitive(42));
+/// assert_eq!(SimpleEnum::Min.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Min, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::U8Max.into_primitive(), 255);
+/// assert_eq!(SimpleEnum::U8Max, SimpleEnum::from_primitive(255));
+/// assert_eq!(SimpleEnum::Unlucky.into_primitive(), 13);
+/// // check all values not defined and 13 get detected as Unlucky
+/// for i in 1..42 {
+///     assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
+/// }
+/// for i in 43..u8::MAX {
+///     assert_eq!(SimpleEnum::Unlucky, SimpleEnum::from_primitive(i));
 /// }
 /// ```
 /// # Custom Catch All Example
@@ -1648,19 +1604,17 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Three, // assigned 3 and catches invalid values
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
-///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
-///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
-///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
-///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
-///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
-///     // remaining possible values are caught as One.
-///     for i in 4..=u8::MAX {
-///         assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::One.into_primitive(), 1);
+/// assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+/// assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+/// assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+/// assert_eq!(SimpleEnum::Three.into_primitive(), 3);
+/// assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
+/// // remaining possible values are caught as One.
+/// for i in 4..=u8::MAX {
+///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(i));
 /// }
 /// ```
 /// This example shows that we can mark any variant as the catch all variant. In this case Bondrewd will
@@ -1677,19 +1631,17 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Three, // assigned 3
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
-///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
-///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
-///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
-///     assert_eq!(SimpleEnum::Three.into_primitive(), 3);
-///     assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
-///     // remaining possible values are caught as One.
-///     for i in 4..=u8::MAX {
-///         assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::One.into_primitive(), 1);
+/// assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+/// assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+/// assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+/// assert_eq!(SimpleEnum::Three.into_primitive(), 3);
+/// assert_eq!(SimpleEnum::Three, SimpleEnum::from_primitive(3));
+/// // remaining possible values are caught as One.
+/// for i in 4..=u8::MAX {
+///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(i));
 /// }
 /// ```
 /// # Catch Value Example
@@ -1708,16 +1660,14 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Three(u8),
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
-///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
-///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
-///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
-///     for i in 3..=u8::MAX {
-///         assert_eq!(SimpleEnum::Three(i), SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::One.into_primitive(), 1);
+/// assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+/// assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+/// assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+/// for i in 3..=u8::MAX {
+///     assert_eq!(SimpleEnum::Three(i), SimpleEnum::from_primitive(i));
 /// }
 /// ```
 /// # Complex Example
@@ -1746,26 +1696,24 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     Two,
 /// }
 ///
-/// fn main(){
-///     assert_eq!(SimpleEnum::Nine.into_primitive(), 9);
-///     assert_eq!(SimpleEnum::Nine, SimpleEnum::from_primitive(9));
-///     assert_eq!(SimpleEnum::One.into_primitive(), 1);
-///     assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
-///     assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
-///     assert_eq!(SimpleEnum::Five.into_primitive(), 5);
-///     assert_eq!(SimpleEnum::Five, SimpleEnum::from_primitive(5));
-///     assert_eq!(SimpleEnum::Two.into_primitive(), 2);
-///     assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
-///     // Invalid tests
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(3));
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(4));
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(6));
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(7));
-///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(8));
-///     for i in 10..=u8::MAX {
-///         assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(i));
-///     }
+/// assert_eq!(SimpleEnum::Nine.into_primitive(), 9);
+/// assert_eq!(SimpleEnum::Nine, SimpleEnum::from_primitive(9));
+/// assert_eq!(SimpleEnum::One.into_primitive(), 1);
+/// assert_eq!(SimpleEnum::One, SimpleEnum::from_primitive(1));
+/// assert_eq!(SimpleEnum::Zero.into_primitive(), 0);
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(0));
+/// assert_eq!(SimpleEnum::Five.into_primitive(), 5);
+/// assert_eq!(SimpleEnum::Five, SimpleEnum::from_primitive(5));
+/// assert_eq!(SimpleEnum::Two.into_primitive(), 2);
+/// assert_eq!(SimpleEnum::Two, SimpleEnum::from_primitive(2));
+/// // Invalid tests
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(3));
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(4));
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(6));
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(7));
+/// assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(8));
+/// for i in 10..=u8::MAX {
+///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(i));
 /// }
 /// ```
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]

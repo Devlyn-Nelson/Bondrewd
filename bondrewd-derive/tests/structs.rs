@@ -147,7 +147,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     };
     let simple = SimpleWithSingleByteSpanningStruct {
         one: 0,
-        two: small.clone(),
+        two: small,
         three: 0,
     };
     assert_eq!(SimpleWithSingleByteSpanningStruct::BYTE_SIZE, 2);
@@ -197,7 +197,7 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     };
     let simple = SimpleWithSingleByteNonSpanningStruct {
         one: 2,
-        two: small.clone(),
+        two: small,
         three: 10,
     };
     assert_eq!(SimpleWithSingleByteNonSpanningStruct::BYTE_SIZE, 2);
