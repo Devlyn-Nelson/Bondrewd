@@ -402,7 +402,6 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             let not_current_bit_mask = !current_bit_mask;
-            let not_next_bit_mask = !next_bit_mask;
             if available_bits_in_first_byte == 0 && right_shift == 0 {
                 full_quote = quote! {
                     #full_quote
@@ -423,20 +422,30 @@ fn apply_le_math_to_field_access_quote(
                         #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
                     };
                 }
-                if available_bits_in_first_byte + (8 * i) < amount_of_bits {
+                if available_bits_in_first_byte + (8 * i) < amount_of_bits && current_bit_mask != 0 {
+                    if current_bit_mask == u8::MAX{
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i];
+                        };
+                    }else{
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        };
+                    }
+                }
+                if next_bit_mask == u8::MAX {
                     full_quote = quote! {
                         #full_quote
-                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i];
                     };
-                    clear_quote = quote! {
-                        #clear_quote
-                        output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;
+                } else if next_bit_mask != 0 {
+                    full_quote = quote! {
+                        #full_quote
+                        output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
                     };
                 }
-                full_quote = quote! {
-                    #full_quote
-                    output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
-                };
             }
             i += 1;
         }
@@ -449,8 +458,8 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             let right_shift: u32 = right_shift.clone() as u32;
-            let not_first_bit_mask = !first_bit_mask;
-            let not_last_bit_mask = !last_bit_mask;
+            // let not_first_bit_mask = !first_bit_mask;
+            // let not_last_bit_mask = !last_bit_mask;
 
             full_quote = quote! {
                 #full_quote
@@ -459,8 +468,7 @@ fn apply_le_math_to_field_access_quote(
             if used_bits < amount_of_bits {
                 clear_quote = quote! {
                     #clear_quote
-                    output_byte_buffer[#start] &= #not_first_bit_mask;
-                    output_byte_buffer[#start #operator 1] &= #not_last_bit_mask;
+                    output_byte_buffer[#start] &= 0;
                 };
                 full_quote = quote! {
                     #full_quote
@@ -499,10 +507,19 @@ fn apply_le_math_to_field_access_quote(
                 #clear_quote
                 output_byte_buffer[#start] &= #not_last_mask;
             };
-            full_quote = quote! {
-                #full_quote
-                output_byte_buffer[#start] |= (#field_buffer_name[#i].rotate_left(#left_shift)) & #last_mask;// fix this mask
-            };
+            let mut finalize = quote!{#field_buffer_name[#i]};
+            if left_shift != 0 && left_shift != 8 {
+                finalize = quote!{(#finalize.rotate_left(#left_shift))};
+            }
+            if last_mask != u8::MAX {
+                finalize = quote!{#finalize & #last_mask};
+            }
+            if last_mask != 0{
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#start] |= #finalize;
+                };
+            }
         }
 
         Ok((full_quote, clear_quote))
@@ -568,8 +585,15 @@ fn apply_le_math_to_field_access_quote(
         let clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;
         };
+        let mut source = quote!{#field_as_u8_quote};
+        if shift_left != 0 {
+            source = quote!{(#source << #shift_left)};
+        }
+        if mask != u8::MAX {
+            source = quote!{#source & #mask};
+        }
         let apply_field_to_buffer = quote! {
-            output_byte_buffer[#starting_inject_byte] |= (#field_as_u8_quote << #shift_left) & #mask;
+            output_byte_buffer[#starting_inject_byte] |= #source;
         };
         Ok((apply_field_to_buffer, clear_quote))
     }
@@ -650,14 +674,18 @@ fn apply_ne_math_to_field_access_quote(
                 };
 
                 if available_bits_in_first_byte + (8 * i) < amount_of_bits {
-                    clear_quote = quote! {
-                        #clear_quote
-                        output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;//test
-                    };
-                    full_quote = quote! {
-                        #full_quote
-                        output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
-                    };
+                    if not_next_bit_mask != u8::MAX {
+                        clear_quote = quote! {
+                            #clear_quote
+                            output_byte_buffer[#start #operator 1] &= #not_next_bit_mask;//test
+                        };
+                    }
+                    if next_bit_mask != 0{
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start #operator 1] |= #field_buffer_name[#i] & #next_bit_mask;
+                        };
+                    }
                 }
             }
         } else if right_shift < 0 {
@@ -700,10 +728,17 @@ fn apply_ne_math_to_field_access_quote(
                     output_byte_buffer[#start] &= #not_current_bit_mask;
                 };
                 if i == 0 {
-                    full_quote = quote! {
-                        #full_quote
-                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
-                    };
+                    if current_bit_mask == u8::MAX {
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i];
+                        };
+                    }else{
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        };
+                    }
                 } else {
                     full_quote = quote! {
                         #full_quote
@@ -892,9 +927,16 @@ fn apply_be_math_to_field_access_quote(
         let mut clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_first_bit_mask;
         };
-        let mut full_quote = quote! {
-            #field_byte_buffer;
-            output_byte_buffer[#starting_inject_byte] |= #field_buffer_name[#first_bits_index] & #first_bit_mask;
+        let mut full_quote = if first_bit_mask == u8::MAX {
+            quote! {
+                #field_byte_buffer;
+                output_byte_buffer[#starting_inject_byte] |= #field_buffer_name[#first_bits_index];
+            }
+        }else{
+            quote! {
+                #field_byte_buffer;
+                output_byte_buffer[#starting_inject_byte] |= #field_buffer_name[#first_bits_index] & #first_bit_mask;
+            }
         };
         // fill in the rest of the bits
         let mut current_byte_index_in_buffer: usize = if let None = flip {
@@ -955,10 +997,17 @@ fn apply_be_math_to_field_access_quote(
                 #clear_quote
                 output_byte_buffer[#current_byte_index_in_buffer] &= #not_last_bit_mask;
             };
-            full_quote = quote! {
-                #full_quote
-                output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#final_index] & #last_bit_mask;
-            };
+            if last_bit_mask == u8::MAX{
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#final_index];
+                };
+            }else{
+                full_quote = quote! {
+                    #full_quote
+                    output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#final_index] & #last_bit_mask;
+                };
+            }
         }
 
         Ok((full_quote, clear_quote))
