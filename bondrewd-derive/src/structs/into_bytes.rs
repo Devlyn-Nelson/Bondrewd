@@ -909,7 +909,7 @@ fn apply_be_math_to_field_access_quote(
                 for i in first_bits_index + 1usize..field.ty.size() {
                     clear_quote = quote! {
                         #clear_quote
-                        output_byte_buffer[#current_byte_index_in_buffer] = 0u8;
+                        output_byte_buffer[#current_byte_index_in_buffer] &= 0u8;
                     };
                     full_quote = quote! {
                         #full_quote
@@ -934,6 +934,10 @@ fn apply_be_math_to_field_access_quote(
             // no shift
             if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1..field.ty.size() - 1 {
+                    clear_quote = quote! {
+                        #clear_quote
+                        output_byte_buffer[#current_byte_index_in_buffer] &= 0u8;
+                    };
                     full_quote = quote! {
                         #full_quote
                         output_byte_buffer[#current_byte_index_in_buffer] |= #field_buffer_name[#i];

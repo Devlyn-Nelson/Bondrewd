@@ -995,7 +995,6 @@ fn build_number_quote(
         //TODO make rotation optimizer.
         full_quote = quote! {
             #full_quote
-            #first_bits_index;
             #field_buffer_name[#final_index] |= input_byte_buffer[#current_byte_index_in_buffer] & #last_bit_mask;
             #field_buffer_name
         };
