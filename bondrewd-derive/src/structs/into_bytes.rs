@@ -28,14 +28,14 @@ pub fn create_into_bytes_field_quotes(
         Some((
             quote! {
                 #[doc = #comment]
-                pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, BitfieldSliceError> {
+                pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, bondrewd::BitfieldSliceError> {
                     let buf_len = buffer.len();
                     if buf_len >= #check_size {
                         Ok(#checked_ident {
                             buffer
                         })
                     }else{
-                        Err(BitfieldSliceError(buf_len, #check_size))
+                        Err(bondrewd::BitfieldSliceError(buf_len, #check_size))
                     }
                 }
             },
@@ -139,10 +139,10 @@ fn make_set_slice_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), BitfieldSliceError> {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldSliceError> {
             let slice_length = output_byte_buffer.len();
             if slice_length < #min_length {
-                Err(BitfieldSliceError(slice_length, #min_length))
+                Err(bondrewd::BitfieldSliceError(slice_length, #min_length))
             } else {
                 #clear_quote
                 #field_quote

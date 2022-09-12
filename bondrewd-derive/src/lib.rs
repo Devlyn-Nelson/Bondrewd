@@ -1397,8 +1397,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let hex_size = struct_size * 2;
     let hex_fns_quote = if hex {
         quote! {
-            impl BitfieldHex<#hex_size> for #struct_name {
-                fn from_hex(hex: [u8;#hex_size]) -> Result<Self, BitfieldHexError> {
+            impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
+                fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
                     let bytes: [u8; #struct_size] = [0;#struct_size];
                     let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
                     for i in 0usize..#struct_size {
@@ -1408,7 +1408,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                             b'A'..=b'F' => Ok(c - b'A' + 10u8),
                             b'a'..=b'f' => Ok(c - b'a' + 10u8),
                             b'0'..=b'9' => Ok(c - b'0'),
-                            _ => return Err(BitfieldHexError(
+                            _ => return Err(bondrewd::BitfieldHexError(
                                 c as char,
                                 c_i,
                             )),
@@ -1454,7 +1454,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
     // slap peek quotes inside a impl block at the end and we good to go
     let to_bytes_quote = quote! {
-        impl Bitfields<#struct_size> for #struct_name {
+        impl bondrewd::Bitfields<#struct_size> for #struct_name {
             const BIT_SIZE: usize = #bit_size;
             #into_bytes_quote
             #from_bytes_quote
