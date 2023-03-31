@@ -4,7 +4,7 @@ use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
     FieldDataType, FieldInfo, StructInfo,
 };
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Ident};
 use quote::{format_ident, quote};
 
 use super::common::EnumInfo;
@@ -15,96 +15,6 @@ pub struct IntoBytesOptions {
     pub set_slice_field_fns: Option<TokenStream>,
     pub set_slice_field_unchecked_fns: Option<TokenStream>,
 }
-
-// pub fn create_into_bytes_field_quotes_enum(
-//     info: &EnumInfo,
-//     set_slice: bool,
-// ) -> Result<IntoBytesOptions, syn::Error> {
-//     // all of the fields setting will be appended to this
-//     let mut into_bytes_quote = quote! {};
-
-//     // get slice checking.
-//     let mut set_slice_fns_option = make_checked_mut_func(info, set_slice);
-
-//     for variant in info.variants.iter() {
-
-//     }
-
-//     // all quote with all of the set functions appended to it.
-//     let mut set_fns_quote = quote! {};
-//     // make setter for each field.
-//     for field in info.fields.iter() {
-//         if field.attrs.reserve.is_fake_field() {
-//             continue;
-//         }
-//         let (field_setter, clear_quote) = get_field_quote(
-//             field,
-//             if info.attrs.flip {
-//                 Some(info.total_bytes() - 1)
-//             } else {
-//                 None
-//             },
-//             false,
-//         )?;
-//         if field.attrs.reserve.write_field() {
-//             let field_name = &field.ident;
-//             into_bytes_quote = quote! {
-//                 #into_bytes_quote
-//                 let #field_name = self.#field_name;
-//                 #field_setter
-//             };
-//         }
-//         let set_quote = make_set_fn(&field_setter, field, info, &clear_quote)?;
-//         set_fns_quote = quote! {
-//             #set_fns_quote
-//             #set_quote
-//         };
-
-//         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
-//             let set_slice_quote = make_set_slice_fn(&field_setter, field, info, &clear_quote)?;
-//             let set_slice_unchecked_quote =
-//                 make_set_slice_unchecked_fn(&field_setter, field, info, &clear_quote)?;
-//             let mut set_slice_fns_quote_temp = quote! {
-//                 #set_slice_fns_quote
-//                 #set_slice_quote
-//             };
-//             let mut unchecked_temp = quote! {
-//                 #unchecked
-//                 #set_slice_unchecked_quote
-//             };
-//             std::mem::swap(set_slice_fns_quote, &mut set_slice_fns_quote_temp);
-//             std::mem::swap(unchecked, &mut unchecked_temp);
-//         }
-//     }
-//     let struct_size = &info.total_bytes();
-//     // construct from bytes function. use input_byte_buffer as input name because,
-//     // that is what the field quotes expect to extract from.
-//     // wrap our list of field names with commas with Self{} so we it instantiate our struct,
-//     // because all of the from_bytes field quote store there data in a temporary variable with the same
-//     // name as its destination field the list of field names will be just fine.
-//     let into_bytes_fn = quote! {
-//         fn into_bytes(self) -> [u8;#struct_size] {
-//             let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
-//             #into_bytes_quote
-//             output_byte_buffer
-//         }
-//     };
-//     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
-//         Ok(IntoBytesOptions {
-//             into_bytes_fn,
-//             set_field_fns: set_fns_quote,
-//             set_slice_field_fns: Some(set_slice_field_fns),
-//             set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
-//         })
-//     } else {
-//         Ok(IntoBytesOptions {
-//             into_bytes_fn,
-//             set_field_fns: set_fns_quote,
-//             set_slice_field_fns: None,
-//             set_slice_field_unchecked_fns: None,
-//         })
-//     }
-// }
 
 fn make_checked_mut_func(info: &StructInfo, set_slice: bool) -> Option<(TokenStream, TokenStream)> {
     // all quote with all of the set slice functions appended to it.
@@ -131,6 +41,65 @@ fn make_checked_mut_func(info: &StructInfo, set_slice: bool) -> Option<(TokenStr
     } else {
         None
     }
+}
+
+pub fn create_into_bytes_field_quotes_enum(
+    info: &EnumInfo,
+    set_slice: bool,
+) -> syn::Result<()> {
+    for variant in info.variants.iter() {
+        let mut into_bytes_quote = quote! {};
+        // TODO make sure this doesn't get lost.
+        let mut set_slice_fns_option = make_checked_mut_func(variant, set_slice);
+        // all of the fields setting will be appe
+        // all quote with all of the set functions appended to it.
+        let mut set_fns_quote = quote! {};
+        // make setter for each field.
+        for field in variant.fields.iter() {
+            if field.attrs.reserve.is_fake_field() {
+                continue;
+            }
+            let (field_setter, clear_quote) = get_field_quote(
+                field,
+                if variant.attrs.flip {
+                    Some(variant.total_bytes() - 1)
+                } else {
+                    None
+                },
+                false,
+            )?;
+            if field.attrs.reserve.write_field() {
+                let field_name = &field.ident;
+                into_bytes_quote = quote! {
+                    #into_bytes_quote
+                    let #field_name = self.#field_name;
+                    #field_setter
+                };
+            }
+            let set_quote = make_set_fn(&field_setter, field, variant, &clear_quote)?;
+            set_fns_quote = quote! {
+                #set_fns_quote
+                #set_quote
+            };
+
+            if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
+                let set_slice_quote = make_set_slice_fn(&field_setter, field, variant, &clear_quote, Some(&variant.name))?;
+                let set_slice_unchecked_quote =
+                    make_set_slice_unchecked_fn(&field_setter, field, variant, &clear_quote)?;
+                let mut set_slice_fns_quote_temp = quote! {
+                    #set_slice_fns_quote
+                    #set_slice_quote
+                };
+                let mut unchecked_temp = quote! {
+                    #unchecked
+                    #set_slice_unchecked_quote
+                };
+                std::mem::swap(set_slice_fns_quote, &mut set_slice_fns_quote_temp);
+                std::mem::swap(unchecked, &mut unchecked_temp);
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn create_into_bytes_field_quotes_struct(
@@ -175,7 +144,7 @@ pub fn create_into_bytes_field_quotes_struct(
         };
 
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
-            let set_slice_quote = make_set_slice_fn(&field_setter, field, info, &clear_quote)?;
+            let set_slice_quote = make_set_slice_fn(&field_setter, field, info, &clear_quote, None)?;
             let set_slice_unchecked_quote =
                 make_set_slice_unchecked_fn(&field_setter, field, info, &clear_quote)?;
             let mut set_slice_fns_quote_temp = quote! {
@@ -225,8 +194,12 @@ fn make_set_slice_fn(
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
+    prefix: Option<&Ident>,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let mut field_name = field.ident.as_ref().clone();
+    if let Some(p) = prefix {
+        field_name = format_ident!("{p}{field_name}");
+    }
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();

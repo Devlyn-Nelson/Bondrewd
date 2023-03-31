@@ -909,6 +909,7 @@ pub struct AttrInfo {
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
     pub id: Option<u128>,
+    pub invalid: bool,
 }
 
 impl Default for AttrInfo {
@@ -920,6 +921,7 @@ impl Default for AttrInfo {
             default_endianess: Endianness::None,
             fill_bits: None,
             id: None,
+            invalid: true,
         }
     }
 }
@@ -995,12 +997,11 @@ impl ObjectInfo {
             ObjectInfo::Enum(e) => e.name.clone(),
         }
     }
-    fn parse_struct_attrs(attrs: &Vec<Attribute>, attrs_info: &mut AttrInfo) -> syn::Result<()> {
+    fn parse_struct_attrs(attrs: &Vec<Attribute>, attrs_info: &mut AttrInfo, is_variant: bool) -> syn::Result<()> {
         for attr in attrs.iter() {
             let span = attr.pound_token.span();
             let meta = attr.parse_meta()?;
-            Self::parse_struct_attrs_meta(span, attrs_info, &meta)?;
-            Self::parse_struct_attrs_meta_id(span, attrs_info, &meta)?;
+            Self::parse_struct_attrs_meta(span, attrs_info, &meta, is_variant)?;
         }
         Ok(())
     }
@@ -1024,7 +1025,7 @@ impl ObjectInfo {
                 Lit::Int(ref i) => Ok(i.base10_parse()?),
                 _ => Err(syn::Error::new(
                     input.span(),
-                    "Non-integer literals for custom discriminant are illegal.",
+                    "non-integer literals for custom discriminant are illegal.",
                 )),
             },
             _ => Err(syn::Error::new(
@@ -1039,7 +1040,7 @@ impl ObjectInfo {
         let name = input.ident.clone();
         match input.data {
             syn::Data::Struct(ref data) => {
-                Self::parse_struct_attrs(&input.attrs, &mut attrs)?;
+                Self::parse_struct_attrs(&input.attrs, &mut attrs, false)?;
                 let fields = Self::parse_fields(&name, &data.fields, &attrs)?;
                 Ok(Self::Struct(StructInfo {
                     name,
@@ -1058,7 +1059,7 @@ impl ObjectInfo {
                         let parsed = Self::parse_lit_discriminant_expr(expr)?;
                         attrs.id = Some(parsed);
                     }
-                    Self::parse_struct_attrs(&variant.attrs, &mut attrs)?;
+                    Self::parse_struct_attrs(&variant.attrs, &mut attrs, true)?;
                     let variant_name = variant.ident.clone();
                     let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
                     variants.push(StructInfo {
@@ -1067,6 +1068,42 @@ impl ObjectInfo {
                         fields,
                         vis: input.vis.clone(),
                     });
+                }
+                // detect and fix variants without ids and verify non conflict.
+                let mut used_ids: Vec<u128> = Vec::default();
+                let mut unassigned_indices: Vec<usize> = Vec::default();
+                let mut invalid_index: Option<usize> = None;
+                for (i, variant) in variants.iter().enumerate() {
+                    if let Some(ref value) = variant.attrs.id {
+                        if used_ids.contains(value) {
+                            return Err(Error::new(variant.name.span(), "variant identifier used twice."));
+                        }else{
+                            used_ids.push(*value);
+                        }
+                    }else{
+                        unassigned_indices.push(i);
+                    }
+                    if variant.attrs.invalid {
+                        if invalid_index.is_none() {
+                            invalid_index = Some(i);
+                        }else{
+                            return Err(Error::new(variant.name.span(), "second catch invalid variant found. only 1 is currently allowed."));
+                        }
+                    }
+                }
+                if unassigned_indices.is_empty() {
+                    let mut current_guess: u128 = 0;
+                    for i in unassigned_indices {
+                        while used_ids.contains(&current_guess) {
+                            current_guess += 1;
+                        }
+                        variants[i].attrs.id = Some(current_guess);
+                        current_guess+=1;
+                    }
+                }
+                if let Some(ii) = invalid_index {
+                    let var = variants.remove(ii);
+                    variants.push(var);
                 }
                 Ok(Self::Enum(EnumInfo {
                     name,
@@ -1130,17 +1167,18 @@ impl ObjectInfo {
                 }
             }
         }
-        Self::parse_struct_attrs_meta(span, info, &meta)?;
+        Self::parse_struct_attrs_meta(span, info, &meta, false)?;
         Ok(())
     }
-    fn parse_struct_attrs_meta_id(
+    fn parse_struct_attrs_meta(
         span: Span,
         info: &mut AttrInfo,
         meta: &Meta,
+        is_variant: bool,
     ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(ref value) => {
-                if value.path.is_ident("id") {
+                if is_variant && value.path.is_ident("id") {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<u128>() {
                             Ok(value) => {
@@ -1161,32 +1199,7 @@ impl ObjectInfo {
                             }
                         }
                     }
-                }
-            }
-            Meta::Path(_value) => {}
-            Meta::List(ref meta_list) => {
-                if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested.iter() {
-                        match nested_meta {
-                            NestedMeta::Meta(ref meta) => {
-                                Self::parse_struct_attrs_meta_id(span, info, meta)?;
-                            }
-                            NestedMeta::Lit(_) => {}
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-    fn parse_struct_attrs_meta(
-        span: Span,
-        info: &mut AttrInfo,
-        meta: &Meta,
-    ) -> Result<(), syn::Error> {
-        match meta {
-            Meta::NameValue(ref value) => {
-                if value.path.is_ident("read_from") {
+                } else if value.path.is_ident("read_from") {
                     if let Lit::Str(ref val) = value.lit {
                         match val.value().as_str() {
                             "lsb0" => info.lsb_zero = true,
@@ -1268,6 +1281,9 @@ impl ObjectInfo {
                         "enforce_full_bytes" => {
                             info.enforcement = StructEnforcement::EnforceFullBytes;
                         }
+                        "invalid" => {
+                            info.invalid = true;
+                        }
                         _ => {}
                     }
                 }
@@ -1277,7 +1293,7 @@ impl ObjectInfo {
                     for nested_meta in meta_list.nested.iter() {
                         match nested_meta {
                             NestedMeta::Meta(ref meta) => {
-                                Self::parse_struct_attrs_meta(span, info, meta)?;
+                                Self::parse_struct_attrs_meta(span, info, meta, is_variant)?;
                             }
                             NestedMeta::Lit(_) => {}
                         }
