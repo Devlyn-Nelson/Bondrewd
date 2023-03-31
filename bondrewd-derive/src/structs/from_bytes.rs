@@ -63,7 +63,7 @@ pub fn create_from_bytes_field_quotes(
         let peek_name = format_ident!("read_{}", field_name.as_ref());
         let field_extractor = get_field_quote(
             field,
-            if info.flip {
+            if info.attrs.flip {
                 Some(info.total_bytes() - 1)
             } else {
                 None
@@ -148,7 +148,7 @@ fn make_peek_slice_fn(
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    let min_length = if info.flip {
+    let min_length = if info.attrs.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize

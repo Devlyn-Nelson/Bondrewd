@@ -14,7 +14,11 @@ pub struct IntoBytesOptions {
     pub set_slice_field_unchecked_fns: Option<TokenStream>,
 }
 
-pub fn create_into_bytes_field_quotes(
+// pub fn create_into_bytes_field_quotes() -> Result<IntoBytesOptions, syn::Error>{
+
+// }
+
+pub fn create_into_bytes_field_quotes_struct(
     info: &StructInfo,
     set_slice: bool,
 ) -> Result<IntoBytesOptions, syn::Error> {
@@ -52,7 +56,7 @@ pub fn create_into_bytes_field_quotes(
         }
         let (field_setter, clear_quote) = get_field_quote(
             field,
-            if info.flip {
+            if info.attrs.flip {
                 Some(info.total_bytes() - 1)
             } else {
                 None
@@ -130,7 +134,7 @@ fn make_set_slice_fn(
     let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    let min_length = if info.flip {
+    let min_length = if info.attrs.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize

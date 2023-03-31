@@ -5,7 +5,7 @@ use proc_macro2::Span;
 use quote::quote;
 use std::ops::Range;
 use syn::parse::Error;
-use syn::{DeriveInput, Ident, Lit, Meta, NestedMeta, Type};
+use syn::{DeriveInput, Fields, Ident, Lit, Meta, NestedMeta, Type};
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -820,7 +820,11 @@ impl FieldInfo {
         }
     }
 
-    pub fn from_syn_field(field: &syn::Field, struct_info: &StructInfo) -> syn::Result<Self> {
+    pub fn from_syn_field(
+        field: &syn::Field,
+        fields: &Vec<FieldInfo>,
+        attrs: &AttrInfo,
+    ) -> syn::Result<Self> {
         let ident: Box<Ident> = if let Some(ref name) = field.ident {
             Box::new(name.clone())
         } else {
@@ -828,8 +832,7 @@ impl FieldInfo {
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = struct_info
-            .fields
+        let last_relevant_field = fields
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
@@ -839,7 +842,7 @@ impl FieldInfo {
             &field.ty,
             &mut attrs_builder,
             &ident,
-            &struct_info.default_endianess,
+            &attrs.default_endianess,
         )?;
 
         let attr_result: std::result::Result<FieldAttrs, TryFromAttrBuilderError> =
@@ -864,11 +867,11 @@ impl FieldInfo {
             attrs,
         };
         // check to verify there are no overlapping bit ranges from previously parsed fields.
-        for (parsed_field, i) in struct_info.fields.iter().zip(0..struct_info.fields.len()) {
+        for (i, parsed_field) in fields.iter().enumerate() {
             if parsed_field.overlapping(&new_field) {
                 return Err(Error::new(
                     Span::call_site(),
-                    format!("fields {} and {} overlap", i, struct_info.fields.len()),
+                    format!("fields {} and {} overlap", i, fields.len()),
                 ));
             }
         }
@@ -877,7 +880,7 @@ impl FieldInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StructEnforcement {
     /// there is no enforcement so if bits are unused then it will act like they are a reserve field
     NoRules,
@@ -887,8 +890,8 @@ pub enum StructEnforcement {
     EnforceBitAmount(usize),
 }
 
-pub struct StructInfo {
-    pub name: Ident,
+#[derive(Clone)]
+pub struct AttrInfo {
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
     /// if true then bit 0 is the Least Significant Bit (the last bit in the last byte).
     pub lsb_zero: bool,
@@ -896,10 +899,15 @@ pub struct StructInfo {
     /// it with no runtime cost.
     pub flip: bool,
     pub enforcement: StructEnforcement,
-    pub fields: Vec<FieldInfo>,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
     pub vis: syn::Visibility,
+}
+
+pub struct StructInfo {
+    pub name: Ident,
+    pub attrs: AttrInfo,
+    pub fields: Vec<FieldInfo>,
 }
 
 impl StructInfo {
@@ -908,13 +916,97 @@ impl StructInfo {
         for field in self.fields.iter() {
             total += field.bit_size();
         }
+
         total
     }
 
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
     }
-    fn parse_struct_attrs_meta(info: &mut StructInfo, meta: Meta) -> Result<(), syn::Error> {
+}
+
+pub struct EnumInfo {
+    pub name: Ident,
+    pub variants: Vec<StructInfo>,
+}
+
+pub enum ObjectInfo {
+    Struct(StructInfo),
+    Enum(EnumInfo),
+}
+
+impl ObjectInfo {
+    pub fn name(&self) -> Ident {
+        match self {
+            ObjectInfo::Struct(s) => s.name.clone(),
+            ObjectInfo::Enum(e) => e.name.clone(),
+        }
+    }
+    pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
+        // get the struct, error out if not a struct
+        let mut attrs = AttrInfo {
+            lsb_zero: false,
+            flip: false,
+            enforcement: StructEnforcement::NoRules,
+            default_endianess: Endianness::None,
+            fill_bits: None,
+            vis: input.vis.clone(),
+        };
+        for attr in input.attrs.iter() {
+            let meta = attr.parse_meta()?;
+            Self::parse_struct_attrs_meta(&input.ident, &mut attrs, meta)?;
+        }
+        let name = input.ident.clone();
+        match input.data {
+            syn::Data::Struct(ref data) => {
+                let fields = Self::parse_fields(&name, &data.fields, &attrs)?;
+                Ok(Self::Struct(StructInfo {
+                    name,
+                    attrs,
+                    fields,
+                }))
+            }
+            syn::Data::Enum(ref data) => {
+                let mut variants: Vec<StructInfo> = Vec::default();
+                for variant in data.variants.iter() {
+                    let variant_name = variant.ident.clone();
+                    let fields =
+                        Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
+                    variants.push(StructInfo {
+                        name: variant_name,
+                        attrs: attrs.clone(),
+                        fields,
+                    });
+                }
+                Ok(Self::Enum(EnumInfo { name, variants }))
+            }
+            _ => Err(Error::new(Span::call_site(), "input can not be a union")),
+        }
+    }
+    pub fn total_bits(&self) -> usize {
+        match self {
+            Self::Struct(s) => s.total_bits(),
+            Self::Enum(info) => {
+                let mut total = info.variants[0].total_bits();
+                for variant in info.variants.iter().skip(1) {
+                    let t = variant.total_bits();
+                    if t > total {
+                        total = t;
+                    }
+                }
+                total
+            }
+        }
+    }
+
+    pub fn total_bytes(&self) -> usize {
+        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+    fn parse_struct_attrs_meta(
+        name: &Ident,
+        info: &mut AttrInfo,
+        meta: Meta,
+    ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(value) => {
                 if value.path.is_ident("read_from") {
@@ -947,7 +1039,7 @@ impl StructInfo {
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    info.name.span(),
+                                    name.span(),
                                     format!("failed parsing enforce_bytes value [{}]", err),
                                 ))
                             }
@@ -961,7 +1053,7 @@ impl StructInfo {
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    info.name.span(),
+                                    name.span(),
                                     format!("failed parsing enforce_bits value [{}]", err),
                                 ))
                             }
@@ -975,14 +1067,14 @@ impl StructInfo {
                                     info.fill_bits = Some(value * 8);
                                 } else {
                                     return Err(syn::Error::new(
-                                        info.name.span(),
+                                        name.span(),
                                         "multiple fill_bits values".to_string(),
                                     ));
                                 }
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    info.name.span(),
+                                    name.span(),
                                     format!("failed parsing fill_bits value [{}]", err),
                                 ))
                             }
@@ -1008,7 +1100,7 @@ impl StructInfo {
                     for nested_meta in meta_list.nested {
                         match nested_meta {
                             NestedMeta::Meta(meta) => {
-                                Self::parse_struct_attrs_meta(info, meta)?;
+                                Self::parse_struct_attrs_meta(name, info, meta)?;
                             }
                             NestedMeta::Lit(_) => {}
                         }
@@ -1018,50 +1110,35 @@ impl StructInfo {
         }
         Ok(())
     }
-    pub fn parse(input: &DeriveInput) -> syn::Result<StructInfo> {
-        // get the struct, error out if not a struct
-        let data = match input.data {
-            syn::Data::Struct(ref data) => data,
-            _ => {
-                return Err(Error::new(Span::call_site(), "input must be a struct"));
-            }
-        };
-        let mut info = StructInfo {
-            name: input.ident.clone(),
-            lsb_zero: false,
-            flip: false,
-            enforcement: StructEnforcement::NoRules,
-            fields: Default::default(),
-            default_endianess: Endianness::None,
-            fill_bits: None,
-            vis: input.vis.clone(),
-        };
-        for attr in input.attrs.iter() {
-            let meta = attr.parse_meta()?;
-            Self::parse_struct_attrs_meta(&mut info, meta)?;
-        }
+    pub fn parse_fields(
+        name: &Ident,
+        fields: &Fields,
+        attrs: &AttrInfo,
+    ) -> syn::Result<Vec<FieldInfo>> {
+        let mut parsed_fields: Vec<FieldInfo> = Vec::default();
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
-        let fields = match data.fields {
+        let fields = match fields {
             syn::Fields::Named(ref named_fields) => named_fields.named.iter().cloned().collect::<Vec<syn::Field>>(),
+            // TODO make sure this works
             syn::Fields::Unnamed(ref fields) => fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>(),
-            syn::Fields::Unit => return Err(Error::new(data.struct_token.span, "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it.")),
+            syn::Fields::Unit => return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it.")),
         };
 
         // figure out what the field are and what/where they should be in byte form.
         let mut bit_size = 0;
         for ref field in fields {
-            let parsed_field = FieldInfo::from_syn_field(field, &info)?;
+            let parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
             bit_size += parsed_field.bit_size();
-            info.fields.push(parsed_field);
+            parsed_fields.push(parsed_field);
         }
 
-        match info.enforcement {
+        match attrs.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
                 if bit_size % 8 != 0 {
                     return Err(syn::Error::new(
-                        info.name.span(),
+                        name.span(),
                         "BIT_SIZE modulus 8 is not zero",
                     ));
                 }
@@ -1069,7 +1146,7 @@ impl StructInfo {
             StructEnforcement::EnforceBitAmount(expected_total_bits) => {
                 if bit_size != expected_total_bits {
                     return Err(syn::Error::new(
-                        info.name.span(),
+                        name.span(),
                         format!(
                             "Bit Enforcement failed because bondrewd detected {} total bits used by defined fields, but the bit enforcement attribute is defined as {} bits.",
                             bit_size, expected_total_bits
@@ -1080,15 +1157,15 @@ impl StructInfo {
         }
 
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        if let Some(fill_bits) = info.fill_bits {
-            let first_bit = if let Some(last_range) = info.fields.iter().last() {
+        if let Some(fill_bits) = attrs.fill_bits {
+            let first_bit = if let Some(last_range) = parsed_fields.iter().last() {
                 last_range.attrs.bit_range.end
             } else {
                 0_usize
             };
             let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
             let ident = quote::format_ident!("bondrewd_fill_bits");
-            info.fields.push(FieldInfo {
+            parsed_fields.push(FieldInfo {
                 name: ident.clone(),
                 ident: Box::new(ident),
                 attrs: FieldAttrs {
@@ -1107,14 +1184,14 @@ impl StructInfo {
             });
         }
 
-        if info.lsb_zero {
-            for ref mut field in info.fields.iter_mut() {
+        if attrs.lsb_zero {
+            for ref mut field in parsed_fields.iter_mut() {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);
             }
-            info.fields.reverse();
+            parsed_fields.reverse();
         }
 
-        Ok(info)
+        Ok(parsed_fields)
     }
 }

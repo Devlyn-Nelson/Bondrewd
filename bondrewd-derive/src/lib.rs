@@ -311,9 +311,8 @@ extern crate proc_macro;
 mod enums;
 use enums::parse::EnumInfo;
 mod structs;
-use structs::common::StructInfo;
-use structs::from_bytes::create_from_bytes_field_quotes;
-use structs::into_bytes::create_into_bytes_field_quotes;
+use structs::into_bytes::create_into_bytes_field_quotes_struct;
+use structs::{common::ObjectInfo, from_bytes::create_from_bytes_field_quotes};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
@@ -1305,7 +1304,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     // parse the input into a StructInfo which contains all the information we
     // along with some helpful structures to generate our Bitfield code.
-    let struct_info = match StructInfo::parse(&input) {
+    let struct_info = match ObjectInfo::parse(&input) {
         Ok(parsed_struct) => parsed_struct,
         Err(err) => {
             return TokenStream::from(err.to_compile_error());
@@ -1314,7 +1313,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // println!("{:?}", struct_info);
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
-    let struct_name = format_ident!("{}", struct_info.name);
+    let struct_name = struct_info.name();
 
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
@@ -1329,7 +1328,13 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     }
     // get a list of all fields into_bytes logic which puts there bytes into an array called
     // output_byte_buffer.
-    let fields_into_bytes = match create_into_bytes_field_quotes(&struct_info, slice_fns) {
+    // TODO remove struct_info unwrap below when enums can be used as a bitfield.
+    let struct_info = if let ObjectInfo::Struct(s) = struct_info {
+        s
+    } else {
+        return TokenStream::from(syn::Error::new(struct_name.span(), "Enum bitfields are not quite done yet.").to_compile_error());
+    };
+    let fields_into_bytes = match create_into_bytes_field_quotes_struct(&struct_info, slice_fns) {
         Ok(ftb) => ftb,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
@@ -1464,7 +1469,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     };
 
     if slice_fns {
-        let vis = struct_info.vis;
+        let vis = struct_info.attrs.vis;
         let checked_ident = format_ident!("{}Checked", &struct_name);
         let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
         let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;

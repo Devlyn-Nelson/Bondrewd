@@ -1,4 +1,3 @@
-
 //! Error types for Bondrewd Functionality which can fail. Base bondrewd with no
 //! features other than derive will have no errors types.
 
@@ -13,7 +12,7 @@ pub struct BitfieldSliceError(
     /// Amount of provided Bytes.
     pub usize,
     /// Amount of expected Bytes.
-    pub usize
+    pub usize,
 );
 
 impl fmt::Display for BitfieldSliceError {
@@ -35,7 +34,7 @@ pub struct BitfieldHexError(
     /// The Invalid character.
     pub char,
     /// The index of the Invalid character.
-    pub usize
+    pub usize,
 );
 
 impl fmt::Display for BitfieldHexError {
