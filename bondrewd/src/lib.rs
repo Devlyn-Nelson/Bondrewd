@@ -22,10 +22,6 @@ pub trait BitfieldEnum {
     fn from_primitive(prim: Self::Primitive) -> Self;
     fn into_primitive(self) -> Self::Primitive;
 }
-pub trait BitfieldEnumComplex<const SIZE: usize> {
-    fn from_bytes(prim: &[u8]) -> Self;
-    fn into_bytes(self) -> [u8; SIZE];
-}
 
 mod error;
 #[cfg(feature = "hex_fns")]
