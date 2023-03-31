@@ -1472,7 +1472,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     };
 
     if slice_fns {
-        let vis = struct_info.attrs.vis;
+        let vis = struct_info.vis;
         let checked_ident = format_ident!("{}Checked", &struct_name);
         let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
         let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;

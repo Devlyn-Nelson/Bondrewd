@@ -5,7 +5,8 @@ use proc_macro2::Span;
 use quote::quote;
 use std::ops::Range;
 use syn::parse::Error;
-use syn::{DeriveInput, Fields, Ident, Lit, Meta, NestedMeta, Type};
+use syn::spanned::Spanned;
+use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, NestedMeta, Type};
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -891,6 +892,12 @@ pub enum StructEnforcement {
 }
 
 #[derive(Clone)]
+pub enum IdPosition {
+    Leading,
+    Trailing,
+}
+
+#[derive(Clone)]
 pub struct AttrInfo {
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
     /// if true then bit 0 is the Least Significant Bit (the last bit in the last byte).
@@ -901,13 +908,27 @@ pub struct AttrInfo {
     pub enforcement: StructEnforcement,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
-    pub vis: syn::Visibility,
+    pub id: Option<u128>,
+}
+
+impl Default for AttrInfo {
+    fn default() -> Self {
+        Self {
+            lsb_zero: false,
+            flip: false,
+            enforcement: StructEnforcement::NoRules,
+            default_endianess: Endianness::None,
+            fill_bits: None,
+            id: None,
+        }
+    }
 }
 
 pub struct StructInfo {
     pub name: Ident,
     pub attrs: AttrInfo,
     pub fields: Vec<FieldInfo>,
+    pub vis: syn::Visibility,
 }
 
 impl StructInfo {
@@ -928,6 +949,38 @@ impl StructInfo {
 pub struct EnumInfo {
     pub name: Ident,
     pub variants: Vec<StructInfo>,
+    attrs: EnumAttrInfo,
+}
+
+#[derive(Clone)]
+pub enum IdType {
+    Undetermined,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+}
+
+impl Default for IdType {
+    fn default() -> Self {
+        Self::Undetermined
+    }
+}
+
+#[derive(Clone)]
+pub struct EnumAttrInfo {
+    pub id_ty: IdType,
+    pub id_position: IdPosition,
+}
+
+impl Default for EnumAttrInfo {
+    fn default() -> Self {
+        Self {
+            id_ty: IdType::default(),
+            id_position: IdPosition::Leading,
+        }
+    }
 }
 
 pub enum ObjectInfo {
@@ -942,42 +995,84 @@ impl ObjectInfo {
             ObjectInfo::Enum(e) => e.name.clone(),
         }
     }
+    fn parse_struct_attrs(attrs: &Vec<Attribute>, attrs_info: &mut AttrInfo) -> syn::Result<()> {
+        for attr in attrs.iter() {
+            let span = attr.pound_token.span();
+            let meta = attr.parse_meta()?;
+            Self::parse_struct_attrs_meta(span, attrs_info, &meta)?;
+            Self::parse_struct_attrs_meta_id(span, attrs_info, &meta)?;
+        }
+        Ok(())
+    }
+
+    fn parse_enum_attrs(
+        attrs: &Vec<Attribute>,
+        attrs_info: &mut AttrInfo,
+        enum_attrs_info: &mut EnumAttrInfo,
+    ) -> syn::Result<()> {
+        for attr in attrs.iter() {
+            let span = attr.pound_token.span();
+            let meta = attr.parse_meta()?;
+            Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, &meta)?;
+        }
+        Ok(())
+    }
+    // Parses the Expression, looking for a literal number expression
+    fn parse_lit_discriminant_expr(input: &Expr) -> syn::Result<u128> {
+        match input {
+            Expr::Lit(ref lit) => match lit.lit {
+                Lit::Int(ref i) => Ok(i.base10_parse()?),
+                _ => Err(syn::Error::new(
+                    input.span(),
+                    "Non-integer literals for custom discriminant are illegal.",
+                )),
+            },
+            _ => Err(syn::Error::new(
+                input.span(),
+                "non-literal expressions for custom discriminant are illegal.",
+            )),
+        }
+    }
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         // get the struct, error out if not a struct
-        let mut attrs = AttrInfo {
-            lsb_zero: false,
-            flip: false,
-            enforcement: StructEnforcement::NoRules,
-            default_endianess: Endianness::None,
-            fill_bits: None,
-            vis: input.vis.clone(),
-        };
-        for attr in input.attrs.iter() {
-            let meta = attr.parse_meta()?;
-            Self::parse_struct_attrs_meta(&input.ident, &mut attrs, meta)?;
-        }
+        let mut attrs = AttrInfo::default();
         let name = input.ident.clone();
         match input.data {
             syn::Data::Struct(ref data) => {
+                Self::parse_struct_attrs(&input.attrs, &mut attrs)?;
                 let fields = Self::parse_fields(&name, &data.fields, &attrs)?;
                 Ok(Self::Struct(StructInfo {
                     name,
                     attrs,
                     fields,
+                    vis: input.vis.clone(),
                 }))
             }
             syn::Data::Enum(ref data) => {
+                let mut enum_attrs = EnumAttrInfo::default();
+                Self::parse_enum_attrs(&input.attrs, &mut attrs, &mut enum_attrs)?;
                 let mut variants: Vec<StructInfo> = Vec::default();
                 for variant in data.variants.iter() {
+                    let mut attrs = attrs.clone();
+                    if let Some((_, ref expr)) = variant.discriminant {
+                        let parsed = Self::parse_lit_discriminant_expr(expr)?;
+                        attrs.id = Some(parsed);
+                    }
+                    Self::parse_struct_attrs(&variant.attrs, &mut attrs)?;
                     let variant_name = variant.ident.clone();
                     let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
                     variants.push(StructInfo {
                         name: variant_name,
-                        attrs: attrs.clone(),
+                        attrs,
                         fields,
+                        vis: input.vis.clone(),
                     });
                 }
-                Ok(Self::Enum(EnumInfo { name, variants }))
+                Ok(Self::Enum(EnumInfo {
+                    name,
+                    variants,
+                    attrs: enum_attrs,
+                }))
             }
             _ => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
@@ -1001,15 +1096,98 @@ impl ObjectInfo {
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
     }
-    fn parse_struct_attrs_meta(
-        name: &Ident,
+    fn parse_enum_attrs_meta(
+        span: Span,
         info: &mut AttrInfo,
-        meta: Meta,
+        enum_info: &mut EnumAttrInfo,
+        meta: &Meta,
     ) -> Result<(), syn::Error> {
         match meta {
-            Meta::NameValue(value) => {
+            Meta::NameValue(_) => {}
+            Meta::Path(value) => {
+                if let Some(ident) = value.get_ident() {
+                    match ident.to_string().as_str() {
+                        "id_tail" => {
+                            enum_info.id_position = IdPosition::Trailing;
+                        }
+                        "id_head" => {
+                            enum_info.id_position = IdPosition::Leading;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Meta::List(meta_list) => {
+                if meta_list.path.is_ident("bondrewd") {
+                    for nested_meta in meta_list.nested.iter() {
+                        match nested_meta {
+                            NestedMeta::Meta(meta) => {
+                                Self::parse_enum_attrs_meta(span, info, enum_info, &meta)?;
+                            }
+                            NestedMeta::Lit(_) => {}
+                        }
+                    }
+                }
+            }
+        }
+        Self::parse_struct_attrs_meta(span, info, &meta)?;
+        Ok(())
+    }
+    fn parse_struct_attrs_meta_id(
+        span: Span,
+        info: &mut AttrInfo,
+        meta: &Meta,
+    ) -> Result<(), syn::Error> {
+        match meta {
+            Meta::NameValue(ref value) => {
+                if value.path.is_ident("id") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<u128>() {
+                            Ok(value) => {
+                                if info.id.is_none() {
+                                    info.id = Some(value);
+                                } else {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("must not have 2 ids defined."),
+                                    ));
+                                }
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing id value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
+            Meta::Path(_value) => {}
+            Meta::List(ref meta_list) => {
+                if meta_list.path.is_ident("bondrewd") {
+                    for nested_meta in meta_list.nested.iter() {
+                        match nested_meta {
+                            NestedMeta::Meta(ref meta) => {
+                                Self::parse_struct_attrs_meta_id(span, info, meta)?;
+                            }
+                            NestedMeta::Lit(_) => {}
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    fn parse_struct_attrs_meta(
+        span: Span,
+        info: &mut AttrInfo,
+        meta: &Meta,
+    ) -> Result<(), syn::Error> {
+        match meta {
+            Meta::NameValue(ref value) => {
                 if value.path.is_ident("read_from") {
-                    if let Lit::Str(val) = value.lit {
+                    if let Lit::Str(ref val) = value.lit {
                         match val.value().as_str() {
                             "lsb0" => info.lsb_zero = true,
                             "msb0" => info.lsb_zero = false,
@@ -1020,7 +1198,7 @@ impl ObjectInfo {
                         }
                     }
                 } else if value.path.is_ident("default_endianness") {
-                    if let Lit::Str(val) = value.lit {
+                    if let Lit::Str(ref val) = value.lit {
                         match val.value().as_str() {
                             "le" | "lsb" | "little" | "lil" => {
                                 info.default_endianess = Endianness::Little
@@ -1031,49 +1209,49 @@ impl ObjectInfo {
                         }
                     }
                 } else if value.path.is_ident("enforce_bytes") {
-                    if let Lit::Int(val) = value.lit {
+                    if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
                                 info.enforcement = StructEnforcement::EnforceBitAmount(value * 8);
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    name.span(),
+                                    span,
                                     format!("failed parsing enforce_bytes value [{}]", err),
                                 ))
                             }
                         }
                     }
                 } else if value.path.is_ident("enforce_bits") {
-                    if let Lit::Int(val) = value.lit {
+                    if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
                                 info.enforcement = StructEnforcement::EnforceBitAmount(value);
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    name.span(),
+                                    span,
                                     format!("failed parsing enforce_bits value [{}]", err),
                                 ))
                             }
                         }
                     }
                 } else if value.path.is_ident("fill_bytes") {
-                    if let Lit::Int(val) = value.lit {
+                    if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
                                 if info.fill_bits.is_none() {
                                     info.fill_bits = Some(value * 8);
                                 } else {
                                     return Err(syn::Error::new(
-                                        name.span(),
+                                        span,
                                         "multiple fill_bits values".to_string(),
                                     ));
                                 }
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    name.span(),
+                                    span,
                                     format!("failed parsing fill_bits value [{}]", err),
                                 ))
                             }
@@ -1081,7 +1259,7 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::Path(value) => {
+            Meta::Path(ref value) => {
                 if let Some(ident) = value.get_ident() {
                     match ident.to_string().as_str() {
                         "reverse" => {
@@ -1094,12 +1272,12 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::List(meta_list) => {
+            Meta::List(ref meta_list) => {
                 if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested {
+                    for nested_meta in meta_list.nested.iter() {
                         match nested_meta {
-                            NestedMeta::Meta(meta) => {
-                                Self::parse_struct_attrs_meta(name, info, meta)?;
+                            NestedMeta::Meta(ref meta) => {
+                                Self::parse_struct_attrs_meta(span, info, meta)?;
                             }
                             NestedMeta::Lit(_) => {}
                         }
