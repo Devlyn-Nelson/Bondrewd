@@ -1332,7 +1332,10 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_info = if let ObjectInfo::Struct(s) = struct_info {
         s
     } else {
-        return TokenStream::from(syn::Error::new(struct_name.span(), "Enum bitfields are not quite done yet.").to_compile_error());
+        return TokenStream::from(
+            syn::Error::new(struct_name.span(), "Enum bitfields are not quite done yet.")
+                .to_compile_error(),
+        );
     };
     let fields_into_bytes = match create_into_bytes_field_quotes_struct(&struct_info, slice_fns) {
         Ok(ftb) => ftb,

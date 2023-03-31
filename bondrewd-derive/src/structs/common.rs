@@ -970,8 +970,7 @@ impl ObjectInfo {
                 let mut variants: Vec<StructInfo> = Vec::default();
                 for variant in data.variants.iter() {
                     let variant_name = variant.ident.clone();
-                    let fields =
-                        Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
+                    let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
                     variants.push(StructInfo {
                         name: variant_name,
                         attrs: attrs.clone(),
