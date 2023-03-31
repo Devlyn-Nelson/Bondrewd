@@ -951,36 +951,31 @@ impl StructInfo {
 pub struct EnumInfo {
     pub name: Ident,
     pub variants: Vec<StructInfo>,
-    attrs: EnumAttrInfo,
+    pub attrs: EnumAttrInfo,
 }
 
 #[derive(Clone)]
-pub enum IdType {
-    Undetermined,
-    U8,
-    U16,
-    U32,
-    U64,
-    U128,
-}
-
-impl Default for IdType {
-    fn default() -> Self {
-        Self::Undetermined
-    }
+pub struct EnumAttrInfoBuilder {
+    pub id_bits: Option<usize>,
+    pub id_position: IdPosition,
+    pub total_bit_size: Option<usize>,
+    pub payload_bit_size: Option<usize>,
 }
 
 #[derive(Clone)]
 pub struct EnumAttrInfo {
-    pub id_ty: IdType,
+    pub id_bits: usize,
     pub id_position: IdPosition,
+    pub payload_bit_size: usize,
 }
 
-impl Default for EnumAttrInfo {
+impl Default for EnumAttrInfoBuilder {
     fn default() -> Self {
         Self {
-            id_ty: IdType::default(),
+            id_bits: None,
             id_position: IdPosition::Leading,
+            total_bit_size: None,
+            payload_bit_size: None,
         }
     }
 }
@@ -997,7 +992,11 @@ impl ObjectInfo {
             ObjectInfo::Enum(e) => e.name.clone(),
         }
     }
-    fn parse_struct_attrs(attrs: &Vec<Attribute>, attrs_info: &mut AttrInfo, is_variant: bool) -> syn::Result<()> {
+    fn parse_struct_attrs(
+        attrs: &Vec<Attribute>,
+        attrs_info: &mut AttrInfo,
+        is_variant: bool,
+    ) -> syn::Result<()> {
         for attr in attrs.iter() {
             let span = attr.pound_token.span();
             let meta = attr.parse_meta()?;
@@ -1009,7 +1008,7 @@ impl ObjectInfo {
     fn parse_enum_attrs(
         attrs: &Vec<Attribute>,
         attrs_info: &mut AttrInfo,
-        enum_attrs_info: &mut EnumAttrInfo,
+        enum_attrs_info: &mut EnumAttrInfoBuilder,
     ) -> syn::Result<()> {
         for attr in attrs.iter() {
             let span = attr.pound_token.span();
@@ -1050,7 +1049,7 @@ impl ObjectInfo {
                 }))
             }
             syn::Data::Enum(ref data) => {
-                let mut enum_attrs = EnumAttrInfo::default();
+                let mut enum_attrs = EnumAttrInfoBuilder::default();
                 Self::parse_enum_attrs(&input.attrs, &mut attrs, &mut enum_attrs)?;
                 let mut variants: Vec<StructInfo> = Vec::default();
                 for variant in data.variants.iter() {
@@ -1073,21 +1072,48 @@ impl ObjectInfo {
                 let mut used_ids: Vec<u128> = Vec::default();
                 let mut unassigned_indices: Vec<usize> = Vec::default();
                 let mut invalid_index: Option<usize> = None;
+                let mut largest = 0;
                 for (i, variant) in variants.iter().enumerate() {
                     if let Some(ref value) = variant.attrs.id {
                         if used_ids.contains(value) {
-                            return Err(Error::new(variant.name.span(), "variant identifier used twice."));
-                        }else{
+                            return Err(Error::new(
+                                variant.name.span(),
+                                "variant identifier used twice.",
+                            ));
+                        } else {
                             used_ids.push(*value);
                         }
-                    }else{
+                    } else {
                         unassigned_indices.push(i);
                     }
                     if variant.attrs.invalid {
                         if invalid_index.is_none() {
                             invalid_index = Some(i);
-                        }else{
-                            return Err(Error::new(variant.name.span(), "second catch invalid variant found. only 1 is currently allowed."));
+                        } else {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                "second catch invalid variant found. only 1 is currently allowed.",
+                            ));
+                        }
+                    }
+                    // verify the size doesn't go over set size.
+                    let size = variant.total_bits();
+                    if largest < size {
+                        largest = size;
+                    }
+                    if let Some(bit_size) = enum_attrs.payload_bit_size {
+                        if bit_size < size {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant is larger than defined size of enum. defined size: {bit_size}. variant size: {size}"),
+                            ));
+                        }
+                    }else if let (Some(bit_size), Some(id_size)) = (enum_attrs.total_bit_size, enum_attrs.id_bits) {
+                        if bit_size - id_size < size {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant is larger than defined size of enum. defined size: {}. variant size: {size}", bit_size - id_size),
+                            ));
                         }
                     }
                 }
@@ -1098,13 +1124,106 @@ impl ObjectInfo {
                             current_guess += 1;
                         }
                         variants[i].attrs.id = Some(current_guess);
-                        current_guess+=1;
+                        used_ids.push(current_guess);
+                        current_guess += 1;
                     }
                 }
                 if let Some(ii) = invalid_index {
                     let var = variants.remove(ii);
                     variants.push(var);
                 }
+                // TODO detect id bit size.
+                let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
+                    (Some(payload), None) =>  {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                payload_bit_size: payload,
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                            }
+                        }else{
+                            used_ids.sort();
+                            if let Some(last_id) = used_ids.last(){
+                                let mut x = last_id.clone();
+                                // find minimal id size from largest id value
+                                let n = 0;
+                                while x != 0 {
+                                    x >>= 1;
+                                    n += 1;
+                                }
+                                EnumAttrInfo {
+                                    payload_bit_size: payload,
+                                    id_bits: n,
+                                    id_position: enum_attrs.id_position,
+                                }
+                            }else{
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("found no variants and could not determine size of id"),
+                                ));
+                            }
+                        }
+                    }
+                    (None, Some(total)) => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                payload_bit_size: total - id,
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                            }
+                        }else{
+                            if largest < total {
+                                let id = total - largest;
+                                EnumAttrInfo {
+                                    payload_bit_size: largest,
+                                    id_bits: id,
+                                    id_position: enum_attrs.id_position,
+                                }
+                            }else{
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("specified total is not smaller than the largest payload size, meaning there is not room the the variant id."),
+                                ));
+                            }
+                        }
+                    }
+                    (Some(payload), Some(total)) =>  {
+                        if let Some(id) = enum_attrs.id_bits {
+                            if payload + id != total {
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("total_size, payload_size, and id_size where all specified but id_size ({id}) + payload_size ({payload}) is not equal to total_size ({total})"),
+                                ));
+                            }
+                            if payload < largest {
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("detected a variant over the maximum defined size."),
+                                ));
+                            }
+                            EnumAttrInfo {
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                payload_bit_size: payload,
+                            }
+                        }else{
+                            // TODO use total - payload for id size, then check that the maximum id value
+                            // does not require more than that.
+                        }
+                    }
+                    _ => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                payload_bit_size: largest,
+                            }
+                        }else{
+                            // TODO nothing is defined and all must be calculated.
+                        }
+                    }
+                };
+                
                 Ok(Self::Enum(EnumInfo {
                     name,
                     variants,
@@ -1136,11 +1255,93 @@ impl ObjectInfo {
     fn parse_enum_attrs_meta(
         span: Span,
         info: &mut AttrInfo,
-        enum_info: &mut EnumAttrInfo,
+        enum_info: &mut EnumAttrInfoBuilder,
         meta: &Meta,
     ) -> Result<(), syn::Error> {
         match meta {
-            Meta::NameValue(_) => {}
+            Meta::NameValue(value) => {
+                if value.path.is_ident("id_bits") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if value <= 128 {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("Maximum id bits is 128."),
+                                    ));
+                                }
+                                enum_info.id_bits = Some(value);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing id_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("id_bytes") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if value <= 16 {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("Maximum id bytes is 16."),
+                                    ));
+                                }
+                                enum_info.id_bits = Some(value * 8);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing id_bytes value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("payload_bits") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if value <= 128 {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("Maximum payload bits is 128."),
+                                    ));
+                                }
+                                enum_info.payload_bit_size = Some(value);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing payload_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("payload_bytes") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if value <= 16 {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("Maximum payload bytes is 16."),
+                                    ));
+                                }
+                                enum_info.payload_bit_size = Some(value * 8);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing payload_bytes value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                }
+            }
             Meta::Path(value) => {
                 if let Some(ident) = value.get_ident() {
                     match ident.to_string().as_str() {
@@ -1168,6 +1369,10 @@ impl ObjectInfo {
             }
         }
         Self::parse_struct_attrs_meta(span, info, &meta, false)?;
+        if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
+            enum_info.total_bit_size = Some(bits);
+            info.enforcement = StructEnforcement::NoRules;
+        }
         Ok(())
     }
     fn parse_struct_attrs_meta(
