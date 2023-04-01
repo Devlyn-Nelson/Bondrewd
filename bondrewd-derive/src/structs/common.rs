@@ -1132,7 +1132,23 @@ impl ObjectInfo {
                     let var = variants.remove(ii);
                     variants.push(var);
                 }
-                // TODO detect id bit size.
+                // find minimal id size from largest id value
+                used_ids.sort();
+                let min_id_size = if let Some(last_id) = used_ids.last(){
+                    let mut x = last_id.clone();
+                    // find minimal id size from largest id value
+                    let n = 0;
+                    while x != 0 {
+                        x >>= 1;
+                        n += 1;
+                    }
+                    n
+                }else{
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("found no variants and could not determine size of id"),
+                    ));
+                };
                 let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
                     (Some(payload), None) =>  {
                         if let Some(id) = enum_attrs.id_bits {
@@ -1142,25 +1158,10 @@ impl ObjectInfo {
                                 id_position: enum_attrs.id_position,
                             }
                         }else{
-                            used_ids.sort();
-                            if let Some(last_id) = used_ids.last(){
-                                let mut x = last_id.clone();
-                                // find minimal id size from largest id value
-                                let n = 0;
-                                while x != 0 {
-                                    x >>= 1;
-                                    n += 1;
-                                }
-                                EnumAttrInfo {
-                                    payload_bit_size: payload,
-                                    id_bits: n,
-                                    id_position: enum_attrs.id_position,
-                                }
-                            }else{
-                                return Err(Error::new(
-                                    data.enum_token.span(),
-                                    format!("found no variants and could not determine size of id"),
-                                ));
+                            EnumAttrInfo {
+                                payload_bit_size: payload,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
                             }
                         }
                     }
@@ -1207,8 +1208,11 @@ impl ObjectInfo {
                                 payload_bit_size: payload,
                             }
                         }else{
-                            // TODO use total - payload for id size, then check that the maximum id value
-                            // does not require more than that.
+                            EnumAttrInfo {
+                                payload_bit_size: largest,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
+                            }
                         }
                     }
                     _ => {
@@ -1219,11 +1223,26 @@ impl ObjectInfo {
                                 payload_bit_size: largest,
                             }
                         }else{
-                            // TODO nothing is defined and all must be calculated.
+                            EnumAttrInfo {
+                                payload_bit_size: largest,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
+                            }
                         }
                     }
                 };
-                
+                if enum_attrs.id_bits < min_id_size {
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("the bit size being used is less than required"),
+                    ));
+                }
+                if enum_attrs.payload_bit_size < largest {
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("the payload size being used is less than largest variant"),
+                    ));
+                }
                 Ok(Self::Enum(EnumInfo {
                     name,
                     variants,
