@@ -62,8 +62,7 @@ pub fn create_into_bytes_field_quotes_enum(info: &EnumInfo, set_slice: bool) -> 
     // all quote with all of the set functions appended to it.
     let mut set_fns_quote = quote! {};
     let mut set_slice_fns_option = None;
-    let last_variant = info.variants.len() - 1;
-    for (i, variant) in info.variants.iter().enumerate() {
+    for variant in info.variants.iter() {
         // all of the fields setting will be appended to this
         let mut into_bytes_quote = quote! {};
         // TODO make sure this doesn't get lost.
@@ -125,10 +124,8 @@ pub fn create_into_bytes_field_quotes_enum(info: &EnumInfo, set_slice: bool) -> 
                 std::mem::swap(unchecked, &mut unchecked_temp);
             }
         }
-        let variant_name = if i == last_variant {quote!("_")} else{ 
-            let v_name = &variant.name;
-            quote!{v_name}
-        };
+        let v_name = &variant.name;
+        let variant_name = quote!{#v_name};
         let variant_size = &variant.total_bytes();
         // construct from bytes function. use input_byte_buffer as input name because,
         // that is what the field quotes expect to extract from.
@@ -137,31 +134,35 @@ pub fn create_into_bytes_field_quotes_enum(info: &EnumInfo, set_slice: bool) -> 
         // name as its destination field the list of field names will be just fine.
         let indexing = match info.attrs.id_position {
             super::common::IdPosition::Leading => {
-                let start = info.attrs.id_bits;
-                quote!{#start..}
+                let mut start = info.attrs.id_bits / 8;
+                if info.attrs.id_bits % 8 != 0 {
+                    start += 1;
+                }
+                let end = start + variant_size;
+                quote!{#start..#end}
             }
             super::common::IdPosition::Trailing => {
-                let mut end = info.attrs.payload_bit_size / 8;
-                if info.attrs.payload_bit_size % 8 != 0 {
-                    end += 1;
-                }
-                quote!{..#end}
+                quote!{..#variant_size}
             }
         };
         into_bytes_fn = quote! {
-            #variant_name { #field_name_list } => {
+            #into_bytes_fn
+            Self::#variant_name { #field_name_list } => {
                 let mut output_byte_buffer = enum_output_byte_buffer[#indexing];
-                #field_setter
+                #into_bytes_quote
             }
-            #into_bytes_quote
         };
     }
     // TODO correct size and add match statement
-    // let into_bytes_fn = quote! {
-    //     let mut enum_output_byte_buffer = [0u8;#struct_size];
-    //     #into_bytes_quote
-    //     output_byte_buffer
-    // };
+    let struct_size = info.total_bytes();
+    let into_bytes_fn = quote! {
+        let mut enum_output_byte_buffer = [0u8;#struct_size];
+        match self {
+            #into_bytes_fn
+        }
+        output_byte_buffer
+    };
+    println!("-- [{into_bytes_fn}]");
     Ok(())
 }
 

@@ -311,7 +311,7 @@ extern crate proc_macro;
 mod enums;
 use enums::parse::EnumInfo;
 mod structs;
-use structs::into_bytes::create_into_bytes_field_quotes_struct;
+use structs::into_bytes::{create_into_bytes_field_quotes_struct, create_into_bytes_field_quotes_enum};
 use structs::{common::ObjectInfo, from_bytes::create_from_bytes_field_quotes};
 
 use proc_macro::TokenStream;
@@ -1329,14 +1329,22 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // get a list of all fields into_bytes logic which puts there bytes into an array called
     // output_byte_buffer.
     // TODO remove struct_info unwrap below when enums can be used as a bitfield.
-    let struct_info = if let ObjectInfo::Struct(s) = struct_info {
-        s
-    } else {
-        return TokenStream::from(
-            syn::Error::new(struct_name.span(), "Enum bitfields are not quite done yet.")
-                .to_compile_error(),
-        );
+    let struct_info = match struct_info {
+        ObjectInfo::Struct(s) => s,
+        ObjectInfo::Enum(e) => {
+            create_into_bytes_field_quotes_enum(&e, slice_fns);
+            e.variants[0].clone()
+        }
     };
+    // if let ObjectInfo::Struct(s) = struct_info {
+    //     s
+    // } else {
+
+    //     return TokenStream::from(
+    //         syn::Error::new(struct_name.span(), "Enum bitfields are not quite done yet.")
+    //             .to_compile_error(),
+    //     );
+    // };
     let fields_into_bytes = match create_into_bytes_field_quotes_struct(&struct_info, slice_fns) {
         Ok(ftb) => ftb,
         Err(err) => return TokenStream::from(err.to_compile_error()),

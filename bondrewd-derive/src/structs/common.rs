@@ -921,11 +921,12 @@ impl Default for AttrInfo {
             default_endianess: Endianness::None,
             fill_bits: None,
             id: None,
-            invalid: true,
+            invalid: false,
         }
     }
 }
 
+#[derive(Clone)]
 pub struct StructInfo {
     pub name: Ident,
     pub attrs: AttrInfo,
@@ -954,6 +955,22 @@ pub struct EnumInfo {
     pub attrs: EnumAttrInfo,
 }
 
+impl EnumInfo {
+    pub fn total_bits(&self) -> usize {
+        let mut total = self.variants[0].total_bits();
+        for variant in self.variants.iter().skip(1) {
+            let t = variant.total_bits();
+            if t > total {
+                total = t;
+            }
+        }
+        total
+    }
+    pub fn total_bytes(&self) -> usize {
+        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+}
+
 #[derive(Clone)]
 pub struct EnumAttrInfoBuilder {
     pub id_bits: Option<usize>,
@@ -966,6 +983,12 @@ pub struct EnumAttrInfoBuilder {
 pub struct EnumAttrInfo {
     pub id_bits: usize,
     pub id_position: IdPosition,
+    // TODO we should add an option of where to but the fill bytes. currently the generative code will always
+    // have the "useful" data proceeding each other then filler. maybe someone will want id -> fill -> variant_data
+    /// The Full size of the enum. while we allow variants to be take differing sizes, the 
+    /// enum will always use the full size, filling unused space with a pattern
+    /// of bytes. `payload_bit_size` is simply the largest variant's size and 
+    /// therefore the total bytes used by the enum regardless of differing sized variants.
     pub payload_bit_size: usize,
 }
 
@@ -1117,7 +1140,7 @@ impl ObjectInfo {
                         }
                     }
                 }
-                if unassigned_indices.is_empty() {
+                if !unassigned_indices.is_empty() {
                     let mut current_guess: u128 = 0;
                     for i in unassigned_indices {
                         while used_ids.contains(&current_guess) {
@@ -1137,7 +1160,7 @@ impl ObjectInfo {
                 let min_id_size = if let Some(last_id) = used_ids.last(){
                     let mut x = last_id.clone();
                     // find minimal id size from largest id value
-                    let n = 0;
+                    let mut n = 0;
                     while x != 0 {
                         x >>= 1;
                         n += 1;
@@ -1255,16 +1278,7 @@ impl ObjectInfo {
     pub fn total_bits(&self) -> usize {
         match self {
             Self::Struct(s) => s.total_bits(),
-            Self::Enum(info) => {
-                let mut total = info.variants[0].total_bits();
-                for variant in info.variants.iter().skip(1) {
-                    let t = variant.total_bits();
-                    if t > total {
-                        total = t;
-                    }
-                }
-                total
-            }
+            Self::Enum(info) => info.total_bits(),
         }
     }
 

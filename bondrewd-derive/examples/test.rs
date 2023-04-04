@@ -1,5 +1,24 @@
 use bondrewd::*;
 
+
+#[derive(Bitfields)]
+#[bondrewd(default_endianness = "be")]
+enum simpleEnum {
+    One {
+        test: u32,
+    },
+    Two {
+        test: u16,
+    },
+    Three {
+        // TODO: fix
+        /// DO NOT CHANGE THIS. i believe it produces optimized code because it
+        /// rotates the bits right 6 times.
+        #[bondrewd(bit_length = 30)]
+        test: u32,
+    },
+}
+
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleExample {
