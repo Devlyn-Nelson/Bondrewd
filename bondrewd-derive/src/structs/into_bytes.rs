@@ -145,6 +145,8 @@ pub fn create_into_bytes_field_quotes_enum(info: &EnumInfo, set_slice: bool) -> 
                 quote!{..#variant_size}
             }
         };
+        // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
+        // into_bytes we also need to make sure that the write function is actually being made.
         into_bytes_fn = quote! {
             #into_bytes_fn
             Self::#variant_name { #field_name_list } => {
