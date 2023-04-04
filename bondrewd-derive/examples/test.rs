@@ -1,6 +1,8 @@
 use bondrewd::*;
 
-
+// TODO add the ability to mark a field in the variants as the id which will contain the value the id and
+// be ignored as a field of the struct.
+// TODO add a functions that get and set the id.
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 enum simpleEnum {
@@ -9,6 +11,7 @@ enum simpleEnum {
     },
     Two {
         test: u16,
+        test_two: u8,
     },
     Three {
         // TODO: fix

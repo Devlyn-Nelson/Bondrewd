@@ -964,7 +964,7 @@ impl EnumInfo {
                 total = t;
             }
         }
-        total
+        total + self.attrs.id_bits
     }
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
@@ -985,9 +985,9 @@ pub struct EnumAttrInfo {
     pub id_position: IdPosition,
     // TODO we should add an option of where to but the fill bytes. currently the generative code will always
     // have the "useful" data proceeding each other then filler. maybe someone will want id -> fill -> variant_data
-    /// The Full size of the enum. while we allow variants to be take differing sizes, the 
+    /// The Full size of the enum. while we allow variants to be take differing sizes, the
     /// enum will always use the full size, filling unused space with a pattern
-    /// of bytes. `payload_bit_size` is simply the largest variant's size and 
+    /// of bytes. `payload_bit_size` is simply the largest variant's size and
     /// therefore the total bytes used by the enum regardless of differing sized variants.
     pub payload_bit_size: usize,
 }
@@ -1131,7 +1131,9 @@ impl ObjectInfo {
                                 format!("variant is larger than defined size of enum. defined size: {bit_size}. variant size: {size}"),
                             ));
                         }
-                    }else if let (Some(bit_size), Some(id_size)) = (enum_attrs.total_bit_size, enum_attrs.id_bits) {
+                    } else if let (Some(bit_size), Some(id_size)) =
+                        (enum_attrs.total_bit_size, enum_attrs.id_bits)
+                    {
                         if bit_size - id_size < size {
                             return Err(Error::new(
                                 variant.name.span(),
@@ -1157,7 +1159,7 @@ impl ObjectInfo {
                 }
                 // find minimal id size from largest id value
                 used_ids.sort();
-                let min_id_size = if let Some(last_id) = used_ids.last(){
+                let min_id_size = if let Some(last_id) = used_ids.last() {
                     let mut x = last_id.clone();
                     // find minimal id size from largest id value
                     let mut n = 0;
@@ -1166,21 +1168,21 @@ impl ObjectInfo {
                         n += 1;
                     }
                     n
-                }else{
+                } else {
                     return Err(Error::new(
                         data.enum_token.span(),
                         format!("found no variants and could not determine size of id"),
                     ));
                 };
                 let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
-                    (Some(payload), None) =>  {
+                    (Some(payload), None) => {
                         if let Some(id) = enum_attrs.id_bits {
                             EnumAttrInfo {
                                 payload_bit_size: payload,
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
                             }
-                        }else{
+                        } else {
                             EnumAttrInfo {
                                 payload_bit_size: payload,
                                 id_bits: min_id_size,
@@ -1195,7 +1197,7 @@ impl ObjectInfo {
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
                             }
-                        }else{
+                        } else {
                             if largest < total {
                                 let id = total - largest;
                                 EnumAttrInfo {
@@ -1203,7 +1205,7 @@ impl ObjectInfo {
                                     id_bits: id,
                                     id_position: enum_attrs.id_position,
                                 }
-                            }else{
+                            } else {
                                 return Err(Error::new(
                                     data.enum_token.span(),
                                     format!("specified total is not smaller than the largest payload size, meaning there is not room the the variant id."),
@@ -1211,7 +1213,7 @@ impl ObjectInfo {
                             }
                         }
                     }
-                    (Some(payload), Some(total)) =>  {
+                    (Some(payload), Some(total)) => {
                         if let Some(id) = enum_attrs.id_bits {
                             if payload + id != total {
                                 return Err(Error::new(
@@ -1230,7 +1232,7 @@ impl ObjectInfo {
                                 id_position: enum_attrs.id_position,
                                 payload_bit_size: payload,
                             }
-                        }else{
+                        } else {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
@@ -1245,7 +1247,7 @@ impl ObjectInfo {
                                 id_position: enum_attrs.id_position,
                                 payload_bit_size: largest,
                             }
-                        }else{
+                        } else {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
