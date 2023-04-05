@@ -161,25 +161,11 @@ pub fn create_into_bytes_field_quotes_enum(
     let total_size = info.total_bytes();
     for variant in info.variants.iter() {
         let prefix = format_ident!("{}", variant.name.to_string().to_case(Case::Snake));
-        // println!("***** {prefix}");
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
-        let variant_size = &variant.total_bytes();
-        let indexing = match info.attrs.id_position {
-            super::common::IdPosition::Leading => {
-                let mut start = info.attrs.id_bits / 8;
-                if info.attrs.id_bits % 8 != 0 {
-                    start += 1;
-                }
-                let end = start + variant_size;
-                quote! {#start..#end}
-            }
-            super::common::IdPosition::Trailing => {
-                quote! {..#variant_size}
-            }
-        };
+        let indexing = info.get_indexing();
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
             let thing =
                 create_fields_quotes(&variant, Some((&prefix, &indexing, total_size)), set_slice)?;
@@ -222,7 +208,7 @@ pub fn create_into_bytes_field_quotes_enum(
         into_bytes_fn = quote! {
             #into_bytes_fn
             Self::#variant_name { #field_name_list } => {
-                let mut output_byte_buffer = enum_output_byte_buffer[#indexing];
+                let mut output_byte_buffer = &mut enum_output_byte_buffer[#indexing];
                 #into_bytes_quote
             }
         };
@@ -385,17 +371,18 @@ fn make_set_fn(
     // (prefix_ident, buffer_index_ident, max_bytes)
     prefix: Option<(&Ident, &TokenStream, usize)>,
 ) -> syn::Result<TokenStream> {
-    let mut field_name = field.ident.as_ref().clone();
-    let (offset, struct_size) = if let Some((p, i, size)) = prefix {
-        field_name = format_ident!("{p}_{field_name}");
+    let field_name_short = field.ident.as_ref().clone();
+    let (offset, struct_size, field_name) = if let Some((p, i, size)) = prefix {
+        
         (
             quote! {
                 let output_byte_buffer = output_byte_buffer[#i];
             },
             size,
+            format_ident!("{p}_{field_name_short}")
         )
     } else {
-        (quote! {}, info.total_bytes())
+        (quote! {}, info.total_bytes(), field_name_short.clone())
     };
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
@@ -405,7 +392,7 @@ fn make_set_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name: #type_ident) {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
             #offset
             #clear_quote
             #field_quote

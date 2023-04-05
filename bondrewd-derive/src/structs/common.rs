@@ -1,7 +1,7 @@
 use crate::structs::parse::{
     FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
 };
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use std::ops::Range;
 use syn::parse::Error;
@@ -968,6 +968,23 @@ impl EnumInfo {
     }
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+
+    pub fn get_indexing(&self) -> TokenStream {
+        match self.attrs.id_position {
+            super::common::IdPosition::Leading => {
+                let mut start = self.attrs.id_bits / 8;
+                if self.attrs.id_bits % 8 != 0 {
+                    start += 1;
+                }
+                let end = start + self.total_bytes();
+                quote! {#start..#end}
+            }
+            super::common::IdPosition::Trailing => {
+                let variant_size = self.total_bytes();
+                quote! {..#variant_size}
+            }
+        }
     }
 }
 

@@ -1,14 +1,15 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, str::FromStr};
 
-use crate::structs::common::{
+use crate::{structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
     FieldDataType, FieldInfo, StructInfo,
-};
+}};
 
+use convert_case::{Case, Casing};
 use proc_macro2::{TokenStream, Ident};
 use quote::{format_ident, quote};
 
-use super::common::NumberSignage;
+use super::common::{NumberSignage, EnumInfo};
 
 pub struct FromBytesOptions {
     pub from_bytes_fn: TokenStream,
@@ -18,11 +19,10 @@ pub struct FromBytesOptions {
 }
 
 struct FieldQuotes {
-    // field_name_list: TokenStream,
+    field_name_list: TokenStream,
     from_bytes_quote: TokenStream,
     peek_fns_quote: TokenStream,
     peek_slice_fns_option: Option<(TokenStream, TokenStream)>,
-    from_bytes_struct_quote: TokenStream,
 }
 
 fn create_fields_quotes(
@@ -30,8 +30,7 @@ fn create_fields_quotes(
     enum_name: Option<(&Ident, &TokenStream, usize)>,
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
-    // make a quote which is a list of the fields separated by a comma then a newline
-    let mut from_bytes_struct_quote = quote! {};
+    let mut field_name_list = quote! {};
     // all of the fields extraction will be appended to this
     let mut from_bytes_quote = quote! {};
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
@@ -72,7 +71,12 @@ fn create_fields_quotes(
             continue;
         }
         let field_name = &field.ident;
-        let peek_name = format_ident!("read_{}", field_name.as_ref());
+        field_name_list = quote! {#field_name_list #field_name,};
+        // let peek_name = if let Some((prefix, _, _)) = enum_name {
+        //     format_ident!("read_{prefix}_{}", field_name.as_ref())
+        // } else{
+        //     format_ident!("read_{}", field_name.as_ref())
+        // };
         let field_extractor = get_field_quote(
             field,
             if info.attrs.flip {
@@ -81,8 +85,11 @@ fn create_fields_quotes(
                 None
             },
         )?;
+        
         let peek_call = if field.attrs.reserve.read_field() {
-            quote! {Self::#peek_name(&input_byte_buffer)}
+            quote! {
+                #field_extractor
+            }
         } else {
             quote! { Default::default() }
         };
@@ -90,12 +97,8 @@ fn create_fields_quotes(
             #from_bytes_quote
             let #field_name = #peek_call;
         };
-        from_bytes_struct_quote = quote! {
-            #from_bytes_struct_quote
-            #field_name,
-        };
 
-        let peek_quote = make_peek_fn(&field_extractor, field, info, None)?;
+        let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name.clone())?;
         peek_fns_quote = quote! {
             #peek_fns_quote
             #peek_quote
@@ -104,9 +107,9 @@ fn create_fields_quotes(
         if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
             peek_slice_fns_option
         {
-            let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, None)?;
+            let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, enum_name.map(|(a,b,_) | (a,b)))?;
             let peek_slice_unchecked_quote =
-                make_peek_slice_unchecked_fn(&field_extractor, field, info, None)?;
+                make_peek_slice_unchecked_fn(&field_extractor, field, info, enum_name.map(|(a,b,_) | (a,b)))?;
             let mut the_peek_slice_fns_quote_temp = quote! {
                 #the_peek_slice_fns_quote
                 #peek_slice_quote
@@ -119,7 +122,111 @@ fn create_fields_quotes(
             std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
         }
     }
-    Ok(FieldQuotes { from_bytes_quote, peek_fns_quote, peek_slice_fns_option, from_bytes_struct_quote })
+    Ok(FieldQuotes { field_name_list, from_bytes_quote, peek_fns_quote, peek_slice_fns_option })
+}
+
+pub fn create_from_bytes_field_quotes_enum(
+    info: &EnumInfo,
+    peek_slice: bool,
+) -> Result<FromBytesOptions, syn::Error> {
+    let mut from_bytes_fn: TokenStream = quote! {};
+    let (mut peek_fns_quote, mut peek_slice_fns_option) = {
+        (quote!{}, None)
+    };
+    let struct_size = info.total_bytes();
+    for variant in info.variants.iter() {
+        let prefix = format_ident!("{}", variant.name.to_string().to_case(Case::Snake));
+        // this is the slice indexing that will fool the set function code into thinking
+        // it is looking at a smaller array.
+        let v_name = &variant.name;
+        let variant_name = quote! {#v_name};
+        let indexing = info.get_indexing();
+        let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
+            let thing = create_fields_quotes(&variant,Some((&prefix, &indexing, struct_size)),peek_slice)?;
+            (thing.field_name_list, thing.peek_fns_quote, thing.from_bytes_quote, thing.peek_slice_fns_option)
+        };
+        if let (
+            Some((mut peek_slice_fns_quote_temp, mut unchecked_temp)),
+            Some((peek_slice_fns_quote, unchecked)),
+        ) = (peek_slice_fns_option_temp, peek_slice_fns_option.as_mut())
+        {
+            peek_slice_fns_quote_temp = quote! {
+                #peek_slice_fns_quote
+                #peek_slice_fns_quote_temp
+            };
+            unchecked_temp = quote! {
+                #unchecked
+                #unchecked_temp
+            };
+            std::mem::swap(peek_slice_fns_quote, &mut peek_slice_fns_quote_temp);
+            std::mem::swap(unchecked, &mut unchecked_temp);
+        }
+        peek_fns_quote = quote!{
+            #peek_fns_quote
+            #peek_fns_quote_temp
+        };
+        // make setter for each field.
+        // construct from bytes function. use input_byte_buffer as input name because,
+        // that is what the field quotes expect to extract from.
+        // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+        // because all of the from_bytes field quote store there data in a temporary variable with the same
+        // name as its destination field the list of field names will be just fine.
+
+        // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
+        // into_bytes we also need to make sure that the write function is actually being made.
+        let variant_id = if let Some(id) = variant.attrs.id {
+            if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                yes
+            }else{
+                return Err(syn::Error::new(
+                    variant.name.span(),
+                    "failed to construct id, this is a bug in bondrewd.",
+                ));
+            }
+        }else{
+            return Err(syn::Error::new(
+                variant.name.span(),
+                "failed to find id for variant, this is a bug in bondrewd.",
+            ));
+        };
+        from_bytes_fn = quote! {
+            #from_bytes_fn
+            #variant_id => {
+                let input_byte_buffer = &enum_input_byte_buffer[#indexing];
+                #from_bytes_quote
+                Self::#variant_name { #field_name_list }
+            }
+        };
+    }
+    // TODO write the read_id and write_id functions.
+    // construct from bytes function. use input_byte_buffer as input name because,
+    // that is what the field quotes expect to extract from.
+    // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+    // because all of the from_bytes field quote store there data in a temporary variable with the same
+    // name as its destination field the list of field names will be just fine.
+    let from_bytes_fn = quote! {
+        fn from_bytes(mut enum_input_byte_buffer: [u8;#struct_size]) -> Self {
+            let id = Self::read_id(&enum_input_byte_buffer);
+            match id {
+                #from_bytes_fn
+            }
+        }
+    };
+    if let Some((peek_slice_field_fns, peek_slice_field_unchecked_fns)) = peek_slice_fns_option {
+        Ok(FromBytesOptions {
+            from_bytes_fn,
+            peek_field_fns: peek_fns_quote,
+            peek_slice_field_fns: Some(peek_slice_field_fns),
+            peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
+        })
+    } else {
+        Ok(FromBytesOptions {
+            from_bytes_fn,
+            peek_field_fns: peek_fns_quote,
+            peek_slice_field_fns: None,
+            peek_slice_field_unchecked_fns: None,
+        })
+    }
 }
 
 pub fn create_from_bytes_field_quotes(
@@ -128,7 +235,7 @@ pub fn create_from_bytes_field_quotes(
 ) -> Result<FromBytesOptions, syn::Error> {
     let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option) = {
         let thing = create_fields_quotes(info,None,peek_slice)?;
-        (thing.peek_fns_quote, thing.from_bytes_struct_quote, thing.from_bytes_quote, thing.peek_slice_fns_option)
+        (thing.peek_fns_quote, thing.field_name_list, thing.from_bytes_quote, thing.peek_slice_fns_option)
     };
     
     let struct_size = &info.total_bytes();
