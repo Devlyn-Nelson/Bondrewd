@@ -192,7 +192,7 @@ pub fn create_into_bytes_field_quotes_enum(
             std::mem::swap(set_slice_fns_quote, &mut set_slice_fns_quote_temp);
             std::mem::swap(unchecked, &mut unchecked_temp);
         }
-        set_fns_quote = quote!{
+        set_fns_quote = quote! {
             #set_fns_quote
             #set_fns_quote_temp
         };
@@ -245,8 +245,7 @@ pub fn create_into_bytes_field_quotes_struct(
     set_slice: bool,
 ) -> Result<IntoBytesOptions, syn::Error> {
     let (into_bytes_quote, set_fns_quote, set_slice_fns_option) = {
-        let thing =
-            create_fields_quotes(&info, None, set_slice)?;
+        let thing = create_fields_quotes(&info, None, set_slice)?;
         (
             thing.into_bytes_quote,
             thing.set_fns_quote,
@@ -295,7 +294,7 @@ fn make_set_slice_fn(
     let offset = if let Some((p, i)) = prefix {
         field_name = format_ident!("{p}_{field_name}");
         quote! {
-            let output_byte_buffer = output_byte_buffer[#i];
+            let output_byte_buffer = &mut output_byte_buffer[#i];
         }
     } else {
         quote! {}
@@ -373,13 +372,12 @@ fn make_set_fn(
 ) -> syn::Result<TokenStream> {
     let field_name_short = field.ident.as_ref().clone();
     let (offset, struct_size, field_name) = if let Some((p, i, size)) = prefix {
-        
         (
             quote! {
-                let output_byte_buffer = output_byte_buffer[#i];
+                let output_byte_buffer = &mut output_byte_buffer[#i];
             },
             size,
-            format_ident!("{p}_{field_name_short}")
+            format_ident!("{p}_{field_name_short}"),
         )
     } else {
         (quote! {}, info.total_bytes(), field_name_short.clone())

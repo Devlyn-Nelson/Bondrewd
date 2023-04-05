@@ -1524,11 +1524,10 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes =
-                match create_from_bytes_field_quotes_enum(&e, slice_fns) {
-                    Ok(ffb) => ffb,
-                    Err(err) => return TokenStream::from(err.to_compile_error()),
-                };
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&e, slice_fns) {
+                Ok(ffb) => ffb,
+                Err(err) => return TokenStream::from(err.to_compile_error()),
+            };
             // println!("-- {}", fields_from_bytes.peek_field_fns);
             // combine all of the into_bytes quotes separated by newlines
             let into_bytes_quote = fields_into_bytes.into_bytes_fn;

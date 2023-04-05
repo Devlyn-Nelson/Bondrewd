@@ -2,12 +2,13 @@ use std::{cmp::Ordering, str::FromStr};
 
 use crate::{structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
-    FieldDataType, FieldInfo, StructInfo,
+    FieldDataType, FieldInfo, StructInfo, FieldAttrs, ReserveFieldOption, OverlapOptions,
 }};
 
 use convert_case::{Case, Casing};
 use proc_macro2::{TokenStream, Ident};
 use quote::{format_ident, quote};
+use syn::{VisPublic, token::Pub};
 
 use super::common::{NumberSignage, EnumInfo};
 
@@ -27,9 +28,11 @@ struct FieldQuotes {
 
 fn create_fields_quotes(
     info: &StructInfo,
+    // (enum_ident, indexing quote, total_bytes, id_bits)
     enum_name: Option<(&Ident, &TokenStream, usize)>,
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
+    // TODO update generated docs because they do not account for the offsets in the indexing for id.
     let mut field_name_list = quote! {};
     // all of the fields extraction will be appended to this
     let mut from_bytes_quote = quote! {};
@@ -131,10 +134,67 @@ pub fn create_from_bytes_field_quotes_enum(
 ) -> Result<FromBytesOptions, syn::Error> {
     let mut from_bytes_fn: TokenStream = quote! {};
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
-        (quote!{}, None)
+        (
+            {
+                // TODO maybe remove this and add a fake field for the id into each variant during parse.
+                let field = FieldInfo {
+                    name: format_ident!("id"),
+                    ident: Box::new(format_ident!("id")),
+                    ty: FieldDataType::Number(info.attrs.id_bits, NumberSignage::Unsigned, match info.attrs.id_bits {
+                        0..=8 => quote!{u8},
+                        9..=16 => quote!{u16},
+                        17..=32 => quote!{u32},
+                        33..=64 => quote!{u64},
+                        65..=128 => quote!{u128},
+                        _ => {
+                            return Err(syn::Error::new(
+                                info.name.span(),
+                                "id size is invalid",
+                            ));
+                        }
+                    }),
+                    attrs: FieldAttrs {
+                        endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
+                        bit_range: 0..info.attrs.id_bits,
+                        reserve: ReserveFieldOption::NotReserve,
+                        overlap: OverlapOptions::None,
+                    },
+                };
+                    let flip = false;
+                let field_extractor = get_field_quote(
+                    &field,
+                    if flip {
+                        // condition use to be `info.attrs.flip` i think this only applies to the variants
+                        // and id_position is what is used here. but it should be done none the less.
+                        Some(info.total_bytes() - 1)
+                    } else {
+                        None
+                    },
+                )?;
+                let attrs = info.attrs.attrs.clone();
+                let mut fields= vec![field.clone()];
+                fields[0].attrs.bit_range = 0..info.total_bits();
+                let id_field = make_peek_fn(
+                    &field_extractor,
+                    &field,
+                    &StructInfo {
+                        name: info.name.clone(),
+                        attrs,
+                        fields,
+                        vis: syn::Visibility::Public(VisPublic { pub_token: Pub::default() }),
+                    },
+                    None
+                )?;
+                quote! {
+                    #id_field
+                }
+            },
+            None
+        )
     };
     let struct_size = info.total_bytes();
-    for variant in info.variants.iter() {
+    let last_variant = info.variants.len() - 1;
+    for (i, variant) in info.variants.iter().enumerate() {
         let prefix = format_ident!("{}", variant.name.to_string().to_case(Case::Snake));
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
@@ -174,20 +234,24 @@ pub fn create_from_bytes_field_quotes_enum(
 
         // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
         // into_bytes we also need to make sure that the write function is actually being made.
-        let variant_id = if let Some(id) = variant.attrs.id {
-            if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
-                yes
+        let variant_id = if i == last_variant{
+            quote!{_}
+        } else{
+            if let Some(id) = variant.attrs.id {
+                if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                    yes
+                }else{
+                    return Err(syn::Error::new(
+                        variant.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
             }else{
                 return Err(syn::Error::new(
                     variant.name.span(),
-                    "failed to construct id, this is a bug in bondrewd.",
+                    "failed to find id for variant, this is a bug in bondrewd.",
                 ));
             }
-        }else{
-            return Err(syn::Error::new(
-                variant.name.span(),
-                "failed to find id for variant, this is a bug in bondrewd.",
-            ));
         };
         from_bytes_fn = quote! {
             #from_bytes_fn
@@ -280,7 +344,7 @@ fn make_peek_slice_fn(
     let offset = if let Some((p, i)) = prefix {
         field_name = format_ident!("{p}_{field_name}");
         quote! {
-            let input_byte_buffer = input_byte_buffer[#i];
+            let input_byte_buffer = &input_byte_buffer[#i];
         }
     } else {
         quote! {}
@@ -357,7 +421,7 @@ fn make_peek_fn(
         field_name = format_ident!("{p}_{field_name}");
         (
             quote! {
-                let input_byte_buffer = input_byte_buffer[#i];
+                let input_byte_buffer = &input_byte_buffer[#i];
             },
             size,
         )

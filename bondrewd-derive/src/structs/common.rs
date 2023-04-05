@@ -1007,6 +1007,7 @@ pub struct EnumAttrInfo {
     /// of bytes. `payload_bit_size` is simply the largest variant's size and
     /// therefore the total bytes used by the enum regardless of differing sized variants.
     pub payload_bit_size: usize,
+    pub attrs: AttrInfo,
 }
 
 impl Default for EnumAttrInfoBuilder {
@@ -1198,12 +1199,14 @@ impl ObjectInfo {
                                 payload_bit_size: payload,
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
                         } else {
                             EnumAttrInfo {
                                 payload_bit_size: payload,
                                 id_bits: min_id_size,
                                 id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
                         }
                     }
@@ -1213,6 +1216,7 @@ impl ObjectInfo {
                                 payload_bit_size: total - id,
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
                         } else {
                             if largest < total {
@@ -1221,6 +1225,7 @@ impl ObjectInfo {
                                     payload_bit_size: largest,
                                     id_bits: id,
                                     id_position: enum_attrs.id_position,
+                                    attrs: attrs.clone(),
                                 }
                             } else {
                                 return Err(Error::new(
@@ -1248,12 +1253,14 @@ impl ObjectInfo {
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
                                 payload_bit_size: payload,
+                                attrs: attrs.clone(),
                             }
                         } else {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
                                 id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
                         }
                     }
@@ -1263,12 +1270,14 @@ impl ObjectInfo {
                                 id_bits: id,
                                 id_position: enum_attrs.id_position,
                                 payload_bit_size: largest,
+                                attrs: attrs.clone(),
                             }
                         } else {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
                                 id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
                         }
                     }
