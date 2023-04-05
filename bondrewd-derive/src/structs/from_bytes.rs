@@ -5,7 +5,7 @@ use crate::structs::common::{
     FieldDataType, FieldInfo, StructInfo,
 };
 
-use proc_macro2::TokenStream;
+use proc_macro2::{TokenStream, Ident};
 use quote::{format_ident, quote};
 
 use super::common::NumberSignage;
@@ -17,10 +17,19 @@ pub struct FromBytesOptions {
     pub peek_slice_field_unchecked_fns: Option<TokenStream>,
 }
 
-pub fn create_from_bytes_field_quotes(
+struct FieldQuotes {
+    // field_name_list: TokenStream,
+    from_bytes_quote: TokenStream,
+    peek_fns_quote: TokenStream,
+    peek_slice_fns_option: Option<(TokenStream, TokenStream)>,
+    from_bytes_struct_quote: TokenStream,
+}
+
+fn create_fields_quotes(
     info: &StructInfo,
+    enum_name: Option<(&Ident, &TokenStream, usize)>,
     peek_slice: bool,
-) -> Result<FromBytesOptions, syn::Error> {
+) -> syn::Result<FieldQuotes> {
     // make a quote which is a list of the fields separated by a comma then a newline
     let mut from_bytes_struct_quote = quote! {};
     // all of the fields extraction will be appended to this
@@ -28,8 +37,11 @@ pub fn create_from_bytes_field_quotes(
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        let checked_ident = format_ident!("{}Checked", &info.name);
-        let check_size = info.total_bytes();
+        let (checked_ident, check_size) = if let Some((prefix, _indexing, actual_size)) = enum_name {
+            (format_ident!("{}{prefix}Checked", &info.name), actual_size)
+        } else { 
+            (format_ident!("{}Checked", &info.name), info.total_bytes())
+        };
         let comment = format!(
             "Returns a [{checked_ident}] which allows you to read any field for a `{}` from provided slice.",
             &info.name
@@ -83,7 +95,7 @@ pub fn create_from_bytes_field_quotes(
             #field_name,
         };
 
-        let peek_quote = make_peek_fn(&field_extractor, field, info)?;
+        let peek_quote = make_peek_fn(&field_extractor, field, info, None)?;
         peek_fns_quote = quote! {
             #peek_fns_quote
             #peek_quote
@@ -92,9 +104,9 @@ pub fn create_from_bytes_field_quotes(
         if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
             peek_slice_fns_option
         {
-            let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info)?;
+            let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, None)?;
             let peek_slice_unchecked_quote =
-                make_peek_slice_unchecked_fn(&field_extractor, field, info)?;
+                make_peek_slice_unchecked_fn(&field_extractor, field, info, None)?;
             let mut the_peek_slice_fns_quote_temp = quote! {
                 #the_peek_slice_fns_quote
                 #peek_slice_quote
@@ -107,6 +119,18 @@ pub fn create_from_bytes_field_quotes(
             std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
         }
     }
+    Ok(FieldQuotes { from_bytes_quote, peek_fns_quote, peek_slice_fns_option, from_bytes_struct_quote })
+}
+
+pub fn create_from_bytes_field_quotes(
+    info: &StructInfo,
+    peek_slice: bool,
+) -> Result<FromBytesOptions, syn::Error> {
+    let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option) = {
+        let thing = create_fields_quotes(info,None,peek_slice)?;
+        (thing.peek_fns_quote, thing.from_bytes_struct_quote, thing.from_bytes_quote, thing.peek_slice_fns_option)
+    };
+    
     let struct_size = &info.total_bytes();
     // construct from bytes function. use input_byte_buffer as input name because,
     // that is what the field quotes expect to extract from.
@@ -142,8 +166,18 @@ fn make_peek_slice_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
+    // (prefix_ident, buffer_index_ident)
+    prefix: Option<(&Ident, &TokenStream)>,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let mut field_name = field.ident.as_ref().clone();
+    let offset = if let Some((p, i)) = prefix {
+        field_name = format_ident!("{p}_{field_name}");
+        quote! {
+            let input_byte_buffer = input_byte_buffer[#i];
+        }
+    } else {
+        quote! {}
+    };
     let fn_field_name = format_ident!("read_slice_{field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
@@ -162,6 +196,7 @@ fn make_peek_slice_fn(
             if slice_length < #min_length {
                 Err(bondrewd::BitfieldSliceError(slice_length, #min_length))
             } else {
+                #offset
                 Ok(
                     #field_quote
                 )
@@ -174,8 +209,18 @@ fn make_peek_slice_unchecked_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
+    // (prefix_ident, buffer_index_ident)
+    prefix: Option<(&Ident, &TokenStream)>,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let mut field_name = field.ident.as_ref().clone();
+    let offset = if let Some((p, i)) = prefix {
+        field_name = format_ident!("{p}_{field_name}");
+        quote! {
+            self.buffer[#i];
+        }
+    } else {
+        quote! {self.buffer}
+    };
     let fn_field_name = format_ident!("read_{field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
@@ -187,7 +232,7 @@ fn make_peek_slice_unchecked_fn(
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(&self) -> #type_ident {
-            let input_byte_buffer: &[u8] = self.buffer;
+            let input_byte_buffer: &[u8] = #offset;
             #field_quote
         }
     })
@@ -197,18 +242,31 @@ fn make_peek_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
+    // (prefix_ident, buffer_index_ident, max_bytes)
+    prefix: Option<(&Ident, &TokenStream, usize)>,
 ) -> syn::Result<TokenStream> {
-    let field_name = format_ident!("{}", field.ident.as_ref().clone());
+    let mut field_name = field.ident.as_ref().clone();
+    let (offset, struct_size) = if let Some((p, i, size)) = prefix {
+        field_name = format_ident!("{p}_{field_name}");
+        (
+            quote! {
+                let input_byte_buffer = input_byte_buffer[#i];
+            },
+            size,
+        )
+    } else {
+        (quote! {}, info.total_bytes())
+    };
     let fn_field_name = format_ident!("read_{field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
-    let struct_size = info.total_bytes();
     let struct_name = &info.name;
     let comment = format!("Reads bits {} through {} within `output_byte_buffer`, getting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
+            #offset
             #field_quote
         }
     })

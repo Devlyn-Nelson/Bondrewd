@@ -1519,7 +1519,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            println!("-- {}", fields_into_bytes.set_field_fns);
+            println!("-- {}", fields_into_bytes.into_bytes_fn);
             // let fields_from_bytes =
             //     match create_from_bytes_field_quotes_enum(&struct_info, slice_fns) {
             //         Ok(ffb) => ffb,

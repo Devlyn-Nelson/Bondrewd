@@ -228,13 +228,14 @@ pub fn create_into_bytes_field_quotes_enum(
         };
     }
     // TODO correct size and add match statement
-    let struct_size = info.total_bytes();
     let into_bytes_fn = quote! {
-        let mut enum_output_byte_buffer = [0u8;#struct_size];
-        match self {
-            #into_bytes_fn
+        fn into_bytes(self) -> [u8;#total_size] {
+            let mut enum_output_byte_buffer = [0u8;#total_size];
+            match self {
+                #into_bytes_fn
+            }
+            enum_output_byte_buffer
         }
-        output_byte_buffer
     };
     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
         Ok(IntoBytesOptions {
