@@ -1,16 +1,16 @@
 use std::{cmp::Ordering, str::FromStr};
 
-use crate::{structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
-    FieldDataType, FieldInfo, StructInfo, FieldAttrs, ReserveFieldOption, OverlapOptions,
-}};
+use crate::structs::common::{
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness, FieldAttrs,
+    FieldDataType, FieldInfo, OverlapOptions, ReserveFieldOption, StructInfo,
+};
 
 use convert_case::{Case, Casing};
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{VisPublic, token::Pub};
+use syn::{token::Pub, VisPublic};
 
-use super::common::{NumberSignage, EnumInfo};
+use super::common::{EnumInfo, NumberSignage};
 
 pub struct FromBytesOptions {
     pub from_bytes_fn: TokenStream,
@@ -39,9 +39,10 @@ fn create_fields_quotes(
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        let (checked_ident, check_size) = if let Some((prefix, _indexing, actual_size)) = enum_name {
+        let (checked_ident, check_size) = if let Some((prefix, _indexing, actual_size)) = enum_name
+        {
             (format_ident!("{}{prefix}Checked", &info.name), actual_size)
-        } else { 
+        } else {
             (format_ident!("{}Checked", &info.name), info.total_bytes())
         };
         let comment = format!(
@@ -88,7 +89,7 @@ fn create_fields_quotes(
                 None
             },
         )?;
-        
+
         let peek_call = if field.attrs.reserve.read_field() {
             quote! {
                 #field_extractor
@@ -110,9 +111,18 @@ fn create_fields_quotes(
         if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
             peek_slice_fns_option
         {
-            let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, enum_name.map(|(a,b,_) | (a,b)))?;
-            let peek_slice_unchecked_quote =
-                make_peek_slice_unchecked_fn(&field_extractor, field, info, enum_name.map(|(a,b,_) | (a,b)))?;
+            let peek_slice_quote = make_peek_slice_fn(
+                &field_extractor,
+                field,
+                info,
+                enum_name.map(|(a, b, _)| (a, b)),
+            )?;
+            let peek_slice_unchecked_quote = make_peek_slice_unchecked_fn(
+                &field_extractor,
+                field,
+                info,
+                enum_name.map(|(a, b, _)| (a, b)),
+            )?;
             let mut the_peek_slice_fns_quote_temp = quote! {
                 #the_peek_slice_fns_quote
                 #peek_slice_quote
@@ -125,7 +135,12 @@ fn create_fields_quotes(
             std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
         }
     }
-    Ok(FieldQuotes { field_name_list, from_bytes_quote, peek_fns_quote, peek_slice_fns_option })
+    Ok(FieldQuotes {
+        field_name_list,
+        from_bytes_quote,
+        peek_fns_quote,
+        peek_slice_fns_option,
+    })
 }
 
 pub fn create_from_bytes_field_quotes_enum(
@@ -140,19 +155,23 @@ pub fn create_from_bytes_field_quotes_enum(
                 let field = FieldInfo {
                     name: format_ident!("id"),
                     ident: Box::new(format_ident!("id")),
-                    ty: FieldDataType::Number(info.attrs.id_bits, NumberSignage::Unsigned, match info.attrs.id_bits {
-                        0..=8 => quote!{u8},
-                        9..=16 => quote!{u16},
-                        17..=32 => quote!{u32},
-                        33..=64 => quote!{u64},
-                        65..=128 => quote!{u128},
-                        _ => {
-                            return Err(syn::Error::new(
-                                info.name.span(),
-                                "id size is invalid",
-                            ));
-                        }
-                    }),
+                    ty: FieldDataType::Number(
+                        info.attrs.id_bits,
+                        NumberSignage::Unsigned,
+                        match info.attrs.id_bits {
+                            0..=8 => quote! {u8},
+                            9..=16 => quote! {u16},
+                            17..=32 => quote! {u32},
+                            33..=64 => quote! {u64},
+                            65..=128 => quote! {u128},
+                            _ => {
+                                return Err(syn::Error::new(
+                                    info.name.span(),
+                                    "id size is invalid",
+                                ));
+                            }
+                        },
+                    ),
                     attrs: FieldAttrs {
                         endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
                         bit_range: 0..info.attrs.id_bits,
@@ -160,7 +179,7 @@ pub fn create_from_bytes_field_quotes_enum(
                         overlap: OverlapOptions::None,
                     },
                 };
-                    let flip = false;
+                let flip = false;
                 let field_extractor = get_field_quote(
                     &field,
                     if flip {
@@ -172,7 +191,7 @@ pub fn create_from_bytes_field_quotes_enum(
                     },
                 )?;
                 let attrs = info.attrs.attrs.clone();
-                let mut fields= vec![field.clone()];
+                let mut fields = vec![field.clone()];
                 fields[0].attrs.bit_range = 0..info.total_bits();
                 let id_field = make_peek_fn(
                     &field_extractor,
@@ -181,15 +200,17 @@ pub fn create_from_bytes_field_quotes_enum(
                         name: info.name.clone(),
                         attrs,
                         fields,
-                        vis: syn::Visibility::Public(VisPublic { pub_token: Pub::default() }),
+                        vis: syn::Visibility::Public(VisPublic {
+                            pub_token: Pub::default(),
+                        }),
                     },
-                    None
+                    None,
                 )?;
                 quote! {
                     #id_field
                 }
             },
-            None
+            None,
         )
     };
     let struct_size = info.total_bytes();
@@ -202,8 +223,17 @@ pub fn create_from_bytes_field_quotes_enum(
         let variant_name = quote! {#v_name};
         let indexing = info.get_indexing();
         let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(&variant,Some((&prefix, &indexing, struct_size)),peek_slice)?;
-            (thing.field_name_list, thing.peek_fns_quote, thing.from_bytes_quote, thing.peek_slice_fns_option)
+            let thing = create_fields_quotes(
+                &variant,
+                Some((&prefix, &indexing, struct_size)),
+                peek_slice,
+            )?;
+            (
+                thing.field_name_list,
+                thing.peek_fns_quote,
+                thing.from_bytes_quote,
+                thing.peek_slice_fns_option,
+            )
         };
         if let (
             Some((mut peek_slice_fns_quote_temp, mut unchecked_temp)),
@@ -221,7 +251,7 @@ pub fn create_from_bytes_field_quotes_enum(
             std::mem::swap(peek_slice_fns_quote, &mut peek_slice_fns_quote_temp);
             std::mem::swap(unchecked, &mut unchecked_temp);
         }
-        peek_fns_quote = quote!{
+        peek_fns_quote = quote! {
             #peek_fns_quote
             #peek_fns_quote_temp
         };
@@ -234,19 +264,19 @@ pub fn create_from_bytes_field_quotes_enum(
 
         // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
         // into_bytes we also need to make sure that the write function is actually being made.
-        let variant_id = if i == last_variant{
-            quote!{_}
-        } else{
+        let variant_id = if i == last_variant {
+            quote! {_}
+        } else {
             if let Some(id) = variant.attrs.id {
                 if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
                     yes
-                }else{
+                } else {
                     return Err(syn::Error::new(
                         variant.name.span(),
                         "failed to construct id, this is a bug in bondrewd.",
                     ));
                 }
-            }else{
+            } else {
                 return Err(syn::Error::new(
                     variant.name.span(),
                     "failed to find id for variant, this is a bug in bondrewd.",
@@ -298,10 +328,15 @@ pub fn create_from_bytes_field_quotes(
     peek_slice: bool,
 ) -> Result<FromBytesOptions, syn::Error> {
     let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option) = {
-        let thing = create_fields_quotes(info,None,peek_slice)?;
-        (thing.peek_fns_quote, thing.field_name_list, thing.from_bytes_quote, thing.peek_slice_fns_option)
+        let thing = create_fields_quotes(info, None, peek_slice)?;
+        (
+            thing.peek_fns_quote,
+            thing.field_name_list,
+            thing.from_bytes_quote,
+            thing.peek_slice_fns_option,
+        )
     };
-    
+
     let struct_size = &info.total_bytes();
     // construct from bytes function. use input_byte_buffer as input name because,
     // that is what the field quotes expect to extract from.

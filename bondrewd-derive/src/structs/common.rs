@@ -2,7 +2,7 @@ use crate::structs::parse::{
     FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
 };
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use std::ops::Range;
 use syn::parse::Error;
 use syn::spanned::Spanned;
@@ -1026,6 +1026,20 @@ pub enum ObjectInfo {
     Enum(EnumInfo),
 }
 
+/// `id_bits` is the amount of bits the enum's id takes. 
+fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
+    match id_bits {
+        0..=8 => Ok(quote! {u8}),
+        9..=16 => Ok(quote! {u16}),
+        17..=32 => Ok(quote! {u32}),
+        33..=64 => Ok(quote! {u64}),
+        65..=128 => Ok(quote! {u128}),
+        _ => {
+            return Err(syn::Error::new(span, "id size is invalid"));
+        }
+    }
+}
+
 impl ObjectInfo {
     pub fn name(&self) -> Ident {
         match self {
@@ -1081,7 +1095,7 @@ impl ObjectInfo {
         match input.data {
             syn::Data::Struct(ref data) => {
                 Self::parse_struct_attrs(&input.attrs, &mut attrs, false)?;
-                let fields = Self::parse_fields(&name, &data.fields, &attrs)?;
+                let fields = Self::parse_fields(&name, &data.fields, &attrs, None)?;
                 Ok(Self::Struct(StructInfo {
                     name,
                     attrs,
@@ -1093,6 +1107,35 @@ impl ObjectInfo {
                 let mut enum_attrs = EnumAttrInfoBuilder::default();
                 Self::parse_enum_attrs(&input.attrs, &mut attrs, &mut enum_attrs)?;
                 let mut variants: Vec<StructInfo> = Vec::default();
+                let (id_field_type, id_bits) = {
+                    let id_bits = if let Some(id_bits) = enum_attrs.id_bits {
+                        id_bits
+                    }else if let (Some(payload_size), Some(total_size)) = (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
+                        total_size - payload_size
+                    } else{
+                        // TODO make sure this gets replaced once id size is known
+                        0
+                    };
+                    (FieldDataType::Number(
+                        id_bits,
+                        NumberSignage::Unsigned,
+                        get_id_type(id_bits, name.span())?,
+                    ), id_bits)
+                };
+                let id_field = FieldInfo {
+                    name: format_ident!("id"),
+                    ident: Box::new(format_ident!("id")),
+                    ty: id_field_type,
+                    attrs: FieldAttrs {
+                        endianness: Box::new(attrs.default_endianess.clone()),
+                        // this need to accommodate tailing ids, currently this locks the
+                        // id field to the first field read from the starting point of reading.
+                        // TODO make sure this gets corrected if the id size is unknown.
+                        bit_range: 0..id_bits,
+                        reserve: ReserveFieldOption::FakeReserveField,
+                        overlap: OverlapOptions::None,
+                    },
+                };
                 for variant in data.variants.iter() {
                     let mut attrs = attrs.clone();
                     if let Some((_, ref expr)) = variant.discriminant {
@@ -1101,7 +1144,9 @@ impl ObjectInfo {
                     }
                     Self::parse_struct_attrs(&variant.attrs, &mut attrs, true)?;
                     let variant_name = variant.ident.clone();
-                    let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs)?;
+                    // TODO currently we always add the id field, but some people might want the id to be a
+                    // field in the variant. this would no longer need to insert the id as a "fake-field".
+                    let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs, Some(id_field.clone()))?;
                     variants.push(StructInfo {
                         name: variant_name,
                         attrs,
@@ -1293,6 +1338,16 @@ impl ObjectInfo {
                         data.enum_token.span(),
                         format!("the payload size being used is less than largest variant"),
                     ));
+                }
+                let id_field_ty = FieldDataType::Number(
+                    enum_attrs.id_bits,
+                    NumberSignage::Unsigned,
+                    get_id_type(enum_attrs.id_bits, name.span())?,
+                );
+                // TODO currently we assume the first field is the id and adjust the bit sizing.
+                for v in variants.iter_mut() {
+                    v.fields[0].attrs.bit_range = 0..enum_attrs.id_bits;
+                    v.fields[0].ty = id_field_ty.clone();
                 }
                 Ok(Self::Enum(EnumInfo {
                     name,
@@ -1573,8 +1628,11 @@ impl ObjectInfo {
         name: &Ident,
         fields: &Fields,
         attrs: &AttrInfo,
+        first_field: Option<FieldInfo>,
     ) -> syn::Result<Vec<FieldInfo>> {
-        let mut parsed_fields: Vec<FieldInfo> = Vec::default();
+        let mut parsed_fields: Vec<FieldInfo> = if let Some(f) = first_field{
+            vec![f]
+        }else{Vec::default()};
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
         let fields = match fields {
