@@ -71,11 +71,7 @@ fn create_fields_quotes(
     // all quote with all of the peek functions appended to it.
     let mut peek_fns_quote = quote! {};
     for field in info.fields.iter() {
-        if field.attrs.reserve.is_fake_field() {
-            continue;
-        }
         let field_name = &field.ident;
-        field_name_list = quote! {#field_name_list #field_name,};
         // let peek_name = if let Some((prefix, _, _)) = enum_name {
         //     format_ident!("read_{prefix}_{}", field_name.as_ref())
         // } else{
@@ -90,24 +86,12 @@ fn create_fields_quotes(
             },
         )?;
 
-        let peek_call = if field.attrs.reserve.read_field() {
-            quote! {
-                #field_extractor
-            }
-        } else {
-            quote! { Default::default() }
-        };
-        from_bytes_quote = quote! {
-            #from_bytes_quote
-            let #field_name = #peek_call;
-        };
-
         let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name.clone())?;
         peek_fns_quote = quote! {
             #peek_fns_quote
             #peek_quote
         };
-
+        // make the slice functions if applicable.
         if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
             peek_slice_fns_option
         {
@@ -134,6 +118,29 @@ fn create_fields_quotes(
             std::mem::swap(the_peek_slice_fns_quote, &mut the_peek_slice_fns_quote_temp);
             std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
         }
+        // fake fields do not exist in the actual structure and should only have functions
+        // that read or write values into byte arrays.
+        if field.attrs.reserve.is_fake_field() {
+            continue;
+        }
+
+        // put the name of the field into the list of fields that are needed to create
+        // the struct.
+        field_name_list = quote! {#field_name_list #field_name,};
+
+        // put the field extraction in the actual from bytes.
+        let peek_call = if field.attrs.reserve.read_field() {
+            // this can call Self::read_{field_name} when its ready.
+            quote! {
+                #field_extractor
+            }
+        } else {
+            quote! { Default::default() }
+        };
+        from_bytes_quote = quote! {
+            #from_bytes_quote
+            let #field_name = #peek_call;
+        };
     }
     Ok(FieldQuotes {
         field_name_list,

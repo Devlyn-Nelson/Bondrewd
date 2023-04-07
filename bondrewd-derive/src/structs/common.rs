@@ -837,6 +837,7 @@ impl FieldInfo {
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
+        println!("last_field {:?}", last_relevant_field);
         let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.clone())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
