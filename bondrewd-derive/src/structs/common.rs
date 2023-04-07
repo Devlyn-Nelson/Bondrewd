@@ -837,7 +837,6 @@ impl FieldInfo {
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
-        println!("last_field {:?}", last_relevant_field);
         let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.clone())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
@@ -1381,7 +1380,7 @@ impl ObjectInfo {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
-                                if value <= 128 {
+                                if value > 128 {
                                     return Err(syn::Error::new(
                                         span,
                                         format!("Maximum id bits is 128."),

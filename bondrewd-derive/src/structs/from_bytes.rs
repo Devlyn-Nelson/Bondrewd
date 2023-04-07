@@ -25,6 +25,59 @@ struct FieldQuotes {
     peek_fns_quote: TokenStream,
     peek_slice_fns_option: Option<(TokenStream, TokenStream)>,
 }
+fn make_read_fns(field: &FieldInfo, info: &StructInfo
+    , enum_name: &Option<(&Ident, &TokenStream, usize)>,
+    peek_fns_quote: &mut TokenStream,
+    peek_slice_fns_option: &mut Option<(TokenStream, TokenStream)>,
+) -> syn::Result<TokenStream> {
+    // let peek_name = if let Some((prefix, _, _)) = enum_name {
+    //     format_ident!("read_{prefix}_{}", field_name.as_ref())
+    // } else{
+    //     format_ident!("read_{}", field_name.as_ref())
+    // };
+    let field_extractor = get_field_quote(
+        field,
+        if info.attrs.flip {
+            Some(info.total_bytes() - 1)
+        } else {
+            None
+        },
+    )?;
+
+    let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name.clone())?;
+    *peek_fns_quote = quote! {
+        #peek_fns_quote
+        #peek_quote
+    };
+    // make the slice functions if applicable.
+    if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
+        peek_slice_fns_option
+    {
+        let peek_slice_quote = make_peek_slice_fn(
+            &field_extractor,
+            field,
+            info,
+            enum_name.map(|(a, b, _)| (a, b)),
+        )?;
+        let peek_slice_unchecked_quote = make_peek_slice_unchecked_fn(
+            &field_extractor,
+            field,
+            info,
+            enum_name.map(|(a, b, _)| (a, b)),
+        )?;
+        let mut the_peek_slice_fns_quote_temp = quote! {
+            #the_peek_slice_fns_quote
+            #peek_slice_quote
+        };
+        let mut unchecked_quote_temp = quote! {
+            #unchecked_quote
+            #peek_slice_unchecked_quote
+        };
+        std::mem::swap(the_peek_slice_fns_quote, &mut the_peek_slice_fns_quote_temp);
+        std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
+    }
+    Ok(field_extractor)
+}
 
 fn create_fields_quotes(
     info: &StructInfo,
@@ -70,54 +123,18 @@ fn create_fields_quotes(
     };
     // all quote with all of the peek functions appended to it.
     let mut peek_fns_quote = quote! {};
-    for field in info.fields.iter() {
-        let field_name = &field.ident;
-        // let peek_name = if let Some((prefix, _, _)) = enum_name {
-        //     format_ident!("read_{prefix}_{}", field_name.as_ref())
-        // } else{
-        //     format_ident!("read_{}", field_name.as_ref())
-        // };
-        let field_extractor = get_field_quote(
-            field,
-            if info.attrs.flip {
-                Some(info.total_bytes() - 1)
-            } else {
-                None
-            },
-        )?;
+    // TODO make each variant decide if the id field needs to be accounted for.
+    // currently the id fields is added the each enum variant as the first field so we
+    // skip it assuming there will be one made is common across all variants.
+    let fields = if enum_name.is_some() {
+        &info.fields[1..]
+    }else{
+        &info.fields[..]
+    };
 
-        let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name.clone())?;
-        peek_fns_quote = quote! {
-            #peek_fns_quote
-            #peek_quote
-        };
-        // make the slice functions if applicable.
-        if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
-            peek_slice_fns_option
-        {
-            let peek_slice_quote = make_peek_slice_fn(
-                &field_extractor,
-                field,
-                info,
-                enum_name.map(|(a, b, _)| (a, b)),
-            )?;
-            let peek_slice_unchecked_quote = make_peek_slice_unchecked_fn(
-                &field_extractor,
-                field,
-                info,
-                enum_name.map(|(a, b, _)| (a, b)),
-            )?;
-            let mut the_peek_slice_fns_quote_temp = quote! {
-                #the_peek_slice_fns_quote
-                #peek_slice_quote
-            };
-            let mut unchecked_quote_temp = quote! {
-                #unchecked_quote
-                #peek_slice_unchecked_quote
-            };
-            std::mem::swap(the_peek_slice_fns_quote, &mut the_peek_slice_fns_quote_temp);
-            std::mem::swap(unchecked_quote, &mut unchecked_quote_temp);
-        }
+    for field in fields {
+        let field_name = &field.ident;
+        let field_extractor = make_read_fns(field, info, &enum_name, &mut peek_fns_quote, &mut peek_slice_fns_option)?;
         // fake fields do not exist in the actual structure and should only have functions
         // that read or write values into byte arrays.
         if field.attrs.reserve.is_fake_field() {
