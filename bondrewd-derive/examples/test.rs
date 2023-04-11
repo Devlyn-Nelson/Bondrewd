@@ -5,7 +5,7 @@ use bondrewd::*;
 // TODO add a functions that get and set the id.
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be", id_bits = 14)]
-enum SimpleEnum {
+enum ComplexEnum {
     One {
         test: u32,
     },
@@ -20,6 +20,15 @@ enum SimpleEnum {
         #[bondrewd(bit_length = 30)]
         test: u32,
     },
+    Invalid,
+}
+
+#[derive(Bitfields)]
+#[bondrewd(default_endianness = "be", id_bits = 3)]
+enum SimpleEnum {
+    Alpha,
+    Beta,
+    Charley,
     Invalid,
 }
 
@@ -50,7 +59,9 @@ struct SimpleExample {
     //      `byte-length` does.
     // - make `struct-bit-length` and `struct-byte-length` replace `struct_size`.
     #[bondrewd(bit_length = 46)]
-    enum_field: SimpleEnum,
+    enum_field: ComplexEnum,
+    #[bondrewd(bit_length = 3)]
+    other_enum_field: SimpleEnum,
 }
 
 fn main() {
@@ -58,7 +69,7 @@ fn main() {
     // if you are wondering why the 2 is there. it is because bondrewd currently does
     // not support nested `Bitfields` to use bit sizing. read TODO above the declaration
     // of the `SimpleExample::enum_field` field.
-    assert_eq!(53 + 46, SimpleExample::BIT_SIZE);
+    assert_eq!(53 + 46 + 3, SimpleExample::BIT_SIZE);
     let mut bytes = SimpleExample {
         one: false,
         two: -4.25,
@@ -70,7 +81,8 @@ fn main() {
         flag_four: true,
         flag_five: true,
         flag_six: true,
-        enum_field: SimpleEnum::Two { test: 3, test_two: 3 },
+        enum_field: ComplexEnum::Two { test: 3, test_two: 3 },
+        other_enum_field: SimpleEnum::Charley,
     }
     .into_bytes();
     // check the output binary is correct. (i did math by hand
@@ -90,7 +102,7 @@ fn main() {
             0b011_00000, // enum_field_TWO_test - enum_field_TWO_test_two
             0b011_00000, // enum_field_TWO_test_two - unused
             0b00000000,  // unused
-            0b00000000,  // unused
+            0b000_010_00,// unused - other_enum_field -- unused
         ],
         bytes
     );
