@@ -156,7 +156,7 @@ fn create_fields_quotes(
                 let #field_name = Self::#fn_field_name(&input_byte_buffer);
             }
         } else {
-            quote! { Default::default() }
+            quote! { let #field_name = Default::default(); }
         };
         from_bytes_quote = quote! {
             #from_bytes_quote
