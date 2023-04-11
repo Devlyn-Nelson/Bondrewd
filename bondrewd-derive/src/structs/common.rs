@@ -964,27 +964,10 @@ impl EnumInfo {
                 total = t;
             }
         }
-        total + self.attrs.id_bits
+        total
     }
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
-    }
-
-    pub fn get_indexing(&self) -> TokenStream {
-        match self.attrs.id_position {
-            super::common::IdPosition::Leading => {
-                let mut start = self.attrs.id_bits / 8;
-                if self.attrs.id_bits % 8 != 0 {
-                    start += 1;
-                }
-                let end = start + self.total_bytes();
-                quote! {#start..#end}
-            }
-            super::common::IdPosition::Trailing => {
-                let variant_size = self.total_bytes();
-                quote! {..#variant_size}
-            }
-        }
     }
 }
 
@@ -1348,6 +1331,28 @@ impl ObjectInfo {
                 for v in variants.iter_mut() {
                     v.fields[0].attrs.bit_range = 0..enum_attrs.id_bits;
                     v.fields[0].ty = id_field_ty.clone();
+                    let first_bit = v.total_bits();
+                    if first_bit < largest {
+                        let fill_bytes_size = ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
+                        let ident = quote::format_ident!("fill_bits");
+                        v.fields.push(FieldInfo {
+                            name: ident.clone(),
+                            ident: Box::new(ident),
+                            attrs: FieldAttrs {
+                                bit_range: first_bit..largest,
+                                endianness: Box::new(Endianness::Big),
+                                reserve: ReserveFieldOption::FakeReserveField,
+                                overlap: OverlapOptions::None,
+                            },
+                            ty: FieldDataType::BlockArray(
+                                Box::new(SubFieldInfo {
+                                    ty: FieldDataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                                }),
+                                fill_bytes_size,
+                                quote! {[u8;#fill_bytes_size]},
+                            ),
+                        });
+                    }
                 }
                 Ok(Self::Enum(EnumInfo {
                     name,

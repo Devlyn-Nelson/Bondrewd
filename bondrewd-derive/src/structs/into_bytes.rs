@@ -1,12 +1,13 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, str::FromStr};
 
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
-    FieldDataType, FieldInfo, StructInfo,
+    FieldDataType, FieldInfo, StructInfo, NumberSignage, ReserveFieldOption, OverlapOptions, FieldAttrs,
 };
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
+use syn::{VisPublic, token::Pub};
 
 use super::common::EnumInfo;
 
@@ -21,25 +22,16 @@ fn make_checked_mut_func(
     info: &StructInfo,
     set_slice: bool,
     // (prefix_ident, buffer_index_ident, max_bytes)
-    prefix: Option<(&Ident, &TokenStream, usize)>,
+    prefix: &Option<&Ident>,
 ) -> Option<(TokenStream, TokenStream)> {
     // all quote with all of the set slice functions appended to it.
     if set_slice {
-        let (_offset, struct_size, checked_ident) = if let Some((p, i, size)) = prefix {
-            (
-                quote! {
-                    let output_byte_buffer = output_byte_buffer[#i];
-                },
-                size,
-                format_ident!("{}{p}CheckedMut", &info.name),
-            )
+        let checked_ident = if let Some(p) = prefix {
+            format_ident!("{}{p}CheckedMut", &info.name)
         } else {
-            (
-                quote! {},
-                info.total_bytes(),
-                format_ident!("{}CheckedMut", &info.name),
-            )
+            format_ident!("{}CheckedMut", &info.name)
         };
+        let struct_size = info.total_bytes();
         let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{}` from/to provided mutable slice.", &info.name);
         Some((
             quote! {
@@ -71,7 +63,7 @@ struct FieldQuotes {
 
 fn create_fields_quotes(
     info: &StructInfo,
-    enum_name: Option<(&Ident, &TokenStream, usize)>,
+    enum_name: Option<&Ident>,
     set_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let mut field_name_list = quote! {};
@@ -79,13 +71,13 @@ fn create_fields_quotes(
     // all of the fields setting will be appended to this
     let mut into_bytes_quote = quote! {};
     // TODO make sure this gets fixed for enums.
-    let mut set_slice_fns_option = make_checked_mut_func(info, set_slice, enum_name);
+    let mut set_slice_fns_option = make_checked_mut_func(info, set_slice, &enum_name);
     for field in info.fields.iter() {
         let field_name = field.ident.as_ref();
-        field_name_list = quote! {#field_name_list #field_name,};
         if field.attrs.reserve.is_fake_field() {
             continue;
         }
+        field_name_list = quote! {#field_name_list #field_name,};
         let (field_setter, clear_quote) = get_field_quote(
             field,
             if info.attrs.flip {
@@ -96,10 +88,11 @@ fn create_fields_quotes(
             false,
         )?;
         if field.attrs.reserve.write_field() {
-            if enum_name.is_some() {
+            if let Some(name) = enum_name {
+                let fn_name = format_ident!("write_{name}_{field_name}");
                 into_bytes_quote = quote! {
                     #into_bytes_quote
-                    #field_setter
+                    Self::#fn_name(&mut output_byte_buffer, #field_name);
                 };
             } else {
                 into_bytes_quote = quote! {
@@ -109,7 +102,7 @@ fn create_fields_quotes(
                 };
             }
         }
-        let set_quote = make_set_fn(&field_setter, field, info, &clear_quote, enum_name.clone())?;
+        let set_quote = make_set_fn(&field_setter, field, info, &clear_quote, &enum_name)?;
         set_fns_quote = quote! {
             #set_fns_quote
             #set_quote
@@ -121,14 +114,14 @@ fn create_fields_quotes(
                 field,
                 info,
                 &clear_quote,
-                enum_name.map(|(a, b, _)| (a, b)),
+                &enum_name,
             )?;
             let set_slice_unchecked_quote = make_set_slice_unchecked_fn(
                 &field_setter,
                 field,
                 info,
                 &clear_quote,
-                enum_name.map(|(a, b, _)| (a, b)),
+                &enum_name,
             )?;
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
@@ -156,8 +149,73 @@ pub fn create_into_bytes_field_quotes_enum(
 ) -> Result<IntoBytesOptions, syn::Error> {
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
-    let mut set_fns_quote = quote! {};
-    let mut set_slice_fns_option = None;
+    let (mut set_fns_quote, mut set_slice_fns_option) = {
+        (
+            {
+                // TODO maybe remove this and add a fake field for the id into each variant during parse.
+                let field = FieldInfo {
+                    name: format_ident!("id"),
+                    ident: Box::new(format_ident!("id")),
+                    ty: FieldDataType::Number(
+                        (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
+                        NumberSignage::Unsigned,
+                        match info.attrs.id_bits {
+                            0..=8 => quote! {u8},
+                            9..=16 => quote! {u16},
+                            17..=32 => quote! {u32},
+                            33..=64 => quote! {u64},
+                            65..=128 => quote! {u128},
+                            _ => {
+                                return Err(syn::Error::new(
+                                    info.name.span(),
+                                    "id size is invalid",
+                                ));
+                            }
+                        },
+                    ),
+                    attrs: FieldAttrs {
+                        endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
+                        bit_range: 0..info.attrs.id_bits,
+                        reserve: ReserveFieldOption::NotReserve,
+                        overlap: OverlapOptions::None,
+                    },
+                };
+                let flip = false;
+                let (field_quote, clear_quote) = get_field_quote(
+                    &field,
+                    if flip {
+                        // condition use to be `info.attrs.flip` i think this only applies to the variants
+                        // and id_position is what is used here. but it should be done none the less.
+                        Some(info.total_bytes() - 1)
+                    } else {
+                        None
+                    },
+                    false,
+                )?;
+                let attrs = info.attrs.attrs.clone();
+                let mut fields = vec![field.clone()];
+                fields[0].attrs.bit_range = 0..info.total_bits();
+                let id_field = make_set_fn(
+                    &field_quote,
+                    &field,
+                    &StructInfo {
+                        name: info.name.clone(),
+                        attrs,
+                        fields,
+                        vis: syn::Visibility::Public(VisPublic {
+                            pub_token: Pub::default(),
+                        }),
+                    },
+                    &clear_quote,
+                    &None,
+                )?;
+                quote! {
+                    #id_field
+                }
+            },
+            None,
+        )
+    };
     let total_size = info.total_bytes();
     for variant in info.variants.iter() {
         let prefix = format_ident!("{}", variant.name.to_string().to_case(Case::Snake));
@@ -165,10 +223,25 @@ pub fn create_into_bytes_field_quotes_enum(
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
-        let indexing = info.get_indexing();
+        let variant_id = if let Some(id) = variant.attrs.id {
+            match TokenStream::from_str(format!("{id}").as_str()) {
+                Ok(vi) => vi,
+                Err(err) => {
+                    return Err(syn::Error::new(
+                        variant.name.span(),
+                        "variant id was not able to be formatted for of code generation. [{err}]",
+                    ));
+                }
+            }
+        } else{
+            return Err(syn::Error::new(
+                variant.name.span(),
+                "variant id was unknown at time of code generation",
+            ));
+        };
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
             let thing =
-                create_fields_quotes(&variant, Some((&prefix, &indexing, total_size)), set_slice)?;
+                create_fields_quotes(&variant, Some(&prefix), set_slice)?;
             (
                 thing.field_name_list,
                 thing.into_bytes_quote,
@@ -208,7 +281,7 @@ pub fn create_into_bytes_field_quotes_enum(
         into_bytes_fn = quote! {
             #into_bytes_fn
             Self::#variant_name { #field_name_list } => {
-                let mut output_byte_buffer = &mut enum_output_byte_buffer[#indexing];
+                Self::write_id(&mut output_byte_buffer,#variant_id);
                 #into_bytes_quote
             }
         };
@@ -216,11 +289,11 @@ pub fn create_into_bytes_field_quotes_enum(
     // TODO correct size and add match statement
     let into_bytes_fn = quote! {
         fn into_bytes(self) -> [u8;#total_size] {
-            let mut enum_output_byte_buffer = [0u8;#total_size];
+            let mut output_byte_buffer = [0u8;#total_size];
             match self {
                 #into_bytes_fn
             }
-            enum_output_byte_buffer
+            output_byte_buffer
         }
     };
     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
@@ -287,17 +360,11 @@ fn make_set_slice_fn(
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
-    // (prefix_ident, buffer_index_ident)
-    prefix: Option<(&Ident, &TokenStream)>,
+    prefix: &Option<&Ident>,
 ) -> syn::Result<TokenStream> {
     let mut field_name = field.ident.as_ref().clone();
-    let offset = if let Some((p, i)) = prefix {
+    if let Some(p) = prefix {
         field_name = format_ident!("{p}_{field_name}");
-        quote! {
-            let output_byte_buffer = &mut output_byte_buffer[#i];
-        }
-    } else {
-        quote! {}
     };
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_slice_{}", field_name);
@@ -314,7 +381,6 @@ fn make_set_slice_fn(
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldSliceError> {
-            #offset
             let slice_length = output_byte_buffer.len();
             if slice_length < #min_length {
                 Err(bondrewd::BitfieldSliceError(slice_length, #min_length))
@@ -333,16 +399,11 @@ fn make_set_slice_unchecked_fn(
     info: &StructInfo,
     clear_quote: &TokenStream,
     // (prefix_ident, buffer_index_ident)
-    prefix: Option<(&Ident, &TokenStream)>,
+    prefix: &Option<&Ident>,
 ) -> syn::Result<TokenStream> {
     let mut field_name = field.ident.as_ref().clone();
-    let offset = if let Some((p, i)) = prefix {
+    if let Some(p) = prefix {
         field_name = format_ident!("{p}_{field_name}");
-        quote! {
-            self.buffer[#i];
-        }
-    } else {
-        quote! {self.buffer}
     };
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
@@ -355,7 +416,7 @@ fn make_set_slice_unchecked_fn(
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(&mut self, #field_name: #type_ident) {
-            let output_byte_buffer: &mut [u8] = #offset;
+            let output_byte_buffer: &mut [u8] = self.buffer;
             #clear_quote
             #field_quote
         }
@@ -367,21 +428,15 @@ fn make_set_fn(
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
-    // (prefix_ident, buffer_index_ident, max_bytes)
-    prefix: Option<(&Ident, &TokenStream, usize)>,
+    prefix: &Option<&Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name_short = field.ident.as_ref().clone();
-    let (offset, struct_size, field_name) = if let Some((p, i, size)) = prefix {
-        (
-            quote! {
-                let output_byte_buffer = &mut output_byte_buffer[#i];
-            },
-            size,
-            format_ident!("{p}_{field_name_short}"),
-        )
+    let field_name = if let Some(p) = prefix {
+        format_ident!("{p}_{field_name_short}")
     } else {
-        (quote! {}, info.total_bytes(), field_name_short.clone())
+        field_name_short.clone()
     };
+    let struct_size = info.total_bytes();
     let bit_range = &field.attrs.bit_range;
     let fn_field_name = format_ident!("write_{}", field_name);
     let type_ident = field.ty.type_quote();
@@ -391,7 +446,6 @@ fn make_set_fn(
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
-            #offset
             #clear_quote
             #field_quote
         }
