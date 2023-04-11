@@ -310,11 +310,16 @@ pub fn create_from_bytes_field_quotes_enum(
                 ));
             }
         };
+        let variant_constructor = if field_name_list.is_empty() {
+            quote!{Self::#variant_name}
+        }else{
+            quote!{Self::#variant_name { #field_name_list }}
+        };
         from_bytes_fn = quote! {
             #from_bytes_fn
             #variant_id => {
                 #from_bytes_quote
-                Self::#variant_name { #field_name_list }
+                #variant_constructor
             }
         };
     }

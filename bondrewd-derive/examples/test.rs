@@ -20,6 +20,7 @@ enum SimpleEnum {
         #[bondrewd(bit_length = 30)]
         test: u32,
     },
+    Invalid,
 }
 
 #[derive(Bitfields)]

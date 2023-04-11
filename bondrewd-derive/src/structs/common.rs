@@ -1656,18 +1656,28 @@ impl ObjectInfo {
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
         let fields = match fields {
-            syn::Fields::Named(ref named_fields) => named_fields.named.iter().cloned().collect::<Vec<syn::Field>>(),
+            syn::Fields::Named(ref named_fields) => Some(named_fields.named.iter().cloned().collect::<Vec<syn::Field>>()),
             // TODO make sure this works
-            syn::Fields::Unnamed(ref fields) => fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>(),
-            syn::Fields::Unit => return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it.")),
+            syn::Fields::Unnamed(ref fields) => Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()),
+            syn::Fields::Unit => if parsed_fields.first().is_none() {
+                return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
+            }else{
+                None
+            },
         };
 
         // figure out what the field are and what/where they should be in byte form.
-        let mut bit_size = 0;
-        for ref field in fields {
-            let parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
-            bit_size += parsed_field.bit_size();
-            parsed_fields.push(parsed_field);
+        let mut bit_size = if let Some(id_field) = parsed_fields.first(){
+            id_field.bit_size()
+        }else{
+            0
+        };
+        if let Some(fields) = fields{
+            for ref field in fields {
+                let parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
+                bit_size += parsed_field.bit_size();
+                parsed_fields.push(parsed_field);
+            }
         }
 
         match attrs.enforcement {
