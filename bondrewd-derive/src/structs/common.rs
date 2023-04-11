@@ -524,10 +524,25 @@ impl FieldDataType {
                             field_span,
                             "usize and isize are not supported due to ambiguous sizing".to_string(),
                         )),
-                        _ => Err(Error::new(
-                            field_span,
-                            format!("unknown primitive type [{}]", field_type_name),
-                        )),
+                        _ => {
+                            Ok(FieldDataType::Struct(
+                                match attrs.bit_range {
+                                    FieldBuilderRange::Range(ref range) => ((range.end - range.start) as f64 / 8.0f64).ceil() as usize,
+                                    FieldBuilderRange::LastEnd(_) |
+                                    FieldBuilderRange::None => {
+                                        return Err(Error::new(
+                                            field_span,
+                                            format!("unknown primitive type [{}]", field_type_name),
+                                        ));
+                                    }
+                                },
+                                quote! {#type_quote},
+                            ))
+                            // Err(Error::new(
+                            //     field_span,
+                            //     format!("unknown primitive type [{}]", field_type_name),
+                            // ))
+                        }
                     }
                 } else {
                     Err(syn::Error::new(field_span, "field has no Type?"))

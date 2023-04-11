@@ -16,7 +16,7 @@ struct Simple {
 struct SimpleWithStruct {
     #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bondrewd(struct_size = 7)]
+    #[bondrewd(byte_length = 7)]
     two: Simple,
     #[bondrewd(bit_length = 4)]
     three: u8,
@@ -65,7 +65,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
 struct SimpleWithStructWithFlip {
     #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bondrewd(struct_size = 7)]
+    #[bondrewd(byte_length = 7)]
     two: Simple,
     #[bondrewd(bit_length = 4)]
     three: u8,
@@ -131,7 +131,7 @@ struct SmallStruct {
 struct SimpleWithSingleByteSpanningStruct {
     #[bondrewd(bit_length = 4)]
     one: u8,
-    #[bondrewd(struct_size = 1, bit_length = 5)]
+    #[bondrewd(bit_length = 5)]
     two: SmallStruct,
     #[bondrewd(bit_length = 7)]
     three: u8,
@@ -182,7 +182,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
 struct SimpleWithSingleByteNonSpanningStruct {
     #[bondrewd(bit_length = 3)]
     one: u8,
-    #[bondrewd(struct_size = 1, bit_length = 5)]
+    #[bondrewd(bit_length = 5)]
     two: SmallStruct,
     three: u8,
 }

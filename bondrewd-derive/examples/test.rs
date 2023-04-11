@@ -48,7 +48,7 @@ struct SimpleExample {
     //      allow struct_size but just have the underlying code do what
     //      `byte-length` does.
     // - make `struct-bit-length` and `struct-byte-length` replace `struct_size`.
-    #[bondrewd(struct_size = 6)]
+    #[bondrewd(bit_length = 46)]
     enum_field: SimpleEnum,
 }
 
@@ -57,7 +57,7 @@ fn main() {
     // if you are wondering why the 2 is there. it is because bondrewd currently does
     // not support nested `Bitfields` to use bit sizing. read TODO above the declaration
     // of the `SimpleExample::enum_field` field.
-    assert_eq!(53 + 46 + 2, SimpleExample::BIT_SIZE);
+    assert_eq!(53 + 46, SimpleExample::BIT_SIZE);
     let mut bytes = SimpleExample {
         one: false,
         two: -4.25,

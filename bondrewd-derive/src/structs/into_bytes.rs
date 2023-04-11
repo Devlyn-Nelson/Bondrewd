@@ -229,7 +229,7 @@ pub fn create_into_bytes_field_quotes_enum(
                 Err(err) => {
                     return Err(syn::Error::new(
                         variant.name.span(),
-                        "variant id was not able to be formatted for of code generation. [{err}]",
+                        format!("variant id was not able to be formatted for of code generation. [{err}]"),
                     ));
                 }
             }
