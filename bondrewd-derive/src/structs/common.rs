@@ -1345,11 +1345,11 @@ impl ObjectInfo {
                         format!("the payload size being used is less than largest variant"),
                     ));
                 }
-                let id_field_ty = FieldDataType::Number(
-                    enum_attrs.id_bits,
-                    NumberSignage::Unsigned,
-                    get_id_type(enum_attrs.id_bits, name.span())?,
-                );
+                // let id_field_ty = FieldDataType::Number(
+                //     enum_attrs.id_bits,
+                //     NumberSignage::Unsigned,
+                //     get_id_type(enum_attrs.id_bits, name.span())?,
+                // );
                 // add fill_bits if needed.
                 for v in variants.iter_mut() {
                     let first_bit = v.total_bits();

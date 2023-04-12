@@ -9,6 +9,7 @@
 //! - Allow the user to capture the id value in the fields list of a Enum Variant.
 //! - Allow assumed id sizing. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
+//! - Enable `hex` and `setter` features for enums.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
@@ -1524,6 +1525,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         ObjectInfo::Enum(enum_info) => {
             let setters = false;
             let hex = false;
+            // let slice_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
             let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, slice_fns)

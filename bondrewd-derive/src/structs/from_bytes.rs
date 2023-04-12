@@ -28,7 +28,7 @@ struct FieldQuotes {
 fn make_read_fns(
     field: &FieldInfo,
     info: &StructInfo,
-    enum_name: &Option<&Ident>,
+    enum_name: &Option<Ident>,
     peek_fns_quote: &mut TokenStream,
     peek_slice_fns_option: &mut Option<(TokenStream, TokenStream)>,
 ) -> syn::Result<TokenStream> {
@@ -71,41 +71,48 @@ fn make_read_fns(
     Ok(field_extractor)
 }
 
+fn get_check_slice_fn(
+    name: &Ident,
+    // total_bytes
+    check_size: usize,
+) -> TokenStream {
+    let checked_ident = format_ident!("{name}Checked");
+    let comment = format!(
+        "Returns a [{checked_ident}] which allows you to read any field for a `{name}` from provided slice.",
+    );
+    quote! {
+        #[doc = #comment]
+        pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldSliceError> {
+            let buf_len = buffer.len();
+            if buf_len >= #check_size {
+                Ok(#checked_ident {
+                    buffer
+                })
+            }else{
+                Err(bondrewd::BitfieldSliceError(buf_len, #check_size))
+            }
+        }
+    }
+}
+
 fn create_fields_quotes(
     info: &StructInfo,
-    enum_name: &Option<&Ident>,
+    enum_name: Option<Ident>,
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
+    let lower_name = if enum_name.is_some() {
+        Some(format_ident!("{}", info.name.to_string().to_case(Case::Snake)))
+    }else{
+        None
+    };
     let mut field_name_list = quote! {};
     // all of the fields extraction will be appended to this
     let mut from_bytes_quote = quote! {};
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        let checked_ident = if let Some(prefix) = enum_name {
-            format_ident!("{}{prefix}Checked", &info.name)
-        } else {
-            format_ident!("{}Checked", &info.name)
-        };
-        let comment = format!(
-            "Returns a [{checked_ident}] which allows you to read any field for a `{}` from provided slice.",
-            &info.name
-        );
-        let check_size = info.total_bytes();
         Some((
-            quote! {
-                #[doc = #comment]
-                pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldSliceError> {
-                    let buf_len = buffer.len();
-                    if buf_len >= #check_size {
-                        Ok(#checked_ident {
-                            buffer
-                        })
-                    }else{
-                        Err(bondrewd::BitfieldSliceError(buf_len, #check_size))
-                    }
-                }
-            },
+            quote! {},
             quote! {},
         ))
     } else {
@@ -124,10 +131,10 @@ fn create_fields_quotes(
 
     for field in fields {
         let field_name = &field.ident;
-        let field_extractor = make_read_fns(
+        let _field_extractor = make_read_fns(
             field,
             info,
-            &enum_name,
+            &lower_name,
             &mut peek_fns_quote,
             &mut peek_slice_fns_option,
         )?;
@@ -143,7 +150,7 @@ fn create_fields_quotes(
 
         // put the field extraction in the actual from bytes.
         let peek_call = if field.attrs.reserve.read_field() {
-            let fn_field_name = if let Some(p) = enum_name {
+            let fn_field_name = if let Some(ref p) = lower_name {
                 format_ident!("read_{p}_{field_name}")
             } else {
                 format_ident!("read_{field_name}")
@@ -233,19 +240,18 @@ pub fn create_from_bytes_field_quotes_enum(
                     #id_field
                 }
             },
-            None,
+            if peek_slice{Some((get_check_slice_fn(&info.name, info.total_bytes()), quote!{}))}else{None},
         )
     };
     let struct_size = info.total_bytes();
     let last_variant = info.variants.len() - 1;
     for (i, variant) in info.variants.iter().enumerate() {
-        let prefix = format_ident!("{}", variant.name.to_string().to_case(Case::Snake));
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(&variant, &Some(&prefix), peek_slice)?;
+            let thing = create_fields_quotes(&variant, Some(info.name.clone()), peek_slice)?;
             (
                 thing.field_name_list,
                 thing.peek_fns_quote,
@@ -342,7 +348,7 @@ pub fn create_from_bytes_field_quotes(
     peek_slice: bool,
 ) -> Result<FromBytesOptions, syn::Error> {
     let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option) = {
-        let thing = create_fields_quotes(info, &None, peek_slice)?;
+        let thing = create_fields_quotes(info, None, peek_slice)?;
         (
             thing.peek_fns_quote,
             thing.field_name_list,
@@ -386,7 +392,7 @@ fn make_peek_slice_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    prefix: &Option<&Ident>,
+    prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident.as_ref().clone())
@@ -423,7 +429,7 @@ fn make_peek_slice_unchecked_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    prefix: &Option<&Ident>,
+    prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident.as_ref().clone())
@@ -451,7 +457,7 @@ fn make_peek_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    prefix: &Option<&Ident>,
+    prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident.as_ref().clone())
