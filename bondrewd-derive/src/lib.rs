@@ -347,14 +347,19 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - Enums which implement the BitfieldEnum trait in Bondrewd.
 /// - Structs which implement the Bitfield trait in Bondrewd.
 ///
-/// # Struct/Enum Attributes
-/// ## Struct Attributes
-/// These attributes can be used on a struct or an enum, but when used with an enum they are defaults
-/// for the variants, and each variant can be assigned these attributes as well.
+/// # Struct/Enum/Variant Attributes
+/// 
+/// ## Common Attributes
+/// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
+/// defaults for the variants, and each variant can be assigned these attributes as well.
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
+/// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
+/// byte index). This has no runtime cost. [example](#reverse-example)
+/// 
+/// ## Struct/Variant Attributes
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 /// BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
@@ -363,13 +368,16 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// [example](#enforce-full-bytes-example)
 /// - `fill_bytes = {BYTES}` Will force the output/input byte array size to be the provided SIZE amount of
 /// bytes. [example](#fill-bytes-examples)
-/// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
-/// byte index). This has no runtime cost. [example](#reverse-example)
+/// 
 /// ## Enum Attributes
-/// These attributes can only be used with enums.
 /// - `id_bits` = Describes the amount of bits bondrewd will use to identify which variant is being stored.
-/// [example](#)
+/// [example](#enum-example)
+/// - `id_bytes` = Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
+/// ## Variant Attributes
+/// - `id` = Tell bondrewd the id value tot use for the variant.
+/// [example](#enum-example)
+/// 
 /// # Field Attributes
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
@@ -1328,9 +1336,6 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// See [Generated From Bytes](#generated-from-bytes) below.
 /// 
 /// ```
-/// ```
-/// ## Generated From Bytes
-/// ```
 /// use bondrewd::*;
 /// 
 /// #[derive(Bitfields)]
@@ -1365,6 +1370,192 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     assert_eq!(bytes[1], 0b00000000);
 ///     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
 ///     assert_eq!(bytes[2], 0b01_000000);
+/// }
+/// ```
+/// ## Generated From Bytes
+/// ```
+/// enum Thing {
+///     Three {
+///         d: u8,
+///         e: u16,
+///     },
+///     One {
+///         a: u16,
+///     },
+///     Two {
+///         a: u16,
+///         b: u8,
+///     },
+///     Idk,
+/// }
+/// impl bondrewd::Bitfields<3usize> for Thing {
+/// const BIT_SIZE: usize = 24usize;
+/// fn into_bytes(self) -> [u8; 3usize] {
+///     let mut output_byte_buffer = [0u8; 3usize];
+///     match self {
+///         Self::Three { d, e } => {
+///             Self::write_id(&mut output_byte_buffer, 3);
+///             Self::write_three_d(&mut output_byte_buffer, d);
+///             Self::write_three_e(&mut output_byte_buffer, e);
+///         }
+///         Self::One { a } => {
+///             Self::write_id(&mut output_byte_buffer, 1);
+///             Self::write_one_a(&mut output_byte_buffer, a);
+///         }
+///         Self::Two { a, b } => {
+///             Self::write_id(&mut output_byte_buffer, 2);
+///             Self::write_two_a(&mut output_byte_buffer, a);
+///             Self::write_two_b(&mut output_byte_buffer, b);
+///         }
+///         Self::Idk {} => {
+///             Self::write_id(&mut output_byte_buffer, 0);
+///         }
+///     }
+///     output_byte_buffer
+/// }
+/// fn from_bytes(mut input_byte_buffer: [u8; 3usize]) -> Self {
+///     let id = Self::read_id(&input_byte_buffer);
+///     match id {
+///         3 => {
+///             let d = Self::read_three_d(&input_byte_buffer);
+///             let e = Self::read_three_e(&input_byte_buffer);
+///             Self::Three { d, e }
+///         }
+///         1 => {
+///             let a = Self::read_one_a(&input_byte_buffer);
+///             Self::One { a }
+///         }
+///         2 => {
+///             let a = Self::read_two_a(&input_byte_buffer);
+///             let b = Self::read_two_b(&input_byte_buffer);
+///             Self::Two { a, b }
+///         }
+///         _ => Self::Idk,
+///     }
+/// }
+/// }
+/// impl Thing {
+///     #[inline]
+///     ///Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
+///     pub fn read_id(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         ((input_byte_buffer[0usize] & 192u8) >> 6usize) as u8
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
+///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         u8::from_be_bytes({
+///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
+///                 d_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 d_bytes[0] |= input_byte_buffer[1usize] & 128u8;
+///                 d_bytes
+///             })
+///             .rotate_left(1u32)
+///     }
+///     #[inline]
+///     ///Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
+///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
+///             e_bytes[0usize] |= input_byte_buffer[1usize] & 127u8;
+///             e_bytes[1usize] |= input_byte_buffer[2usize];
+///             e_bytes
+///         })
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
+///     pub fn read_one_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
+///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 a_bytes[1usize] |= input_byte_buffer[1usize];
+///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
+///                 a_bytes
+///             })
+///             .rotate_left(2u32)
+///     }
+///     #[inline]
+///     ///Reads bits 18 through 23 within `input_byte_buffer`, getting the `one_fill_bits` field of a `One` in bitfield form.
+///     pub fn read_one_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 1usize] {
+///         [{ ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8 }]
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 17 within `input_byte_buffer`, getting the `two_a` field of a `Two` in bitfield form.
+///     pub fn read_two_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
+///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 a_bytes[1usize] |= input_byte_buffer[1usize];
+///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
+///                 a_bytes
+///             })
+///             .rotate_left(2u32)
+///     }
+///     #[inline]
+///     ///Reads bits 18 through 23 within `input_byte_buffer`, getting the `two_b` field of a `Two` in bitfield form.
+///     pub fn read_two_b(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
+///     pub fn read_idk_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 3usize] {
+///         [
+///             { ((input_byte_buffer[0usize] & 63u8) >> 0usize) as u8 },
+///             { ((input_byte_buffer[1usize] & 255u8) >> 0usize) as u8 },
+///             { ((input_byte_buffer[2usize] & 255u8) >> 0usize) as u8 },
+///         ]
+///     }
+///     #[inline]
+///     ///Writes to bits 0 through 1 within `output_byte_buffer`, setting the `id` field of a `Thing` in bitfield form.
+///     pub fn write_id(output_byte_buffer: &mut [u8; 3usize], mut id: u8) {
+///         output_byte_buffer[0usize] &= 63u8;
+///         output_byte_buffer[0usize] |= ((id as u8) << 6usize) & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
+///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 127u8;
+///         let d_bytes = (d.rotate_right(1u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= d_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
+///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
+///         output_byte_buffer[1usize] &= 128u8;
+///         output_byte_buffer[2usize] &= 0u8;
+///         let e_bytes = e.to_be_bytes();
+///         output_byte_buffer[1usize] |= e_bytes[0usize] & 127u8;
+///         output_byte_buffer[2usize] |= e_bytes[1usize];
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
+///     pub fn write_one_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 0u8;
+///         output_byte_buffer[2usize] &= 63u8;
+///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= a_bytes[1usize];
+///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 17 within `output_byte_buffer`, setting the `two_a` field of a `Two` in bitfield form.
+///     pub fn write_two_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 0u8;
+///         output_byte_buffer[2usize] &= 63u8;
+///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= a_bytes[1usize];
+///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 18 through 23 within `output_byte_buffer`, setting the `two_b` field of a `Two` in bitfield form.
+///     pub fn write_two_b(output_byte_buffer: &mut [u8; 3usize], mut b: u8) {
+///         output_byte_buffer[2usize] &= 192u8;
+///         output_byte_buffer[2usize] |= ((b as u8) << 0usize) & 63u8;
+///     }
 /// }
 /// ```
 /// # Enum With Discriminates
