@@ -1432,7 +1432,7 @@ impl ObjectInfo {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
-                                if value <= 16 {
+                                if value > 16 {
                                     return Err(syn::Error::new(
                                         span,
                                         format!("Maximum id bytes is 16."),
