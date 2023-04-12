@@ -529,7 +529,7 @@ impl FieldDataType {
                                     FieldBuilderRange::LastEnd(_) | FieldBuilderRange::None => {
                                         return Err(Error::new(
                                             field_span,
-                                            format!("unknown primitive type [{}]", field_type_name),
+                                            format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{}]", field_type_name),
                                         ));
                                     }
                                 },
