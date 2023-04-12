@@ -12,6 +12,7 @@
 //! - Allow assumed id sizing. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
 //! - Enable `hex` and `setter` features for enums.
+//! - We may be able to detect `repr(TYPE)` attribute and if so we can get useful information from that.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
@@ -346,7 +347,10 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - Enums which implement the BitfieldEnum trait in Bondrewd.
 /// - Structs which implement the Bitfield trait in Bondrewd.
 ///
-/// # Struct Attributes
+/// # Struct/Enum Attributes
+/// ## Struct Attributes
+/// These attributes can be used on a struct or an enum, but when used with an enum they are defaults
+/// for the variants, and each variant can be assigned these attributes as well.
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
@@ -361,6 +365,10 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// bytes. [example](#fill-bytes-examples)
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 /// byte index). This has no runtime cost. [example](#reverse-example)
+/// ## Enum Attributes
+/// These attributes can only be used with enums.
+/// - `id_bits` = Describes the amount of bits bondrewd will use to identify which variant is being stored.
+/// [example](#)
 ///
 /// # Field Attributes
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
@@ -1312,6 +1320,104 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(false,reconstructed.flag_four);
 /// assert_eq!(false,reconstructed.flag_five);
 /// assert_eq!(false,reconstructed.flag_six);
+/// ```
+/// # Enum Example
+/// Because enums can provide a lot of ambiguity there is a requirement that The last variant is
+/// always considered the "Invalid Variant", which simply means that it will be a
+/// catch-all in the match statement for the generated `Bitfields::from_bytes()` function.
+/// See [Generated From Bytes](#generated-from-bytes) below.
+/// 
+/// ```
+/// ```
+/// ## Generated From Bytes
+/// ```
+/// use bondrewd::*;
+/// 
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bits = 2, enforce_bytes = 3)]
+/// enum Thing {
+///     #[bondrewd(bit_length = 15, id = 3)]
+///     Three {
+///         #[bondrewd(bit_length = 7)]
+///         d: u8,
+///         #[bondrewd(bit_length = 15)]
+///         e: u16,
+///     },
+///     #[bondrewd(id = 1)]
+///     One {
+///         a: u16,
+///     },
+///     #[bondrewd(id = 2)]
+///     Two {
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     },
+///     #[bondrewd(id = 0)]
+///     Idk,
+/// }
+/// 
+/// fn main() {
+///     let thing = Thing::One { a: 1 };
+///     let bytes = thing.into_bytes();
+///     // the first two bits are the id followed by Variant One's `a` field.
+///     assert_eq!(bytes[0], 0b01_000000);
+///     assert_eq!(bytes[1], 0b00000000);
+///     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+///     assert_eq!(bytes[2], 0b01_000000);
+/// }
+/// ```
+/// # Enum With Discriminates
+/// In this example i have create Variant's `Three`, `Two`, `One`, and `Idk` variants. The variants with
+/// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
+/// ## Issue
+/// Because i am:
+/// - Setting the last variant's, "Idk" variant, id to `0`,
+/// - Setting the first variant's, `Three` variant, id to `3`,
+/// - Setting the third variant's, `Two` variant, id to `2`,
+/// - And variant `One` does not have a defined id
+/// variant `One` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
+/// the assignment would go from top to bottom. This happens internally in bondrewd for its code generation
+/// but the `#[repr(u8)] attribute assigns values for if you want to represent the variant as a number,
+/// and you should be aware `repr` does not look forward or backward for used numbers, meaning you will
+/// get an error from `repr` if you:
+/// - Remove the first variant's, `Three`, id assignment of `3`. The first variant will be assigned
+///     zero regardless of the last variant being manually assigned that number already.
+/// - Change the second variant's, `One`, id assignment of `1` to `2`. `repr` will assume that this should
+///     be that last variant's value plus one which is `3` and already used. 
+/// ```
+/// use bondrewd::*;
+/// 
+/// #[derive(Bitfields)]
+/// #[repr(u8)]
+/// #[bondrewd(default_endianness = "be", id_bits = 2, enforce_bytes = 3)]
+/// enum Thing {
+///     Three {
+///         #[bondrewd(bit_length = 7)]
+///         d: u8,
+///         #[bondrewd(bit_length = 15)]
+///         e: u16,
+///     } = 3,
+///     One {
+///         a: u16,
+///     } = 1,
+///     Two {
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     },
+///     Idk = 0,
+/// }
+/// 
+/// fn main() {
+///     let thing = Thing::One { a: 1 };
+///     let bytes = thing.into_bytes();
+///     // the first two bits are the id followed by Variant One's `a` field.
+///     assert_eq!(bytes[0], 0b01_000000);
+///     assert_eq!(bytes[1], 0b00000000);
+///     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+///     assert_eq!(bytes[2], 0b01_000000);
+/// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {

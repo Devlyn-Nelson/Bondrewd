@@ -1194,19 +1194,19 @@ impl ObjectInfo {
                         largest = size;
                     }
                     if let Some(bit_size) = enum_attrs.payload_bit_size {
-                        if bit_size < size {
+                        if bit_size < size - variant.fields[0].attrs.bit_length() {
                             return Err(Error::new(
                                 variant.name.span(),
-                                format!("variant is larger than defined size of enum. defined size: {bit_size}. variant size: {size}"),
+                                format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant.fields[0].attrs.bit_length()),
                             ));
                         }
                     } else if let (Some(bit_size), Some(id_size)) =
                         (enum_attrs.total_bit_size, enum_attrs.id_bits)
                     {
-                        if bit_size - id_size < size {
+                        if bit_size - id_size < size - variant.fields[0].attrs.bit_length() {
                             return Err(Error::new(
                                 variant.name.span(),
-                                format!("variant is larger than defined size of enum. defined size: {}. variant size: {size}", bit_size - id_size),
+                                format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size),
                             ));
                         }
                     }
@@ -1339,7 +1339,7 @@ impl ObjectInfo {
                         format!("the bit size being used is less than required to describe each variant"),
                     ));
                 }
-                if enum_attrs.payload_bit_size < largest {
+                if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
                     return Err(Error::new(
                         data.enum_token.span(),
                         format!("the payload size being used is less than largest variant"),
