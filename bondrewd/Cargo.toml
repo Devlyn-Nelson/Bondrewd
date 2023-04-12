@@ -1,18 +1,18 @@
 [package]
 name = "bondrewd"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2021"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Dev <devlynknelson@gmail.com>"]
 license = "MIT OR Apache-2.0"
 keywords = ["bitfields", "packed-struct", "bit-compression", "packed-fields", "packing"]
-categories = ["compression","data-structures","development-tools"]
+#categories = ["compression","data-structures","development-tools"]
 readme = "../README.md"
 repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 
 [dependencies]
-#bondrewd-derive = { version = "^0.3", optional = true }
-bondrewd-derive = { path = "../bondrewd-derive", optional = true }
+bondrewd-derive = { version = "^0.3", optional = true, registry = "pumpkin-patch" }
+#bondrewd-derive = { path = "../bondrewd-derive", optional = true }
 
 [features]
 default = ["std"]
