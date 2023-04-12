@@ -18,7 +18,7 @@ enum Thing {
         #[bondrewd(bit_length = 15)]
         e: u16,
     },
-    Idk,
+    Idk = 0,
 }
 
 fn main() {

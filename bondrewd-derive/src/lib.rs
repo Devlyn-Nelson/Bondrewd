@@ -375,8 +375,9 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - `id_bytes = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
-/// - `id = {ID}` Tell bondrewd the id value tot use for the variant.
-/// [example](#enum-example)
+/// - `id = {ID}` Tell bondrewd the id value tot use for the variant. 
+/// [example](#enum-example).
+/// The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
 /// 
 /// # Field Attributes
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
@@ -1340,23 +1341,21 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// 
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be", id_bits = 2, enforce_bytes = 3)]
+/// 
 /// enum Thing {
-///     #[bondrewd(bit_length = 15, id = 3)]
+///     One {
+///         a: u16,
+///     },
+///     Two {
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     },
 ///     Three {
 ///         #[bondrewd(bit_length = 7)]
 ///         d: u8,
 ///         #[bondrewd(bit_length = 15)]
 ///         e: u16,
-///     },
-///     #[bondrewd(id = 1)]
-///     One {
-///         a: u16,
-///     },
-///     #[bondrewd(id = 2)]
-///     Two {
-///         a: u16,
-///         #[bondrewd(bit_length = 6)]
-///         b: u8,
 ///     },
 ///     #[bondrewd(id = 0)]
 ///     Idk,
@@ -1375,91 +1374,70 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// #### Generated From Bytes
 /// ```
 /// enum Thing {
-///     Three {
-///         d: u8,
-///         e: u16,
-///     },
-///     One {
-///         a: u16,
+///     One { 
+///         a: u16
 ///     },
 ///     Two {
 ///         a: u16,
-///         b: u8,
+///         b: u8
+///     },
+///     Three {
+///         d: u8,
+///         e: u16
 ///     },
 ///     Idk,
 /// }
 /// impl bondrewd::Bitfields<3usize> for Thing {
-/// const BIT_SIZE: usize = 24usize;
-/// fn into_bytes(self) -> [u8; 3usize] {
-///     let mut output_byte_buffer = [0u8; 3usize];
-///     match self {
-///         Self::Three { d, e } => {
-///             Self::write_id(&mut output_byte_buffer, 3);
-///             Self::write_three_d(&mut output_byte_buffer, d);
-///             Self::write_three_e(&mut output_byte_buffer, e);
+///     const BIT_SIZE: usize = 24usize;
+///     fn into_bytes(self) -> [u8; 3usize] {
+///         let mut output_byte_buffer = [0u8; 3usize];
+///         match self {
+///             Self::One { a } => {
+///                 Self::write_id(&mut output_byte_buffer, 1);
+///                 Self::write_one_a(&mut output_byte_buffer, a);
+///             }
+///             Self::Two { a, b } => {
+///                 Self::write_id(&mut output_byte_buffer, 2);
+///                 Self::write_two_a(&mut output_byte_buffer, a);
+///                 Self::write_two_b(&mut output_byte_buffer, b);
+///             }
+///             Self::Three { d, e } => {
+///                 Self::write_id(&mut output_byte_buffer, 3);
+///                 Self::write_three_d(&mut output_byte_buffer, d);
+///                 Self::write_three_e(&mut output_byte_buffer, e);
+///             }
+///             Self::Idk {} => {
+///                 Self::write_id(&mut output_byte_buffer, 0);
+///             }
 ///         }
-///         Self::One { a } => {
-///             Self::write_id(&mut output_byte_buffer, 1);
-///             Self::write_one_a(&mut output_byte_buffer, a);
-///         }
-///         Self::Two { a, b } => {
-///             Self::write_id(&mut output_byte_buffer, 2);
-///             Self::write_two_a(&mut output_byte_buffer, a);
-///             Self::write_two_b(&mut output_byte_buffer, b);
-///         }
-///         Self::Idk {} => {
-///             Self::write_id(&mut output_byte_buffer, 0);
+///         output_byte_buffer
+///     }
+///     fn from_bytes(mut input_byte_buffer: [u8; 3usize]) -> Self {
+///         let id = Self::read_id(&input_byte_buffer);
+///         match id {
+///             1 => {
+///                 let a = Self::read_one_a(&input_byte_buffer);
+///                 Self::One { a }
+///             }
+///             2 => {
+///                 let a = Self::read_two_a(&input_byte_buffer);
+///                 let b = Self::read_two_b(&input_byte_buffer);
+///                 Self::Two { a, b }
+///             }
+///             3 => {
+///                 let d = Self::read_three_d(&input_byte_buffer);
+///                 let e = Self::read_three_e(&input_byte_buffer);
+///                 Self::Three { d, e }
+///             }
+///             _ => Self::Idk,
 ///         }
 ///     }
-///     output_byte_buffer
-/// }
-/// fn from_bytes(mut input_byte_buffer: [u8; 3usize]) -> Self {
-///     let id = Self::read_id(&input_byte_buffer);
-///     match id {
-///         3 => {
-///             let d = Self::read_three_d(&input_byte_buffer);
-///             let e = Self::read_three_e(&input_byte_buffer);
-///             Self::Three { d, e }
-///         }
-///         1 => {
-///             let a = Self::read_one_a(&input_byte_buffer);
-///             Self::One { a }
-///         }
-///         2 => {
-///             let a = Self::read_two_a(&input_byte_buffer);
-///             let b = Self::read_two_b(&input_byte_buffer);
-///             Self::Two { a, b }
-///         }
-///         _ => Self::Idk,
 ///     }
-/// }
-/// }
-/// impl Thing {
+///     impl Thing {
 ///     #[inline]
 ///     ///Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
 ///     pub fn read_id(input_byte_buffer: &[u8; 3usize]) -> u8 {
 ///         ((input_byte_buffer[0usize] & 192u8) >> 6usize) as u8
-///     }
-///     #[inline]
-///     ///Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
-///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
-///         u8::from_be_bytes({
-///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
-///                 d_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
-///                 d_bytes[0] |= input_byte_buffer[1usize] & 128u8;
-///                 d_bytes
-///             })
-///             .rotate_left(1u32)
-///     }
-///     #[inline]
-///     ///Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
-///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
-///         u16::from_be_bytes({
-///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
-///             e_bytes[0usize] |= input_byte_buffer[1usize] & 127u8;
-///             e_bytes[1usize] |= input_byte_buffer[2usize];
-///             e_bytes
-///         })
 ///     }
 ///     #[inline]
 ///     ///Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
@@ -1496,6 +1474,27 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///         ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8
 ///     }
 ///     #[inline]
+///     ///Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
+///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         u8::from_be_bytes({
+///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
+///                 d_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 d_bytes[0] |= input_byte_buffer[1usize] & 128u8;
+///                 d_bytes
+///             })
+///             .rotate_left(1u32)
+///     }
+///     #[inline]
+///     ///Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
+///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
+///             e_bytes[0usize] |= input_byte_buffer[1usize] & 127u8;
+///             e_bytes[1usize] |= input_byte_buffer[2usize];
+///             e_bytes
+///         })
+///     }
+///     #[inline]
 ///     ///Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
 ///     pub fn read_idk_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 3usize] {
 ///         [
@@ -1509,24 +1508,6 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     pub fn write_id(output_byte_buffer: &mut [u8; 3usize], mut id: u8) {
 ///         output_byte_buffer[0usize] &= 63u8;
 ///         output_byte_buffer[0usize] |= ((id as u8) << 6usize) & 192u8;
-///     }
-///     #[inline]
-///     ///Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
-///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
-///         output_byte_buffer[0usize] &= 192u8;
-///         output_byte_buffer[1usize] &= 127u8;
-///         let d_bytes = (d.rotate_right(1u32)).to_be_bytes();
-///         output_byte_buffer[0usize] |= d_bytes[0usize] & 63u8;
-///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
-///     }
-///     #[inline]
-///     ///Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
-///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
-///         output_byte_buffer[1usize] &= 128u8;
-///         output_byte_buffer[2usize] &= 0u8;
-///         let e_bytes = e.to_be_bytes();
-///         output_byte_buffer[1usize] |= e_bytes[0usize] & 127u8;
-///         output_byte_buffer[2usize] |= e_bytes[1usize];
 ///     }
 ///     #[inline]
 ///     ///Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
@@ -1556,18 +1537,38 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///         output_byte_buffer[2usize] &= 192u8;
 ///         output_byte_buffer[2usize] |= ((b as u8) << 0usize) & 63u8;
 ///     }
+///     #[inline]
+///     ///Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
+///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 127u8;
+///         let d_bytes = (d.rotate_right(1u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= d_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
+///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
+///         output_byte_buffer[1usize] &= 128u8;
+///         output_byte_buffer[2usize] &= 0u8;
+///         let e_bytes = e.to_be_bytes();
+///         output_byte_buffer[1usize] |= e_bytes[0usize] & 127u8;
+///         output_byte_buffer[2usize] |= e_bytes[1usize];
+///     }
 /// }
 /// ```
 /// # Enum With Discriminates
 /// In this example i have create Variant's `Three`, `Two`, `One`, and `Idk` variants. The variants with
 /// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
 /// 
-/// #### Issue
+/// #### Issue You May Run Into
 /// Because i am:
 /// - Setting the last variant's, "Idk" variant, id to `0`,
 /// - Setting the first variant's, `Three` variant, id to `3`,
 /// - Setting the third variant's, `Two` variant, id to `2`,
-/// - And variant `One` does not have a defined id
+/// - And variant `One` does not have a defined id.
+/// 
+/// 
 /// variant `One` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
 /// the assignment would go from top to bottom. This happens internally in bondrewd for its code generation
 /// but the `#[repr(u8)] attribute assigns values for if you want to represent the variant as a number,
