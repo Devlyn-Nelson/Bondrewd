@@ -4,6 +4,8 @@
 //! lengths that are not a power of Two.
 //!
 //! # Under Development
+//! with 0.4.0 enums are now supported by the standard Bitfield proc macro. This is still experimental.
+//!
 //! - Mark any Enum Bitfield Variant as invalid instead of forcing it to be the last one.
 //! - Implement Tuple Structs.
 //! - Allow the user to capture the id value in the fields list of a Enum Variant.
@@ -1523,8 +1525,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
         }
         ObjectInfo::Enum(enum_info) => {
-            let setters = false;
-            let hex = false;
             // let slice_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
@@ -1558,73 +1558,60 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                     #peek_slice_quote
                 }
             }
-            let setters_quote = if setters {
-                // match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
-                //     Ok(parsed_struct) => parsed_struct,
-                //     Err(err) => {
-                //         return TokenStream::from(err.to_compile_error());
-                //     }
-                // }
-                todo!("setters");
-            } else {
-                quote! {}
-            };
 
             let getter_setters_quotes = quote! {
                 impl #struct_name {
                     #peek_quotes
                     #set_quotes
-                    #setters_quote
                 }
             };
             let struct_size = enum_info.total_bytes();
             let hex_fns_quote = if hex {
-                let _hex_size = struct_size * 2;
-                // quote! {
-                //     impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
-                //         fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
-                //             let bytes: [u8; #struct_size] = [0;#struct_size];
-                //             let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
-                //             for i in 0usize..#struct_size {
-                //                 let index = i * 2;
-                //                 let index2 = index + 1;
-                //                 let decode_nibble = |c, c_i| match c {
-                //                     b'A'..=b'F' => Ok(c - b'A' + 10u8),
-                //                     b'a'..=b'f' => Ok(c - b'a' + 10u8),
-                //                     b'0'..=b'9' => Ok(c - b'0'),
-                //                     _ => return Err(bondrewd::BitfieldHexError(
-                //                         c as char,
-                //                         c_i,
-                //                     )),
-                //                 };
-                //                 bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
-                //             }
-                //             Ok(Self::from_bytes(bytes))
+                let hex_size = struct_size * 2;
+                quote! {
+                    impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
+                        fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
+                            let bytes: [u8; #struct_size] = [0;#struct_size];
+                            let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
+                            for i in 0usize..#struct_size {
+                                let index = i * 2;
+                                let index2 = index + 1;
+                                let decode_nibble = |c, c_i| match c {
+                                    b'A'..=b'F' => Ok(c - b'A' + 10u8),
+                                    b'a'..=b'f' => Ok(c - b'a' + 10u8),
+                                    b'0'..=b'9' => Ok(c - b'0'),
+                                    _ => return Err(bondrewd::BitfieldHexError(
+                                        c as char,
+                                        c_i,
+                                    )),
+                                };
+                                bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
+                            }
+                            Ok(Self::from_bytes(bytes))
 
-                //         }
+                        }
 
-                //         fn into_hex_upper(self) -> [u8;#hex_size] {
-                //             let bytes = self.into_bytes();
-                //             let mut output: [u8;#hex_size] = [0; #hex_size];
-                //             for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                //                 output[i] = (Self::UPPERS[((byte & 0b11110000) >> 4) as usize]);
-                //                 output[i + 1] = (Self::UPPERS[(byte & 0b00001111) as usize]);
-                //             }
-                //             output
-                //         }
+                        fn into_hex_upper(self) -> [u8;#hex_size] {
+                            let bytes = self.into_bytes();
+                            let mut output: [u8;#hex_size] = [0; #hex_size];
+                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
+                                output[i] = (Self::UPPERS[((byte & 0b11110000) >> 4) as usize]);
+                                output[i + 1] = (Self::UPPERS[(byte & 0b00001111) as usize]);
+                            }
+                            output
+                        }
 
-                //         fn into_hex_lower(self) -> [u8;#hex_size] {
-                //             let bytes = self.into_bytes();
-                //             let mut output: [u8;#hex_size] = [0; #hex_size];
-                //             for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                //                 output[i] = (Self::LOWERS[((byte & 0b11110000) >> 4) as usize]);
-                //                 output[i + 1] = (Self::LOWERS[(byte & 0b00001111) as usize]);
-                //             }
-                //             output
-                //         }
-                //     }
-                // }
-                todo!("hex");
+                        fn into_hex_lower(self) -> [u8;#hex_size] {
+                            let bytes = self.into_bytes();
+                            let mut output: [u8;#hex_size] = [0; #hex_size];
+                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
+                                output[i] = (Self::LOWERS[((byte & 0b11110000) >> 4) as usize]);
+                                output[i + 1] = (Self::LOWERS[(byte & 0b00001111) as usize]);
+                            }
+                            output
+                        }
+                    }
+                }
             } else {
                 quote! {}
             };
