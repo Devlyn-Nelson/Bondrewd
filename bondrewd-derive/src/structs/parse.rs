@@ -92,7 +92,6 @@ impl FieldAttrBuilder {
         name: Box<Ident>,
     ) -> syn::Result<FieldAttrBuilder> {
         let mut builder = FieldAttrBuilder::new(name);
-        // TODO make this more compact. use match or something.
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
         // filled in using the end of the previous field as the start, add the length in bits you get the

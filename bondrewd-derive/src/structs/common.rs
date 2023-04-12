@@ -182,7 +182,6 @@ impl FieldDataType {
         }
     }
     pub fn is_number(&self) -> bool {
-        // TODO put Arrays in here
         match self {
             Self::Enum(_, _, _) | Self::Number(_, _, _) | Self::Float(_, _) | Self::Char(_, _) => {
                 true
@@ -437,9 +436,6 @@ impl FieldDataType {
         attrs: &mut FieldAttrBuilder,
         field_span: Span,
     ) -> syn::Result<FieldDataType> {
-        // TODO added attribute consideration for recognizing structs and enums.
-        // TODO impl enum logic.
-        // TODO impl struct logic
         match attrs.ty {
             FieldAttrBuilderType::None => {
                 if let Some(last_segment) = path.segments.last() {
@@ -527,9 +523,10 @@ impl FieldDataType {
                         _ => {
                             Ok(FieldDataType::Struct(
                                 match attrs.bit_range {
-                                    FieldBuilderRange::Range(ref range) => ((range.end - range.start) as f64 / 8.0f64).ceil() as usize,
-                                    FieldBuilderRange::LastEnd(_) |
-                                    FieldBuilderRange::None => {
+                                    FieldBuilderRange::Range(ref range) => {
+                                        ((range.end - range.start) as f64 / 8.0f64).ceil() as usize
+                                    }
+                                    FieldBuilderRange::LastEnd(_) | FieldBuilderRange::None => {
                                         return Err(Error::new(
                                             field_span,
                                             format!("unknown primitive type [{}]", field_type_name),
@@ -968,6 +965,7 @@ pub struct EnumInfo {
     pub name: Ident,
     pub variants: Vec<StructInfo>,
     pub attrs: EnumAttrInfo,
+    pub vis: syn::Visibility,
 }
 
 impl EnumInfo {
@@ -1024,7 +1022,7 @@ pub enum ObjectInfo {
     Enum(EnumInfo),
 }
 
-/// `id_bits` is the amount of bits the enum's id takes. 
+/// `id_bits` is the amount of bits the enum's id takes.
 fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
     match id_bits {
         0..=8 => Ok(quote! {u8}),
@@ -1108,17 +1106,22 @@ impl ObjectInfo {
                 let (id_field_type, id_bits) = {
                     let id_bits = if let Some(id_bits) = enum_attrs.id_bits {
                         id_bits
-                    }else if let (Some(payload_size), Some(total_size)) = (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
+                    } else if let (Some(payload_size), Some(total_size)) =
+                        (enum_attrs.payload_bit_size, enum_attrs.total_bit_size)
+                    {
                         total_size - payload_size
-                    } else{
+                    } else {
                         // TODO make sure this gets replaced once id size is known
                         0
                     };
-                    (FieldDataType::Number(
+                    (
+                        FieldDataType::Number(
+                            id_bits,
+                            NumberSignage::Unsigned,
+                            get_id_type(id_bits, name.span())?,
+                        ),
                         id_bits,
-                        NumberSignage::Unsigned,
-                        get_id_type(id_bits, name.span())?,
-                    ), id_bits)
+                    )
                 };
                 let id_field = FieldInfo {
                     name: format_ident!("id"),
@@ -1144,7 +1147,12 @@ impl ObjectInfo {
                     let variant_name = variant.ident.clone();
                     // TODO currently we always add the id field, but some people might want the id to be a
                     // field in the variant. this would no longer need to insert the id as a "fake-field".
-                    let fields = Self::parse_fields(&variant_name, &variant.fields, &attrs, Some(id_field.clone()))?;
+                    let fields = Self::parse_fields(
+                        &variant_name,
+                        &variant.fields,
+                        &attrs,
+                        Some(id_field.clone()),
+                    )?;
                     variants.push(StructInfo {
                         name: variant_name,
                         attrs,
@@ -1328,7 +1336,7 @@ impl ObjectInfo {
                 if enum_attrs.id_bits < min_id_size {
                     return Err(Error::new(
                         data.enum_token.span(),
-                        format!("the bit size being used is less than required"),
+                        format!("the bit size being used is less than required to describe each variant"),
                     ));
                 }
                 if enum_attrs.payload_bit_size < largest {
@@ -1342,13 +1350,12 @@ impl ObjectInfo {
                     NumberSignage::Unsigned,
                     get_id_type(enum_attrs.id_bits, name.span())?,
                 );
-                // TODO currently we assume the first field is the id and adjust the bit sizing.
+                // add fill_bits if needed.
                 for v in variants.iter_mut() {
-                    v.fields[0].attrs.bit_range = 0..enum_attrs.id_bits;
-                    v.fields[0].ty = id_field_ty.clone();
                     let first_bit = v.total_bits();
                     if first_bit < largest {
-                        let fill_bytes_size = ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
+                        let fill_bytes_size =
+                            ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
                         let ident = quote::format_ident!("fill_bits");
                         v.fields.push(FieldInfo {
                             name: ident.clone(),
@@ -1361,7 +1368,11 @@ impl ObjectInfo {
                             },
                             ty: FieldDataType::BlockArray(
                                 Box::new(SubFieldInfo {
-                                    ty: FieldDataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                                    ty: FieldDataType::Number(
+                                        1,
+                                        NumberSignage::Unsigned,
+                                        quote! {u8},
+                                    ),
                                 }),
                                 fill_bytes_size,
                                 quote! {[u8;#fill_bytes_size]},
@@ -1373,6 +1384,7 @@ impl ObjectInfo {
                     name,
                     variants,
                     attrs: enum_attrs,
+                    vis: input.vis.clone(),
                 }))
             }
             _ => Err(Error::new(Span::call_site(), "input can not be a union")),
@@ -1650,29 +1662,41 @@ impl ObjectInfo {
         attrs: &AttrInfo,
         first_field: Option<FieldInfo>,
     ) -> syn::Result<Vec<FieldInfo>> {
-        let mut parsed_fields: Vec<FieldInfo> = if let Some(f) = first_field{
+        let mut parsed_fields: Vec<FieldInfo> = if let Some(f) = first_field {
             vec![f]
-        }else{Vec::default()};
+        } else {
+            Vec::default()
+        };
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
         let fields = match fields {
-            syn::Fields::Named(ref named_fields) => Some(named_fields.named.iter().cloned().collect::<Vec<syn::Field>>()),
+            syn::Fields::Named(ref named_fields) => Some(
+                named_fields
+                    .named
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<syn::Field>>(),
+            ),
             // TODO make sure this works
-            syn::Fields::Unnamed(ref fields) => Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()),
-            syn::Fields::Unit => if parsed_fields.first().is_none() {
-                return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
-            }else{
-                None
-            },
+            syn::Fields::Unnamed(ref fields) => {
+                Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>())
+            }
+            syn::Fields::Unit => {
+                if parsed_fields.first().is_none() {
+                    return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
+                } else {
+                    None
+                }
+            }
         };
 
         // figure out what the field are and what/where they should be in byte form.
-        let mut bit_size = if let Some(id_field) = parsed_fields.first(){
+        let mut bit_size = if let Some(id_field) = parsed_fields.first() {
             id_field.bit_size()
-        }else{
+        } else {
             0
         };
-        if let Some(fields) = fields{
+        if let Some(fields) = fields {
             for ref field in fields {
                 let parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
                 bit_size += parsed_field.bit_size();

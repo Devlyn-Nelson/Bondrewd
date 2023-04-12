@@ -25,8 +25,10 @@ struct FieldQuotes {
     peek_fns_quote: TokenStream,
     peek_slice_fns_option: Option<(TokenStream, TokenStream)>,
 }
-fn make_read_fns(field: &FieldInfo, info: &StructInfo
-    , enum_name: &Option<&Ident>,
+fn make_read_fns(
+    field: &FieldInfo,
+    info: &StructInfo,
+    enum_name: &Option<&Ident>,
     peek_fns_quote: &mut TokenStream,
     peek_slice_fns_option: &mut Option<(TokenStream, TokenStream)>,
 ) -> syn::Result<TokenStream> {
@@ -50,21 +52,11 @@ fn make_read_fns(field: &FieldInfo, info: &StructInfo
         #peek_quote
     };
     // make the slice functions if applicable.
-    if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) =
-        peek_slice_fns_option
+    if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) = peek_slice_fns_option
     {
-        let peek_slice_quote = make_peek_slice_fn(
-            &field_extractor,
-            field,
-            info,
-            &enum_name,
-        )?;
-        let peek_slice_unchecked_quote = make_peek_slice_unchecked_fn(
-            &field_extractor,
-            field,
-            info,
-            &enum_name,
-        )?;
+        let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, &enum_name)?;
+        let peek_slice_unchecked_quote =
+            make_peek_slice_unchecked_fn(&field_extractor, field, info, &enum_name)?;
         let mut the_peek_slice_fns_quote_temp = quote! {
             #the_peek_slice_fns_quote
             #peek_slice_quote
@@ -84,15 +76,13 @@ fn create_fields_quotes(
     enum_name: &Option<&Ident>,
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
-    // TODO update generated docs because they do not account for the offsets in the indexing for id.
     let mut field_name_list = quote! {};
     // all of the fields extraction will be appended to this
     let mut from_bytes_quote = quote! {};
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        let checked_ident = if let Some(prefix) = enum_name
-        {
+        let checked_ident = if let Some(prefix) = enum_name {
             format_ident!("{}{prefix}Checked", &info.name)
         } else {
             format_ident!("{}Checked", &info.name)
@@ -125,16 +115,22 @@ fn create_fields_quotes(
     let mut peek_fns_quote = quote! {};
     // TODO make each variant decide if the id field needs to be accounted for.
     // currently the id fields is added the each enum variant as the first field so we
-    // skip it assuming there will be one made is common across all variants.
+    // skip it assuming there will be one made that is common across all variants.
     let fields = if enum_name.is_some() {
         &info.fields[1..]
-    }else{
+    } else {
         &info.fields[..]
     };
 
     for field in fields {
         let field_name = &field.ident;
-        let field_extractor = make_read_fns(field, info, &enum_name, &mut peek_fns_quote, &mut peek_slice_fns_option)?;
+        let field_extractor = make_read_fns(
+            field,
+            info,
+            &enum_name,
+            &mut peek_fns_quote,
+            &mut peek_slice_fns_option,
+        )?;
         // fake fields do not exist in the actual structure and should only have functions
         // that read or write values into byte arrays.
         if field.attrs.reserve.is_fake_field() {
@@ -149,7 +145,7 @@ fn create_fields_quotes(
         let peek_call = if field.attrs.reserve.read_field() {
             let fn_field_name = if let Some(p) = enum_name {
                 format_ident!("read_{p}_{field_name}")
-            }else{
+            } else {
                 format_ident!("read_{field_name}")
             };
             quote! {
@@ -179,7 +175,6 @@ pub fn create_from_bytes_field_quotes_enum(
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
         (
             {
-                // TODO maybe remove this and add a fake field for the id into each variant during parse.
                 let field = FieldInfo {
                     name: format_ident!("id"),
                     ident: Box::new(format_ident!("id")),
@@ -250,11 +245,7 @@ pub fn create_from_bytes_field_quotes_enum(
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(
-                &variant,
-                &Some(&prefix),
-                peek_slice,
-            )?;
+            let thing = create_fields_quotes(&variant, &Some(&prefix), peek_slice)?;
             (
                 thing.field_name_list,
                 thing.peek_fns_quote,
@@ -289,8 +280,6 @@ pub fn create_from_bytes_field_quotes_enum(
         // because all of the from_bytes field quote store there data in a temporary variable with the same
         // name as its destination field the list of field names will be just fine.
 
-        // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
-        // into_bytes we also need to make sure that the write function is actually being made.
         let variant_id = if i == last_variant {
             quote! {_}
         } else {
@@ -311,9 +300,9 @@ pub fn create_from_bytes_field_quotes_enum(
             }
         };
         let variant_constructor = if field_name_list.is_empty() {
-            quote!{Self::#variant_name}
-        }else{
-            quote!{Self::#variant_name { #field_name_list }}
+            quote! {Self::#variant_name}
+        } else {
+            quote! {Self::#variant_name { #field_name_list }}
         };
         from_bytes_fn = quote! {
             #from_bytes_fn
@@ -323,12 +312,6 @@ pub fn create_from_bytes_field_quotes_enum(
             }
         };
     }
-    // TODO write the read_id and write_id functions.
-    // construct from bytes function. use input_byte_buffer as input name because,
-    // that is what the field quotes expect to extract from.
-    // wrap our list of field names with commas with Self{} so we it instantiate our struct,
-    // because all of the from_bytes field quote store there data in a temporary variable with the same
-    // name as its destination field the list of field names will be just fine.
     let from_bytes_fn = quote! {
         fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
             let id = Self::read_id(&input_byte_buffer);

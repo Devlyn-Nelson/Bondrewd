@@ -3,6 +3,13 @@
 //! Provides a proc macro for compressing a data structure with data which can be expressed with bit
 //! lengths that are not a power of Two.
 //!
+//! # Under Development
+//! - Mark any Enum Bitfield Variant as invalid instead of forcing it to be the last one.
+//! - Implement Tuple Structs.
+//! - Allow the user to capture the id value in the fields list of a Enum Variant.
+//! - Allow assumed id sizing. we do check the provided id size is large enough so if non is defined
+//!     we could just use the calculated smallest allowable.
+//!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //! which offers from\into bytes functions that are non-failable and convert the struct from/into sized
@@ -1514,21 +1521,21 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 TokenStream::from(to_bytes_quote)
             }
         }
-        ObjectInfo::Enum(e) => {
+        ObjectInfo::Enum(enum_info) => {
             let setters = false;
             let hex = false;
-            let slice_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&e, slice_fns) {
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, slice_fns)
+            {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&e, slice_fns) {
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, slice_fns)
+            {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            // println!("-- {}", fields_from_bytes.peek_field_fns);
             // combine all of the into_bytes quotes separated by newlines
             let into_bytes_quote = fields_into_bytes.into_bytes_fn;
             let mut set_quotes = fields_into_bytes.set_field_fns;
@@ -1568,7 +1575,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                     #setters_quote
                 }
             };
-            let struct_size = e.total_bytes();
+            let struct_size = enum_info.total_bytes();
             let hex_fns_quote = if hex {
                 let _hex_size = struct_size * 2;
                 // quote! {
@@ -1621,7 +1628,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             };
 
             // get the bit size of the entire set of fields to fill in trait requirement.
-            let bit_size = e.total_bits();
+            let bit_size = enum_info.total_bits();
 
             // put it all together.
             // to_bytes_quote will put all of the fields in self into a array called output_byte_buffer.
@@ -1638,49 +1645,47 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #getter_setters_quotes
                 #hex_fns_quote
             };
-
             if slice_fns {
-                // let vis = struct_info.vis;
-                // let checked_ident = format_ident!("{}Checked", &struct_name);
-                // let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
-                // let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
-                // let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
-                // let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
-                // let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
-                // let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
-                // let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
-                // let to_bytes_quote = quote! {
-                //     #to_bytes_quote
-                //     #[doc = #comment]
-                //     #vis struct #checked_ident<'a> {
-                //         buffer: &'a [u8],
-                //     }
-                //     impl<'a> #checked_ident<'a> {
-                //         #unchecked_functions
-                //         #[doc = #unchecked_comment]
-                //         pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
-                //             Self{
-                //                 buffer: data
-                //             }
-                //         }
-                //     }
-                //     #[doc = #comment_mut]
-                //     #vis struct #checked_mut_ident<'a> {
-                //         buffer: &'a mut [u8],
-                //     }
-                //     impl<'a> #checked_mut_ident<'a> {
-                //         #unchecked_functions
-                //         #unchecked_mut_functions
-                //         #[doc = #unchecked_comment_mut]
-                //         pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
-                //             Self{
-                //                 buffer: data
-                //             }
-                //         }
-                //     }
-                // };
-                // TokenStream::from(to_bytes_quote)
-                todo!("slice");
+                let vis = enum_info.vis;
+                let checked_ident = format_ident!("{}Checked", &struct_name);
+                let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
+                let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+                let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
+                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    #[doc = #comment]
+                    #vis struct #checked_ident<'a> {
+                        buffer: &'a [u8],
+                    }
+                    impl<'a> #checked_ident<'a> {
+                        #unchecked_functions
+                        #[doc = #unchecked_comment]
+                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    #[doc = #comment_mut]
+                    #vis struct #checked_mut_ident<'a> {
+                        buffer: &'a mut [u8],
+                    }
+                    impl<'a> #checked_mut_ident<'a> {
+                        #unchecked_functions
+                        #unchecked_mut_functions
+                        #[doc = #unchecked_comment_mut]
+                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                };
+                TokenStream::from(to_bytes_quote)
             } else {
                 TokenStream::from(to_bytes_quote)
             }
@@ -1897,7 +1902,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
-    // TODO added the ability to give a Catch Value Variant a Literal value.
     let input = parse_macro_input!(input as DeriveInput);
     let enum_info = match EnumInfo::parse(&input) {
         Ok(parsed_enum) => parsed_enum,

@@ -11,8 +11,6 @@ pub enum AosFrameVirtualChannelId {
     Invalid(u8),
 }
 
-// TODO: currently we don't do vc_frame_count_cycle in any AOS protocols.
-// TODO separate Multiplexing Protocol Data Unit.
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
@@ -83,8 +81,6 @@ fn cycle_header_be() -> anyhow::Result<()> {
     Ok(())
 }
 
-// TODO: currently we don't do vc_frame_count_cycle in any AOS protocols.
-// TODO separate Multiplexing Protocol Data Unit.
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.

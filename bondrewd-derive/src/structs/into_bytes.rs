@@ -1,13 +1,13 @@
 use std::{cmp::Ordering, str::FromStr};
 
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
-    FieldDataType, FieldInfo, StructInfo, NumberSignage, ReserveFieldOption, OverlapOptions, FieldAttrs,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness, FieldAttrs,
+    FieldDataType, FieldInfo, NumberSignage, OverlapOptions, ReserveFieldOption, StructInfo,
 };
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{VisPublic, token::Pub};
+use syn::{token::Pub, VisPublic};
 
 use super::common::EnumInfo;
 
@@ -109,20 +109,10 @@ fn create_fields_quotes(
         };
 
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
-            let set_slice_quote = make_set_slice_fn(
-                &field_setter,
-                field,
-                info,
-                &clear_quote,
-                &enum_name,
-            )?;
-            let set_slice_unchecked_quote = make_set_slice_unchecked_fn(
-                &field_setter,
-                field,
-                info,
-                &clear_quote,
-                &enum_name,
-            )?;
+            let set_slice_quote =
+                make_set_slice_fn(&field_setter, field, info, &clear_quote, &enum_name)?;
+            let set_slice_unchecked_quote =
+                make_set_slice_unchecked_fn(&field_setter, field, info, &clear_quote, &enum_name)?;
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
                 #set_slice_quote
@@ -152,7 +142,6 @@ pub fn create_into_bytes_field_quotes_enum(
     let (mut set_fns_quote, mut set_slice_fns_option) = {
         (
             {
-                // TODO maybe remove this and add a fake field for the id into each variant during parse.
                 let field = FieldInfo {
                     name: format_ident!("id"),
                     ident: Box::new(format_ident!("id")),
@@ -233,15 +222,14 @@ pub fn create_into_bytes_field_quotes_enum(
                     ));
                 }
             }
-        } else{
+        } else {
             return Err(syn::Error::new(
                 variant.name.span(),
                 "variant id was unknown at time of code generation",
             ));
         };
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
-            let thing =
-                create_fields_quotes(&variant, Some(&prefix), set_slice)?;
+            let thing = create_fields_quotes(&variant, Some(&prefix), set_slice)?;
             (
                 thing.field_name_list,
                 thing.into_bytes_quote,
@@ -276,8 +264,6 @@ pub fn create_into_bytes_field_quotes_enum(
         // because all of the from_bytes field quote store there data in a temporary variable with the same
         // name as its destination field the list of field names will be just fine.
 
-        // TODO this  should be using `Self::write_{#variant_name}_{variant_field_name}()` where into_bytes is
-        // into_bytes we also need to make sure that the write function is actually being made.
         into_bytes_fn = quote! {
             #into_bytes_fn
             Self::#variant_name { #field_name_list } => {
@@ -286,7 +272,6 @@ pub fn create_into_bytes_field_quotes_enum(
             }
         };
     }
-    // TODO correct size and add match statement
     let into_bytes_fn = quote! {
         fn into_bytes(self) -> [u8;#total_size] {
             let mut output_byte_buffer = [0u8;#total_size];
@@ -370,7 +355,6 @@ fn make_set_slice_fn(
     let fn_field_name = format_ident!("write_slice_{}", field_name);
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    // TODO this needs to be corrected, currently does not account for id size when prefix in added.
     let min_length = if info.attrs.flip {
         ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
     } else {
