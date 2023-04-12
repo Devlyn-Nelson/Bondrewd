@@ -101,8 +101,11 @@ fn create_fields_quotes(
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
-        Some(format_ident!("{}", info.name.to_string().to_case(Case::Snake)))
-    }else{
+        Some(format_ident!(
+            "{}",
+            info.name.to_string().to_case(Case::Snake)
+        ))
+    } else {
         None
     };
     let mut field_name_list = quote! {};
@@ -111,10 +114,7 @@ fn create_fields_quotes(
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        Some((
-            quote! {},
-            quote! {},
-        ))
+        Some((quote! {}, quote! {}))
     } else {
         None
     };
@@ -240,7 +240,14 @@ pub fn create_from_bytes_field_quotes_enum(
                     #id_field
                 }
             },
-            if peek_slice{Some((get_check_slice_fn(&info.name, info.total_bytes()), quote!{}))}else{None},
+            if peek_slice {
+                Some((
+                    get_check_slice_fn(&info.name, info.total_bytes()),
+                    quote! {},
+                ))
+            } else {
+                None
+            },
         )
     };
     let struct_size = info.total_bytes();

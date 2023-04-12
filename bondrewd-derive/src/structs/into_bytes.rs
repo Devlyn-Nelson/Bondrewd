@@ -18,10 +18,7 @@ pub struct IntoBytesOptions {
     pub set_slice_field_unchecked_fns: Option<TokenStream>,
 }
 
-fn make_checked_mut_func(
-    name: &Ident,
-    struct_size: usize
-) -> TokenStream {
+fn make_checked_mut_func(name: &Ident, struct_size: usize) -> TokenStream {
     // all quote with all of the set slice functions appended to it.
     let checked_ident = format_ident!("{name}CheckedMut");
     let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{name}` from/to provided mutable slice.");
@@ -53,8 +50,11 @@ fn create_fields_quotes(
     set_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
-        Some(format_ident!("{}", info.name.to_string().to_case(Case::Snake)))
-    }else{
+        Some(format_ident!(
+            "{}",
+            info.name.to_string().to_case(Case::Snake)
+        ))
+    } else {
         None
     };
     let mut field_name_list = quote! {};
@@ -63,8 +63,8 @@ fn create_fields_quotes(
     let mut into_bytes_quote = quote! {};
     // TODO make sure this gets fixed for enums.
     let mut set_slice_fns_option = if set_slice {
-        Some((quote!{}, quote!{}))
-    }else{
+        Some((quote! {}, quote! {}))
+    } else {
         None
     };
     for field in info.fields.iter() {
@@ -197,7 +197,14 @@ pub fn create_into_bytes_field_quotes_enum(
                     #id_field
                 }
             },
-            if set_slice{Some((make_checked_mut_func(&info.name, info.total_bytes()), quote!{}))}else{None},
+            if set_slice {
+                Some((
+                    make_checked_mut_func(&info.name, info.total_bytes()),
+                    quote! {},
+                ))
+            } else {
+                None
+            },
         )
     };
     let total_size = info.total_bytes();
@@ -319,7 +326,7 @@ pub fn create_into_bytes_field_quotes_struct(
     };
     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
         let checked_struct_fn = make_checked_mut_func(&info.name, info.total_bytes());
-        let set_slice_field_fns = quote!{
+        let set_slice_field_fns = quote! {
             #set_slice_field_fns
             #checked_struct_fn
         };
@@ -349,7 +356,7 @@ fn make_set_slice_fn(
     let field_name = field.ident.as_ref().clone();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_slice_{p}_{field_name}")
-    }else{
+    } else {
         format_ident!("write_slice_{field_name}")
     };
     let bit_range = &field.attrs.bit_range;
@@ -388,7 +395,7 @@ fn make_set_slice_unchecked_fn(
     let field_name = field.ident.as_ref().clone();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_{p}_{field_name}")
-    }else{
+    } else {
         format_ident!("write_{field_name}")
     };
     let bit_range = &field.attrs.bit_range;
