@@ -370,12 +370,12 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// bytes. [example](#fill-bytes-examples)
 /// 
 /// ## Enum Attributes
-/// - `id_bits` = Describes the amount of bits bondrewd will use to identify which variant is being stored.
+/// - `id_bits = {BITS}` = Describes the amount of bits bondrewd will use to identify which variant is being stored.
 /// [example](#enum-example)
-/// - `id_bytes` = Describes the amount of bytes bondrewd will use to identify which variant is being stored.
+/// - `id_bytes = {BYTES}` = Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// ## Variant Attributes
-/// - `id` = Tell bondrewd the id value tot use for the variant.
+/// - `id = {ID}` = Tell bondrewd the id value tot use for the variant.
 /// [example](#enum-example)
 /// 
 /// # Field Attributes
