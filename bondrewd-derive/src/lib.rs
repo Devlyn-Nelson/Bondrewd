@@ -345,11 +345,11 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
 /// - Enums which implement the BitfieldEnum trait in Bondrewd.
-/// - Structs which implement the Bitfield trait in Bondrewd.
+/// - Structs or Enums which implement the Bitfield trait in Bondrewd.
 ///
 /// # Struct/Enum/Variant Attributes
 /// 
-/// ## Common Attributes
+/// #### Common Attributes
 /// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
@@ -359,7 +359,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 /// byte index). This has no runtime cost. [example](#reverse-example)
 /// 
-/// ## Struct/Variant Attributes
+/// #### Struct/Variant Attributes
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 /// BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
@@ -369,13 +369,13 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - `fill_bytes = {BYTES}` Will force the output/input byte array size to be the provided SIZE amount of
 /// bytes. [example](#fill-bytes-examples)
 /// 
-/// ## Enum Attributes
-/// - `id_bits = {BITS}` = Describes the amount of bits bondrewd will use to identify which variant is being stored.
+/// #### Enum Attributes
+/// - `id_bits = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being stored.
 /// [example](#enum-example)
-/// - `id_bytes = {BYTES}` = Describes the amount of bytes bondrewd will use to identify which variant is being stored.
+/// - `id_bytes = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
-/// ## Variant Attributes
-/// - `id = {ID}` = Tell bondrewd the id value tot use for the variant.
+/// #### Variant Attributes
+/// - `id = {ID}` Tell bondrewd the id value tot use for the variant.
 /// [example](#enum-example)
 /// 
 /// # Field Attributes
@@ -1372,7 +1372,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     assert_eq!(bytes[2], 0b01_000000);
 /// }
 /// ```
-/// ## Generated From Bytes
+/// #### Generated From Bytes
 /// ```
 /// enum Thing {
 ///     Three {
@@ -1561,7 +1561,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// # Enum With Discriminates
 /// In this example i have create Variant's `Three`, `Two`, `One`, and `Idk` variants. The variants with
 /// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
-/// ## Issue
+/// 
+/// #### Issue
 /// Because i am:
 /// - Setting the last variant's, "Idk" variant, id to `0`,
 /// - Setting the first variant's, `Three` variant, id to `3`,
@@ -1576,6 +1577,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     zero regardless of the last variant being manually assigned that number already.
 /// - Change the second variant's, `One`, id assignment of `1` to `2`. `repr` will assume that this should
 ///     be that last variant's value plus one which is `3` and already used. 
+/// #### Discriminate Example
 /// ```
 /// use bondrewd::*;
 /// 
