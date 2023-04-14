@@ -1,8 +1,8 @@
 use bondrewd::*;
 
 #[derive(Bitfields)]
+#[repr(u8)]
 #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
-
 enum Thing {
     One {
         a: u16,
@@ -18,8 +18,7 @@ enum Thing {
         #[bondrewd(bit_length = 15)]
         e: u16,
     },
-    #[bondrewd(id = 0)]
-    Idk,
+    Idk = 3,
 }
 
 fn main() {

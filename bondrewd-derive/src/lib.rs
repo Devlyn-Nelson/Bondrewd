@@ -375,7 +375,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
-/// - `id = {ID}` Tell bondrewd the id value tot use for the variant. 
+/// - `variant_id = {ID}` Tell bondrewd the id value tot use for the variant. 
 /// [example](#enum-example).
 /// The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
 /// 
@@ -1357,7 +1357,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///         #[bondrewd(bit_length = 15)]
 ///         e: u16,
 ///     },
-///     #[bondrewd(id = 0)]
+///     #[bondrewd(variant_id = 0)]
 ///     Idk,
 /// }
 /// 
