@@ -1408,7 +1408,7 @@ impl ObjectInfo {
     ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(value) => {
-                if value.path.is_ident("id_bits") {
+                if value.path.is_ident("id_bit_length") {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
@@ -1428,7 +1428,7 @@ impl ObjectInfo {
                             }
                         }
                     }
-                } else if value.path.is_ident("id_bytes") {
+                } else if value.path.is_ident("id_byte_length") {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
@@ -1448,16 +1448,10 @@ impl ObjectInfo {
                             }
                         }
                     }
-                } else if value.path.is_ident("payload_bits") {
+                } else if value.path.is_ident("payload_bit_length") {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
-                                if value <= 128 {
-                                    return Err(syn::Error::new(
-                                        span,
-                                        format!("Maximum payload bits is 128."),
-                                    ));
-                                }
                                 enum_info.payload_bit_size = Some(value);
                             }
                             Err(err) => {
@@ -1468,16 +1462,10 @@ impl ObjectInfo {
                             }
                         }
                     }
-                } else if value.path.is_ident("payload_bytes") {
+                } else if value.path.is_ident("payload_byte_length") {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
-                                if value <= 16 {
-                                    return Err(syn::Error::new(
-                                        span,
-                                        format!("Maximum payload bytes is 16."),
-                                    ));
-                                }
                                 enum_info.payload_bit_size = Some(value * 8);
                             }
                             Err(err) => {
