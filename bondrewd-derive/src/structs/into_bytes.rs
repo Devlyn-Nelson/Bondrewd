@@ -138,8 +138,8 @@ pub fn create_into_bytes_field_quotes_enum(
         (
             {
                 let field = FieldInfo {
-                    name: format_ident!("id"),
-                    ident: Box::new(format_ident!("id")),
+                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
+                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
                     ty: FieldDataType::Number(
                         (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
                         NumberSignage::Unsigned,
@@ -265,10 +265,11 @@ pub fn create_into_bytes_field_quotes_enum(
         // because all of the from_bytes field quote store there data in a temporary variable with the same
         // name as its destination field the list of field names will be just fine.
 
+        let v_id_call = format_ident!("write_{}", EnumInfo::VARIANT_ID_NAME);
         into_bytes_fn = quote! {
             #into_bytes_fn
             Self::#variant_name { #field_name_list } => {
-                Self::write_id(&mut output_byte_buffer,#variant_id);
+                Self::#v_id_call(&mut output_byte_buffer, #variant_id);
                 #into_bytes_quote
             }
         };

@@ -183,8 +183,8 @@ pub fn create_from_bytes_field_quotes_enum(
         (
             {
                 let field = FieldInfo {
-                    name: format_ident!("id"),
-                    ident: Box::new(format_ident!("id")),
+                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
+                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
                     ty: FieldDataType::Number(
                         (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
                         NumberSignage::Unsigned,
@@ -197,7 +197,7 @@ pub fn create_from_bytes_field_quotes_enum(
                             _ => {
                                 return Err(syn::Error::new(
                                     info.name.span(),
-                                    "id size is invalid",
+                                    "variant id size is invalid",
                                 ));
                             }
                         },
@@ -325,10 +325,12 @@ pub fn create_from_bytes_field_quotes_enum(
             }
         };
     }
+    let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
+    let v_id_call = format_ident!("read_{v_id}");
     let from_bytes_fn = quote! {
         fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
-            let id = Self::read_id(&input_byte_buffer);
-            match id {
+            let #v_id = Self::#v_id_call(&input_byte_buffer);
+            match #v_id {
                 #from_bytes_fn
             }
         }

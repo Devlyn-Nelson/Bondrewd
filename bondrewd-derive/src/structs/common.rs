@@ -969,6 +969,7 @@ pub struct EnumInfo {
 }
 
 impl EnumInfo {
+    pub const VARIANT_ID_NAME: &str = "variant_id";
     pub fn total_bits(&self) -> usize {
         let mut total = self.variants[0].total_bits();
         for variant in self.variants.iter().skip(1) {
@@ -1111,12 +1112,14 @@ impl ObjectInfo {
                     {
                         total_size - payload_size
                     } else {
-                        // TODO make sure this gets replaced once id size is known
-                        0
+                        return Err(syn::Error::new(
+                            data.enum_token.span(),
+                            "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
+                        ));
                     };
                     (
                         FieldDataType::Number(
-                            id_bits,
+                            (id_bits as f64 / 8.0f64).ceil() as usize,
                             NumberSignage::Unsigned,
                             get_id_type(id_bits, name.span())?,
                         ),
@@ -1124,8 +1127,8 @@ impl ObjectInfo {
                     )
                 };
                 let id_field = FieldInfo {
-                    name: format_ident!("id"),
-                    ident: Box::new(format_ident!("id")),
+                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
+                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
                     ty: id_field_type,
                     attrs: FieldAttrs {
                         endianness: Box::new(attrs.default_endianess.clone()),
@@ -1519,7 +1522,7 @@ impl ObjectInfo {
     ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(ref value) => {
-                if is_variant && value.path.is_ident("id") {
+                if is_variant && value.path.is_ident(EnumInfo::VARIANT_ID_NAME) {
                     if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<u128>() {
                             Ok(value) => {
