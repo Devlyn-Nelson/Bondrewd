@@ -4,7 +4,7 @@ use bondrewd::*;
 // be ignored as a field of the struct.
 // TODO add a functions that get and set the id.
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bits = 14)]
+#[bondrewd(default_endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {
         test: u32,
@@ -24,7 +24,7 @@ enum ComplexEnum {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bits = 3)]
+#[bondrewd(default_endianness = "be", id_bit_length = 3)]
 enum SimpleEnum {
     Alpha,
     Beta,

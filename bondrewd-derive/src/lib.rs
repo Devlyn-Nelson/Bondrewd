@@ -370,9 +370,9 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// bytes. [example](#fill-bytes-examples)
 /// 
 /// #### Enum Attributes
-/// - `id_bits = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being stored.
+/// - `id_bit_length = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being stored.
 /// [example](#enum-example)
-/// - `id_bytes = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
+/// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
 /// - `id = {ID}` Tell bondrewd the id value tot use for the variant. 
@@ -1340,7 +1340,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// use bondrewd::*;
 /// 
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", id_bits = 2, enforce_bytes = 3)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
 /// 
 /// enum Thing {
 ///     One {
@@ -1584,7 +1584,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// 
 /// #[derive(Bitfields)]
 /// #[repr(u8)]
-/// #[bondrewd(default_endianness = "be", id_bits = 2, enforce_bytes = 3)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
 /// enum Thing {
 ///     Three {
 ///         #[bondrewd(bit_length = 7)]
