@@ -817,13 +817,14 @@ fn apply_le_math_to_field_access_quote(
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let field_as_u8_quote = match field.ty {
+            FieldDataType::Char(_, _) |
+
             FieldDataType::Number(_, _, _) => {
                 quote!{(#field_access_quote as u8)}
             }
             FieldDataType::Boolean => {
                 quote!{(#field_access_quote as u8)}
             }
-            FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char not supported for single byte insert logic")),
             FieldDataType::Enum(_, _, _) => field_access_quote,
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
@@ -1309,13 +1310,13 @@ fn apply_be_math_to_field_access_quote(
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let field_as_u8_quote = match field.ty {
+            FieldDataType::Char(_, _) |
             FieldDataType::Number(_, _, _) => {
                 quote!{(#field_access_quote as u8)}
             }
             FieldDataType::Boolean => {
                 quote!{(#field_access_quote as u8)}
             }
-            FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char not supported for single byte insert logic")),
             FieldDataType::Enum(_, _, _) => field_access_quote,
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
