@@ -1700,14 +1700,14 @@ impl ObjectInfo {
                     if is_enum {
                         if i == 0 {
                             match (&parsed_fields[0].ty, &mut parsed_field.ty) {
-                                (FieldDataType::Number(ref bon_bits, ref bon_sign, ref bon_ty), FieldDataType::Number(ref mut user_bits, ref user_sign, ref user_ty)) => {
-                                    if bon_bits != user_bits {
-                                        *user_bits = *bon_bits;
+                                (FieldDataType::Number(_, ref bon_sign, ref bon_ty), FieldDataType::Number(_, ref user_sign, ref user_ty)) => {
+                                    if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
+                                        parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
                                     }
                                     if bon_sign != user_sign {
                                         return Err(Error::new(field.span(), format!("capture_id field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
                                     }else if bon_ty.to_string() != user_ty.to_string() {
-                                        return Err(Error::new(field.span(), format!("capture_id field must be {bon_ty} in this instance, sorry.")));
+                                        return Err(Error::new(field.span(), format!("capture_id field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
                                     }
                                     parsed_fields.remove(0);
                                 }

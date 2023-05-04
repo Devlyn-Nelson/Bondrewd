@@ -69,7 +69,7 @@ fn main() {
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();
     assert_eq!(6, ComplexEnum::BYTE_SIZE);
     assert_eq!(46, ComplexEnum::BIT_SIZE);
-    assert_eq!([0b00000000, 0b110101_00, 0, 0, 0, 0,], bytes);
+    assert_eq!([0b00000000, 0b000011_00, 0, 0, 0, 0,], bytes);
     ComplexEnum::write_variant_id(&mut bytes, 35);
     assert_eq!([0b00000000, 0b100011_00, 0, 0, 0, 0,], bytes);
     let reconstructed = ComplexEnum::from_bytes(bytes);

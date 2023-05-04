@@ -72,10 +72,11 @@ fn create_fields_quotes(
         if field.attrs.reserve.is_fake_field() {
             continue;
         }
-        field_name_list = quote! {#field_name_list #field_name,};
         if field.attrs.capture_id {
+            field_name_list = quote! {#field_name_list #field_name: _,};
             continue;
         }
+        field_name_list = quote! {#field_name_list #field_name,};
         let (field_setter, clear_quote) = get_field_quote(
             field,
             if info.attrs.flip {
@@ -218,10 +219,7 @@ pub fn create_into_bytes_field_quotes_enum(
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
-        let mut variant_id = if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
-            let id_field_name = &variant.fields[0].name;
-            quote! {#id_field_name}
-        } else if let Some(id) = variant.attrs.id {
+        let mut variant_id = if let Some(id) = variant.attrs.id {
             match TokenStream::from_str(format!("{id}").as_str()) {
                 Ok(vi) => vi,
                 Err(err) => {
@@ -281,6 +279,12 @@ pub fn create_into_bytes_field_quotes_enum(
                 #into_bytes_quote
             }
         };
+
+        if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
+            let id_field_name = &variant.fields[0].name;
+            variant_id = quote! {#id_field_name};
+        }
+
         let mut ignore_fields = if variant.fields[0].attrs.capture_id {
             let id_field_name = &variant.fields[0].name;
             variant_id = quote! {*#variant_id};
