@@ -12,6 +12,7 @@ pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    pub capture_id: bool,
 }
 
 impl TryFromAttrBuilderError {
@@ -21,6 +22,7 @@ impl TryFromAttrBuilderError {
             bit_range,
             reserve: self.reserve,
             overlap: self.overlap,
+            capture_id: self.capture_id,
         }
     }
 }
@@ -68,6 +70,9 @@ pub struct FieldAttrBuilder {
     pub ty: FieldAttrBuilderType,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    /// This should only ever be true when it the first field in a variant
+    /// of an enum.
+    pub capture_id: bool,
 }
 
 impl FieldAttrBuilder {
@@ -79,6 +84,7 @@ impl FieldAttrBuilder {
             ty: FieldAttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
+            capture_id: false,
         }
     }
 
@@ -571,6 +577,9 @@ impl FieldAttrBuilder {
                         "read_only" => {
                             builder.reserve = ReserveFieldOption::ReadOnly;
                         }
+                        "capture_id" => {
+                            builder.capture_id = true;
+                        }
                         // TODO  can not enable this until i figure out a way to express exactly the amount
                         // of overlapping bits.
                         /*"allow_overlap" => {
@@ -610,12 +619,14 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
                 bit_range,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                capture_id: self.capture_id,
             })
         } else {
             Err(TryFromAttrBuilderError {
                 endianness: self.endianness,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                capture_id: self.capture_id,
             })
         }
     }

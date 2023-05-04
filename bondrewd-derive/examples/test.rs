@@ -6,19 +6,19 @@ use bondrewd::*;
 enum Thing {
     One {
         a: u16,
-    },
+    } = 1,
     Two {
         a: u16,
         #[bondrewd(bit_length = 6)]
         b: u8,
-    },
+    } = 2,
     Three {
         #[bondrewd(bit_length = 7)]
         d: u8,
         #[bondrewd(bit_length = 15)]
         e: u16,
-    },
-    Idk = 3,
+    } = 3,
+    Idk = 0,
 }
 
 fn main() {

@@ -73,6 +73,9 @@ fn create_fields_quotes(
             continue;
         }
         field_name_list = quote! {#field_name_list #field_name,};
+        if field.attrs.capture_id {
+            continue;
+        }
         let (field_setter, clear_quote) = get_field_quote(
             field,
             if info.attrs.flip {
@@ -135,7 +138,7 @@ pub fn create_into_bytes_field_quotes_enum(
     let mut id_fn: TokenStream = quote! {};
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
-    
+
     let (mut set_fns_quote, mut set_slice_fns_option, id_ident) = {
         let id_ident = match info.attrs.id_bits {
             0..=8 => quote! {u8},
@@ -144,10 +147,7 @@ pub fn create_into_bytes_field_quotes_enum(
             33..=64 => quote! {u64},
             65..=128 => quote! {u128},
             _ => {
-                return Err(syn::Error::new(
-                    info.name.span(),
-                    "id size is invalid",
-                ));
+                return Err(syn::Error::new(info.name.span(), "id size is invalid"));
             }
         };
         (
@@ -165,6 +165,7 @@ pub fn create_into_bytes_field_quotes_enum(
                         bit_range: 0..info.attrs.id_bits,
                         reserve: ReserveFieldOption::NotReserve,
                         overlap: OverlapOptions::None,
+                        capture_id: false,
                     },
                 };
                 let flip = false;
@@ -217,7 +218,10 @@ pub fn create_into_bytes_field_quotes_enum(
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
-        let variant_id = if let Some(id) = variant.attrs.id {
+        let mut variant_id = if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
+            let id_field_name = &variant.fields[0].name;
+            quote! {#id_field_name}
+        } else if let Some(id) = variant.attrs.id {
             match TokenStream::from_str(format!("{id}").as_str()) {
                 Ok(vi) => vi,
                 Err(err) => {
@@ -277,11 +281,18 @@ pub fn create_into_bytes_field_quotes_enum(
                 #into_bytes_quote
             }
         };
-        let ignore_fields = if variant.fields.len() > 1 {
-            quote!{ .. }
-        }else{
-            quote!{}
-        } ;
+        let mut ignore_fields = if variant.fields[0].attrs.capture_id {
+            let id_field_name = &variant.fields[0].name;
+            variant_id = quote! {*#variant_id};
+            quote! { #id_field_name, }
+        } else {
+            quote! {}
+        };
+        if variant.fields.len() > 1 {
+            ignore_fields = quote! { #ignore_fields .. };
+        } else {
+            ignore_fields = quote! { #ignore_fields };
+        };
         id_fn = quote! {
             #id_fn
             Self::#variant_name { #ignore_fields }  => #variant_id,
@@ -296,14 +307,14 @@ pub fn create_into_bytes_field_quotes_enum(
             output_byte_buffer
         }
     };
-    id_fn = quote!{
+    id_fn = quote! {
         pub fn id(&self) -> #id_ident {
             match self {
                 #id_fn
             }
         }
     };
-    set_fns_quote = quote!{
+    set_fns_quote = quote! {
         #set_fns_quote
         #id_fn
     };

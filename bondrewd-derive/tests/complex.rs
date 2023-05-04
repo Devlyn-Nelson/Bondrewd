@@ -14,6 +14,9 @@ enum ComplexEnum {
         test_two: u8,
     },
     Three {
+        // TODO: fix
+        /// DO NOT CHANGE THIS. i believe it produces un-optimized code because it
+        /// rotates the bits right 6 times.
         #[bondrewd(bit_length = 30)]
         test: u32,
     },
@@ -64,7 +67,8 @@ struct SimpleExample {
     other_enum_field: SimpleEnum,
 }
 
-fn main() {
+#[test]
+fn complex_stuff() {
     // this is to test capturing the id in the invalid.
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();
     assert_eq!(6, ComplexEnum::BYTE_SIZE);

@@ -56,7 +56,7 @@ pub fn get_be_starting_index(
     //println!("be_start_index = [last;{}] - ([aob;{}] - [rs;{}]) / 8", last_index, amount_of_bits, right_rotation);
     let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
     if last_index < first {
-        Err("the be_starting_index subtract underflow".to_string())
+        Err("Failed getting the starting index for big endianness, field's type doesn't fix the bit size".to_string())
     } else {
         Ok(last_index - first)
     }
@@ -132,7 +132,7 @@ impl Endianness {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NumberSignage {
     Signed,
     Unsigned,
@@ -630,6 +630,8 @@ pub struct FieldAttrs {
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    /// This should only ever be true on the Invalid case for enums that what to capture the invalid Id.
+    pub capture_id: bool,
 }
 
 impl FieldAttrs {
@@ -666,6 +668,7 @@ impl Iterator for ElementSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                capture_id: false,
             };
             let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
             Some(FieldInfo {
@@ -710,6 +713,7 @@ impl Iterator for BlockSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                capture_id: false,
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
@@ -1138,6 +1142,7 @@ impl ObjectInfo {
                         bit_range: 0..id_bits,
                         reserve: ReserveFieldOption::FakeReserveField,
                         overlap: OverlapOptions::None,
+                        capture_id: false,
                     },
                 };
                 for variant in data.variants.iter() {
@@ -1368,6 +1373,7 @@ impl ObjectInfo {
                                 endianness: Box::new(Endianness::Big),
                                 reserve: ReserveFieldOption::FakeReserveField,
                                 overlap: OverlapOptions::None,
+                                capture_id: false,
                             },
                             ty: FieldDataType::BlockArray(
                                 Box::new(SubFieldInfo {
@@ -1653,10 +1659,10 @@ impl ObjectInfo {
         attrs: &AttrInfo,
         first_field: Option<FieldInfo>,
     ) -> syn::Result<Vec<FieldInfo>> {
-        let mut parsed_fields: Vec<FieldInfo> = if let Some(f) = first_field {
-            vec![f]
+        let (mut parsed_fields, is_enum) = if let Some(f) = first_field {
+            (vec![f], true)
         } else {
-            Vec::default()
+            (Vec::default(), false)
         };
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
@@ -1688,9 +1694,41 @@ impl ObjectInfo {
             0
         };
         if let Some(fields) = fields {
-            for ref field in fields {
-                let parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
-                bit_size += parsed_field.bit_size();
+            for (i, ref field) in fields.iter().enumerate() {
+                let mut parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
+                if parsed_field.attrs.capture_id {
+                    if is_enum {
+                        if i == 0 {
+                            match (&parsed_fields[0].ty, &mut parsed_field.ty) {
+                                (FieldDataType::Number(ref bon_bits, ref bon_sign, ref bon_ty), FieldDataType::Number(ref mut user_bits, ref user_sign, ref user_ty)) => {
+                                    if bon_bits != user_bits {
+                                        *user_bits = *bon_bits;
+                                    }
+                                    if bon_sign != user_sign {
+                                        return Err(Error::new(field.span(), format!("capture_id field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
+                                    }else if bon_ty.to_string() != user_ty.to_string() {
+                                        return Err(Error::new(field.span(), format!("capture_id field must be {bon_ty} in this instance, sorry.")));
+                                    }
+                                    parsed_fields.remove(0);
+                                }
+                                (FieldDataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
+                                _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+                            }
+                        } else {
+                            return Err(Error::new(
+                                field.span(),
+                                "capture_id attribute must be the first field.",
+                            ));
+                        }
+                    } else {
+                        return Err(Error::new(
+                            field.span(),
+                            "capture_id attribute is intended for enum variants only.",
+                        ));
+                    }
+                } else {
+                    bit_size += parsed_field.bit_size();
+                }
                 parsed_fields.push(parsed_field);
             }
         }
@@ -1735,6 +1773,7 @@ impl ObjectInfo {
                     endianness: Box::new(Endianness::Big),
                     reserve: ReserveFieldOption::FakeReserveField,
                     overlap: OverlapOptions::None,
+                    capture_id: false,
                 },
                 ty: FieldDataType::BlockArray(
                     Box::new(SubFieldInfo {

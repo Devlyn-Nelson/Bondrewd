@@ -123,13 +123,13 @@ fn create_fields_quotes(
     // TODO make each variant decide if the id field needs to be accounted for.
     // currently the id fields is added the each enum variant as the first field so we
     // skip it assuming there will be one made that is common across all variants.
-    let fields = if enum_name.is_some() {
+    let fields = if enum_name.is_some() && !info.fields[0].attrs.capture_id {
         &info.fields[1..]
     } else {
         &info.fields[..]
     };
 
-    for field in fields {
+    for field in fields.iter() {
         let field_name = &field.ident;
         let _field_extractor = make_read_fns(
             field,
@@ -142,29 +142,50 @@ fn create_fields_quotes(
         // that read or write values into byte arrays.
         if field.attrs.reserve.is_fake_field() {
             continue;
-        }
+        } else if field.attrs.capture_id {
+            // put the name of the field into the list of fields that are needed to create
+            // the struct.
+            field_name_list = quote! {#field_name_list #field_name,};
 
-        // put the name of the field into the list of fields that are needed to create
-        // the struct.
-        field_name_list = quote! {#field_name_list #field_name,};
-
-        // put the field extraction in the actual from bytes.
-        let peek_call = if field.attrs.reserve.read_field() {
-            let fn_field_name = if let Some(ref p) = lower_name {
-                format_ident!("read_{p}_{field_name}")
+            // put the field extraction in the actual from bytes.
+            let peek_call = if field.attrs.reserve.read_field() {
+                let id_name = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
+                quote! {
+                    let #field_name = #id_name;
+                }
             } else {
-                format_ident!("read_{field_name}")
+                return Err(syn::Error::new(
+                    field.name.span(),
+                    "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
+                ));
             };
-            quote! {
-                let #field_name = Self::#fn_field_name(&input_byte_buffer);
-            }
+            from_bytes_quote = quote! {
+                #from_bytes_quote
+                #peek_call;
+            };
         } else {
-            quote! { let #field_name = Default::default(); }
-        };
-        from_bytes_quote = quote! {
-            #from_bytes_quote
-            #peek_call;
-        };
+            // put the name of the field into the list of fields that are needed to create
+            // the struct.
+            field_name_list = quote! {#field_name_list #field_name,};
+
+            // put the field extraction in the actual from bytes.
+            let peek_call = if field.attrs.reserve.read_field() {
+                let fn_field_name = if let Some(ref p) = lower_name {
+                    format_ident!("read_{p}_{field_name}")
+                } else {
+                    format_ident!("read_{field_name}")
+                };
+                quote! {
+                    let #field_name = Self::#fn_field_name(&input_byte_buffer);
+                }
+            } else {
+                quote! { let #field_name = Default::default(); }
+            };
+            from_bytes_quote = quote! {
+                #from_bytes_quote
+                #peek_call;
+            };
+        }
     }
     Ok(FieldQuotes {
         field_name_list,
@@ -207,6 +228,7 @@ pub fn create_from_bytes_field_quotes_enum(
                         bit_range: 0..info.attrs.id_bits,
                         reserve: ReserveFieldOption::NotReserve,
                         overlap: OverlapOptions::None,
+                        capture_id: false,
                     },
                 };
                 let flip = false;
