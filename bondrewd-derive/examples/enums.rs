@@ -129,4 +129,6 @@ fn main() {
     assert_eq!(5.5, reconstructed.two);
     assert_eq!(511, reconstructed.three);
     assert_eq!(0, reconstructed.flags);
+    assert_eq!(1, reconstructed.enum_field.id());
+    assert_eq!(3, reconstructed.other_enum_field.id());
 }

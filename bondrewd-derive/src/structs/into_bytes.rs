@@ -132,9 +132,24 @@ pub fn create_into_bytes_field_quotes_enum(
     info: &EnumInfo,
     set_slice: bool,
 ) -> Result<IntoBytesOptions, syn::Error> {
+    let mut id_fn: TokenStream = quote! {};
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
-    let (mut set_fns_quote, mut set_slice_fns_option) = {
+    
+    let (mut set_fns_quote, mut set_slice_fns_option, id_ident) = {
+        let id_ident = match info.attrs.id_bits {
+            0..=8 => quote! {u8},
+            9..=16 => quote! {u16},
+            17..=32 => quote! {u32},
+            33..=64 => quote! {u64},
+            65..=128 => quote! {u128},
+            _ => {
+                return Err(syn::Error::new(
+                    info.name.span(),
+                    "id size is invalid",
+                ));
+            }
+        };
         (
             {
                 let field = FieldInfo {
@@ -143,19 +158,7 @@ pub fn create_into_bytes_field_quotes_enum(
                     ty: FieldDataType::Number(
                         (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
                         NumberSignage::Unsigned,
-                        match info.attrs.id_bits {
-                            0..=8 => quote! {u8},
-                            9..=16 => quote! {u16},
-                            17..=32 => quote! {u32},
-                            33..=64 => quote! {u64},
-                            65..=128 => quote! {u128},
-                            _ => {
-                                return Err(syn::Error::new(
-                                    info.name.span(),
-                                    "id size is invalid",
-                                ));
-                            }
-                        },
+                        id_ident.clone(),
                     ),
                     attrs: FieldAttrs {
                         endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
@@ -205,6 +208,7 @@ pub fn create_into_bytes_field_quotes_enum(
             } else {
                 None
             },
+            id_ident,
         )
     };
     let total_size = info.total_bytes();
@@ -273,6 +277,15 @@ pub fn create_into_bytes_field_quotes_enum(
                 #into_bytes_quote
             }
         };
+        let ignore_fields = if variant.fields.len() > 1 {
+            quote!{ .. }
+        }else{
+            quote!{}
+        } ;
+        id_fn = quote! {
+            #id_fn
+            Self::#variant_name { #ignore_fields }  => #variant_id,
+        };
     }
     let into_bytes_fn = quote! {
         fn into_bytes(self) -> [u8;#total_size] {
@@ -282,6 +295,17 @@ pub fn create_into_bytes_field_quotes_enum(
             }
             output_byte_buffer
         }
+    };
+    id_fn = quote!{
+        pub fn id(&self) -> #id_ident {
+            match self {
+                #id_fn
+            }
+        }
+    };
+    set_fns_quote = quote!{
+        #set_fns_quote
+        #id_fn
     };
     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
         Ok(IntoBytesOptions {
