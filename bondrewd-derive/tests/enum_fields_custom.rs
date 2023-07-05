@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 #[bondrewd_enum(u8)]
@@ -28,8 +28,8 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(SimpleCustomEnumUsage::BYTE_SIZE, 3);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
-    assert_eq!(bytes[0], 0b00001000);
-    assert_eq!(bytes[1], 0b01000000);
+    assert_eq!(bytes[0], 0b0000_1000);
+    assert_eq!(bytes[1], 0b0100_0000);
     #[cfg(feature = "slice_fns")]
     {
         //peeks
@@ -76,9 +76,9 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     assert_eq!(SimpleCustomContinuationEnumUsage::BYTE_SIZE, 3);
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
-    assert_eq!(bytes[0], 0b10000000);
-    assert_eq!(bytes[1], 0b00000001);
-    assert_eq!(bytes[2], 0b00001000);
+    assert_eq!(bytes[0], 0b1000_0000);
+    assert_eq!(bytes[1], 0b0000_0001);
+    assert_eq!(bytes[2], 0b0000_1000);
     #[cfg(feature = "slice_fns")]
     {
         //peeks

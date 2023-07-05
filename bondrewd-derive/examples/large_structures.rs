@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields, Debug, Clone, PartialEq, Eq)]
 #[bondrewd(default_endianess = "msb", read_from = "lsb0", enforce_bytes = "1")]
@@ -30,7 +30,7 @@ fn main() {
         Magnetometers::BYTE_SIZE
     );
     let og = Magnetometers {
-        timestamp: 168324,
+        timestamp: 168_324,
         status: StatusMagnetometer {
             mtm1: true,
             mtm2: true,
@@ -74,7 +74,7 @@ fn main() {
             assert_eq!(mag, og);
         }
         Err(err) => {
-            panic!("failed paring hex [{}]", err);
+            panic!("failed paring hex [{err}]");
         }
     }
 }

@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
 
 #[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
 pub enum CcsdsPacketSequenceFlags {
@@ -40,9 +40,9 @@ fn max_packet() {
         packet_version_number: CcsdsPacketVersion::Invalid,
         packet_type: true,
         sec_hdr_flag: true,
-        app_process_id: u16::MAX & 0b0000011111111111,
+        app_process_id: u16::MAX & 0b0000_0111_1111_1111,
         sequence_flags: CcsdsPacketSequenceFlags::Unsegmented,
-        packet_seq_count: u16::MAX & 0b0011111111111111,
+        packet_seq_count: u16::MAX & 0b0011_1111_1111_1111,
         packet_data_length: u16::MAX,
     };
     assert_eq!(

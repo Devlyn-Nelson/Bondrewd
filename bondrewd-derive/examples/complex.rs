@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
 
 #[derive(BitfieldEnum, Clone, Eq, PartialEq, Debug)]
 enum EyeColor {
@@ -58,7 +58,7 @@ fn main() {
             knees: 2,
             toes: 10,
         },
-        blinks: 10000000000,
+        blinks: 10_000_000_000,
     };
 
     let bytes = person.clone().into_bytes();

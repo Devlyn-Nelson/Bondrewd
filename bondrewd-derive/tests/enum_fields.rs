@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
 
 #[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
 enum TestEnum {
@@ -29,8 +29,8 @@ fn to_bytes_simple_with_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(SimpleWithSingleByteSpanningEnum::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
-    assert_eq!(bytes[0], 0b00000001);
-    assert_eq!(bytes[1], 0b10000000);
+    assert_eq!(bytes[0], 0b0000_0001);
+    assert_eq!(bytes[1], 0b1000_0000);
     #[cfg(feature = "slice_fns")]
     {
         //peeks

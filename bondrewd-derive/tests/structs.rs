@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldHex, Bitfields};
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
@@ -37,14 +37,14 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(SimpleWithStruct::BYTE_SIZE, 8);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 8);
-    assert_eq!(bytes[0], 0b01101000);
-    assert_eq!(bytes[1], 0b00000000);
-    assert_eq!(bytes[2], 0b00001100);
-    assert_eq!(bytes[3], 0b01100100);
-    assert_eq!(bytes[4], 0b10010000);
-    assert_eq!(bytes[5], 0b11000010);
-    assert_eq!(bytes[6], 0b10000100);
-    assert_eq!(bytes[7], 0b00001110);
+    assert_eq!(bytes[0], 0b0110_1000);
+    assert_eq!(bytes[1], 0b0000_0000);
+    assert_eq!(bytes[2], 0b0000_1100);
+    assert_eq!(bytes[3], 0b0110_0100);
+    assert_eq!(bytes[4], 0b1001_0000);
+    assert_eq!(bytes[5], 0b1100_0010);
+    assert_eq!(bytes[6], 0b1000_0100);
+    assert_eq!(bytes[7], 0b0000_1110);
 
     #[cfg(feature = "slice_fns")]
     {
@@ -86,14 +86,14 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     assert_eq!(SimpleWithStructWithFlip::BYTE_SIZE, 8);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 8);
-    assert_eq!(bytes[7], 0b01101000);
-    assert_eq!(bytes[6], 0b00000000);
-    assert_eq!(bytes[5], 0b00001100);
-    assert_eq!(bytes[4], 0b01100100);
-    assert_eq!(bytes[3], 0b10010000);
-    assert_eq!(bytes[2], 0b11000010);
-    assert_eq!(bytes[1], 0b10000100);
-    assert_eq!(bytes[0], 0b00001110);
+    assert_eq!(bytes[7], 0b0110_1000);
+    assert_eq!(bytes[6], 0b0000_0000);
+    assert_eq!(bytes[5], 0b0000_1100);
+    assert_eq!(bytes[4], 0b0110_0100);
+    assert_eq!(bytes[3], 0b1001_0000);
+    assert_eq!(bytes[2], 0b1100_0010);
+    assert_eq!(bytes[1], 0b1000_0100);
+    assert_eq!(bytes[0], 0b0000_1110);
     #[cfg(feature = "slice_fns")]
     {
         //peeks
@@ -153,8 +153,8 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(SimpleWithSingleByteSpanningStruct::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
-    assert_eq!(bytes[0], 0b00001010);
-    assert_eq!(bytes[1], 0b10000000);
+    assert_eq!(bytes[0], 0b0000_1010);
+    assert_eq!(bytes[1], 0b1000_0000);
     #[cfg(feature = "slice_fns")]
     {
         //peeks
@@ -203,8 +203,8 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     assert_eq!(SimpleWithSingleByteNonSpanningStruct::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
-    assert_eq!(bytes[0], 0b01010101);
-    assert_eq!(bytes[1], 0b00001010);
+    assert_eq!(bytes[0], 0b0101_0101);
+    assert_eq!(bytes[1], 0b0000_1010);
     #[cfg(feature = "slice_fns")]
     {
         //peeks

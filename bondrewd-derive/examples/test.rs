@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields)]
 #[repr(u8)]
@@ -28,15 +28,15 @@ fn main() {
     let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
     // despite setting the id to 3 it will be 0 on output, this is to prevent
     // users from providing a valid id when it should not be.
-    assert_eq!(bytes[0], 0b00000000);
-    assert_eq!(bytes[1], 0b00000000);
-    assert_eq!(bytes[2], 0b00000000);
+    assert_eq!(bytes[0], 0b0000_0000);
+    assert_eq!(bytes[1], 0b0000_0000);
+    assert_eq!(bytes[2], 0b0000_0000);
     // but the id can be set to anything using the write_variant_id function.
     Thing::write_variant_id(&mut bytes, 3);
     // the id is now 3
-    assert_eq!(bytes[0], 0b11000000);
-    assert_eq!(bytes[1], 0b00000000);
-    assert_eq!(bytes[2], 0b00000000);
+    assert_eq!(bytes[0], 0b1100_0000);
+    assert_eq!(bytes[1], 0b0000_0000);
+    assert_eq!(bytes[2], 0b0000_0000);
     let reconstructed = Thing::from_bytes(bytes);
     // other than into_bytes everything else with give you the stored value.
     assert_eq!(reconstructed.id(), 3);

@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
 
 #[derive(Clone, BitfieldEnum, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
 #[bondrewd_enum(u8)]

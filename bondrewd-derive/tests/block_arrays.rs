@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -21,8 +21,8 @@ fn to_bytes_simple_with_block_array_spanning() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[0], 0b00011111);
-    assert_eq!(bytes[1], 0b11110000);
+    assert_eq!(bytes[0], 0b0001_1111);
+    assert_eq!(bytes[1], 0b1111_0000);
     #[cfg(feature = "slice_fns")]
     {
         //peeks

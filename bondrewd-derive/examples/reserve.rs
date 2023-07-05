@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", read_from = "msb0")]
@@ -27,7 +27,7 @@ fn main() {
         test,
     };
     let bytes = testy.clone().into_bytes();
-    for b in bytes.iter() {
+    for b in &bytes {
         println!("{b:02X}, ");
     }
     let new_testy = SimpleWithReserve::from_bytes(bytes);
