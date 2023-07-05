@@ -1307,12 +1307,12 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(-1034, SimpleExample::read_three(&bytes));
 /// // notice i can still use the read calls for the redundant field.
 /// assert_eq!(63, SimpleExample::read_flags(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_one(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_two(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_three(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_four(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_five(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_one(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_two(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_three(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_four(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_five(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_six(&bytes));
 /// // overwrite the values with new ones in the byte array.
 /// SimpleExample::write_one(&mut bytes, true);
 /// SimpleExample::write_two(&mut bytes, 5.5);
@@ -1324,16 +1324,16 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// let reconstructed = SimpleExample::from_bytes(bytes);
 /// // check the values read by from bytes and check if they are
 /// // what we wrote to the bytes NOT the origanal values.
-/// assert_eq!(true,reconstructed.one);
-/// assert_eq!(5.5,reconstructed.two);
-/// assert_eq!(511,reconstructed.three);
-/// assert_eq!(0,reconstructed.flags);
-/// assert_eq!(false,reconstructed.flag_one);
-/// assert_eq!(false,reconstructed.flag_two);
-/// assert_eq!(false,reconstructed.flag_three);
-/// assert_eq!(false,reconstructed.flag_four);
-/// assert_eq!(false,reconstructed.flag_five);
-/// assert_eq!(false,reconstructed.flag_six);
+/// assert_eq!(true, reconstructed.one);
+/// assert_eq!(5.5, reconstructed.two);
+/// assert_eq!(511, reconstructed.three);
+/// assert_eq!(0, reconstructed.flags);
+/// assert_eq!(false, reconstructed.flag_one);
+/// assert_eq!(false, reconstructed.flag_two);
+/// assert_eq!(false, reconstructed.flag_three);
+/// assert_eq!(false, reconstructed.flag_four);
+/// assert_eq!(false, reconstructed.flag_five);
+/// assert_eq!(false, reconstructed.flag_six);
 /// ```
 /// # Enum Example
 /// Because enums can provide a lot of ambiguity there is a requirement that The last variant is
@@ -1366,15 +1366,13 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     Idk,
 /// }
 ///
-/// fn main() {
-///     let thing = Thing::One { a: 1 };
-///     let bytes = thing.into_bytes();
-///     // the first two bits are the id followed by Variant One's `a` field.
-///     assert_eq!(bytes[0], 0b01_000000);
-///     assert_eq!(bytes[1], 0b00000000);
-///     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
-///     assert_eq!(bytes[2], 0b01_000000);
-/// }
+/// let thing = Thing::One { a: 1 };
+/// let bytes = thing.into_bytes();
+/// // the first two bits are the id followed by Variant One's `a` field.
+/// assert_eq!(bytes[0], 0b01_000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+/// assert_eq!(bytes[2], 0b01_000000);
 /// ```
 /// #### Generated From Bytes
 /// ```
@@ -1608,15 +1606,13 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     Idk = 0,
 /// }
 ///
-/// fn main() {
-///     let thing = Thing::One { a: 1 };
-///     let bytes = thing.into_bytes();
-///     // the first two bits are the id followed by Variant One's `a` field.
-///     assert_eq!(bytes[0], 0b01_000000);
-///     assert_eq!(bytes[1], 0b00000000);
-///     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
-///     assert_eq!(bytes[2], 0b01_000000);
-/// }
+/// let thing = Thing::One { a: 1 };
+/// let bytes = thing.into_bytes();
+/// // the first two bits are the id followed by Variant One's `a` field.
+/// assert_eq!(bytes[0], 0b01_000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+/// assert_eq!(bytes[2], 0b01_000000);
 /// ```
 /// #### Capture Id
 /// ```
@@ -1642,30 +1638,28 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     } = 0,
 /// }
 ///
-/// fn main() {
-///     // fields with capture_id will use the id_bit_length so defining the bit_length is unnecessary.
-///     assert_eq!(Thing::BYTE_SIZE, 3);
-///     assert_eq!(Thing::BIT_SIZE, 18);
-///     // fields that are capturing the id do not write.
-///     let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
-///     // despite setting the id to 3 it will be 0 on output, this is to prevent
-///     // users from providing a valid id when it should not be.
-///     assert_eq!(bytes[0], 0b00000000);
-///     assert_eq!(bytes[1], 0b00000000);
-///     assert_eq!(bytes[2], 0b00000000);
-///     // but the id can be set to anything using the write_variant_id function.
-///     Thing::write_variant_id(&mut bytes, 3);
-///     // the id is now 3
-///     assert_eq!(bytes[0], 0b11000000);
-///     assert_eq!(bytes[1], 0b00000000);
-///     assert_eq!(bytes[2], 0b00000000);
-///     let reconstructed = Thing::from_bytes(bytes);
-///     // other than into_bytes everything else with give you the stored value.
-///     assert_eq!(reconstructed.id(), 3);
-///     match reconstructed {
-///         Thing::Idk { id, .. } => assert_eq!(id, 3),
-///         _ => panic!("id wasn't 3"),
-///     }
+/// // fields with capture_id will use the id_bit_length so defining the bit_length is unnecessary.
+/// assert_eq!(Thing::BYTE_SIZE, 3);
+/// assert_eq!(Thing::BIT_SIZE, 18);
+/// // fields that are capturing the id do not write.
+/// let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
+/// // despite setting the id to 3 it will be 0 on output, this is to prevent
+/// // users from providing a valid id when it should not be.
+/// assert_eq!(bytes[0], 0b00000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// assert_eq!(bytes[2], 0b00000000);
+/// // but the id can be set to anything using the write_variant_id function.
+/// Thing::write_variant_id(&mut bytes, 3);
+/// // the id is now 3
+/// assert_eq!(bytes[0], 0b11000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// assert_eq!(bytes[2], 0b00000000);
+/// let reconstructed = Thing::from_bytes(bytes);
+/// // other than into_bytes everything else with give you the stored value.
+/// assert_eq!(reconstructed.id(), 3);
+/// match reconstructed {
+///     Thing::Idk { id, .. } => assert_eq!(id, 3),
+///     _ => panic!("id wasn't 3"),
 /// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
