@@ -236,7 +236,7 @@ pub fn create_into_bytes_field_quotes_enum(
             ));
         };
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(&variant, Some(info.name.clone()), set_slice)?;
+            let thing = create_fields_quotes(variant, Some(info.name.clone()), set_slice)?;
             (
                 thing.field_name_list,
                 thing.into_bytes_quote,
@@ -344,7 +344,7 @@ pub fn create_into_bytes_field_quotes_struct(
     set_slice: bool,
 ) -> Result<IntoBytesOptions, syn::Error> {
     let (into_bytes_quote, set_fns_quote, set_slice_fns_option) = {
-        let thing = create_fields_quotes(&info, None, set_slice)?;
+        let thing = create_fields_quotes(info, None, set_slice)?;
         (
             thing.into_bytes_quote,
             thing.set_fns_quote,
@@ -466,7 +466,7 @@ fn make_set_fn(
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{field_name_short}")
     } else {
-        field_name_short.clone()
+        format_ident!("{field_name_short}")
     };
     let struct_size = info.total_bytes();
     let bit_range = &field.attrs.bit_range;

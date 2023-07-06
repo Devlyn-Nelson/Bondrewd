@@ -46,7 +46,7 @@ fn make_read_fns(
         },
     )?;
 
-    let peek_quote = make_peek_fn(&field_extractor, field, info, &enum_name)?;
+    let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name)?;
     *peek_fns_quote = quote! {
         #peek_fns_quote
         #peek_quote
@@ -54,9 +54,9 @@ fn make_read_fns(
     // make the slice functions if applicable.
     if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) = peek_slice_fns_option
     {
-        let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, &enum_name)?;
+        let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, enum_name)?;
         let peek_slice_unchecked_quote =
-            make_peek_slice_unchecked_fn(&field_extractor, field, info, &enum_name)?;
+            make_peek_slice_unchecked_fn(&field_extractor, field, info, enum_name)?;
         let mut the_peek_slice_fns_quote_temp = quote! {
             #the_peek_slice_fns_quote
             #peek_slice_quote
@@ -280,7 +280,7 @@ pub fn create_from_bytes_field_quotes_enum(
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(&variant, Some(info.name.clone()), peek_slice)?;
+            let thing = create_fields_quotes(variant, Some(info.name.clone()), peek_slice)?;
             (
                 thing.field_name_list,
                 thing.peek_fns_quote,
