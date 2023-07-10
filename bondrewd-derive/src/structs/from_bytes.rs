@@ -278,6 +278,11 @@ pub fn create_from_bytes_field_quotes_enum(
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
         let v_name = &variant.name;
+        let upper_v_name = v_name.to_string().to_case(Case::UpperSnake);
+        let v_byte_const_name = format!("{upper_v_name}_BYTE_SIZE");
+        let v_bit_const_name = format!("{upper_v_name}_BIT_SIZE");
+        let v_byte_size = variant.total_bytes();
+        let v_bit_size = variant.total_bits();
         let variant_name = quote! {#v_name};
         let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
             let thing = create_fields_quotes(variant, Some(info.name.clone()), peek_slice)?;
@@ -295,6 +300,8 @@ pub fn create_from_bytes_field_quotes_enum(
         {
             peek_slice_fns_quote_temp = quote! {
                 #peek_slice_fns_quote
+                pub const #v_byte_const_name: usize = #v_byte_size;
+                pub const #v_bit_const_name: usize = #v_bit_size;
                 #peek_slice_fns_quote_temp
             };
             unchecked_temp = quote! {
