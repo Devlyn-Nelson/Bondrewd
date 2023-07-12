@@ -113,6 +113,7 @@
 //! ```
 //!
 //! # Crate Features
+//! ### slice_fns
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
 //! * Single field access. These are functions that are added along side the standard read/write field
@@ -186,7 +187,9 @@
 //!     pub fn write_three(&mut self, three: u8) { .. }
 //! }
 //! ```
-//!
+//! ### part_eq_enums
+//! Implements [`PartialEq`] for the type which fits the bits of the a [`Bitfields`] enum's id on the enum.
+//! ### hex_fns
 //! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd STRUCT_SIZE. Hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
@@ -352,7 +355,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// #### Common Attributes
 /// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
-/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
+/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
+/// `0.3.27` the default endianness will default to Little Endianness.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
@@ -950,8 +954,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// Here is the same example where but i messed up the bit_length of the first field making the total 8
-/// instead of 7.
+/// Here is the same example where i assigned the "incorrect" the bit_length of the first field making the
+/// total 8 instead of 7.
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -963,8 +967,6 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     two: u8,
 ///     three: bool
 /// }
-/// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
-/// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
 ///   
 /// These next 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the

@@ -17,6 +17,10 @@ pub trait Bitfields<const SIZE: usize> {
     fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 
+#[deprecated(
+    since = "0.1.15",
+    note = "please use `Bitfields` instead of `BitfieldEnum`"
+)]
 pub trait BitfieldEnum {
     type Primitive;
     fn from_primitive(prim: Self::Primitive) -> Self;

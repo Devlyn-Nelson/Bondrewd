@@ -425,7 +425,9 @@ impl FieldDataType {
                 let mut big = Endianness::Big;
                 std::mem::swap(attrs.endianness.as_mut(), &mut big);
             } else {
-                return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
+                let mut little = Endianness::Little;
+                std::mem::swap(attrs.endianness.as_mut(), &mut little);
+                // return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
             }
         }
 
@@ -1589,6 +1591,15 @@ impl ObjectInfo {
                                 ))
                             }
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!(
+                                "improper usage of {}, must use literal integer ex. `{} = 0`",
+                                EnumInfo::VARIANT_ID_NAME,
+                                EnumInfo::VARIANT_ID_NAME
+                            ),
+                        ));
                     }
                 } else if value.path.is_ident("read_from") {
                     if let Lit::Str(ref val) = value.lit {
@@ -1600,6 +1611,11 @@ impl ObjectInfo {
                                 "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
                             )),
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of read_from, must use string ex. `read_from = \"lsb0\"`"),
+                        ));
                     }
                 } else if value.path.is_ident("default_endianness") {
                     if let Lit::Str(ref val) = value.lit {
@@ -1611,6 +1627,11 @@ impl ObjectInfo {
                             "ne" | "native" => info.default_endianess = Endianness::None,
                             _ => {}
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`"),
+                        ));
                     }
                 } else if value.path.is_ident("enforce_bytes") {
                     if let Lit::Int(ref val) = value.lit {
@@ -1625,6 +1646,11 @@ impl ObjectInfo {
                                 ))
                             }
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`"),
+                        ));
                     }
                 } else if value.path.is_ident("enforce_bits") {
                     if let Lit::Int(ref val) = value.lit {
@@ -1639,6 +1665,11 @@ impl ObjectInfo {
                                 ))
                             }
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`"),
+                        ));
                     }
                 } else if value.path.is_ident("fill_bytes") {
                     if let Lit::Int(ref val) = value.lit {
@@ -1660,6 +1691,11 @@ impl ObjectInfo {
                                 ))
                             }
                         }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`"),
+                        ));
                     }
                 }
             }
