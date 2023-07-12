@@ -846,7 +846,8 @@ impl FieldInfo {
         let ident: Box<Ident> = if let Some(ref name) = field.ident {
             Box::new(name.clone())
         } else {
-            Box::new(format_ident!("{}", fields.len()))
+            // Box::new(format_ident!("{}", fields.len()))
+            return Err(Error::new(Span::call_site(), "all fields must be named"));
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
