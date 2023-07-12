@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, str::FromStr};
 
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness, FieldAttrs,
-    FieldDataType, FieldInfo, OverlapOptions, ReserveFieldOption, StructInfo,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
+    FieldDataType, FieldInfo, StructInfo,
 };
 
 use convert_case::{Case, Casing};
@@ -203,22 +203,7 @@ pub fn create_from_bytes_field_quotes_enum(
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
         (
             {
-                let field = FieldInfo {
-                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
-                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
-                    ty: FieldDataType::Number(
-                        (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
-                        NumberSignage::Unsigned,
-                        info.id_ident()?,
-                    ),
-                    attrs: FieldAttrs {
-                        endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
-                        bit_range: 0..info.attrs.id_bits,
-                        reserve: ReserveFieldOption::NotReserve,
-                        overlap: OverlapOptions::None,
-                        capture_id: false,
-                    },
-                };
+                let field = info.generate_id_field()?;
                 let flip = false;
                 let field_extractor = get_field_quote(
                     &field,

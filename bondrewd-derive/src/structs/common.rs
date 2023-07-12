@@ -1030,6 +1030,29 @@ impl EnumInfo {
             }
         }
     }
+    pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
+        let e = match &self.attrs.attrs.default_endianess {
+            Endianness::Little => Endianness::Little,
+            Endianness::Big => Endianness::Big,
+            Endianness::None => Endianness::Little,
+        };
+        Ok(FieldInfo {
+            name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
+            ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
+            ty: FieldDataType::Number(
+                (self.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
+                NumberSignage::Unsigned,
+                self.id_ident()?,
+            ),
+            attrs: FieldAttrs {
+                endianness: Box::new(e),
+                bit_range: 0..self.attrs.id_bits,
+                reserve: ReserveFieldOption::NotReserve,
+                overlap: OverlapOptions::None,
+                capture_id: false,
+            },
+        })
+    }
 }
 
 #[derive(Clone)]

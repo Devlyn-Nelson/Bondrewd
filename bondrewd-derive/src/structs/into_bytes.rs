@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness, FieldAttrs,
-    FieldDataType, FieldInfo, NumberSignage, OverlapOptions, ReserveFieldOption, StructInfo,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
+    FieldDataType, FieldInfo, StructInfo,
 };
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
@@ -141,25 +141,9 @@ pub fn create_into_bytes_field_quotes_enum(
     // all quote with all of the set functions appended to it.
 
     let (mut set_fns_quote, mut set_slice_fns_option, id_ident) = {
-        let id_ident = info.id_ident()?;
         (
             {
-                let field = FieldInfo {
-                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
-                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
-                    ty: FieldDataType::Number(
-                        (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
-                        NumberSignage::Unsigned,
-                        id_ident.clone(),
-                    ),
-                    attrs: FieldAttrs {
-                        endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
-                        bit_range: 0..info.attrs.id_bits,
-                        reserve: ReserveFieldOption::NotReserve,
-                        overlap: OverlapOptions::None,
-                        capture_id: false,
-                    },
-                };
+                let field = info.generate_id_field()?;
                 let flip = false;
                 let (field_quote, clear_quote) = get_field_quote(
                     &field,
@@ -201,7 +185,7 @@ pub fn create_into_bytes_field_quotes_enum(
             } else {
                 None
             },
-            id_ident,
+            info.id_ident()?,
         )
     };
     let total_size = info.total_bytes();
