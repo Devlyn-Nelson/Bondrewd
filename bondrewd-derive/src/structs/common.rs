@@ -4,6 +4,7 @@ use crate::structs::parse::{
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::ops::Range;
+use std::str::FromStr;
 use syn::parse::Error;
 use syn::spanned::Spanned;
 use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, NestedMeta, Type};
@@ -845,7 +846,7 @@ impl FieldInfo {
         let ident: Box<Ident> = if let Some(ref name) = field.ident {
             Box::new(name.clone())
         } else {
-            return Err(Error::new(Span::call_site(), "all fields must be named"));
+            Box::new(format_ident!("{}", fields.len()))
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
@@ -951,6 +952,30 @@ pub struct StructInfo {
 }
 
 impl StructInfo {
+    pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
+        for field in self.fields.iter() {
+            if field.attrs.capture_id {
+                let name = &field.name;
+                return Ok(quote! {#name});
+            }
+        }
+        if let Some(id) = self.attrs.id {
+            match TokenStream::from_str(format!("{id}").as_str()) {
+                Ok(id) => Ok(id),
+                Err(err) => Err(syn::Error::new(
+                    self.name.span(),
+                    format!(
+                        "variant id was not able to be formatted for of code generation. [{err}]"
+                    ),
+                )),
+            }
+        } else {
+            Err(syn::Error::new(
+                self.name.span(),
+                "variant id was unknown at time of code generation",
+            ))
+        }
+    }
     pub fn total_bits(&self) -> usize {
         let mut total: usize = 0;
         for field in self.fields.iter() {
@@ -986,6 +1011,21 @@ impl EnumInfo {
     }
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+    pub fn id_ident(&self) -> syn::Result<TokenStream> {
+        match self.attrs.id_bits {
+            0..=8 => Ok(quote! {u8}),
+            9..=16 => Ok(quote! {u16}),
+            17..=32 => Ok(quote! {u32}),
+            33..=64 => Ok(quote! {u64}),
+            65..=128 => Ok(quote! {u128}),
+            _ => {
+                return Err(syn::Error::new(
+                    self.name.span(),
+                    "variant id size is invalid",
+                ));
+            }
+        }
     }
 }
 

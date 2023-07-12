@@ -2,7 +2,7 @@ use crate::structs::common::{FieldDataType, FieldInfo, NumberSignage, StructInfo
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-pub fn create_into_bytes_field_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
+pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
     // all of the fields set functions that disallow numbers that are too large to fit into bit length.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {

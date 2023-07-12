@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, str::FromStr};
+use std::cmp::Ordering;
 
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness, FieldAttrs,
@@ -73,7 +73,7 @@ fn create_fields_quotes(
             continue;
         }
         if field.attrs.capture_id {
-            field_name_list = quote! {#field_name_list #field_name: _,};
+            field_name_list = quote! {#field_name_list #field_name,};
             continue;
         }
         field_name_list = quote! {#field_name_list #field_name,};
@@ -141,16 +141,7 @@ pub fn create_into_bytes_field_quotes_enum(
     // all quote with all of the set functions appended to it.
 
     let (mut set_fns_quote, mut set_slice_fns_option, id_ident) = {
-        let id_ident = match info.attrs.id_bits {
-            0..=8 => quote! {u8},
-            9..=16 => quote! {u16},
-            17..=32 => quote! {u32},
-            33..=64 => quote! {u64},
-            65..=128 => quote! {u128},
-            _ => {
-                return Err(syn::Error::new(info.name.span(), "id size is invalid"));
-            }
-        };
+        let id_ident = info.id_ident()?;
         (
             {
                 let field = FieldInfo {
@@ -219,22 +210,7 @@ pub fn create_into_bytes_field_quotes_enum(
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
-        let mut variant_id = if let Some(id) = variant.attrs.id {
-            match TokenStream::from_str(format!("{id}").as_str()) {
-                Ok(vi) => vi,
-                Err(err) => {
-                    return Err(syn::Error::new(
-                        variant.name.span(),
-                        format!("variant id was not able to be formatted for of code generation. [{err}]"),
-                    ));
-                }
-            }
-        } else {
-            return Err(syn::Error::new(
-                variant.name.span(),
-                "variant id was unknown at time of code generation",
-            ));
-        };
+        let mut variant_id = variant.id_or_field_name()?;
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
             let thing = create_fields_quotes(variant, Some(info.name.clone()), set_slice)?;
             (

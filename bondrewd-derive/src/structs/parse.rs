@@ -275,8 +275,7 @@ impl FieldAttrBuilder {
                         "bits" => {
                             if let Lit::Str(val) = value.lit {
                                 let val_string = val.value();
-                                let split =
-                                    val_string.split("..").collect::<Vec<&str>>();
+                                let split = val_string.split("..").collect::<Vec<&str>>();
                                 if split.len() == 2 {
                                     match (split[0].parse::<usize>(), split[1].parse::<usize>()) {
                                         (Ok(start), Ok(end)) => match builder.bit_range {

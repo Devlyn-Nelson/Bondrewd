@@ -1,4 +1,4 @@
-use bondrewd::{BitfieldHex, Bitfields};
+use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]

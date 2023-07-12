@@ -1,17 +1,17 @@
-use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
+use bondrewd::Bitfields;
 
-#[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(id_bit_length = 2, default_endianness = "be")]
 pub enum CcsdsPacketSequenceFlags {
     Continuation,
     Start,
     End,
     Unsegmented,
-    Invalid(u8),
 }
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
-#[derive(BitfieldEnum, Clone, PartialEq, Eq, Debug)]
-#[bondrewd_enum(u8)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(id_bit_length = 3, default_endianness = "be")]
 pub enum CcsdsPacketVersion {
     One,
     Two,
@@ -21,13 +21,13 @@ pub enum CcsdsPacketVersion {
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", enforce_bytes = 6)]
 pub struct CcsdsPacketHeader {
-    #[bondrewd(enum_primitive = "u8", bit_length = 3)]
+    #[bondrewd(bit_length = 3)]
     pub(crate) packet_version_number: CcsdsPacketVersion,
     pub(crate) packet_type: bool,
     pub(crate) sec_hdr_flag: bool,
     #[bondrewd(bit_length = 11)]
     pub(crate) app_process_id: u16,
-    #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+    #[bondrewd(bit_length = 2)]
     pub(crate) sequence_flags: CcsdsPacketSequenceFlags,
     #[bondrewd(bit_length = 14)]
     pub(crate) packet_seq_count: u16,

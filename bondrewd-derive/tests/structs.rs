@@ -1,4 +1,4 @@
-use bondrewd::{BitfieldHex, Bitfields};
+use bondrewd::Bitfields;
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
@@ -20,6 +20,21 @@ struct SimpleWithStruct {
     two: Simple,
     #[bondrewd(bit_length = 4)]
     three: u8,
+}
+
+#[derive(Bitfields)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+enum SimpleInner {
+    One { little_payload: [u8; 10] },
+    Two { big_payload: [u8; 100] },
+}
+
+#[derive(Bitfields)]
+#[bondrewd(default_endianness = "le", enforce_bytes = "8")]
+struct SimpleEnforced {
+    header: [u8; 3],
+    #[bondrewd(byte_length = 101)]
+    packet: SimpleInner,
 }
 
 #[test]

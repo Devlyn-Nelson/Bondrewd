@@ -1,14 +1,17 @@
-use bondrewd::{BitfieldEnum, BitfieldHex, Bitfields};
+use bondrewd::Bitfields;
 
-#[derive(Clone, BitfieldEnum, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
-#[bondrewd_enum(u8)]
+#[derive(Clone, Bitfields, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
+#[bondrewd(id_bit_length = 6, default_endianness = "be")]
 pub enum AosFrameVirtualChannelId {
     /// Denotes that the AosFrame belongs to the Orbital or Non-Realtime Virtual Channel. value of 0.
     Orbital,
     /// Denotes that the AosFrame belongs to Realtime Virtual Channel. value of 1.
     Realtime,
     /// Denotes that the AosFrame Virtual Channel is not within the Pumpkin Inc spec values.
-    Invalid(u8),
+    Invalid {
+        #[bondrewd(capture_id)]
+        id: u8,
+    },
 }
 
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
@@ -23,7 +26,7 @@ pub struct AosFrameHeaderBe {
     /// AOS Space Data Link Protocol `Spacecraft Identifier` (CCSDS 732.0-B-4 4.1.2.2.3).
     pub space_craft_id: u8,
     /// AOS Space Data Link Protocol `Virtual Channel Identifier` (CCSDS 732.0-B-4 4.1.2.3).
-    #[bondrewd(bit_length = 6, enum_primitive = "u8")]
+    #[bondrewd(bit_length = 6)]
     pub vcid: AosFrameVirtualChannelId,
     /// AOS Space Data Link Protocol `Virtual Channel Frame Count` (CCSDS 732.0-B-4 4.1.2.4).
     #[bondrewd(bit_length = 24)]
@@ -93,7 +96,7 @@ pub struct AosFrameHeaderLe {
     /// AOS Space Data Link Protocol `Spacecraft Identifier` (CCSDS 732.0-B-4 4.1.2.2.3).
     pub space_craft_id: u8,
     /// AOS Space Data Link Protocol `Virtual Channel Identifier` (CCSDS 732.0-B-4 4.1.2.3).
-    #[bondrewd(bit_length = 6, enum_primitive = "u8")]
+    #[bondrewd(bit_length = 6)]
     pub vcid: AosFrameVirtualChannelId,
     /// AOS Space Data Link Protocol `Virtual Channel Frame Count` (CCSDS 732.0-B-4 4.1.2.4).
     #[bondrewd(bit_length = 24)]

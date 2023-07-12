@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.
@@ -69,9 +69,9 @@ fn main() {
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();
     assert_eq!(6, ComplexEnum::BYTE_SIZE);
     assert_eq!(46, ComplexEnum::BIT_SIZE);
-    assert_eq!([0b00000000, 0b000011_00, 0, 0, 0, 0,], bytes);
+    assert_eq!([0b0000_0000, 0b0000_1100, 0, 0, 0, 0,], bytes);
     ComplexEnum::write_variant_id(&mut bytes, 35);
-    assert_eq!([0b00000000, 0b100011_00, 0, 0, 0, 0,], bytes);
+    assert_eq!([0b0000_0000, 0b1000_1100, 0, 0, 0, 0,], bytes);
     let reconstructed = ComplexEnum::from_bytes(bytes);
     match reconstructed {
         ComplexEnum::Invalid { id } => {
@@ -109,25 +109,25 @@ fn main() {
     // in the binary assert to make it easy to see.
     assert_eq!(
         [
-            0b0_1100000,  // one - two,
-            0b01000100,   // two,
-            0b00000000,   // two,
-            0b00000000,   // two,
-            0b0_1110111,  // two - three,
-            0b1110110_1,  // three - flags,
-            0b11111_000,  // flags - enum_field_id
-            0b00000000,   // enum_field_id
-            0b001_00000,  // enum_field_id - enum_field_TWO_test
-            0b011_00000,  // enum_field_TWO_test - enum_field_TWO_test_two
-            0b011_00000,  // enum_field_TWO_test_two - unused
-            0b00000000,   // unused
-            0b000_011_00, // unused - other_enum_field -- unused
+            0b0_1100000, // one - two,
+            0b0100_0100, // two,
+            0b0000_0000, // two,
+            0b0000_0000, // two,
+            0b0_1110111, // two - three,
+            0b1110_1101, // three - flags,
+            0b1111_1000, // flags - enum_field_id
+            0b0000_0000, // enum_field_id
+            0b001_00000, // enum_field_id - enum_field_TWO_test
+            0b011_00000, // enum_field_TWO_test - enum_field_TWO_test_two
+            0b011_00000, // enum_field_TWO_test_two - unused
+            0b0000_0000, // unused
+            0b0000_1100, // unused - other_enum_field -- unused
         ],
         bytes
     );
     // use read functions to get the fields value without
     // doing a from_bytes call.
-    assert_eq!(false, SimpleExample::read_one(&bytes));
+    assert!(!SimpleExample::read_one(&bytes));
     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
     assert_eq!(-1034, SimpleExample::read_three(&bytes));
     assert_eq!(63, SimpleExample::read_flags(&bytes));
@@ -141,7 +141,7 @@ fn main() {
     let reconstructed = SimpleExample::from_bytes(bytes);
     // check the values read by from bytes and check if they are
     // what we wrote to the bytes NOT the origanal values.
-    assert_eq!(true, reconstructed.one);
+    assert!(reconstructed.one);
     assert_eq!(5.5, reconstructed.two);
     assert_eq!(511, reconstructed.three);
     assert_eq!(0, reconstructed.flags);

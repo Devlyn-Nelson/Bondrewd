@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.
@@ -73,9 +73,9 @@ fn complex_stuff() {
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();
     assert_eq!(6, ComplexEnum::BYTE_SIZE);
     assert_eq!(46, ComplexEnum::BIT_SIZE);
-    assert_eq!([0b00000000, 0b000011_00, 0, 0, 0, 0,], bytes);
+    assert_eq!([0b0000_0000, 0b1101_0100, 0, 0, 0, 0,], bytes);
     ComplexEnum::write_variant_id(&mut bytes, 35);
-    assert_eq!([0b00000000, 0b100011_00, 0, 0, 0, 0,], bytes);
+    assert_eq!([0b0000_0000, 0b1000_1100, 0, 0, 0, 0,], bytes);
     let reconstructed = ComplexEnum::from_bytes(bytes);
     match reconstructed {
         ComplexEnum::Invalid { id } => {
@@ -113,25 +113,25 @@ fn complex_stuff() {
     // in the binary assert to make it easy to see.
     assert_eq!(
         [
-            0b0_1100000,  // one - two,
-            0b01000100,   // two,
-            0b00000000,   // two,
-            0b00000000,   // two,
-            0b0_1110111,  // two - three,
-            0b1110110_1,  // three - flags,
-            0b11111_000,  // flags - enum_field_id
-            0b00000000,   // enum_field_id
-            0b001_00000,  // enum_field_id - enum_field_TWO_test
-            0b011_00000,  // enum_field_TWO_test - enum_field_TWO_test_two
-            0b011_00000,  // enum_field_TWO_test_two - unused
-            0b00000000,   // unused
-            0b000_011_00, // unused - other_enum_field -- unused
+            0b0_1100000, // one - two,
+            0b0100_0100, // two,
+            0b0000_0000, // two,
+            0b0000_0000, // two,
+            0b0_1110111, // two - three,
+            0b1110_1101, // three - flags,
+            0b1111_1000, // flags - enum_field_id
+            0b0000_0000, // enum_field_id
+            0b001_00000, // enum_field_id - enum_field_TWO_test
+            0b011_00000, // enum_field_TWO_test - enum_field_TWO_test_two
+            0b011_00000, // enum_field_TWO_test_two - unused
+            0b0000_0000, // unused
+            0b0000_1100, // unused - other_enum_field -- unused
         ],
         bytes
     );
     // use read functions to get the fields value without
     // doing a from_bytes call.
-    assert_eq!(false, SimpleExample::read_one(&bytes));
+    assert!(!SimpleExample::read_one(&bytes));
     assert_eq!(-4.25, SimpleExample::read_two(&bytes));
     assert_eq!(-1034, SimpleExample::read_three(&bytes));
     assert_eq!(63, SimpleExample::read_flags(&bytes));
@@ -145,7 +145,7 @@ fn complex_stuff() {
     let reconstructed = SimpleExample::from_bytes(bytes);
     // check the values read by from bytes and check if they are
     // what we wrote to the bytes NOT the origanal values.
-    assert_eq!(true, reconstructed.one);
+    assert!(reconstructed.one);
     assert_eq!(5.5, reconstructed.two);
     assert_eq!(511, reconstructed.three);
     assert_eq!(0, reconstructed.flags);
@@ -174,14 +174,14 @@ enum Thing {
 }
 
 #[test]
-fn invalid_behavior() {
+fn not_invalid_behavior() {
     assert_eq!(Thing::BYTE_SIZE, 3);
     assert_eq!(Thing::BIT_SIZE, 18);
     let thing = Thing::One { a: 1 };
     let bytes = thing.into_bytes();
     // the first two bits are the id followed by Variant One's `a` field.
     assert_eq!(bytes[0], 0b01_000000);
-    assert_eq!(bytes[1], 0b00000000);
+    assert_eq!(bytes[1], 0b0000_0000);
     // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
     assert_eq!(bytes[2], 0b01_000000);
 
@@ -189,15 +189,15 @@ fn invalid_behavior() {
     let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
     // despite setting the id to 3 it will be 0 on output, this is to prevent
     // users from providing a valid id when it should not be.
-    assert_eq!(bytes[0], 0b00000000);
-    assert_eq!(bytes[1], 0b00000000);
-    assert_eq!(bytes[2], 0b00000000);
+    assert_eq!(bytes[0], 0b1100_0000);
+    assert_eq!(bytes[1], 0b0000_0000);
+    assert_eq!(bytes[2], 0b0000_0000);
     // but the id can be set to anything using the write_variant_id function.
     Thing::write_variant_id(&mut bytes, 3);
     // the id is now 3
-    assert_eq!(bytes[0], 0b11000000);
-    assert_eq!(bytes[1], 0b00000000);
-    assert_eq!(bytes[2], 0b00000000);
+    assert_eq!(bytes[0], 0b1100_0000);
+    assert_eq!(bytes[1], 0b0000_0000);
+    assert_eq!(bytes[2], 0b0000_0000);
     let reconstructed = Thing::from_bytes(bytes);
     // other than into_bytes everything else with give you the stored value.
     assert_eq!(reconstructed.id(), 3);

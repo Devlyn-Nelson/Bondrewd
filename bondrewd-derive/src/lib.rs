@@ -793,7 +793,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///
 /// // this enum has 4 variants therefore only uses 2 bits
 /// // out of 8 in the primitive type.
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -804,15 +805,13 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct ArraysWithStructsAndEnums {
-///     // if the bit size should be the full size of the primitive, only
-///     // the enum attribute is needed.
-///     #[bondrewd(enum_primitive = "u8")]
+///     #[bondrewd(element_bit_length = 8)]
 ///     four_byte_four_values: [SimpleEnum; 4],
 ///     // if we use the element_bit_length we can say to only use 2
 ///     // bits per SimpleEnum, and due to SimpleEnum only needing 2
 ///     // bits, this could be desirable. means instead of using 4
 ///     // bytes to store 4 SimpleEnums, we can use 1 byte.
-///     #[bondrewd(enum_primitive = "u8", element_bit_length = 2)]
+///     #[bondrewd(element_bit_length = 2)]
 ///     one_byte_four_values: [SimpleEnum; 4],
 ///     // again if the size doesn't need to change, no array attribute
 ///     // is needed.
@@ -1063,7 +1062,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// For enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
 /// ```
 /// use bondrewd::*;
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -1075,7 +1075,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// struct StructWithEnumExample {
 ///     #[bondrewd(bit_length = 3)]
 ///     one: u8,
-///     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+///     #[bondrewd(bit_length = 2)]
 ///     two: SimpleEnum,
 ///     #[bondrewd(bit_length = 3)]
 ///     three: u8,
@@ -1084,7 +1084,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// Enums can also be used in [arrays](#bitfield-array-examples)
 /// ```
 /// use bondrewd::*;
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum Simple {
 ///     One,
 ///     Two,
@@ -1098,9 +1099,9 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     // bit length is not required for enums but in this case where only 4 possible variants are in
 ///     // our enums 2 bits is all that is needed. also note using more bits than possible variants is
 ///     // not a problem because the catch all system will protect you from bad inputs.
-///     #[bondrewd(bit_length = 2, enum_primitive = "u8")]
+///     #[bondrewd(bit_length = 2)]
 ///     one: Simple,
-///     #[bondrewd(element_bit_length = 2, enum_primitive = "u8")]
+///     #[bondrewd(element_bit_length = 2)]
 ///     two: [Simple; 3],
 /// }
 /// ```
@@ -1645,7 +1646,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
 /// // despite setting the id to 3 it will be 0 on output, this is to prevent
 /// // users from providing a valid id when it should not be.
-/// assert_eq!(bytes[0], 0b00000000);
+/// assert_eq!(bytes[0], 0b11000000);
 /// assert_eq!(bytes[1], 0b00000000);
 /// assert_eq!(bytes[2], 0b00000000);
 /// // but the id can be set to anything using the write_variant_id function.
@@ -1742,7 +1743,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             }
             let setters_quote = if setters {
-                match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
+                match structs::struct_fns::create_setters_quotes(&struct_info) {
                     Ok(parsed_struct) => parsed_struct,
                     Err(err) => {
                         return TokenStream::from(err.to_compile_error());
@@ -1984,7 +1985,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #hex_fns_quote
             };
             if slice_fns {
-                let vis = enum_info.vis;
+                let vis = &enum_info.vis;
                 let checked_ident = format_ident!("{}Checked", &struct_name);
                 let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
                 let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
@@ -2020,6 +2021,22 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                             Self{
                                 buffer: data
                             }
+                        }
+                    }
+                };
+                #[cfg(feature = "part_eq_enums")]
+                let id_ident = match enum_info.id_ident() {
+                    Ok(ii) => ii,
+                    Err(err) => {
+                        return err.to_compile_error().into();
+                    }
+                };
+                #[cfg(feature = "part_eq_enums")]
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    impl PartialEq<#id_ident> for #struct_name {
+                        fn eq(&self, other: &#id_ident) -> bool {
+                            self.id() == *other
                         }
                     }
                 };
@@ -2238,6 +2255,10 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(i));
 /// }
 /// ```
+#[deprecated(
+    since = "0.3.25",
+    note = "please use `Bitfields` instead of `BitfieldEnum`"
+)]
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

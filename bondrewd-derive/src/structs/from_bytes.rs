@@ -209,19 +209,7 @@ pub fn create_from_bytes_field_quotes_enum(
                     ty: FieldDataType::Number(
                         (info.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
                         NumberSignage::Unsigned,
-                        match info.attrs.id_bits {
-                            0..=8 => quote! {u8},
-                            9..=16 => quote! {u16},
-                            17..=32 => quote! {u32},
-                            33..=64 => quote! {u64},
-                            65..=128 => quote! {u128},
-                            _ => {
-                                return Err(syn::Error::new(
-                                    info.name.span(),
-                                    "variant id size is invalid",
-                                ));
-                            }
-                        },
+                        info.id_ident()?,
                     ),
                     attrs: FieldAttrs {
                         endianness: Box::new(info.attrs.attrs.default_endianess.clone()),
@@ -279,8 +267,8 @@ pub fn create_from_bytes_field_quotes_enum(
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let upper_v_name = v_name.to_string().to_case(Case::UpperSnake);
-        let v_byte_const_name = format!("{upper_v_name}_BYTE_SIZE");
-        let v_bit_const_name = format!("{upper_v_name}_BIT_SIZE");
+        let v_byte_const_name = format_ident!("{upper_v_name}_BYTE_SIZE");
+        let v_bit_const_name = format_ident!("{upper_v_name}_BIT_SIZE");
         let v_byte_size = variant.total_bytes();
         let v_bit_size = variant.total_bits();
         let variant_name = quote! {#v_name};
@@ -299,9 +287,9 @@ pub fn create_from_bytes_field_quotes_enum(
         ) = (peek_slice_fns_option_temp, peek_slice_fns_option.as_mut())
         {
             peek_slice_fns_quote_temp = quote! {
-                #peek_slice_fns_quote
                 pub const #v_byte_const_name: usize = #v_byte_size;
                 pub const #v_bit_const_name: usize = #v_bit_size;
+                #peek_slice_fns_quote
                 #peek_slice_fns_quote_temp
             };
             unchecked_temp = quote! {
