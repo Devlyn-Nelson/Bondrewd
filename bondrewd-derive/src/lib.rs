@@ -356,7 +356,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
-/// `0.3.27` the default endianness will default to Little Endianness.
+/// `0.3.27` the endianness will default to Little Endianness.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
