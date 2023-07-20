@@ -114,7 +114,14 @@ fn create_fields_quotes(
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
-        Some((quote! {}, quote! {}))
+        if enum_name.is_some() {
+            Some((quote! {}, quote! {}))
+        } else {
+            Some((
+                get_check_slice_fn(&info.name, info.total_bytes()),
+                quote! {},
+            ))
+        }
     } else {
         None
     };
