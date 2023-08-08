@@ -209,7 +209,7 @@ impl FieldDataType {
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut FieldAttrBuilder,
-        ident: &Ident,
+        span: Span,
         default_endianess: &Endianness,
     ) -> syn::Result<FieldDataType> {
         let data_type = match ty {
@@ -220,7 +220,7 @@ impl FieldDataType {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        return Err(syn::Error::new(span, "field has no Type?"));
                     },
                 ),
                 FieldAttrBuilderType::Enum(ref size, ref prim) => FieldDataType::Enum(
@@ -230,10 +230,10 @@ impl FieldDataType {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        return Err(syn::Error::new(span, "field has no Type?"));
                     },
                 ),
-                _ => Self::parse_path(&path.path, attrs, ident.span())?,
+                _ => Self::parse_path(&path.path, attrs, span)?,
             },
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
@@ -249,7 +249,7 @@ impl FieldDataType {
                                         FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    ident.span(),
+                                                    span,
                                                     "range end is less than range start",
                                                 ));
                                             }
@@ -258,7 +258,7 @@ impl FieldDataType {
                                             {
                                                 return Err(
                                                     syn::Error::new(
-                                                        ident.span(),
+                                                        span,
                                                         "Element arrays bit range didn't match (element bit size * array length)"
                                                     )
                                                 );
@@ -273,7 +273,7 @@ impl FieldDataType {
                                         }
                                         _ => {
                                             return Err(syn::Error::new(
-                                                ident.span(),
+                                                span,
                                                 "failed getting Range for element array",
                                             ));
                                         }
@@ -288,7 +288,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
 
@@ -309,7 +309,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -331,7 +331,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -351,21 +351,21 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
                                         FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    ident.span(),
+                                                    span,
                                                     "range end is less than range start",
                                                 ));
                                             }
                                             if range.end - range.start % array_length != 0 {
                                                 return Err(
                                                     syn::Error::new(
-                                                        ident.span(),
+                                                        span,
                                                         "Array Inference failed because given total bit_length does not split up evenly between elements"
                                                     )
                                                 );
@@ -383,7 +383,7 @@ impl FieldDataType {
                                         }
                                         _ => {
                                             return Err(syn::Error::new(
-                                                ident.span(),
+                                                span,
                                                 "failed getting Range for element array",
                                             ));
                                         }
@@ -413,7 +413,7 @@ impl FieldDataType {
                 }
             }
             _ => {
-                return Err(Error::new(ident.span(), "Unsupported field type"));
+                return Err(Error::new(span, "Unsupported field type"));
             }
         };
         // if the type is a number and its endianess is None (numbers should have endianess) then we
@@ -649,13 +649,12 @@ pub struct SubFieldInfo {
 }
 
 pub struct ElementSubFieldIter {
-    pub outer_ident: Box<Ident>,
+    pub outer_ident: Box<FieldIdent>,
     pub endianness: Box<Endianness>,
     // this range is elements in the array, not bit range
     pub range: Range<usize>,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: Ident,
     pub element_bit_size: usize,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
@@ -673,11 +672,12 @@ impl Iterator for ElementSubFieldIter {
                 overlap: self.overlap.clone(),
                 capture_id: false,
             };
-            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
+            let outer_ident = self.outer_ident.ident().clone();
+            let name = quote::format_ident!("{}_{}", outer_ident, index);
+            let ident = Box::new((outer_ident, name).into());
             Some(FieldInfo {
-                ident: self.outer_ident.clone(),
+                ident,
                 attrs,
-                name,
                 ty: self.ty.clone(),
             })
         } else {
@@ -688,13 +688,12 @@ impl Iterator for ElementSubFieldIter {
 
 #[derive(Debug)]
 pub struct BlockSubFieldIter {
-    pub outer_ident: Box<Ident>,
+    pub outer_ident: Box<FieldIdent>,
     pub endianness: Box<Endianness>,
     //array length
     pub length: usize,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: Ident,
     pub bit_length: usize,
     pub total_bytes: usize,
     pub reserve: ReserveFieldOption,
@@ -720,12 +719,13 @@ impl Iterator for BlockSubFieldIter {
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
-            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
+            let outer_ident = self.outer_ident.ident().clone();
+            let name = quote::format_ident!("{}_{}", outer_ident, index);
+            let ident = Box::new((outer_ident, name).into());
             self.length -= 1;
             Some(FieldInfo {
-                ident: self.outer_ident.clone(),
+                ident,
                 attrs,
-                name,
                 ty: self.ty.clone(),
             })
         } else {
@@ -735,14 +735,73 @@ impl Iterator for BlockSubFieldIter {
 }
 
 #[derive(Clone, Debug)]
+pub enum FieldIdent {
+    Ident{
+        /// name of the field given by the user.
+        ident: Ident,
+        /// name of the value given by bondrewd.
+        name: Ident
+    },
+    Index{
+        /// Index of the field in the tuple struct/enum-variant
+        index: usize,
+        /// name of the value given by bondrewd.
+        name: Ident,
+    },
+}
+
+impl FieldIdent {
+    pub fn ident(&self) -> Ident {
+        match self {
+            FieldIdent::Ident{ ident, name: _} => ident.clone(),
+            FieldIdent::Index{ index, name } => Ident::new(&format!("field_{index}"), name.span()),
+        }
+    }
+    pub fn name(&self) -> Ident {
+        match self {
+            FieldIdent::Ident{ ident: _, name} |
+            FieldIdent::Index{ index: _, name} => name.clone(),
+        }
+    }
+    pub fn span(&self) -> Span {
+        match self {
+            FieldIdent::Ident { ident, name: _ } => ident.span(),
+            FieldIdent::Index { index: _, name } => name.span(),
+        }
+    }
+}
+
+impl From<(usize, Span)> for FieldIdent {
+    fn from((value, span): (usize, Span)) -> Self {
+        Self::Index{ index: value, name: Ident::new(&format!("field_{value}"), span) }
+    }
+}
+
+impl From<Ident> for FieldIdent {
+    fn from(value: Ident) -> Self {
+        Self::Ident { ident: value.clone(), name: value }
+    }
+}
+impl From<(Ident, Ident)> for FieldIdent {
+    fn from((value,value2): (Ident, Ident)) -> Self {
+        Self::Ident { ident: value, name: value2 }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FieldInfo {
-    pub name: Ident,
-    pub ident: Box<Ident>,
+    pub ident: Box<FieldIdent>,
     pub ty: FieldDataType,
     pub attrs: FieldAttrs,
 }
 
 impl FieldInfo {
+    pub fn ident(&self) -> &Box<FieldIdent> {
+        &self.ident
+    }
+    pub fn span(&self) -> Span {
+        self.ident.span()
+    }
     fn overlapping(&self, other: &Self) -> bool {
         if self.attrs.overlap.enabled() || other.attrs.overlap.enabled() {
             return false;
@@ -798,7 +857,6 @@ impl FieldInfo {
     pub fn get_element_iter(&self) -> Result<ElementSubFieldIter, syn::Error> {
         if let FieldDataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
             Ok(ElementSubFieldIter {
-                outer_name: self.name.clone(),
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
                 element_bit_size: (self.attrs.bit_range.end - self.attrs.bit_range.start)
@@ -821,7 +879,6 @@ impl FieldInfo {
         if let FieldDataType::BlockArray(ref sub_field, ref array_length, _) = self.ty {
             let bit_length = self.attrs.bit_range.end - self.attrs.bit_range.start;
             Ok(BlockSubFieldIter {
-                outer_name: self.name.clone(),
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
                 bit_length,
@@ -845,11 +902,11 @@ impl FieldInfo {
         fields: &Vec<FieldInfo>,
         attrs: &AttrInfo,
     ) -> syn::Result<Self> {
-        let ident: Box<Ident> = if let Some(ref name) = field.ident {
-            Box::new(name.clone())
+        let ident: FieldIdent = if let Some(ref name) = field.ident {
+            name.clone().into()
         } else {
-            // Box::new(format_ident!("{}", fields.len()))
-            return Err(Error::new(Span::call_site(), "all fields must be named"));
+            (fields.len(), field.span()).into()
+            // return Err(Error::new(Span::call_site(), "all fields must be named"));
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
@@ -857,12 +914,12 @@ impl FieldInfo {
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
-        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.clone())?;
+        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.span())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
             &field.ty,
             &mut attrs_builder,
-            &ident,
+            ident.span(),
             &attrs.default_endianess,
         )?;
 
@@ -882,8 +939,7 @@ impl FieldInfo {
 
         // construct the field we are parsed.
         let new_field = FieldInfo {
-            name: ident.as_ref().clone(),
-            ident: ident.clone(),
+            ident: Box::new(ident),
             ty: data_type,
             attrs,
         };
@@ -952,13 +1008,14 @@ pub struct StructInfo {
     pub attrs: AttrInfo,
     pub fields: Vec<FieldInfo>,
     pub vis: syn::Visibility,
+    pub tuple: bool,
 }
 
 impl StructInfo {
     pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
         for field in self.fields.iter() {
             if field.attrs.capture_id {
-                let name = &field.name;
+                let name = field.ident().name();
                 return Ok(quote! {#name});
             }
         }
@@ -1037,8 +1094,7 @@ impl EnumInfo {
             Endianness::None => Endianness::Little,
         };
         Ok(FieldInfo {
-            name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
-            ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
+            ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
             ty: FieldDataType::Number(
                 (self.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
                 NumberSignage::Unsigned,
@@ -1161,13 +1217,15 @@ impl ObjectInfo {
         let name = input.ident.clone();
         match input.data {
             syn::Data::Struct(ref data) => {
+                let tuple = matches!(data.fields, syn::Fields::Unnamed(_));
                 Self::parse_struct_attrs(&input.attrs, &mut attrs, false)?;
-                let fields = Self::parse_fields(&name, &data.fields, &attrs, None)?;
+                let fields = Self::parse_fields(&name, &data.fields, &attrs, None, tuple)?;
                 Ok(Self::Struct(StructInfo {
                     name,
                     attrs,
                     fields,
                     vis: input.vis.clone(),
+                    tuple,
                 }))
             }
             syn::Data::Enum(ref data) => {
@@ -1197,8 +1255,7 @@ impl ObjectInfo {
                     )
                 };
                 let id_field = FieldInfo {
-                    name: format_ident!("{}", EnumInfo::VARIANT_ID_NAME),
-                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME)),
+                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
                     ty: id_field_type,
                     attrs: FieldAttrs {
                         endianness: Box::new(attrs.default_endianess.clone()),
@@ -1212,6 +1269,7 @@ impl ObjectInfo {
                     },
                 };
                 for variant in data.variants.iter() {
+                    let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
                     let mut attrs = attrs.clone();
                     if let Some((_, ref expr)) = variant.discriminant {
                         let parsed = Self::parse_lit_discriminant_expr(expr)?;
@@ -1226,12 +1284,14 @@ impl ObjectInfo {
                         &variant.fields,
                         &attrs,
                         Some(id_field.clone()),
+                        tuple,
                     )?;
                     variants.push(StructInfo {
                         name: variant_name,
                         attrs,
                         fields,
                         vis: input.vis.clone(),
+                        tuple,
                     });
                 }
                 // detect and fix variants without ids and verify non conflict.
@@ -1432,8 +1492,7 @@ impl ObjectInfo {
                             ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
                         let ident = quote::format_ident!("fill_bits");
                         v.fields.push(FieldInfo {
-                            name: ident.clone(),
-                            ident: Box::new(ident),
+                            ident: Box::new(ident.into()),
                             attrs: FieldAttrs {
                                 bit_range: first_bit..largest,
                                 endianness: Box::new(Endianness::Big),
@@ -1758,6 +1817,7 @@ impl ObjectInfo {
         fields: &Fields,
         attrs: &AttrInfo,
         first_field: Option<FieldInfo>,
+        tuple: bool,
     ) -> syn::Result<Vec<FieldInfo>> {
         let (mut parsed_fields, is_enum) = if let Some(f) = first_field {
             (vec![f], true)
@@ -1774,7 +1834,6 @@ impl ObjectInfo {
                     .cloned()
                     .collect::<Vec<syn::Field>>(),
             ),
-            // TODO make sure this works
             syn::Fields::Unnamed(ref fields) => {
                 Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>())
             }
@@ -1809,7 +1868,10 @@ impl ObjectInfo {
                                     }else if bon_ty.to_string() != user_ty.to_string() {
                                         return Err(Error::new(field.span(), format!("capture_id field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
                                     }
-                                    parsed_fields.remove(0);
+                                    let old_id = parsed_fields.remove(0);
+                                    if tuple {
+                                        parsed_field.ident = old_id.ident;
+                                    }
                                 }
                                 (FieldDataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
                                 _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
@@ -1866,8 +1928,7 @@ impl ObjectInfo {
             let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
             let ident = quote::format_ident!("bondrewd_fill_bits");
             parsed_fields.push(FieldInfo {
-                name: ident.clone(),
-                ident: Box::new(ident),
+                ident: Box::new(ident.into()),
                 attrs: FieldAttrs {
                     bit_range: first_bit..fill_bits,
                     endianness: Box::new(Endianness::Big),

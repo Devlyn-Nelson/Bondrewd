@@ -64,7 +64,7 @@ impl Default for FieldBuilderRange {
 #[derive(Clone, Debug)]
 pub struct FieldAttrBuilder {
     /// name is just so we can give better errors
-    name: Box<Ident>,
+    span: Span,
     pub endianness: Box<Endianness>,
     pub bit_range: FieldBuilderRange,
     pub ty: FieldAttrBuilderType,
@@ -76,9 +76,9 @@ pub struct FieldAttrBuilder {
 }
 
 impl FieldAttrBuilder {
-    fn new(name: Box<Ident>) -> Self {
+    fn new(span: Span) -> Self {
         Self {
-            name,
+            span,
             endianness: Box::new(Endianness::None),
             bit_range: FieldBuilderRange::None,
             ty: FieldAttrBuilderType::None,
@@ -89,15 +89,15 @@ impl FieldAttrBuilder {
     }
 
     fn span(&self) -> Span {
-        self.name.span()
+        self.span
     }
 
     pub fn parse(
         field: &syn::Field,
         last_field: Option<&FieldInfo>,
-        name: Box<Ident>,
+        span: Span,
     ) -> syn::Result<FieldAttrBuilder> {
-        let mut builder = FieldAttrBuilder::new(name);
+        let mut builder = FieldAttrBuilder::new(span);
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
         // filled in using the end of the previous field as the start, add the length in bits you get the

@@ -68,7 +68,7 @@ fn create_fields_quotes(
         None
     };
     for field in info.fields.iter() {
-        let field_name = field.ident.as_ref();
+        let field_name = field.ident().ident();
         if field.attrs.reserve.is_fake_field() {
             continue;
         }
@@ -169,6 +169,7 @@ pub fn create_into_bytes_field_quotes_enum(
                         vis: syn::Visibility::Public(VisPublic {
                             pub_token: Pub::default(),
                         }),
+                        tuple: false,
                     },
                     &clear_quote,
                     &None,
@@ -232,21 +233,26 @@ pub fn create_into_bytes_field_quotes_enum(
         // name as its destination field the list of field names will be just fine.
 
         let v_id_call = format_ident!("write_{}", EnumInfo::VARIANT_ID_NAME);
+        let fields = if variant.tuple {
+            quote!{(#field_name_list)}
+        }else{
+            quote!{{#field_name_list}}
+        };
         into_bytes_fn = quote! {
             #into_bytes_fn
-            Self::#variant_name { #field_name_list } => {
+            Self::#variant_name #fields => {
                 Self::#v_id_call(&mut output_byte_buffer, #variant_id);
                 #into_bytes_quote
             }
         };
 
         if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
-            let id_field_name = &variant.fields[0].name;
+            let id_field_name = &variant.fields[0].ident().name();
             variant_id = quote! {#id_field_name};
         }
 
         let mut ignore_fields = if variant.fields[0].attrs.capture_id {
-            let id_field_name = &variant.fields[0].name;
+            let id_field_name = &variant.fields[0].ident().name();
             variant_id = quote! {*#variant_id};
             quote! { #id_field_name, }
         } else {
@@ -257,9 +263,14 @@ pub fn create_into_bytes_field_quotes_enum(
         } else {
             ignore_fields = quote! { #ignore_fields };
         };
+        if variant.tuple {
+            ignore_fields = quote! {(#ignore_fields)};
+        }else{
+            ignore_fields = quote! {{#ignore_fields}};
+        }
         id_fn = quote! {
             #id_fn
-            Self::#variant_name { #ignore_fields }  => #variant_id,
+            Self::#variant_name #ignore_fields => #variant_id,
         };
     }
     let into_bytes_fn = quote! {
@@ -353,7 +364,7 @@ fn make_set_slice_fn(
     clear_quote: &TokenStream,
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
-    let field_name = field.ident.as_ref().clone();
+    let field_name = field.ident().ident();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_slice_{p}_{field_name}")
     } else {
@@ -392,7 +403,7 @@ fn make_set_slice_unchecked_fn(
     // (prefix_ident, buffer_index_ident)
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
-    let field_name = field.ident.as_ref().clone();
+    let field_name = field.ident().ident();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_{p}_{field_name}")
     } else {
@@ -422,7 +433,7 @@ fn make_set_fn(
     clear_quote: &TokenStream,
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
-    let field_name_short = field.ident.as_ref().clone();
+    let field_name_short = field.ident().ident();
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{field_name_short}")
     } else {
@@ -451,7 +462,7 @@ fn get_field_quote(
     flip: Option<usize>,
     with_self: bool,
 ) -> syn::Result<(proc_macro2::TokenStream, proc_macro2::TokenStream)> {
-    let field_name = field.name.clone();
+    let field_name = field.ident().name();
     let quote_field_name = match field.ty {
         FieldDataType::Float(_, _) => {
             if with_self {
@@ -479,10 +490,10 @@ fn get_field_quote(
             let mut buffer = quote! {};
             let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
                 Default::default();
-            let outer_field_name = &field.ident;
+            let outer_field_name = &field.ident().ident();
             let sub = field.get_element_iter()?;
             for sub_field in sub {
-                let field_name = &sub_field.name;
+                let field_name = &sub_field.ident().name();
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -505,10 +516,10 @@ fn get_field_quote(
             let mut clear_buffer = quote! {};
             let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
                 Default::default();
-            let outer_field_name = &field.ident;
+            let outer_field_name = &field.ident().ident();
             let sub = field.get_block_iter()?;
             for sub_field in sub {
-                let field_name = &sub_field.name;
+                let field_name = &sub_field.ident().name();
                 let (sub_field_quote, clear) = get_field_quote(&sub_field, flip, with_self)?;
                 buffer = quote! {
                     #buffer
@@ -609,7 +620,7 @@ fn apply_le_math_to_field_access_quote(
         //     }
         // };
         // make a name for the buffer that we will store the number in byte form
-        let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
+        let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let field_byte_buffer = match field.ty {
             FieldDataType::Number(_, _, _) |
@@ -621,7 +632,7 @@ fn apply_le_math_to_field_access_quote(
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Enum(_, _, _) => {
                 let field_call = quote!{#field_access_quote.to_le_bytes()};
                 let apply_field_to_buffer = quote! {
@@ -629,7 +640,7 @@ fn apply_le_math_to_field_access_quote(
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let mut full_quote = quote! {
@@ -874,14 +885,14 @@ fn apply_ne_math_to_field_access_quote(
         }
         let right_shift: i8 = 8_i8 - ((available_bits_in_first_byte % 8) as i8);
         // make a name for the buffer that we will store the number in byte form
-        let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
+        let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let (field_byte_buffer, size) = match field.ty {
             FieldDataType::Number(_, _,_ ) |
             FieldDataType::Float(_, _) |
-            FieldDataType::Char(_, _) => return Err(syn::Error::new(field.ident.span(), "Char was not given Endianness, please report this.")),
-            FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Enum was not given Endianness, please report this.")),
+            FieldDataType::Char(_, _) => return Err(syn::Error::new(field.span(), "Char was not given Endianness, please report this.")),
+            FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.span(), "Enum was not given Endianness, please report this.")),
             FieldDataType::Struct(ref size, _) => {
                 let field_call = quote!{#field_access_quote.into_bytes()};
                 let apply_field_to_buffer = quote! {
@@ -1152,7 +1163,7 @@ fn apply_be_math_to_field_access_quote(
             )
         };
         // make a name for the buffer that we will store the number in byte form
-        let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
+        let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let field_byte_buffer = match field.ty {
             FieldDataType::Number(_, _, _) |
@@ -1164,7 +1175,7 @@ fn apply_be_math_to_field_access_quote(
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Enum(_, _, _) => {
                 let field_call = quote!{#shift.to_be_bytes()};
                 let apply_field_to_buffer = quote! {
@@ -1172,7 +1183,7 @@ fn apply_be_math_to_field_access_quote(
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let not_first_bit_mask = !first_bit_mask;

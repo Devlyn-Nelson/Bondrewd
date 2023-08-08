@@ -16,7 +16,7 @@ pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Erro
 }
 
 fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
-    let field_name = field.ident.as_ref().clone();
+    let field_name = field.ident().ident();
     Ok(match field.ty {
         FieldDataType::Number(ref size, ref sign, ref type_ident) => {
             let mut full_quote = quote! {
@@ -77,7 +77,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     f64::MAX
                 } else {
                     return Err(syn::Error::new(
-                        field.ident.span(),
+                        field.span(),
                         "unsupported floating point size",
                     ));
                 };
@@ -87,7 +87,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     f64::MIN
                 } else {
                     return Err(syn::Error::new(
-                        field.ident.span(),
+                        field.span(),
                         "unsupported floating point size",
                     ));
                 };

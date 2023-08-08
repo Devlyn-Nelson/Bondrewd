@@ -137,7 +137,7 @@ fn create_fields_quotes(
     };
 
     for field in fields.iter() {
-        let field_name = &field.ident;
+        let field_name = &field.ident().ident();
         let _field_extractor = make_read_fns(
             field,
             info,
@@ -162,7 +162,7 @@ fn create_fields_quotes(
                 }
             } else {
                 return Err(syn::Error::new(
-                    field.name.span(),
+                    field.span(),
                     "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
                 ));
             };
@@ -235,6 +235,7 @@ pub fn create_from_bytes_field_quotes_enum(
                         vis: syn::Visibility::Public(VisPublic {
                             pub_token: Pub::default(),
                         }),
+                        tuple: false,
                     },
                     &None,
                 )?;
@@ -324,7 +325,11 @@ pub fn create_from_bytes_field_quotes_enum(
         let variant_constructor = if field_name_list.is_empty() {
             quote! {Self::#variant_name}
         } else {
-            quote! {Self::#variant_name { #field_name_list }}
+            if variant.tuple{
+                quote! {Self::#variant_name ( #field_name_list )}
+            }else{
+                quote! {Self::#variant_name { #field_name_list }}
+            }
         };
         from_bytes_fn = quote! {
             #from_bytes_fn
@@ -413,9 +418,9 @@ fn make_peek_slice_fn(
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
-        format_ident!("{p}_{}", field.ident.as_ref().clone())
+        format_ident!("{p}_{}", field.ident().ident())
     } else {
-        field.ident.as_ref().clone()
+        field.ident().ident()
     };
     let fn_field_name = format_ident!("read_slice_{field_name}");
     let bit_range = &field.attrs.bit_range;
@@ -450,9 +455,9 @@ fn make_peek_slice_unchecked_fn(
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
-        format_ident!("{p}_{}", field.ident.as_ref().clone())
+        format_ident!("{p}_{}", field.ident().ident())
     } else {
-        field.ident.as_ref().clone()
+        field.ident().ident()
     };
     let fn_field_name = format_ident!("read_{field_name}");
     let bit_range = &field.attrs.bit_range;
@@ -478,9 +483,9 @@ fn make_peek_fn(
     prefix: &Option<Ident>,
 ) -> syn::Result<TokenStream> {
     let field_name = if let Some(p) = prefix {
-        format_ident!("{p}_{}", field.ident.as_ref().clone())
+        format_ident!("{p}_{}", field.ident().ident())
     } else {
-        field.ident.as_ref().clone()
+        field.ident().ident()
     };
     let fn_field_name = format_ident!("read_{field_name}");
     let bit_range = &field.attrs.bit_range;
@@ -577,7 +582,7 @@ fn apply_le_math_to_field_access_quote(
         quote! {+}
     };
     // make a name for the buffer that we will store the number in byte form
-    let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
+    let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
     // check if we need to span multiple bytes
     if amount_of_bits > available_bits_in_first_byte {
         // calculate how many of the bits will be inside the least significant byte we are adding to.
@@ -893,7 +898,7 @@ fn apply_ne_math_to_field_access_quote(
             FieldDataType::Boolean => return Err(syn::Error::new(field.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(field.ident.span(), "Enum was not given Endianness, please report this.")),
             FieldDataType::Struct(ref size, _) => {
-                let buffer_ident = format_ident!("{}_buffer", field.ident.as_ref());
+                let buffer_ident = format_ident!("{}_buffer", field.ident().ident());
                 let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
                 match right_shift.cmp(&0) {
                     Ordering::Greater => {
@@ -1037,7 +1042,7 @@ fn apply_be_math_to_field_access_quote(
     }
 
     // make a name for the buffer that we will store the number in byte form
-    let field_buffer_name = format_ident!("{}_bytes", field.ident.as_ref());
+    let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
     // check if we need to span multiple bytes
     if amount_of_bits > available_bits_in_first_byte {
         // calculate how many of the bits will be inside the least significant byte we are adding to.
