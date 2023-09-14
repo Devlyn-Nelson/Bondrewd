@@ -1763,54 +1763,19 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             };
             let hex_size = struct_size * 2;
-            let hex_fns_quote = if hex {
+            let mut hex_fns_quote = if hex {
                 quote! {
-                    impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
-                        fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
-                            let bytes: [u8; #struct_size] = [0;#struct_size];
-                            let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
-                            for i in 0usize..#struct_size {
-                                let index = i * 2;
-                                let index2 = index + 1;
-                                let decode_nibble = |c, c_i| match c {
-                                    b'A'..=b'F' => Ok(c - b'A' + 10u8),
-                                    b'a'..=b'f' => Ok(c - b'a' + 10u8),
-                                    b'0'..=b'9' => Ok(c - b'0'),
-                                    _ => return Err(bondrewd::BitfieldHexError(
-                                        c as char,
-                                        c_i,
-                                    )),
-                                };
-                                bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
-                            }
-                            Ok(Self::from_bytes(bytes))
-
-                        }
-
-                        fn into_hex_upper(self) -> [u8;#hex_size] {
-                            let bytes = self.into_bytes();
-                            let mut output: [u8;#hex_size] = [0; #hex_size];
-                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                                output[i] = (Self::UPPERS[((byte & 0b11110000) >> 4) as usize]);
-                                output[i + 1] = (Self::UPPERS[(byte & 0b00001111) as usize]);
-                            }
-                            output
-                        }
-
-                        fn into_hex_lower(self) -> [u8;#hex_size] {
-                            let bytes = self.into_bytes();
-                            let mut output: [u8;#hex_size] = [0; #hex_size];
-                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                                output[i] = (Self::LOWERS[((byte & 0b11110000) >> 4) as usize]);
-                                output[i + 1] = (Self::LOWERS[(byte & 0b00001111) as usize]);
-                            }
-                            output
-                        }
-                    }
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
                 }
             } else {
                 quote! {}
             };
+            if dyn_fns {
+                hex_fns_quote = quote!{
+                    #hex_fns_quote
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
 
             // get the bit size of the entire set of fields to fill in trait requirement.
             let bit_size = struct_info.total_bits();
@@ -1922,55 +1887,20 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             };
             let struct_size = enum_info.total_bytes();
-            let hex_fns_quote = if hex {
-                let hex_size = struct_size * 2;
+            let hex_size = struct_size * 2;
+            let mut hex_fns_quote = if hex {
                 quote! {
-                    impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
-                        fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
-                            let bytes: [u8; #struct_size] = [0;#struct_size];
-                            let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
-                            for i in 0usize..#struct_size {
-                                let index = i * 2;
-                                let index2 = index + 1;
-                                let decode_nibble = |c, c_i| match c {
-                                    b'A'..=b'F' => Ok(c - b'A' + 10u8),
-                                    b'a'..=b'f' => Ok(c - b'a' + 10u8),
-                                    b'0'..=b'9' => Ok(c - b'0'),
-                                    _ => return Err(bondrewd::BitfieldHexError(
-                                        c as char,
-                                        c_i,
-                                    )),
-                                };
-                                bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
-                            }
-                            Ok(Self::from_bytes(bytes))
-
-                        }
-
-                        fn into_hex_upper(self) -> [u8;#hex_size] {
-                            let bytes = self.into_bytes();
-                            let mut output: [u8;#hex_size] = [0; #hex_size];
-                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                                output[i] = (Self::UPPERS[((byte & 0b11110000) >> 4) as usize]);
-                                output[i + 1] = (Self::UPPERS[(byte & 0b00001111) as usize]);
-                            }
-                            output
-                        }
-
-                        fn into_hex_lower(self) -> [u8;#hex_size] {
-                            let bytes = self.into_bytes();
-                            let mut output: [u8;#hex_size] = [0; #hex_size];
-                            for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                                output[i] = (Self::LOWERS[((byte & 0b11110000) >> 4) as usize]);
-                                output[i + 1] = (Self::LOWERS[(byte & 0b00001111) as usize]);
-                            }
-                            output
-                        }
-                    }
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
                 }
             } else {
                 quote! {}
             };
+            if dyn_fns {
+                hex_fns_quote = quote!{
+                    #hex_fns_quote
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
 
             // get the bit size of the entire set of fields to fill in trait requirement.
             let bit_size = enum_info.total_bits();

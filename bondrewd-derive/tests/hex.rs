@@ -1,6 +1,8 @@
 #[cfg(feature = "hex_fns")]
 mod hex_tests {
     use bondrewd::{BitfieldHex, Bitfields};
+    #[cfg(feature = "dyn_fns")]
+    use bondrewd::BitfieldHexDyn;
     #[derive(Bitfields, Clone, Debug, PartialEq)]
     #[bondrewd(read_from = "lsb0", enforce_bits = 3)]
     pub struct StatusMagnetometer {
@@ -52,12 +54,28 @@ mod hex_tests {
 
         let from_bytes_obj = Magnetometer::from_bytes(bytes);
         assert_eq!(from_bytes_obj, og);
-
+        let mut hex_vec = hex.to_vec();
         let from_hex_obj = if let Ok(m) = Magnetometer::from_hex(hex) {
             m
         } else {
             panic!("Bad decode")
         };
+        #[cfg(feature = "dyn_fns")]
+        let from_slice_hex_obj = if let Ok(m) = Magnetometer::from_hex_slice(&hex_vec) {
+            m
+        } else {
+            panic!("Bad decode")
+        };
+        #[cfg(feature = "dyn_fns")]
+        let from_vec_hex_obj = if let Ok(m) = Magnetometer::from_hex_vec(&mut hex_vec) {
+            m
+        } else {
+            panic!("Bad decode")
+        };
         assert_eq!(from_hex_obj, og);
+        #[cfg(feature = "dyn_fns")]
+        assert_eq!(from_vec_hex_obj, og);
+        #[cfg(feature = "dyn_fns")]
+        assert_eq!(from_slice_hex_obj, og);
     }
 }
