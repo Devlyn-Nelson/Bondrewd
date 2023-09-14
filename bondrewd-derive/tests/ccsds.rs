@@ -51,7 +51,7 @@ fn max_packet() {
     );
 }
 
-#[cfg(feature = "slice_fns")]
+#[cfg(feature = "dyn_fns")]
 #[test]
 fn slice_fn_check_slice() {
     let packet = CcsdsPacketHeader {
@@ -112,7 +112,9 @@ fn slice_fn_check_slice() {
     }
 }
 
-fn slice_fns_inner() -> Result<(), bondrewd::BitfieldSliceError> {
+#[cfg(feature = "dyn_fns")]
+fn slice_fns_inner() -> Result<(), bondrewd::BitfieldLengthError> {
+    use bondrewd::BitfieldsDyn;
     let packet = CcsdsPacketHeader {
         packet_version_number: CcsdsPacketVersion::Invalid,
         packet_type: true,
@@ -201,12 +203,17 @@ fn slice_fns_inner() -> Result<(), bondrewd::BitfieldSliceError> {
         CcsdsPacketHeader::read_slice_packet_data_length(&bytes)?,
         packet.packet_data_length
     );
+    let mut bytes = bytes.to_vec();
+    let new_slice = CcsdsPacketHeader::from_slice(&bytes)?;
+    let new_vec = CcsdsPacketHeader::from_vec(&mut bytes)?;
+    assert_eq!(new_slice, new_vec);
+    assert_eq!(new_slice, packet);
     Ok(())
 }
 
-#[cfg(feature = "slice_fns")]
+#[cfg(feature = "dyn_fns")]
 #[test]
-fn slice_fns() {
+fn dyn_fns() {
     if let Err(err) = slice_fns_inner() {
         panic!("{err}");
     }

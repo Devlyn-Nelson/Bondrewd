@@ -113,13 +113,13 @@
 //! ```
 //!
 //! # Crate Features
-//! ### slice_fns
+//! ### dyn_fns
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
 //! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present and
-//! return BitfieldSliceError if not enough bytes are present.
+//! return BitfieldLengthError if not enough bytes are present.
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
 //!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
 //! * Multiple field access.
@@ -139,24 +139,24 @@
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
 //!   
 //! Example Cargo.toml Bondrewd dependency  
-//! `bondrewd = { version = "^0.1", features = ["derive", "slice_fns"] }`  
+//! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`  
 //! Example Generated Slice Api:
 //! ```compile_fail
 //! impl Simple {
-//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldSliceError> { .. }
-//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldSliceError> { .. }
+//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldLengthError> { .. }
+//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldSliceError> { .. }
+//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldLengthError> { .. }
 //! }
 //! struct SimpleChecked<'a> {
 //!     buffer: &'a [u8],
@@ -1683,14 +1683,14 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
-    let slice_fns: bool;
-    #[cfg(not(feature = "slice_fns"))]
+    let dyn_fns: bool;
+    #[cfg(not(feature = "dyn_fns"))]
     {
-        slice_fns = false;
+        dyn_fns = false;
     }
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
-        slice_fns = true;
+        dyn_fns = true;
     }
 
     let setters: bool;
@@ -1716,11 +1716,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
             let fields_into_bytes =
-                match create_into_bytes_field_quotes_struct(&struct_info, slice_fns) {
+                match create_into_bytes_field_quotes_struct(&struct_info, dyn_fns) {
                     Ok(ftb) => ftb,
                     Err(err) => return TokenStream::from(err.to_compile_error()),
                 };
-            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, slice_fns) {
+            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, dyn_fns) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
@@ -1831,7 +1831,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #hex_fns_quote
             };
 
-            if slice_fns {
+            if dyn_fns {
+                let from_vec_quote = fields_from_bytes.from_slice_field_fns;
                 let vis = struct_info.vis;
                 let checked_ident = format_ident!("{}Checked", &struct_name);
                 let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
@@ -1870,6 +1871,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                             }
                         }
                     }
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
+                    }
                 };
                 TokenStream::from(to_bytes_quote)
             } else {
@@ -1877,15 +1881,15 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
         }
         ObjectInfo::Enum(enum_info) => {
-            // let slice_fns = false;
+            // let dyn_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, slice_fns)
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns)
             {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, slice_fns)
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns)
             {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
@@ -1986,7 +1990,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #getter_setters_quotes
                 #hex_fns_quote
             };
-            if slice_fns {
+            if dyn_fns {
+                let from_vec_quote = fields_from_bytes.from_slice_field_fns;
                 let vis = &enum_info.vis;
                 let checked_ident = format_ident!("{}Checked", &struct_name);
                 let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
@@ -2024,6 +2029,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                                 buffer: data
                             }
                         }
+                    }
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
                     }
                 };
                 #[cfg(feature = "part_eq_enums")]

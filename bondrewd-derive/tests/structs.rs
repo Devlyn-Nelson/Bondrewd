@@ -61,7 +61,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes[6], 0b1000_0100);
     assert_eq!(bytes[7], 0b0000_1110);
 
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithStruct::read_slice_one(&bytes)?);
@@ -109,7 +109,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     assert_eq!(bytes[2], 0b1100_0010);
     assert_eq!(bytes[1], 0b1000_0100);
     assert_eq!(bytes[0], 0b0000_1110);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(
@@ -170,7 +170,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0000_1010);
     assert_eq!(bytes[1], 0b1000_0000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(
@@ -220,7 +220,7 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0101_0101);
     assert_eq!(bytes[1], 0b0000_1010);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(

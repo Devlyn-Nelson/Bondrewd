@@ -1,7 +1,13 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
 //! Defined Traits for bondrewd-derive.
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
+
+mod error;
+#[cfg(feature = "hex_fns")]
+pub use error::BitfieldHexError;
+#[cfg(feature = "dyn_fns")]
+pub use error::BitfieldLengthError;
+
 pub trait Bitfields<const SIZE: usize> {
     /// Total amount of Bytes the Bitfields within this structure take to contain in a fixed size array.
     const BYTE_SIZE: usize = SIZE;
@@ -17,6 +23,12 @@ pub trait Bitfields<const SIZE: usize> {
     fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 
+#[cfg(feature = "dyn_fns")]
+pub trait BitfieldsDyn<const SIZE: usize>: Bitfields<SIZE> + Sized {
+    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, BitfieldLengthError>;
+    fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, BitfieldLengthError>;
+}
+
 #[deprecated(
     since = "0.1.15",
     note = "please use `Bitfields` instead of `BitfieldEnum`"
@@ -26,12 +38,6 @@ pub trait BitfieldEnum {
     fn from_primitive(prim: Self::Primitive) -> Self;
     fn into_primitive(self) -> Self::Primitive;
 }
-
-mod error;
-#[cfg(feature = "hex_fns")]
-pub use error::BitfieldHexError;
-#[cfg(feature = "slice_fns")]
-pub use error::BitfieldSliceError;
 #[cfg(feature = "hex_fns")]
 pub trait BitfieldHex<const SIZE: usize>
 where
@@ -62,5 +68,5 @@ where
 #[doc(hidden)]
 pub use bondrewd_derive::*;
 
-#[cfg(all(not(feature = "derive"), feature = "slice_fns"))]
-compile_error!("the slice_fns attribute depends on the derive attribute");
+#[cfg(all(not(feature = "derive"), feature = "dyn_fns"))]
+compile_error!("the dyn_fns attribute depends on the derive attribute");

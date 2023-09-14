@@ -24,14 +24,14 @@ fn make_checked_mut_func(name: &Ident, struct_size: usize) -> TokenStream {
     let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{name}` from/to provided mutable slice.");
     quote! {
         #[doc = #comment]
-        pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, bondrewd::BitfieldSliceError> {
+        pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
             let buf_len = buffer.len();
             if buf_len >= #struct_size {
                 Ok(#checked_ident {
                     buffer
                 })
             }else{
-                Err(bondrewd::BitfieldSliceError(buf_len, #struct_size))
+                Err(bondrewd::BitfieldLengthError(buf_len, #struct_size))
             }
         }
     }
@@ -378,14 +378,14 @@ fn make_set_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Writes to bits {} through {} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned", bit_range.start, bit_range.end - 1);
+    let comment = format!("Writes to bits {} through {} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldSliceError> {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldLengthError> {
             let slice_length = output_byte_buffer.len();
             if slice_length < #min_length {
-                Err(bondrewd::BitfieldSliceError(slice_length, #min_length))
+                Err(bondrewd::BitfieldLengthError(slice_length, #min_length))
             } else {
                 #clear_quote
                 #field_quote

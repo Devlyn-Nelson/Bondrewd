@@ -31,7 +31,7 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b0001_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -68,7 +68,7 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
 
     assert_eq!(bytes[1], 0b0111_1111);
     assert_eq!(bytes[0], 0b1110_0000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
@@ -104,7 +104,7 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b0000_0111);
     assert_eq!(bytes[1], 0b1111_1110);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
@@ -140,15 +140,15 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         two: -1,
     };
     assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     let mut bytes: [u8; 2] = simple.clone().into_bytes();
-    #[cfg(not(feature = "slice_fns"))]
+    #[cfg(not(feature = "dyn_fns"))]
     let bytes: [u8; 2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
     assert_eq!(bytes[0], 0b1010_1010);
     assert_eq!(bytes[1], 0b1000_1111);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReserve::read_slice_one(&bytes)?);
@@ -161,9 +161,9 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         simple.one = 0;
         simple.two = 0;
     }
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     assert_eq!(7, SimpleWithReserve::read_reserve(&bytes));
-    #[cfg(not(feature = "slice_fns"))]
+    #[cfg(not(feature = "dyn_fns"))]
     assert_eq!(0, SimpleWithReserve::read_reserve(&bytes));
     assert!(SimpleWithReserve::read_reserve(&bytes) != simple.reserve);
     simple.reserve = 0;

@@ -8,14 +8,14 @@ use std::fmt;
 
 /// Error type describing that not enough bytes were provided in a slice.
 #[derive(Debug)]
-pub struct BitfieldSliceError(
+pub struct BitfieldLengthError(
     /// Amount of provided Bytes.
     pub usize,
     /// Amount of expected Bytes.
     pub usize,
 );
 
-impl fmt::Display for BitfieldSliceError {
+impl fmt::Display for BitfieldLengthError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             fmt,
@@ -26,7 +26,7 @@ impl fmt::Display for BitfieldSliceError {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for BitfieldSliceError {}
+impl std::error::Error for BitfieldLengthError {}
 
 /// Error type describing that a character in provided slice is Invalid.
 #[derive(Debug)]

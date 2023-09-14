@@ -15,6 +15,7 @@ use super::common::{EnumInfo, NumberSignage};
 pub struct FromBytesOptions {
     pub from_bytes_fn: TokenStream,
     pub peek_field_fns: TokenStream,
+    pub from_slice_field_fns: Option<TokenStream>,
     pub peek_slice_field_fns: Option<TokenStream>,
     pub peek_slice_field_unchecked_fns: Option<TokenStream>,
 }
@@ -22,6 +23,7 @@ pub struct FromBytesOptions {
 struct FieldQuotes {
     field_name_list: TokenStream,
     from_bytes_quote: TokenStream,
+    from_vec_quote: TokenStream,
     peek_fns_quote: TokenStream,
     peek_slice_fns_option: Option<(TokenStream, TokenStream)>,
 }
@@ -82,14 +84,14 @@ fn get_check_slice_fn(
     );
     quote! {
         #[doc = #comment]
-        pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldSliceError> {
+        pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
             let buf_len = buffer.len();
             if buf_len >= #check_size {
                 Ok(#checked_ident {
                     buffer
                 })
             }else{
-                Err(bondrewd::BitfieldSliceError(buf_len, #check_size))
+                Err(bondrewd::BitfieldLengthError(buf_len, #check_size))
             }
         }
     }
@@ -111,6 +113,7 @@ fn create_fields_quotes(
     let mut field_name_list = quote! {};
     // all of the fields extraction will be appended to this
     let mut from_bytes_quote = quote! {};
+    let mut from_vec_quote = quote! {};
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
     let mut peek_slice_fns_option: Option<(TokenStream, TokenStream)> = if peek_slice {
@@ -138,7 +141,7 @@ fn create_fields_quotes(
 
     for field in fields.iter() {
         let field_name = &field.ident().ident();
-        let _field_extractor = make_read_fns(
+        let field_extractor = make_read_fns(
             field,
             info,
             &lower_name,
@@ -149,54 +152,52 @@ fn create_fields_quotes(
         // that read or write values into byte arrays.
         if field.attrs.reserve.is_fake_field() {
             continue;
-        } else if field.attrs.capture_id {
-            // put the name of the field into the list of fields that are needed to create
-            // the struct.
-            field_name_list = quote! {#field_name_list #field_name,};
-
-            // put the field extraction in the actual from bytes.
-            let peek_call = if field.attrs.reserve.read_field() {
-                let id_name = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
-                quote! {
-                    let #field_name = #id_name;
-                }
-            } else {
-                return Err(syn::Error::new(
-                    field.span(),
-                    "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
-                ));
-            };
-            from_bytes_quote = quote! {
-                #from_bytes_quote
-                #peek_call;
-            };
         } else {
             // put the name of the field into the list of fields that are needed to create
             // the struct.
             field_name_list = quote! {#field_name_list #field_name,};
-
-            // put the field extraction in the actual from bytes.
-            let peek_call = if field.attrs.reserve.read_field() {
-                let fn_field_name = if let Some(ref p) = lower_name {
-                    format_ident!("read_{p}_{field_name}")
+            let peek_call = if field.attrs.capture_id {
+                // put the field extraction in the actual from bytes.
+                if field.attrs.reserve.read_field() {
+                    let id_name = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
+                    quote! {
+                        let #field_name = #id_name;
+                    }
                 } else {
-                    format_ident!("read_{field_name}")
-                };
-                quote! {
-                    let #field_name = Self::#fn_field_name(&input_byte_buffer);
+                    return Err(syn::Error::new(
+                        field.span(),
+                        "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
+                    ));
                 }
-            } else {
-                quote! { let #field_name = Default::default(); }
+            }else {
+                // put the field extraction in the actual from bytes.
+                if field.attrs.reserve.read_field() {
+                    let fn_field_name = if let Some(ref p) = lower_name {
+                        format_ident!("read_{p}_{field_name}")
+                    } else {
+                        format_ident!("read_{field_name}")
+                    };
+                    quote! {
+                        let #field_name = Self::#fn_field_name(&input_byte_buffer);
+                    }
+                } else {
+                    quote! { let #field_name = Default::default(); }
+                }
             };
             from_bytes_quote = quote! {
                 #from_bytes_quote
                 #peek_call;
+            };
+            from_vec_quote = quote! {
+                #from_vec_quote
+                let #field_name = #field_extractor;
             };
         }
     }
     Ok(FieldQuotes {
         field_name_list,
         from_bytes_quote,
+        from_vec_quote,
         peek_fns_quote,
         peek_slice_fns_option,
     })
@@ -207,6 +208,7 @@ pub fn create_from_bytes_field_quotes_enum(
     peek_slice: bool,
 ) -> Result<FromBytesOptions, syn::Error> {
     let mut from_bytes_fn: TokenStream = quote! {};
+    let mut from_vec_fn: TokenStream = quote! {};
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
         (
             {
@@ -225,22 +227,36 @@ pub fn create_from_bytes_field_quotes_enum(
                 let attrs = info.attrs.attrs.clone();
                 let mut fields = vec![field.clone()];
                 fields[0].attrs.bit_range = 0..info.total_bits();
+                let temp_struct_info = StructInfo {
+                    name: info.name.clone(),
+                    attrs,
+                    fields,
+                    vis: syn::Visibility::Public(VisPublic {
+                        pub_token: Pub::default(),
+                    }),
+                    tuple: false,
+                };
                 let id_field = make_peek_fn(
                     &field_extractor,
                     &field,
-                    &StructInfo {
-                        name: info.name.clone(),
-                        attrs,
-                        fields,
-                        vis: syn::Visibility::Public(VisPublic {
-                            pub_token: Pub::default(),
-                        }),
-                        tuple: false,
-                    },
+                    &temp_struct_info,
                     &None,
                 )?;
-                quote! {
-                    #id_field
+                if peek_slice {
+                    let id_slice_peek = make_peek_slice_fn(
+                        &field_extractor,
+                        &field,
+                        &temp_struct_info,
+                        &None,
+                    )?;
+                    quote! {
+                        #id_field
+                        #id_slice_peek
+                    }
+                }else{
+                    quote! {
+                        #id_field
+                    }
                 }
             },
             if peek_slice {
@@ -265,13 +281,14 @@ pub fn create_from_bytes_field_quotes_enum(
         let v_byte_size = variant.total_bytes();
         let v_bit_size = variant.total_bits();
         let variant_name = quote! {#v_name};
-        let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp) = {
+        let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp, from_vec_quote) = {
             let thing = create_fields_quotes(variant, Some(info.name.clone()), peek_slice)?;
             (
                 thing.field_name_list,
                 thing.peek_fns_quote,
                 thing.from_bytes_quote,
                 thing.peek_slice_fns_option,
+                thing.from_vec_quote,
             )
         };
         if let (
@@ -338,9 +355,19 @@ pub fn create_from_bytes_field_quotes_enum(
                 #variant_constructor
             }
         };
+        if peek_slice{
+            from_vec_fn = quote! {
+                #from_vec_fn
+                #variant_id => {
+                    #from_vec_quote
+                    #variant_constructor
+                }
+            };
+        }
     }
     let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
     let v_id_call = format_ident!("read_{v_id}");
+    let v_id_slice_call = format_ident!("read_slice_{v_id}");
     let from_bytes_fn = quote! {
         fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
             let #v_id = Self::#v_id_call(&input_byte_buffer);
@@ -350,9 +377,37 @@ pub fn create_from_bytes_field_quotes_enum(
         }
     };
     if let Some((peek_slice_field_fns, peek_slice_field_unchecked_fns)) = peek_slice_fns_option {
+        let comment_take = format!("Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let comment = format!("Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let from_slice_field_fns = quote! {
+            #[doc = #comment_take]
+            fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                if input_byte_buffer.len() < Self::BYTE_SIZE {
+                    return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                }
+                let #v_id = Self::#v_id_slice_call(&input_byte_buffer)?;
+                let out = match #v_id {
+                    #from_vec_fn
+                };
+                let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                Ok(out)
+            }
+            #[doc = #comment]
+            fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
+                if input_byte_buffer.len() < Self::BYTE_SIZE {
+                    return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                }
+                let #v_id = Self::#v_id_slice_call(&input_byte_buffer)?;
+                let out = match #v_id {
+                    #from_vec_fn
+                };
+                Ok(out)
+            }
+        };
         Ok(FromBytesOptions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
+            from_slice_field_fns: Some(from_slice_field_fns),
             peek_slice_field_fns: Some(peek_slice_field_fns),
             peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
         })
@@ -360,6 +415,7 @@ pub fn create_from_bytes_field_quotes_enum(
         Ok(FromBytesOptions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
+            from_slice_field_fns: None,
             peek_slice_field_fns: None,
             peek_slice_field_unchecked_fns: None,
         })
@@ -370,13 +426,14 @@ pub fn create_from_bytes_field_quotes(
     info: &StructInfo,
     peek_slice: bool,
 ) -> Result<FromBytesOptions, syn::Error> {
-    let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option) = {
+    let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option, from_vec_fn) = {
         let thing = create_fields_quotes(info, None, peek_slice)?;
         (
             thing.peek_fns_quote,
             thing.field_name_list,
             thing.from_bytes_quote,
             thing.peek_slice_fns_option,
+            thing.from_vec_quote,
         )
     };
 
@@ -395,9 +452,41 @@ pub fn create_from_bytes_field_quotes(
         }
     };
     if let Some((peek_slice_field_fns, peek_slice_field_unchecked_fns)) = peek_slice_fns_option {
+        let comment_take = format!("Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let comment = format!("Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let from_slice_field_fns = quote! {
+            #[doc = #comment_take]
+            fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                if input_byte_buffer.len() < Self::BYTE_SIZE {
+                    return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                }
+                let out = {
+                    #from_vec_fn
+                    Self{
+                        #from_bytes_struct_quote
+                    }
+                };
+                let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                Ok(out)
+            }
+            #[doc = #comment]
+            fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
+                if input_byte_buffer.len() < Self::BYTE_SIZE {
+                    return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                }
+                let out = {
+                    #from_vec_fn
+                    Self{
+                        #from_bytes_struct_quote
+                    }
+                };
+                Ok(out)
+            }
+        };
         Ok(FromBytesOptions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
+            from_slice_field_fns: Some(from_slice_field_fns),
             peek_slice_field_fns: Some(peek_slice_field_fns),
             peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
         })
@@ -405,6 +494,7 @@ pub fn create_from_bytes_field_quotes(
         Ok(FromBytesOptions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
+            from_slice_field_fns: None,
             peek_slice_field_fns: None,
             peek_slice_field_unchecked_fns: None,
         })
@@ -431,14 +521,14 @@ fn make_peek_slice_fn(
     } else {
         (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
     };
-    let comment = format!("Returns the value for the `{field_name}` field of a `{struct_name}` in bitfield form by reading  bits {} through {} in `input_byte_buffer`. Otherwise a [BitfieldSliceError](bondrewd::BitfieldSliceError) will be returned if not enough bytes are present.", bit_range.start, bit_range.end - 1);
+    let comment = format!("Returns the value for the `{field_name}` field of a `{struct_name}` in bitfield form by reading  bits {} through {} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, bondrewd::BitfieldSliceError> {
+        pub fn #fn_field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, bondrewd::BitfieldLengthError> {
             let slice_length = input_byte_buffer.len();
             if slice_length < #min_length {
-                Err(bondrewd::BitfieldSliceError(slice_length, #min_length))
+                Err(bondrewd::BitfieldLengthError(slice_length, #min_length))
             } else {
                 Ok(
                     #field_quote

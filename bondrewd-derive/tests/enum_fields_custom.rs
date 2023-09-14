@@ -30,7 +30,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b0000_1000);
     assert_eq!(bytes[1], 0b0100_0000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
@@ -79,7 +79,7 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     assert_eq!(bytes[0], 0b1000_0000);
     assert_eq!(bytes[1], 0b0000_0001);
     assert_eq!(bytes[2], 0b0000_1000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(
