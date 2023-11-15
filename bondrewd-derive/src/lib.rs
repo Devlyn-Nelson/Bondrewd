@@ -4,24 +4,25 @@
 //! lengths that are not a power of Two.
 //!
 //! # Under Development
-//! with 0.4.0 enums are now supported by the standard Bitfield proc macro. This is still experimental.
 //!
-//! - Mark any Enum Bitfield Variant as invalid instead of forcing it to be the last one.
-//! - Implement Tuple Structs.
-//! - Allow the user to capture the id value in the fields list of a Enum Variant.
-//! - Allow assumed id sizing. we do check the provided id size is large enough so if non is defined
+//! This project is worked on as needed for my job. Public releases and requests are low priority, 
+//! because they have to be done during my free time which i spend on other/more-fun projects. These are
+//! the only changes i am currently considering at the moment:
+//! 
+//! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
-//! - Enable `hex` and `setter` features for enums.
-//! - We may be able to detect `repr(TYPE)` attribute and if so we can get useful information from that.
+//! - Full support for floating point numbers. I would like to be able to be able to
+//!     use floating point numbers with a bit count that is not a power of 2.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //! which offers from\into bytes functions that are non-failable and convert the struct from/into sized
-//! u8 arrays ([u8; {total_bit_length * 8}]).
+//! u8 arrays.
 //! - `read` and `write` functions that allow the field to be accessed or overwritten within a sized u8 array.
-//! - More information about how each field is handled (bit length, endianness, ..), as well as structure
-//! wide effects (bit position, default field endianness, ..), can be found on the
-//! [`Bitfields Derive`](Bitfields) page.
+//! - See the [`Bitfields Derive`](Bitfields) page for more information about how to change details for how
+//! each field is handled (bit length, endianness, ..), or structure wide effects
+//! (starting bit position, default field endianness, ..).
+//! .
 //!
 //! For example we can define a data structure with 7 total bytes as:
 //! - A boolean field named one will be the first bit.
@@ -63,128 +64,123 @@
 //!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) { .. }
 //! }
 //! ```
-//! # Derive BitfieldEnum
-//! - Implements the [`BitfieldEnum`](https://docs.rs/bondrewd/latest/bondrewd/trait.BitfieldEnum.html)
-//! trait which offers from\into primitive functions that are non-failable and convert the enum from/into
-//! a primitive type (u8 is the only currently testing primitive).
-//! - More information about controlling the end result (define variant values, define a catch/invalid
-//! variant) can be found on the [`BitfieldEnum Derive`](BitfieldEnum) page.
-//!
-//! ```
-//! // Users code
-//! use bondrewd::BitfieldEnum;
-//! #[derive(BitfieldEnum)]
-//! enum SimpleEnum {
-//!     Zero,
-//!     One,
-//!     Six = 6,
-//!     Two,
-//! }
-//! ```
-//! Full Generated Struct Code
-//! ```
-//! # use bondrewd::BitfieldEnum;
-//! # enum SimpleEnum {
-//! #     Zero,
-//! #     One,
-//! #     Six = 6,
-//! #     Two,
-//! # }
-//! // use statement and SimpleEnum definition are hidden.
-//! impl bondrewd::BitfieldEnum for SimpleEnum {
-//!     type Primitive = u8;
-//!     fn into_primitive(self) -> u8 {
-//!         match self {
-//!             Self::Zero => 0,
-//!             Self::One => 1,
-//!             Self::Six => 6,
-//!             Self::Two => 2,
-//!         }
-//!     }
-//!     fn from_primitive(input: u8) -> Self {
-//!         match input {
-//!             0 => Self::Zero,
-//!             1 => Self::One,
-//!             6 => Self::Six,
-//!             _ => Self::Two,
-//!         }
-//!     }
-//! }
-//! ```
 //!
 //! # Crate Features
 //! ### dyn_fns
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
+//! 
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
-//! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present and
-//! return BitfieldLengthError if not enough bytes are present.
+//! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
+//! and return BitfieldLengthError if not enough bytes are present.
+//! 
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
+//! 
 //!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
+//! 
 //! * Multiple field access.
+//! 
 //!     * `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
 //!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
 //!       structures fields, the naming is the same as the standard `read_{field}` functions.
+//! 
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
+//! 
 //!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
 //!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
 //!       of the input structures fields, the naming is the same as the standard `read_{field}` and
 //!       `write_{field}` functions.
+//! 
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
+//! 
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
+//! 
+//! * `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array 
+//! that has the exact `Bitfield::BYTE_SIZE`.
 //!   
 //! Example Cargo.toml Bondrewd dependency  
 //! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`  
 //! Example Generated Slice Api:
 //! ```compile_fail
-//! impl Simple {
-//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldLengthError> { .. }
-//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldLengthError> { .. }
-//!     #[inline]
-//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldLengthError> { .. }
+//! impl SimpleExample {
+//!     const BIT_SIZE: usize = 53usize;
+//!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool {.. }
+//!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 { .. }
+//!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> i16 { .. }
+//!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> u8 { .. }
+//!     pub fn read_slice_one(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<bool, bondrewd::BitfieldLengthError> { .. }
+//!     pub fn read_slice_two(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<f32, bondrewd::BitfieldLengthError> { .. }
+//!     pub fn read_slice_three(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<i16, bondrewd::BitfieldLengthError> { .. }
+//!     pub fn read_slice_four(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<u8, bondrewd::BitfieldLengthError> { .. }
+//!     pub fn write_one(output_byte_buffer: &mut [u8; 7usize], mut one: bool) { .. }
+//!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) { .. }
+//!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: i16) { .. }
+//!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) { .. }
+//!     pub fn write_slice_one(
+//!         output_byte_buffer: &mut [u8],
+//!         one: bool,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> { .. }
+//!     pub fn write_slice_two(
+//!         output_byte_buffer: &mut [u8],
+//!         two: f32,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> { .. }
+//!     pub fn write_slice_three(
+//!         output_byte_buffer: &mut [u8],
+//!         three: i16,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> { .. }
+//!     pub fn write_slice_four(
+//!         output_byte_buffer: &mut [u8],
+//!         four: u8,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> { .. }
+//!     pub fn check_slice(
+//!         buffer: &[u8],
+//!     ) -> Result<SimpleExampleChecked, bondrewd::BitfieldLengthError> { .. }
+//!     pub fn check_slice_mut(
+//!         buffer: &mut [u8],
+//!     ) -> Result<SimpleExampleCheckedMut, bondrewd::BitfieldLengthError> { .. }
 //! }
-//! struct SimpleChecked<'a> {
+//! struct SimpleExampleChecked<'a> {
 //!     buffer: &'a [u8],
 //! }
-//! impl<'a> SimpleChecked<'a> {
-//!     #[inline]
-//!     pub fn read_one(&self) -> u8 { .. }
-//!     #[inline]
-//!     pub fn read_two(&self) -> bool { .. }
-//!     #[inline]
-//!     pub fn read_three(&self) -> u8 { .. }
+//! impl<'a> SimpleExampleChecked<'a> {
+//!     pub fn read_one(&self) -> bool { .. }
+//!     pub fn read_two(&self) -> f32 { .. }
+//!     pub fn read_three(&self) -> i16 { .. }
+//!     pub fn read_four(&self) -> u8 { .. }
 //! }
-//! struct SimpleCheckedMut<'a> {
+//! struct SimpleExampleCheckedMut<'a> {
 //!     buffer: &'a mut [u8],
 //! }
-//! impl<'a> SimpleCheckedMut<'a> {
-//!     #[inline]
-//!     pub fn read_one(&self) -> u8 { .. }
-//!     #[inline]
-//!     pub fn read_two(&self) -> bool { .. }
-//!     #[inline]
-//!     pub fn read_three(&self) -> u8 { .. }
-//!     #[inline]
-//!     pub fn write_one(&mut self, one: u8) { .. }
-//!     #[inline]
-//!     pub fn write_two(&mut self, two: bool) { .. }
-//!     #[inline]
-//!     pub fn write_three(&mut self, three: u8) { .. }
+//! impl<'a> SimpleExampleCheckedMut<'a> {
+//!     pub fn read_one(&self) -> bool { .. }
+//!     pub fn read_two(&self) -> f32 { .. }
+//!     pub fn read_three(&self) -> i16 { .. }
+//!     pub fn read_four(&self) -> u8 { .. }
+//!     pub fn write_one(&mut self, one: bool) { .. }
+//!     pub fn write_two(&mut self, two: f32) { .. }
+//!     pub fn write_three(&mut self, three: i16) { .. }
+//!     pub fn write_four(&mut self, four: u8) { .. }
+//! }
+//! impl bondrewd::BitfieldsDyn<7usize> for SimpleExample {
+//!     fn from_vec(
+//!         input_byte_buffer: &mut Vec<u8>,
+//!     ) -> Result<Self, bondrewd::BitfieldLengthError> { .. }
+//!     fn from_slice(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<Self, bondrewd::BitfieldLengthError> { .. }
 //! }
 //! ```
 //! ### part_eq_enums
@@ -204,7 +200,8 @@
 //!     three: i16,
 //!     four: u8,
 //! }
-//! impl Bitfields<7usize> for SimpleExample {
+//! 
+//! impl bondrewd::Bitfields<7usize> for SimpleExample {
 //!     const BIT_SIZE: usize = 53usize;
 //!     fn into_bytes(self) -> [u8; 7usize] {
 //!         let mut output_byte_buffer: [u8; 7usize] = [0u8; 7usize];
@@ -232,69 +229,166 @@
 //!         let two = Self::read_two(&input_byte_buffer);
 //!         let three = Self::read_three(&input_byte_buffer);
 //!         let four = Self::read_four(&input_byte_buffer);
-//!         Self {
-//!             one,
-//!             two,
-//!             three,
-//!             four,
-//!         }
+//!         Self { one, two, three, four }
 //!     }
 //! }
 //! impl SimpleExample {
 //!     #[inline]
+//!     ///Reads bits 0 through 0 within `input_byte_buffer`, getting the `one` field of a `SimpleExample` in
 //!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool {
-//!         ((input_byte_buffer[0usize] & 128u8) != 0)
+//!         (((input_byte_buffer[0usize] & 128u8)) != 0)
 //!     }
 //!     #[inline]
+//!     ///Reads bits 1 through 32 within `input_byte_buffer`, getting the `two` field of a `SimpleExample` i
 //!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 {
 //!         f32::from_bits(
 //!             u32::from_be_bytes({
-//!                 let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
-//!                 two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
-//!                 two_bytes[1usize] |= input_byte_buffer[1usize];
-//!                 two_bytes[2usize] |= input_byte_buffer[2usize];
-//!                 two_bytes[3usize] |= input_byte_buffer[3usize];
-//!                 two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
-//!                 two_bytes
-//!             })
-//!             .rotate_left(1u32),
+//!                     let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                     two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                     two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                     two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                     two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                     two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                     two_bytes
+//!                 })
+//!                 .rotate_left(1u32),
 //!         )
 //!     }
 //!     #[inline]
+//!     ///Reads bits 33 through 46 within `input_byte_buffer`, getting the `three` field of a `SimpleExample
 //!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> i16 {
 //!         i16::from_be_bytes({
-//!             let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8) == 64u8 {
-//!                 [1u8, 128u8]
-//!             } else {
-//!                 [0u8; 2usize]
-//!             };
-//!             three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
-//!             three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
-//!             three_bytes
-//!         })
-//!         .rotate_left(7u32)
+//!                 let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8)
+//!                     == 64u8
+//!                 {
+//!                     [1u8, 128u8]
+//!                 } else {
+//!                     [0u8; 2usize]
+//!                 };
+//!                 three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                 three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                 three_bytes
+//!             })
+//!             .rotate_left(7u32)
 //!     }
 //!     #[inline]
+//!     ///Reads bits 47 through 52 within `input_byte_buffer`, getting the `four` field of a `SimpleExample`
 //!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> u8 {
 //!         u8::from_be_bytes({
-//!             let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
-//!             four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
-//!             four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
-//!             four_bytes
-//!         })
-//!         .rotate_left(5u32)
+//!                 let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                 four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                 four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                 four_bytes
+//!             })
+//!             .rotate_left(5u32)
+//!     }
+//!     ///Returns a [SimpleExampleChecked] which allows you to read any field for a `SimpleExample` from pro
+//!     pub fn check_slice(
+//!         buffer: &[u8],
+//!     ) -> Result<SimpleExampleChecked, bondrewd::BitfieldLengthError> {
+//!         let buf_len = buffer.len();
+//!         if buf_len >= 7usize {
+//!             Ok(SimpleExampleChecked { buffer })
+//!         } else {
+//!             Err(bondrewd::BitfieldLengthError(buf_len, 7usize))
+//!         }
 //!     }
 //!     #[inline]
+//!     ///Returns the value for the `one` field of a `SimpleExample` in bitfield form by reading  bits 0 thr
+//!     pub fn read_slice_one(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<bool, bondrewd::BitfieldLengthError> {
+//!         let slice_length = input_byte_buffer.len();
+//!         if slice_length < 1usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 1usize))
+//!         } else {
+//!             Ok((((input_byte_buffer[0usize] & 128u8)) != 0))
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Returns the value for the `two` field of a `SimpleExample` in bitfield form by reading  bits 1 thr
+//!     pub fn read_slice_two(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<f32, bondrewd::BitfieldLengthError> {
+//!         let slice_length = input_byte_buffer.len();
+//!         if slice_length < 5usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 5usize))
+//!         } else {
+//!             Ok(
+//!                 f32::from_bits(
+//!                     u32::from_be_bytes({
+//!                             let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                             two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                             two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                             two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                             two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                             two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                             two_bytes
+//!                         })
+//!                         .rotate_left(1u32),
+//!                 ),
+//!             )
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Returns the value for the `three` field of a `SimpleExample` in bitfield form by reading  bits 33
+//!     pub fn read_slice_three(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<i16, bondrewd::BitfieldLengthError> {
+//!         let slice_length = input_byte_buffer.len();
+//!         if slice_length < 6usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 6usize))
+//!         } else {
+//!             Ok(
+//!                 i16::from_be_bytes({
+//!                         let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize]
+//!                             & 64u8) == 64u8
+//!                         {
+//!                             [1u8, 128u8]
+//!                         } else {
+//!                             [0u8; 2usize]
+//!                         };
+//!                         three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                         three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                         three_bytes
+//!                     })
+//!                     .rotate_left(7u32),
+//!             )
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Returns the value for the `four` field of a `SimpleExample` in bitfield form by reading  bits 47 t
+//!     pub fn read_slice_four(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<u8, bondrewd::BitfieldLengthError> {
+//!         let slice_length = input_byte_buffer.len();
+//!         if slice_length < 7usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 7usize))
+//!         } else {
+//!             Ok(
+//!                 u8::from_be_bytes({
+//!                         let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                         four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                         four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                         four_bytes
+//!                     })
+//!                     .rotate_left(5u32),
+//!             )
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 0 through 0 within `output_byte_buffer`, setting the `one` field of a `SimpleExampl
 //!     pub fn write_one(output_byte_buffer: &mut [u8; 7usize], mut one: bool) {
 //!         output_byte_buffer[0usize] &= 127u8;
 //!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
 //!     }
 //!     #[inline]
+//!     ///Writes to bits 1 through 32 within `output_byte_buffer`, setting the `two` field of a `SimpleExamp
 //!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) {
 //!         output_byte_buffer[0usize] &= 128u8;
-//!         output_byte_buffer[1usize] = 0u8;
-//!         output_byte_buffer[2usize] = 0u8;
-//!         output_byte_buffer[3usize] = 0u8;
+//!         output_byte_buffer[1usize] &= 0u8;
+//!         output_byte_buffer[2usize] &= 0u8;
+//!         output_byte_buffer[3usize] &= 0u8;
 //!         output_byte_buffer[4usize] &= 127u8;
 //!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
 //!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
@@ -304,6 +398,7 @@
 //!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
 //!     }
 //!     #[inline]
+//!     ///Writes to bits 33 through 46 within `output_byte_buffer`, setting the `three` field of a `SimpleEx
 //!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: i16) {
 //!         output_byte_buffer[4usize] &= 128u8;
 //!         output_byte_buffer[5usize] &= 1u8;
@@ -312,12 +407,369 @@
 //!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
 //!     }
 //!     #[inline]
+//!     ///Writes to bits 47 through 52 within `output_byte_buffer`, setting the `four` field of a `SimpleExa
 //!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: u8) {
 //!         output_byte_buffer[5usize] &= 254u8;
 //!         output_byte_buffer[6usize] &= 7u8;
 //!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
 //!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
 //!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 0 through 0 in `input_byte_buffer` if enough bytes are present in slice, setting th
+//!     pub fn write_slice_one(
+//!         output_byte_buffer: &mut [u8],
+//!         one: bool,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> {
+//!         let slice_length = output_byte_buffer.len();
+//!         if slice_length < 1usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 1usize))
+//!         } else {
+//!             output_byte_buffer[0usize] &= 127u8;
+//!             output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
+//!             Ok(())
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 1 through 32 in `input_byte_buffer` if enough bytes are present in slice, setting t
+//!     pub fn write_slice_two(
+//!         output_byte_buffer: &mut [u8],
+//!         two: f32,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> {
+//!         let slice_length = output_byte_buffer.len();
+//!         if slice_length < 5usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 5usize))
+//!         } else {
+//!             output_byte_buffer[0usize] &= 128u8;
+//!             output_byte_buffer[1usize] &= 0u8;
+//!             output_byte_buffer[2usize] &= 0u8;
+//!             output_byte_buffer[3usize] &= 0u8;
+//!             output_byte_buffer[4usize] &= 127u8;
+//!             let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
+//!             output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
+//!             output_byte_buffer[1usize] |= two_bytes[1usize];
+//!             output_byte_buffer[2usize] |= two_bytes[2usize];
+//!             output_byte_buffer[3usize] |= two_bytes[3usize];
+//!             output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
+//!             Ok(())
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 33 through 46 in `input_byte_buffer` if enough bytes are present in slice, setting
+//!     pub fn write_slice_three(
+//!         output_byte_buffer: &mut [u8],
+//!         three: i16,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> {
+//!         let slice_length = output_byte_buffer.len();
+//!         if slice_length < 6usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 6usize))
+//!         } else {
+//!             output_byte_buffer[4usize] &= 128u8;
+//!             output_byte_buffer[5usize] &= 1u8;
+//!             let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
+//!             output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
+//!             output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
+//!             Ok(())
+//!         }
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 47 through 52 in `input_byte_buffer` if enough bytes are present in slice, setting
+//!     pub fn write_slice_four(
+//!         output_byte_buffer: &mut [u8],
+//!         four: u8,
+//!     ) -> Result<(), bondrewd::BitfieldLengthError> {
+//!         let slice_length = output_byte_buffer.len();
+//!         if slice_length < 7usize {
+//!             Err(bondrewd::BitfieldLengthError(slice_length, 7usize))
+//!         } else {
+//!             output_byte_buffer[5usize] &= 254u8;
+//!             output_byte_buffer[6usize] &= 7u8;
+//!             let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
+//!             output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
+//!             output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
+//!             Ok(())
+//!         }
+//!     }
+//!     ///Returns a [SimpleExampleCheckedMut] which allows you to read/write any field for a `SimpleExample`
+//!     pub fn check_slice_mut(
+//!         buffer: &mut [u8],
+//!     ) -> Result<SimpleExampleCheckedMut, bondrewd::BitfieldLengthError> {
+//!         let buf_len = buffer.len();
+//!         if buf_len >= 7usize {
+//!             Ok(SimpleExampleCheckedMut { buffer })
+//!         } else {
+//!             Err(bondrewd::BitfieldLengthError(buf_len, 7usize))
+//!         }
+//!     }
+//! }
+//! ///A Structure which provides functions for getting the fields of a [SimpleExample] in its bitfield form.
+//! struct SimpleExampleChecked<'a> {
+//!     buffer: &'a [u8],
+//! }
+//! impl<'a> SimpleExampleChecked<'a> {
+//!     #[inline]
+//!     ///Reads bits 0 through 0 in pre-checked slice, getting the `one` field of a [SimpleExample] in bitfi
+//!     pub fn read_one(&self) -> bool {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         (((input_byte_buffer[0usize] & 128u8)) != 0)
+//!     }
+//!     #[inline]
+//!     ///Reads bits 1 through 32 in pre-checked slice, getting the `two` field of a [SimpleExample] in bitf
+//!     pub fn read_two(&self) -> f32 {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         f32::from_bits(
+//!             u32::from_be_bytes({
+//!                     let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                     two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                     two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                     two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                     two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                     two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                     two_bytes
+//!                 })
+//!                 .rotate_left(1u32),
+//!         )
+//!     }
+//!     #[inline]
+//!     ///Reads bits 33 through 46 in pre-checked slice, getting the `three` field of a [SimpleExample] in b
+//!     pub fn read_three(&self) -> i16 {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         i16::from_be_bytes({
+//!                 let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8)
+//!                     == 64u8
+//!                 {
+//!                     [1u8, 128u8]
+//!                 } else {
+//!                     [0u8; 2usize]
+//!                 };
+//!                 three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                 three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                 three_bytes
+//!             })
+//!             .rotate_left(7u32)
+//!     }
+//!     #[inline]
+//!     ///Reads bits 47 through 52 in pre-checked slice, getting the `four` field of a [SimpleExample] in bi
+//!     pub fn read_four(&self) -> u8 {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         u8::from_be_bytes({
+//!                 let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                 four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                 four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                 four_bytes
+//!             })
+//!             .rotate_left(5u32)
+//!     }
+//!     ///Panics if resulting `SimpleExampleChecked` does not contain enough bytes to read a field that is a
+//!     pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+//!         Self { buffer: data }
+//!     }
+//! }
+//! ///A Structure which provides functions for getting and setting the fields of a [SimpleExample] in its bi
+//! struct SimpleExampleCheckedMut<'a> {
+//!     buffer: &'a mut [u8],
+//! }
+//! impl<'a> SimpleExampleCheckedMut<'a> {
+//!     #[inline]
+//!     ///Reads bits 0 through 0 in pre-checked slice, getting the `one` field of a [SimpleExample] in bitfi
+//!     pub fn read_one(&self) -> bool {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         (((input_byte_buffer[0usize] & 128u8)) != 0)
+//!     }
+//!     #[inline]
+//!     ///Reads bits 1 through 32 in pre-checked slice, getting the `two` field of a [SimpleExample] in bitf
+//!     pub fn read_two(&self) -> f32 {
+//!     let input_byte_buffer: &[u8] = self.buffer;
+//!         f32::from_bits(
+//!             u32::from_be_bytes({
+//!                     let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                     two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                     two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                     two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                     two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                     two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                     two_bytes
+//!                 })
+//!                 .rotate_left(1u32),
+//!         )
+//!     }
+//!     #[inline]
+//!     ///Reads bits 33 through 46 in pre-checked slice, getting the `three` field of a [SimpleExample] in b
+//!     pub fn read_three(&self) -> i16 {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         i16::from_be_bytes({
+//!                 let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize] & 64u8)
+//!                     == 64u8
+//!                 {
+//!                     [1u8, 128u8]
+//!                 } else {
+//!                     [0u8; 2usize]
+//!                 };
+//!                 three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                 three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                 three_bytes
+//!             })
+//!             .rotate_left(7u32)
+//!     }
+//!     #[inline]
+//!     ///Reads bits 47 through 52 in pre-checked slice, getting the `four` field of a [SimpleExample] in bi
+//!     pub fn read_four(&self) -> u8 {
+//!         let input_byte_buffer: &[u8] = self.buffer;
+//!         u8::from_be_bytes({
+//!                 let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                 four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                 four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                 four_bytes
+//!             })
+//!             .rotate_left(5u32)
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 0 through 0 in pre-checked mutable slice, setting the `one` field of a [SimpleExamp
+//!     pub fn write_one(&mut self, one: bool) {
+//!         let output_byte_buffer: &mut [u8] = self.buffer;
+//!         output_byte_buffer[0usize] &= 127u8;
+//!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 1 through 32 in pre-checked mutable slice, setting the `two` field of a [SimpleExam
+//!     pub fn write_two(&mut self, two: f32) {
+//!         let output_byte_buffer: &mut [u8] = self.buffer;
+//!         output_byte_buffer[0usize] &= 128u8;
+//!         output_byte_buffer[1usize] &= 0u8;
+//!         output_byte_buffer[2usize] &= 0u8;
+//!         output_byte_buffer[3usize] &= 0u8;
+//!         output_byte_buffer[4usize] &= 127u8;
+//!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
+//!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
+//!         output_byte_buffer[1usize] |= two_bytes[1usize];
+//!         output_byte_buffer[2usize] |= two_bytes[2usize];
+//!         output_byte_buffer[3usize] |= two_bytes[3usize];
+//!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 33 through 46 in pre-checked mutable slice, setting the `three` field of a [SimpleE
+//!     pub fn write_three(&mut self, three: i16) {
+//!         let output_byte_buffer: &mut [u8] = self.buffer;
+//!         output_byte_buffer[4usize] &= 128u8;
+//!         output_byte_buffer[5usize] &= 1u8;
+//!         let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
+//!         output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
+//!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
+//!     }
+//!     #[inline]
+//!     ///Writes to bits 47 through 52 in pre-checked mutable slice, setting the `four` field of a [SimpleEx
+//!     pub fn write_four(&mut self, four: u8) {
+//!         let output_byte_buffer: &mut [u8] = self.buffer;
+//!         output_byte_buffer[5usize] &= 254u8;
+//!         output_byte_buffer[6usize] &= 7u8;
+//!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
+//!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
+//!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
+//!     }
+//!     ///Panics if resulting `SimpleExampleCheckedMut` does not contain enough bytes to read a field that i
+//!     pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+//!         Self { buffer: data }
+//!     }
+//! }
+//! impl bondrewd::BitfieldsDyn<7usize> for SimpleExample {
+//!     /**Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where us
+//!     # Errors
+//!     If the provided `Vec<u8>` does not have enough bytes an error will be returned.*/
+//!     fn from_vec(
+//!         input_byte_buffer: &mut Vec<u8>,
+//!     ) -> Result<Self, bondrewd::BitfieldLengthError> {
+//!         if input_byte_buffer.len() < Self::BYTE_SIZE {
+//!             return Err(
+//!                 bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE),
+//!             );
+//!         }
+//!         let out = {
+//!             let one = (((input_byte_buffer[0usize] & 128u8)) != 0);
+//!             let two = f32::from_bits(
+//!                 u32::from_be_bytes({
+//!                         let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                         two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                         two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                         two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                         two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                         two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                         two_bytes
+//!                     })
+//!                     .rotate_left(1u32),
+//!             );
+//!             let three = i16::from_be_bytes({
+//!                     let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize]
+//!                         & 64u8) == 64u8
+//!                     {
+//!                         [1u8, 128u8]
+//!                     } else {
+//!                         [0u8; 2usize]
+//!                     };
+//!                     three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                     three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                     three_bytes
+//!                 })
+//!                 .rotate_left(7u32);
+//!             let four = u8::from_be_bytes({
+//!                     let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                     four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                     four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                     four_bytes
+//!                 })
+//!                 .rotate_left(5u32);
+//!             Self { one, two, three, four }
+//!         };
+//!         let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+//!         Ok(out)
+//!     }
+//!     /**Creates a new instance of `Self` by copying field from the bitfields.
+//!     # Errors
+//!     If the provided `Vec<u8>` does not have enough bytes an error will be returned.*/
+//!     fn from_slice(
+//!         input_byte_buffer: &[u8],
+//!     ) -> Result<Self, bondrewd::BitfieldLengthError> {
+//!         if input_byte_buffer.len() < Self::BYTE_SIZE {
+//!             return Err(
+//!                 bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE),
+//!             );
+//!         }
+//!         let out = {
+//!             let one = (((input_byte_buffer[0usize] & 128u8)) != 0);
+//!             let two = f32::from_bits(
+//!                 u32::from_be_bytes({
+//!                         let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
+//!                         two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
+//!                         two_bytes[1usize] |= input_byte_buffer[1usize];
+//!                         two_bytes[2usize] |= input_byte_buffer[2usize];
+//!                         two_bytes[3usize] |= input_byte_buffer[3usize];
+//!                         two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
+//!                         two_bytes
+//!                     })
+//!                     .rotate_left(1u32),
+//!             );
+//!             let three = i16::from_be_bytes({
+//!                     let mut three_bytes: [u8; 2usize] = if (input_byte_buffer[4usize]
+//!                         & 64u8) == 64u8
+//!                     {
+//!                         [1u8, 128u8]
+//!                     } else {
+//!                         [0u8; 2usize]
+//!                     };
+//!                     three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
+//!                     three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
+//!                     three_bytes
+//!                 })
+//!                 .rotate_left(7u32);
+//!             let four = u8::from_be_bytes({
+//!                     let mut four_bytes: [u8; 1usize] = [0u8; 1usize];
+//!                     four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
+//!                     four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
+//!                     four_bytes
+//!                 })
+//!                 .rotate_left(5u32);
+//!             Self { one, two, three, four }
+//!         };
+//!         Ok(out)
 //!     }
 //! }
 //! ```
@@ -379,11 +831,14 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
-/// - `variant_id = {ID}` Tell bondrewd the id value tot use for the variant.
+/// - `variant_id = {ID}` Tell bondrewd the id value to use for the variant.
 /// [example](#enum-example).
 /// The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
+/// - `invalid` a single Enum Variant can be marked as the "invalid" variant. The invalid variant acts as
+/// a catch all for id's that may not be specified. [example](#invalid-enum-variant).
 ///
 /// # Field Attributes
+/// #### Common Field Attributes
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
 /// - `endianness = {"le" or "be"}` Define per field endianess. [example](#endianness-examples)
@@ -404,7 +859,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     - Reserve requires the fields type to impl ['Default'](https://doc.rust-lang.org/std/default/trait.Default.html).
 /// due to from_bytes needed to provided a value.
 ///
-/// # Enum Attributes
+/// #### Enum Variant Field Attributes
 /// - `capture_id` Tells Bondrewd to put the value for id in the field on reads, fields
 /// with this attribute do NOT get written to the bytes to prevent users from creating improper
 /// byte values. [example](#capture-id)
@@ -1663,6 +2118,53 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// match reconstructed {
 ///     Thing::Idk { id, .. } => assert_eq!(id, 3),
 ///     _ => panic!("id wasn't 3"),
+/// }
+/// ```
+/// #### Invalid Enum Variant
+/// For this example we will be show casing why enums do not panic on an invalid case. The generative code
+/// for enums always has an invalid variant even when all possible values have a variant. If an Id value
+/// does not have an associated variant, `Bitfield::from_bytes` will return the "invalid" variant. This
+/// can be combine with [capture-id](#capture-id) to enable nice error handling/reporting.
+/// 
+/// > the invalid variant is always the 
+/// [catch-all](https://doc.rust-lang.org/rust-by-example/flow_control/match.html) in the generated
+/// code's match statements
+/// 
+/// In this first example we are just accounting for the fact that bondrewd, by default, uses the last
+/// variant as the catch all meaning:
+/// - a value of 0 as the id would result in a `Thing::Zero` variant
+/// - a value of 1 as the id would result in a `Thing::One` variant
+/// - a value of 2 or 3 as the id would result in a `Thing::Invalid` variant
+/// 
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// enum Thing {
+///     Zero, // value of 0
+///     One, // value of 1
+///     Invalid, // value of 2 or 3
+/// }
+/// ```
+/// 
+/// > Note that when no id values are specified they will be assigned automatically starting at zero, 
+/// incrementing 1 for each variant.
+/// 
+/// If for some reason the last variant should not be the catch all you can specify a specific variant.
+/// So for this next example:
+/// - a value of 0 as the id would result in a `Thing::Zero` variant
+/// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant
+/// - a value of 2 as the id would result in a `Thing::Two` variant
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// enum Thing {
+///     Zero, // value of 0
+///     Invalid, // value of 1 or 3
+///     Two, // value of 2
 /// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]

@@ -30,7 +30,17 @@ pub trait BitfieldsDyn<const SIZE: usize>: Bitfields<SIZE>
 where 
     Self: Sized
 {
+    /// If `Ok(bitfield_struct)` is returned, the required bytes to create the object will be removed from
+    /// `input_byte_buffer`.
+    /// 
+    /// # Errors
+    /// If there is not enough bytes to create the object from `input_byte_buffer`.
     fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, BitfieldLengthError>;
+    /// If `Ok(bitfield_struct)` is returned, the required bytes to create the object will be copied from
+    /// `input_byte_buffer`.
+    /// 
+    /// # Errors
+    /// If there is not enough bytes to create the object from `input_byte_buffer`.
     fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, BitfieldLengthError>;
 }
 
