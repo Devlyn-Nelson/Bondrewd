@@ -1058,7 +1058,7 @@ pub struct EnumInfo {
 }
 
 impl EnumInfo {
-    pub const VARIANT_ID_NAME: &str = "variant_id";
+    pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub fn total_bits(&self) -> usize {
         let mut total = self.variants[0].total_bits();
         for variant in self.variants.iter().skip(1) {
