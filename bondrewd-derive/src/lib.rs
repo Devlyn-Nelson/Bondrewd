@@ -1,7 +1,10 @@
 //! Fast and easy bitfield proc macro
 //!
-//! Provides a proc macro for compressing a data structure with data which can be expressed with bit
-//! lengths that are not a power of Two.
+//! Provides a proc macro used on Structures or Enums which provides functions for:
+//! - outputting your native rust structure/enum as a statically sized byte array.
+//! - re-creating your structure/enum from a statically sized byte array (no possible errors). Or if the
+//! `dyn_fns` feature is enabled a `&[u8]` or `Vec<u8>` (possible length error)
+//! - read/writing individual fields within a byte array (or slice with `dyn_fns` feature enabled) without re-writing unaffected bytes.
 //!
 //! # Under Development
 //!
@@ -12,13 +15,14 @@
 //! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
 //! - Full support for floating point numbers. I would like to be able to be able to
-//!     use floating point numbers with a bit count that is not a power of 2.
+//!     have fully dynamic floating point with customizable exponent and mantissa as well
+//!     and unsigned option.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //! which offers from\into bytes functions that are non-failable and convert the struct from/into sized
 //! u8 arrays.
-//! - `read` and `write` functions that allow the field to be accessed or overwritten within a sized u8 array.
+//! - `read` and `write` functions that allow fields to be accessed or overwritten within a properly sized u8 array.
 //! - See the [`Bitfields Derive`](Bitfields) page for more information about how to change details for how
 //! each field is handled (bit length, endianness, ..), or structure wide effects
 //! (starting bit position, default field endianness, ..).
@@ -2183,9 +2187,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();
 
-    // get a list of all fields from_bytes logic which gets there bytes from an array called
-    // input_byte_buffer.
     let dyn_fns: bool;
+    let setters: bool;
+    let hex;
     #[cfg(not(feature = "dyn_fns"))]
     {
         dyn_fns = false;
@@ -2194,8 +2198,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     {
         dyn_fns = true;
     }
-
-    let setters: bool;
     #[cfg(not(feature = "setters"))]
     {
         setters = false;
@@ -2204,7 +2206,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     {
         setters = true;
     }
-    let hex;
     #[cfg(feature = "hex_fns")]
     {
         hex = true;
