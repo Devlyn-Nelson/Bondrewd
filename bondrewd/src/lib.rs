@@ -3,12 +3,12 @@
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 
 mod error;
+#[cfg(all(feature = "dyn_fns", feature = "hex_fns"))]
+pub use error::BitfieldHexDynError;
 #[cfg(feature = "hex_fns")]
 pub use error::BitfieldHexError;
 #[cfg(feature = "dyn_fns")]
 pub use error::BitfieldLengthError;
-#[cfg(all(feature = "dyn_fns", feature = "hex_fns"))]
-pub use error::BitfieldHexDynError;
 
 pub trait Bitfields<const SIZE: usize> {
     /// Total amount of Bytes the Bitfields within this structure take to contain in a fixed size array.
@@ -27,18 +27,18 @@ pub trait Bitfields<const SIZE: usize> {
 
 #[cfg(feature = "dyn_fns")]
 pub trait BitfieldsDyn<const SIZE: usize>: Bitfields<SIZE>
-where 
-    Self: Sized
+where
+    Self: Sized,
 {
     /// If `Ok(bitfield_struct)` is returned, the required bytes to create the object will be removed from
     /// `input_byte_buffer`.
-    /// 
+    ///
     /// # Errors
     /// If there is not enough bytes to create the object from `input_byte_buffer`.
     fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, BitfieldLengthError>;
     /// If `Ok(bitfield_struct)` is returned, the required bytes to create the object will be copied from
     /// `input_byte_buffer`.
-    /// 
+    ///
     /// # Errors
     /// If there is not enough bytes to create the object from `input_byte_buffer`.
     fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, BitfieldLengthError>;

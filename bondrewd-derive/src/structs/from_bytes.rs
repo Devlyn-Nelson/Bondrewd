@@ -169,7 +169,7 @@ fn create_fields_quotes(
                         "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
                     ));
                 }
-            }else {
+            } else {
                 // put the field extraction in the actual from bytes.
                 if field.attrs.reserve.read_field() {
                     let fn_field_name = if let Some(ref p) = lower_name {
@@ -236,24 +236,15 @@ pub fn create_from_bytes_field_quotes_enum(
                     }),
                     tuple: false,
                 };
-                let id_field = make_peek_fn(
-                    &field_extractor,
-                    &field,
-                    &temp_struct_info,
-                    &None,
-                )?;
+                let id_field = make_peek_fn(&field_extractor, &field, &temp_struct_info, &None)?;
                 if peek_slice {
-                    let id_slice_peek = make_peek_slice_fn(
-                        &field_extractor,
-                        &field,
-                        &temp_struct_info,
-                        &None,
-                    )?;
+                    let id_slice_peek =
+                        make_peek_slice_fn(&field_extractor, &field, &temp_struct_info, &None)?;
                     quote! {
                         #id_field
                         #id_slice_peek
                     }
-                }else{
+                } else {
                     quote! {
                         #id_field
                     }
@@ -281,7 +272,13 @@ pub fn create_from_bytes_field_quotes_enum(
         let v_byte_size = variant.total_bytes();
         let v_bit_size = variant.total_bits();
         let variant_name = quote! {#v_name};
-        let (field_name_list, peek_fns_quote_temp, from_bytes_quote, peek_slice_fns_option_temp, from_vec_quote) = {
+        let (
+            field_name_list,
+            peek_fns_quote_temp,
+            from_bytes_quote,
+            peek_slice_fns_option_temp,
+            from_vec_quote,
+        ) = {
             let thing = create_fields_quotes(variant, Some(info.name.clone()), peek_slice)?;
             (
                 thing.field_name_list,
@@ -342,9 +339,9 @@ pub fn create_from_bytes_field_quotes_enum(
         let variant_constructor = if field_name_list.is_empty() {
             quote! {Self::#variant_name}
         } else {
-            if variant.tuple{
+            if variant.tuple {
                 quote! {Self::#variant_name ( #field_name_list )}
-            }else{
+            } else {
                 quote! {Self::#variant_name { #field_name_list }}
             }
         };
@@ -355,7 +352,7 @@ pub fn create_from_bytes_field_quotes_enum(
                 #variant_constructor
             }
         };
-        if peek_slice{
+        if peek_slice {
             from_vec_fn = quote! {
                 #from_vec_fn
                 #variant_id => {
@@ -426,7 +423,13 @@ pub fn create_from_bytes_field_quotes(
     info: &StructInfo,
     peek_slice: bool,
 ) -> Result<FromBytesOptions, syn::Error> {
-    let (peek_fns_quote, from_bytes_struct_quote, from_bytes_quote, peek_slice_fns_option, from_vec_fn) = {
+    let (
+        peek_fns_quote,
+        from_bytes_struct_quote,
+        from_bytes_quote,
+        peek_slice_fns_option,
+        from_vec_fn,
+    ) = {
         let thing = create_fields_quotes(info, None, peek_slice)?;
         (
             thing.peek_fns_quote,

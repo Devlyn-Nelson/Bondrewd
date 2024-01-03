@@ -8,10 +8,10 @@
 //!
 //! # Under Development
 //!
-//! This project is worked on as needed for my job. Public releases and requests are low priority, 
+//! This project is worked on as needed for my job. Public releases and requests are low priority,
 //! because they have to be done during my free time which i spend on other/more-fun projects. These are
 //! the only changes i am currently considering at the moment:
-//! 
+//!
 //! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
 //! - Full support for floating point numbers. I would like to be able to be able to
@@ -73,38 +73,38 @@
 //! ### dyn_fns
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
-//! 
+//!
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
 //! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
 //! and return BitfieldLengthError if not enough bytes are present.
-//! 
+//!
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
-//! 
+//!
 //!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
-//! 
+//!
 //! * Multiple field access.
-//! 
+//!
 //!     * `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
 //!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
 //!       structures fields, the naming is the same as the standard `read_{field}` functions.
-//! 
+//!
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
-//! 
+//!
 //!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
 //!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
 //!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
 //!       of the input structures fields, the naming is the same as the standard `read_{field}` and
 //!       `write_{field}` functions.
-//! 
+//!
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
-//! 
+//!
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
-//! 
-//! * `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array 
+//!
+//! * `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array
 //! that has the exact `Bitfield::BYTE_SIZE`.
 //!   
 //! Example Cargo.toml Bondrewd dependency  
@@ -204,7 +204,7 @@
 //!     three: i16,
 //!     four: u8,
 //! }
-//! 
+//!
 //! impl bondrewd::Bitfields<7usize> for SimpleExample {
 //!     const BIT_SIZE: usize = 53usize;
 //!     fn into_bytes(self) -> [u8; 7usize] {
@@ -2129,17 +2129,17 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// for enums always has an invalid variant even when all possible values have a variant. If an Id value
 /// does not have an associated variant, `Bitfield::from_bytes` will return the "invalid" variant. This
 /// can be combine with [capture-id](#capture-id) to enable nice error handling/reporting.
-/// 
-/// > the invalid variant is always the 
+///
+/// > the invalid variant is always the
 /// [catch-all](https://doc.rust-lang.org/rust-by-example/flow_control/match.html) in the generated
 /// code's match statements
-/// 
+///
 /// In this first example we are just accounting for the fact that bondrewd, by default, uses the last
 /// variant as the catch all meaning:
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 as the id would result in a `Thing::One` variant
 /// - a value of 2 or 3 as the id would result in a `Thing::Invalid` variant
-/// 
+///
 /// ```
 /// use bondrewd::*;
 ///
@@ -2151,10 +2151,10 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     Invalid, // value of 2 or 3
 /// }
 /// ```
-/// 
-/// > Note that when no id values are specified they will be assigned automatically starting at zero, 
+///
+/// > Note that when no id values are specified they will be assigned automatically starting at zero,
 /// incrementing 1 for each variant.
-/// 
+///
 /// If for some reason the last variant should not be the catch all you can specify a specific variant.
 /// So for this next example:
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
@@ -2189,7 +2189,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 
     let dyn_fns: bool;
     let setters: bool;
-    let hex;
+    let hex: bool;
     #[cfg(not(feature = "dyn_fns"))]
     {
         dyn_fns = false;
@@ -2227,7 +2227,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            // combine all of the into_bytes quotes separated by newlines
+            // combine all of the write_ function quotes separated by newlines
             let into_bytes_quote = fields_into_bytes.into_bytes_fn;
             let mut set_quotes = fields_into_bytes.set_field_fns;
 
@@ -2238,6 +2238,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             }
 
+            // combine all of the read_ function quotes separated by newlines
             let from_bytes_quote = fields_from_bytes.from_bytes_fn;
             let mut peek_quotes = fields_from_bytes.peek_field_fns;
 
@@ -2247,6 +2248,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                     #peek_slice_quote
                 }
             }
+            // TODO get setters working fully.
+            // get the setters, functions that set a field disallowing numbers
+            // outside of the range the Bitfield.
             let setters_quote = if setters {
                 match structs::struct_fns::create_setters_quotes(&struct_info) {
                     Ok(parsed_struct) => parsed_struct,
@@ -2274,7 +2278,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 quote! {}
             };
             if dyn_fns && hex {
-                hex_fns_quote = quote!{
+                hex_fns_quote = quote! {
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
                 };
@@ -2352,13 +2356,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             // let dyn_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns)
-            {
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns) {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns)
-            {
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
@@ -2399,7 +2401,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 quote! {}
             };
             if dyn_fns && hex {
-                hex_fns_quote = quote!{
+                hex_fns_quote = quote! {
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
                 };

@@ -1,4 +1,5 @@
-pub trait BitfieldHex<const HEX_SIZE: usize, const BYTE_SIZE: usize>: crate::Bitfields<BYTE_SIZE>
+pub trait BitfieldHex<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
+    crate::Bitfields<BYTE_SIZE>
 where
     Self: Sized,
 {
@@ -10,8 +11,8 @@ where
     ///
     /// Returns Self with the fields containing the extracted values from provided hex encoded fixed size
     /// array of bytes.
-    fn from_hex(hex: [u8; HEX_SIZE]) -> Result<Self, crate::BitfieldHexError>{
-        let mut bytes: [u8; BYTE_SIZE] = [0;BYTE_SIZE];
+    fn from_hex(hex: [u8; HEX_SIZE]) -> Result<Self, crate::BitfieldHexError> {
+        let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
         for i in 0usize..BYTE_SIZE {
             let index = i * 2;
             let index2 = index + 1;
@@ -19,12 +20,10 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => return Err(crate::BitfieldHexError(
-                    c as char,
-                    c_i,
-                )),
+                _ => return Err(crate::BitfieldHexError(c as char, c_i)),
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+                | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
     }
@@ -32,9 +31,9 @@ where
     /// encoding, consuming the structure.
     ///
     /// Returns a hex encoded fixed sized byte array containing the Bitfields of the provided structure.
-    fn into_hex_upper(self) -> [u8; HEX_SIZE]{
+    fn into_hex_upper(self) -> [u8; HEX_SIZE] {
         let bytes = self.into_bytes();
-        let mut output: [u8;HEX_SIZE] = [0; HEX_SIZE];
+        let mut output: [u8; HEX_SIZE] = [0; HEX_SIZE];
         for (i, byte) in (0..HEX_SIZE).step_by(2).zip(bytes) {
             output[i] = Self::UPPERS[((byte & 0b11110000) >> 4) as usize];
             output[i + 1] = Self::UPPERS[(byte & 0b00001111) as usize];
@@ -45,9 +44,9 @@ where
     /// encoding, consuming the structure.
     ///
     /// Returns a hex encoded fixed sized byte array containing the Bitfields of the provided structure.
-    fn into_hex_lower(self) -> [u8; HEX_SIZE]{
+    fn into_hex_lower(self) -> [u8; HEX_SIZE] {
         let bytes = self.into_bytes();
-        let mut output: [u8;HEX_SIZE] = [0; HEX_SIZE];
+        let mut output: [u8; HEX_SIZE] = [0; HEX_SIZE];
         for (i, byte) in (0..HEX_SIZE).step_by(2).zip(bytes) {
             output[i] = Self::LOWERS[((byte & 0b11110000) >> 4) as usize];
             output[i + 1] = Self::LOWERS[(byte & 0b00001111) as usize];
@@ -57,19 +56,20 @@ where
 }
 
 #[cfg(feature = "dyn_fns")]
-pub trait BitfieldHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>: crate::Bitfields<BYTE_SIZE>
+pub trait BitfieldHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
+    crate::Bitfields<BYTE_SIZE>
 where
     Self: Sized,
 {
     const UPPERS: &'static [u8; 16] = b"0123456789ABCDEF";
     const LOWERS: &'static [u8; 16] = b"0123456789abcdef";
-    fn from_hex_vec(hex: &mut Vec<u8>) -> Result<Self, crate::BitfieldHexDynError>{
+    fn from_hex_vec(hex: &mut Vec<u8>) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(
-                crate::BitfieldLengthError(hex.len(), HEX_SIZE)
-            ))
+                crate::BitfieldLengthError(hex.len(), HEX_SIZE),
+            ));
         }
-        let mut bytes: [u8; BYTE_SIZE] = [0;BYTE_SIZE];
+        let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
         for i in 0usize..BYTE_SIZE {
             let index = i * 2;
             let index2 = index + 1;
@@ -77,22 +77,24 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
-                    c as char,
-                    c_i,
-                ))),
+                _ => {
+                    return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                        c as char, c_i,
+                    )))
+                }
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+                | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
     }
-    fn from_hex_slice(hex: &[u8]) -> Result<Self, crate::BitfieldHexDynError>{
+    fn from_hex_slice(hex: &[u8]) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(
-                crate::BitfieldLengthError(hex.len(), HEX_SIZE)
-            ))
+                crate::BitfieldLengthError(hex.len(), HEX_SIZE),
+            ));
         }
-        let mut bytes: [u8; BYTE_SIZE] = [0;BYTE_SIZE];
+        let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
         for i in 0usize..BYTE_SIZE {
             let index = i * 2;
             let index2 = index + 1;
@@ -100,12 +102,14 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
-                    c as char,
-                    c_i,
-                ))),
+                _ => {
+                    return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                        c as char, c_i,
+                    )))
+                }
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+                | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
     }

@@ -1,8 +1,8 @@
 #[cfg(feature = "hex_fns")]
 mod hex_tests {
-    use bondrewd::{BitfieldHex, Bitfields};
     #[cfg(feature = "dyn_fns")]
     use bondrewd::BitfieldHexDyn;
+    use bondrewd::{BitfieldHex, Bitfields};
     #[derive(Bitfields, Clone, Debug, PartialEq)]
     #[bondrewd(read_from = "lsb0", enforce_bits = 3)]
     pub struct StatusMagnetometer {

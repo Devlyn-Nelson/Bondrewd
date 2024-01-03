@@ -11,7 +11,7 @@ struct SimpleExample {
     four: u8,
 }
 
-fn main(){
+fn main() {
     let ex = SimpleExample {
         one: true,
         two: 34.0,

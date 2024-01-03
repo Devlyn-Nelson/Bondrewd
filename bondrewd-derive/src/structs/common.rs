@@ -736,13 +736,13 @@ impl Iterator for BlockSubFieldIter {
 
 #[derive(Clone, Debug)]
 pub enum FieldIdent {
-    Ident{
+    Ident {
         /// name of the field given by the user.
         ident: Ident,
         /// name of the value given by bondrewd.
-        name: Ident
+        name: Ident,
     },
-    Index{
+    Index {
         /// Index of the field in the tuple struct/enum-variant
         index: usize,
         /// name of the value given by bondrewd.
@@ -753,14 +753,15 @@ pub enum FieldIdent {
 impl FieldIdent {
     pub fn ident(&self) -> Ident {
         match self {
-            FieldIdent::Ident{ ident, name: _} => ident.clone(),
-            FieldIdent::Index{ index, name } => Ident::new(&format!("field_{index}"), name.span()),
+            FieldIdent::Ident { ident, name: _ } => ident.clone(),
+            FieldIdent::Index { index, name } => Ident::new(&format!("field_{index}"), name.span()),
         }
     }
     pub fn name(&self) -> Ident {
         match self {
-            FieldIdent::Ident{ ident: _, name} |
-            FieldIdent::Index{ index: _, name} => name.clone(),
+            FieldIdent::Ident { ident: _, name } | FieldIdent::Index { index: _, name } => {
+                name.clone()
+            }
         }
     }
     pub fn span(&self) -> Span {
@@ -773,18 +774,27 @@ impl FieldIdent {
 
 impl From<(usize, Span)> for FieldIdent {
     fn from((value, span): (usize, Span)) -> Self {
-        Self::Index{ index: value, name: Ident::new(&format!("field_{value}"), span) }
+        Self::Index {
+            index: value,
+            name: Ident::new(&format!("field_{value}"), span),
+        }
     }
 }
 
 impl From<Ident> for FieldIdent {
     fn from(value: Ident) -> Self {
-        Self::Ident { ident: value.clone(), name: value }
+        Self::Ident {
+            ident: value.clone(),
+            name: value,
+        }
     }
 }
 impl From<(Ident, Ident)> for FieldIdent {
-    fn from((value,value2): (Ident, Ident)) -> Self {
-        Self::Ident { ident: value, name: value2 }
+    fn from((value, value2): (Ident, Ident)) -> Self {
+        Self::Ident {
+            ident: value,
+            name: value2,
+        }
     }
 }
 
