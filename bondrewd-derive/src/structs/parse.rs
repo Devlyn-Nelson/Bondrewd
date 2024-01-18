@@ -65,7 +65,7 @@ impl Default for FieldBuilderRange {
 pub struct FieldAttrBuilder {
     /// name is just so we can give better errors
     span: Span,
-    pub endianness: Box<Endianness>,
+    pub endianness: Endianness,
     pub bit_range: FieldBuilderRange,
     pub ty: FieldAttrBuilderType,
     pub reserve: ReserveFieldOption,
@@ -79,7 +79,7 @@ impl FieldAttrBuilder {
     fn new(span: Span) -> Self {
         Self {
             span,
-            endianness: Box::new(Endianness::None),
+            endianness: Endianness::None,
             bit_range: FieldBuilderRange::None,
             ty: FieldAttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
@@ -131,7 +131,7 @@ impl FieldAttrBuilder {
                     match ident_as_str.as_str() {
                         "endianness" => {
                             if let Lit::Str(val) = value.lit {
-                                builder.endianness = Box::new(match val.value().as_str() {
+                                builder.endianness = match val.value().as_str() {
                                     "le" | "lsb" | "little" | "lil" => Endianness::Little,
                                     "be" | "msb" | "big" => Endianness::Big,
                                     "ne" | "native" => Endianness::None,
@@ -141,7 +141,7 @@ impl FieldAttrBuilder {
                                             "{} is not a valid endianness use le or be",
                                         ));
                                     }
-                                });
+                                };
                             }
                         }
                         "bit_length" => {
@@ -614,7 +614,7 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
     fn try_into(self) -> std::result::Result<FieldAttrs, Self::Error> {
         if let FieldBuilderRange::Range(bit_range) = self.bit_range {
             Ok(FieldAttrs {
-                endianness: self.endianness,
+                endianness: Box::new(self.endianness),
                 bit_range,
                 reserve: self.reserve,
                 overlap: self.overlap,
@@ -622,7 +622,7 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
             })
         } else {
             Err(TryFromAttrBuilderError {
-                endianness: self.endianness,
+                endianness: Box::new(self.endianness),
                 reserve: self.reserve,
                 overlap: self.overlap,
                 capture_id: self.capture_id,

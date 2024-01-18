@@ -420,13 +420,13 @@ impl FieldDataType {
         // apply the structs default (which might also be None)
         if data_type.is_number() && !attrs.endianness.perhaps_endianness(data_type.size()) {
             if default_endianess.has_endianness() {
-                attrs.endianness = Box::new(default_endianess.clone());
+                attrs.endianness = default_endianess.clone();
             } else if data_type.size() == 1 {
                 let mut big = Endianness::Big;
-                std::mem::swap(attrs.endianness.as_mut(), &mut big);
+                std::mem::swap(&mut attrs.endianness, &mut big);
             } else {
                 let mut little = Endianness::Little;
-                std::mem::swap(attrs.endianness.as_mut(), &mut little);
+                std::mem::swap(&mut attrs.endianness, &mut little);
                 // return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
             }
         }
@@ -994,6 +994,7 @@ pub struct AttrInfo {
     pub enforcement: StructEnforcement,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
+    // Enum only
     pub id: Option<u128>,
     pub invalid: bool,
 }
