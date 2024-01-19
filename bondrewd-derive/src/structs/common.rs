@@ -6,8 +6,9 @@ use quote::{format_ident, quote};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::parse::Error;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, NestedMeta, Type};
+use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, Token, Type};
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -398,16 +399,16 @@ impl FieldDataType {
                             }
                         } else {
                             return Err(Error::new(
-                                array_path.bracket_token.span,
+                                array_path.bracket_token.span.span(),
                                 "failed parsing array length as literal integer",
                             ));
                         }
                     } else {
-                        return Err(Error::new(array_path.bracket_token.span, "Couldn't determine Array length, literal array lengths must be an integer"));
+                        return Err(Error::new(array_path.bracket_token.span.span(), "Couldn't determine Array length, literal array lengths must be an integer"));
                     }
                 } else {
                     return Err(Error::new(
-                        array_path.bracket_token.span,
+                        array_path.bracket_token.span.span(),
                         "Couldn't determine Array length, must be literal",
                     ));
                 }
@@ -1188,8 +1189,13 @@ impl ObjectInfo {
     ) -> syn::Result<()> {
         for attr in attrs.iter() {
             let span = attr.pound_token.span();
-            let meta = attr.parse_meta()?;
-            Self::parse_struct_attrs_meta(span, attrs_info, &meta, is_variant)?;
+            if attr.path().is_ident("bondrewd") {
+                let nested =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                for meta in nested.iter() {
+                    Self::parse_struct_attrs_meta(span, attrs_info, meta, is_variant)?;
+                }
+            }
         }
         Ok(())
     }
@@ -1201,8 +1207,15 @@ impl ObjectInfo {
     ) -> syn::Result<()> {
         for attr in attrs.iter() {
             let span = attr.pound_token.span();
-            let meta = attr.parse_meta()?;
-            Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, &meta)?;
+            if attr.path().is_ident("bondrewd") {
+                let nested =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                for meta in nested.iter() {
+                    Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, meta)?;
+                }
+            }
+            // let meta = attr.parse_meta()?;
+            // Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, &attr)?;
         }
         Ok(())
     }
@@ -1554,70 +1567,78 @@ impl ObjectInfo {
         match meta {
             Meta::NameValue(value) => {
                 if value.path.is_ident("id_bit_length") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                if value > 128 {
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    if value > 128 {
+                                        return Err(syn::Error::new(
+                                            span,
+                                            format!("Maximum id bits is 128."),
+                                        ));
+                                    }
+                                    enum_info.id_bits = Some(value);
+                                }
+                                Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("Maximum id bits is 128."),
-                                    ));
+                                        format!("failed parsing id_bits value [{}]", err),
+                                    ))
                                 }
-                                enum_info.id_bits = Some(value);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing id_bits value [{}]", err),
-                                ))
                             }
                         }
                     }
                 } else if value.path.is_ident("id_byte_length") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                if value > 16 {
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    if value > 16 {
+                                        return Err(syn::Error::new(
+                                            span,
+                                            format!("Maximum id bytes is 16."),
+                                        ));
+                                    }
+                                    enum_info.id_bits = Some(value * 8);
+                                }
+                                Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("Maximum id bytes is 16."),
-                                    ));
+                                        format!("failed parsing id_bytes value [{}]", err),
+                                    ))
                                 }
-                                enum_info.id_bits = Some(value * 8);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing id_bytes value [{}]", err),
-                                ))
                             }
                         }
                     }
                 } else if value.path.is_ident("payload_bit_length") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                enum_info.payload_bit_size = Some(value);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing payload_bits value [{}]", err),
-                                ))
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    enum_info.payload_bit_size = Some(value);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing payload_bits value [{}]", err),
+                                    ))
+                                }
                             }
                         }
                     }
                 } else if value.path.is_ident("payload_byte_length") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                enum_info.payload_bit_size = Some(value * 8);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing payload_bytes value [{}]", err),
-                                ))
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    enum_info.payload_bit_size = Some(value * 8);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing payload_bytes value [{}]", err),
+                                    ))
+                                }
                             }
                         }
                     }
@@ -1636,17 +1657,17 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::List(meta_list) => {
-                if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested.iter() {
-                        match nested_meta {
-                            NestedMeta::Meta(meta) => {
-                                Self::parse_enum_attrs_meta(span, info, enum_info, &meta)?;
-                            }
-                            NestedMeta::Lit(_) => {}
-                        }
-                    }
-                }
+            Meta::List(_meta_list) => {
+                // if meta_list.path.is_ident("bondrewd") {
+                //     for nested_meta in meta_list.nested.iter() {
+                //         match nested_meta {
+                //             NestedMeta::Meta(meta) => {
+                //                 Self::parse_enum_attrs_meta(span, info, enum_info, &meta)?;
+                //             }
+                //             NestedMeta::Lit(_) => {}
+                //         }
+                //     }
+                // }
             }
         }
         Self::parse_struct_attrs_meta(span, info, &meta, false)?;
@@ -1665,38 +1686,41 @@ impl ObjectInfo {
         match meta {
             Meta::NameValue(ref value) => {
                 if is_variant && value.path.is_ident(EnumInfo::VARIANT_ID_NAME) {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<u128>() {
-                            Ok(value) => {
-                                if info.id.is_none() {
-                                    info.id = Some(value);
-                                } else {
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<u128>() {
+                                Ok(value) => {
+                                    if info.id.is_none() {
+                                        info.id = Some(value);
+                                    } else {
+                                        return Err(syn::Error::new(
+                                            span,
+                                            format!("must not have 2 ids defined."),
+                                        ));
+                                    }
+                                }
+                                Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("must not have 2 ids defined."),
-                                    ));
+                                        format!("failed parsing id value [{}]", err),
+                                    ))
                                 }
                             }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing id value [{}]", err),
-                                ))
-                            }
+                        } else {
+                            return Err(syn::Error::new(
+                                span,
+                                format!(
+                                    "improper usage of {}, must use literal integer ex. `{} = 0`",
+                                    EnumInfo::VARIANT_ID_NAME,
+                                    EnumInfo::VARIANT_ID_NAME
+                                ),
+                            ));
                         }
-                    } else {
-                        return Err(syn::Error::new(
-                            span,
-                            format!(
-                                "improper usage of {}, must use literal integer ex. `{} = 0`",
-                                EnumInfo::VARIANT_ID_NAME,
-                                EnumInfo::VARIANT_ID_NAME
-                            ),
-                        ));
                     }
                 } else if value.path.is_ident("read_from") {
-                    if let Lit::Str(ref val) = value.lit {
-                        match val.value().as_str() {
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Str(ref val) = lit.lit {
+                            match val.value().as_str() {
                             "lsb0" => info.lsb_zero = true,
                             "msb0" => info.lsb_zero = false,
                             _ => return Err(Error::new(
@@ -1704,91 +1728,101 @@ impl ObjectInfo {
                                 "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
                             )),
                         }
-                    } else {
-                        return Err(syn::Error::new(
+                        } else {
+                            return Err(syn::Error::new(
                             span,
                             format!("improper usage of read_from, must use string ex. `read_from = \"lsb0\"`"),
                         ));
+                        }
                     }
                 } else if value.path.is_ident("default_endianness") {
-                    if let Lit::Str(ref val) = value.lit {
-                        match val.value().as_str() {
-                            "le" | "lsb" | "little" | "lil" => {
-                                info.default_endianess = Endianness::Little
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Str(ref val) = lit.lit {
+                            match val.value().as_str() {
+                                "le" | "lsb" | "little" | "lil" => {
+                                    info.default_endianess = Endianness::Little
+                                }
+                                "be" | "msb" | "big" => info.default_endianess = Endianness::Big,
+                                "ne" | "native" => info.default_endianess = Endianness::None,
+                                _ => {}
                             }
-                            "be" | "msb" | "big" => info.default_endianess = Endianness::Big,
-                            "ne" | "native" => info.default_endianess = Endianness::None,
-                            _ => {}
-                        }
-                    } else {
-                        return Err(syn::Error::new(
+                        } else {
+                            return Err(syn::Error::new(
                             span,
                             format!("improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`"),
                         ));
+                        }
                     }
                 } else if value.path.is_ident("enforce_bytes") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                info.enforcement = StructEnforcement::EnforceBitAmount(value * 8);
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    info.enforcement =
+                                        StructEnforcement::EnforceBitAmount(value * 8);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing enforce_bytes value [{}]", err),
+                                    ))
+                                }
                             }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing enforce_bytes value [{}]", err),
-                                ))
-                            }
-                        }
-                    } else {
-                        return Err(syn::Error::new(
+                        } else {
+                            return Err(syn::Error::new(
                             span,
                             format!("improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`"),
                         ));
+                        }
                     }
                 } else if value.path.is_ident("enforce_bits") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                info.enforcement = StructEnforcement::EnforceBitAmount(value);
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    info.enforcement = StructEnforcement::EnforceBitAmount(value);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing enforce_bits value [{}]", err),
+                                    ))
+                                }
                             }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing enforce_bits value [{}]", err),
-                                ))
-                            }
-                        }
-                    } else {
-                        return Err(syn::Error::new(
+                        } else {
+                            return Err(syn::Error::new(
                             span,
                             format!("improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`"),
                         ));
+                        }
                     }
                 } else if value.path.is_ident("fill_bytes") {
-                    if let Lit::Int(ref val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                if info.fill_bits.is_none() {
-                                    info.fill_bits = Some(value * 8);
-                                } else {
+                    if let Expr::Lit(ref lit) = value.value {
+                        if let Lit::Int(ref val) = lit.lit {
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    if info.fill_bits.is_none() {
+                                        info.fill_bits = Some(value * 8);
+                                    } else {
+                                        return Err(syn::Error::new(
+                                            span,
+                                            "multiple fill_bits values".to_string(),
+                                        ));
+                                    }
+                                }
+                                Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        "multiple fill_bits values".to_string(),
-                                    ));
+                                        format!("failed parsing fill_bits value [{}]", err),
+                                    ))
                                 }
                             }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    span,
-                                    format!("failed parsing fill_bits value [{}]", err),
-                                ))
-                            }
-                        }
-                    } else {
-                        return Err(syn::Error::new(
+                        } else {
+                            return Err(syn::Error::new(
                             span,
                             format!("improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`"),
                         ));
+                        }
                     }
                 }
             }
@@ -1808,17 +1842,17 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::List(ref meta_list) => {
-                if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested.iter() {
-                        match nested_meta {
-                            NestedMeta::Meta(ref meta) => {
-                                Self::parse_struct_attrs_meta(span, info, meta, is_variant)?;
-                            }
-                            NestedMeta::Lit(_) => {}
-                        }
-                    }
-                }
+            Meta::List(ref _meta_list) => {
+                // if meta_list.path.is_ident("bondrewd") {
+                //     for nested_meta in meta_list.nested.iter() {
+                //         match nested_meta {
+                //             NestedMeta::Meta(ref meta) => {
+                //                 Self::parse_struct_attrs_meta(span, info, meta, is_variant)?;
+                //             }
+                //             NestedMeta::Lit(_) => {}
+                //         }
+                //     }
+                // }
             }
         }
         Ok(())

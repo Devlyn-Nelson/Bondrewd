@@ -1,8 +1,9 @@
 use proc_macro2::{Literal, Span};
 use quote::format_ident;
 use syn::parse::Error;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Expr, Ident, Lit, Meta, NestedMeta, Variant};
+use syn::{Attribute, DeriveInput, Expr, Ident, Lit, Meta, Variant, Token};
 
 #[derive(Eq, Debug, Clone)]
 pub enum EnumVariantBuilderType {
@@ -60,7 +61,7 @@ enum ParseMetaResult {
 
 impl EnumInfo {
     fn parse_meta(
-        meta: Meta,
+        meta: &Meta,
         invalid_found: &mut Option<EnumVariantBuilder>,
         primitive_type: &mut Option<Ident>,
         var: &syn::Variant,
@@ -178,28 +179,28 @@ impl EnumInfo {
                     Ok(ParseMetaResult::None)
                 }
             }
-            Meta::List(meta_list) => {
-                if meta_list.path.is_ident("bondrewd_enum") {
-                    for nested_meta in meta_list.nested {
-                        match nested_meta {
-                            NestedMeta::Meta(meta) => {
-                                match Self::parse_meta(meta, invalid_found, primitive_type, var)? {
-                                    ParseMetaResult::FoundInvalid => {
-                                        return Ok(ParseMetaResult::FoundInvalid)
-                                    }
-                                    ParseMetaResult::None => {}
-                                    ParseMetaResult::InvalidConflict(span, name) => {
-                                        return Ok(ParseMetaResult::InvalidConflict(span, name))
-                                    }
-                                }
-                            }
-                            NestedMeta::Lit(_) => {}
-                        }
-                    }
+            Meta::List(_meta_list) => {
+                // if meta_list.path.is_ident("bondrewd_enum") {
+                //     for nested_meta in meta_list.nested {
+                //         match nested_meta {
+                //             NestedMeta::Meta(meta) => {
+                //                 match Self::parse_meta(meta, invalid_found, primitive_type, var)? {
+                //                     ParseMetaResult::FoundInvalid => {
+                //                         return Ok(ParseMetaResult::FoundInvalid)
+                //                     }
+                //                     ParseMetaResult::None => {}
+                //                     ParseMetaResult::InvalidConflict(span, name) => {
+                //                         return Ok(ParseMetaResult::InvalidConflict(span, name))
+                //                     }
+                //                 }
+                //             }
+                //             NestedMeta::Lit(_) => {}
+                //         }
+                //     }
+                //     Ok(ParseMetaResult::None)
+                // } else {
                     Ok(ParseMetaResult::None)
-                } else {
-                    Ok(ParseMetaResult::None)
-                }
+                // }
             }
         }
     }
@@ -230,18 +231,24 @@ impl EnumInfo {
         let mut temp: Option<Ident> = None;
         let mut temp_invalid = invalid_found.clone();
         for attr in attrs {
-            match Self::parse_meta(attr.parse_meta()?, &mut temp_invalid, &mut temp, var)? {
-                ParseMetaResult::FoundInvalid => {
-                    std::mem::swap(&mut temp, primitive_type);
-                    std::mem::swap(&mut temp_invalid, invalid_found);
-                    return Ok(true);
-                }
-                ParseMetaResult::None => {}
-                ParseMetaResult::InvalidConflict(span, name) => {
-                    return Err(syn::Error::new(
-                        span,
-                        format!("Invalid already found [{}]", name),
-                    ));
+            if attr.path().is_ident("bondrewd_enum") {
+                let nested =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                for meta in nested.iter() {
+                    match Self::parse_meta(meta, &mut temp_invalid, &mut temp, var)? {
+                        ParseMetaResult::FoundInvalid => {
+                            std::mem::swap(&mut temp, primitive_type);
+                            std::mem::swap(&mut temp_invalid, invalid_found);
+                            return Ok(true);
+                        }
+                        ParseMetaResult::None => {}
+                        ParseMetaResult::InvalidConflict(span, name) => {
+                            return Err(syn::Error::new(
+                                span,
+                                format!("Invalid already found [{}]", name),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -259,35 +266,26 @@ impl EnumInfo {
         let mut primitive_type: Option<Ident> = None;
         let mut partial_eq = false;
         for attr in &input.attrs {
-            match attr.parse_meta()? {
-                Meta::NameValue(_) => {}
-                Meta::Path(_) => {}
-                Meta::List(meta_list) => {
-                    if meta_list.path.is_ident("bondrewd_enum") {
-                        for nested_meta in meta_list.nested {
-                            match nested_meta {
-                                NestedMeta::Meta(meta) => {
-                                    if let Meta::Path(path) = meta {
-                                        // Add an additional check to implement `partial_eq` optionally.
-                                        if path.is_ident("u8") {
-                                            primitive_type = Some(quote::format_ident!("u8"));
-                                        } else if path.is_ident("partial_eq") {
-                                            partial_eq = true;
-                                        } else {
-                                            return Err(syn::Error::new(
-                                            input.ident.span(),
-                                            "the only supported enum attributes are u8, partial_eq currently",
-                                        ));
-                                        }
-
-                                        // Have we found all of the relevant attributes?
-                                        if primitive_type.is_some() && partial_eq {
-                                            break;
-                                        }
-                                    }
-                                }
-                                NestedMeta::Lit(_) => {}
-                            }
+            if attr.path().is_ident("bondrewd_enum") {
+                let nested =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                for meta in nested.iter() {
+                    if let Meta::Path(path) = meta {
+                        // Add an additional check to implement `partial_eq` optionally.
+                        if path.is_ident("u8") {
+                            primitive_type = Some(quote::format_ident!("u8"));
+                        } else if path.is_ident("partial_eq") {
+                            partial_eq = true;
+                        } else {
+                            return Err(syn::Error::new(
+                            input.ident.span(),
+                            "the only supported enum attributes are u8, partial_eq currently",
+                        ));
+                        }
+        
+                        // Have we found all of the relevant attributes?
+                        if primitive_type.is_some() && partial_eq {
+                            break;
                         }
                     }
                 }

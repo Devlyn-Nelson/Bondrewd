@@ -1,8 +1,9 @@
 use proc_macro2::Span;
 use quote::format_ident;
+use syn::punctuated::Punctuated;
 use std::ops::Range;
 use syn::parse::Error;
-use syn::{Ident, Lit, Meta, NestedMeta};
+use syn::{Ident, Lit, Meta, Expr, Token};
 
 use crate::structs::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
 
@@ -105,8 +106,14 @@ impl FieldAttrBuilder {
         // complete range which occupies the same space as this field and that field is not the "last_field"
         // you will get a conflicting fields error returned to the user... hopefully )
         for attr in field.attrs.iter() {
-            let meta = attr.parse_meta()?;
-            Self::parse_meta(meta, &last_field, &mut builder)?;
+            // let meta = attr.parse_meta()?;
+            if attr.path().is_ident("bondrewd") {
+                let nested =
+                    attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
+                for meta in nested.iter() {
+                    Self::parse_meta(meta, &last_field, &mut builder)?;
+                }
+            }
         }
         if let FieldBuilderRange::None = builder.bit_range {
             builder.bit_range = FieldBuilderRange::LastEnd(if let Some(last_value) = last_field {
@@ -120,7 +127,7 @@ impl FieldAttrBuilder {
     }
 
     fn parse_meta(
-        meta: Meta,
+        meta: &Meta,
         last_field: &Option<&FieldInfo>,
         builder: &mut Self,
     ) -> syn::Result<()> {
@@ -130,208 +137,232 @@ impl FieldAttrBuilder {
                     let ident_as_str = ident.to_string();
                     match ident_as_str.as_str() {
                         "endianness" => {
-                            if let Lit::Str(val) = value.lit {
-                                builder.endianness = match val.value().as_str() {
-                                    "le" | "lsb" | "little" | "lil" => Endianness::Little,
-                                    "be" | "msb" | "big" => Endianness::Big,
-                                    "ne" | "native" => Endianness::None,
-                                    _ => {
-                                        return Err(syn::Error::new(
-                                            builder.span(),
-                                            "{} is not a valid endianness use le or be",
-                                        ));
-                                    }
-                                };
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Str(ref val) = lit.lit {
+                                    builder.endianness = match val.value().as_str() {
+                                        "le" | "lsb" | "little" | "lil" => Endianness::Little,
+                                        "be" | "msb" | "big" => Endianness::Big,
+                                        "ne" | "native" => Endianness::None,
+                                        _ => {
+                                            return Err(syn::Error::new(
+                                                builder.span(),
+                                                "{} is not a valid endianness use le or be",
+                                            ));
+                                        }
+                                    };
+                                }
                             }
                         }
                         "bit_length" => {
                             if let FieldBuilderRange::None = builder.bit_range {
-                                if let Lit::Int(val) = value.lit {
-                                    match val.base10_parse::<usize>() {
-                                        Ok(bit_length) => {
-                                            let mut start = 0;
-                                            if let Some(last_value) = last_field {
-                                                start = last_value.attrs.bit_range.end;
+                                if let Expr::Lit(ref lit) = value.value {
+                                    if let Lit::Int(ref val) = lit.lit {
+                                        match val.base10_parse::<usize>() {
+                                            Ok(bit_length) => {
+                                                let mut start = 0;
+                                                if let Some(last_value) = last_field {
+                                                    start = last_value.attrs.bit_range.end;
+                                                }
+                                                builder.bit_range = FieldBuilderRange::Range(
+                                                    start..start + (bit_length),
+                                                );
                                             }
-                                            builder.bit_range = FieldBuilderRange::Range(
-                                                start..start + (bit_length),
-                                            );
-                                        }
-                                        Err(err) => {
-                                            return Err(Error::new(
+                                            Err(err) => {
+                                                return Err(Error::new(
                                                 builder.span(),
                                                 format!("bit_length must be a number that can be parsed as a usize [{}]", err),
                                             ));
+                                            }
                                         }
+                                    } else {
+                                        return Err(Error::new(
+                                            builder.span(),
+                                            "bit_length must use a literal usize",
+                                        ));
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "bit_length must use a literal usize",
+                                        "please don't double define bit_length",
                                     ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "please don't double define bit_length",
-                                ));
                             }
                         }
                         "byte_length" => {
                             if let FieldBuilderRange::None = builder.bit_range {
-                                if let Lit::Int(val) = value.lit {
-                                    match val.base10_parse::<usize>() {
-                                        Ok(byte_length) => {
-                                            let mut start = 0;
-                                            if let Some(last_value) = last_field {
-                                                start = last_value.attrs.bit_range.end;
+                                if let Expr::Lit(ref lit) = value.value {
+                                    if let Lit::Int(ref val) = lit.lit {
+                                        match val.base10_parse::<usize>() {
+                                            Ok(byte_length) => {
+                                                let mut start = 0;
+                                                if let Some(last_value) = last_field {
+                                                    start = last_value.attrs.bit_range.end;
+                                                }
+                                                builder.bit_range = FieldBuilderRange::Range(
+                                                    start..start + (byte_length * 8),
+                                                );
                                             }
-                                            builder.bit_range = FieldBuilderRange::Range(
-                                                start..start + (byte_length * 8),
-                                            );
-                                        }
-                                        Err(err) => {
-                                            return Err(Error::new(
+                                            Err(err) => {
+                                                return Err(Error::new(
                                                 builder.span(),
                                                 format!("bit length must be a number that can be parsed as a usize [{}]", err),
                                             ));
+                                            }
                                         }
+                                    } else {
+                                        return Err(Error::new(
+                                            builder.span(),
+                                            "bit_length must use a literal usize",
+                                        ));
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "bit_length must use a literal usize",
+                                        "please don't double define bit width",
                                     ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "please don't double define bit width",
-                                ));
                             }
                         }
                         "enum_primitive" => {
-                            if let Lit::Str(val) = value.lit {
-                                let mut ty = Some(match val.value().as_str() {
-                                    "u8" => FieldAttrBuilderType::Enum(1, format_ident!("u8")),
-                                    "u16" => FieldAttrBuilderType::Enum(2, format_ident!("u16")),
-                                    "u32" => FieldAttrBuilderType::Enum(4, format_ident!("u32")),
-                                    "u64" => FieldAttrBuilderType::Enum(8, format_ident!("u64")),
-                                    "u128" => FieldAttrBuilderType::Enum(16, format_ident!("u128")),
-                                    _ => {
-                                        return Err(syn::Error::new(
-                                            builder.span(),
-                                            "primitives for enums must be an unsigned integer",
-                                        ))
-                                    }
-                                });
-                                match builder.ty {
-                                    FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
-                                        std::mem::swap(&mut ty, sub_ty)
-                                    }
-                                    FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
-                                        std::mem::swap(&mut ty, sub_ty)
-                                    }
-                                    _ => {
-                                        builder.ty = ty.unwrap();
-                                    }
-                                }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "defining a struct_size requires a Int Literal".to_string(),
-                                ));
-                            }
-                        }
-                        "struct_size" => {
-                            if let Lit::Int(val) = value.lit {
-                                let mut ty = Some(match val.base10_parse::<usize>() {
-                                    Ok(byte_length) => FieldAttrBuilderType::Struct(byte_length),
-                                    Err(err) => {
-                                        return Err(Error::new(
-                                            builder.span(),
-                                            format!("struct_size must provided a number that can be parsed as a usize [{}]", err),
-                                        ));
-                                    }
-                                });
-                                match builder.ty {
-                                    FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
-                                        std::mem::swap(&mut ty, sub_ty.as_mut())
-                                    }
-                                    FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
-                                        std::mem::swap(&mut ty, sub_ty.as_mut())
-                                    }
-                                    _ => {
-                                        builder.ty = ty.unwrap();
-                                    }
-                                }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "defining a struct_size requires a Int Literal".to_string(),
-                                ));
-                            }
-                        }
-                        "bits" => {
-                            if let Lit::Str(val) = value.lit {
-                                let val_string = val.value();
-                                let split = val_string.split("..").collect::<Vec<&str>>();
-                                if split.len() == 2 {
-                                    match (split[0].parse::<usize>(), split[1].parse::<usize>()) {
-                                        (Ok(start), Ok(end)) => match builder.bit_range {
-                                            FieldBuilderRange::Range(ref range) => {
-                                                if range.end - range.start == end - start {
-                                                    builder.bit_range =
-                                                        FieldBuilderRange::Range(start..end);
-                                                } else {
-                                                    return Err(Error::new(
-                                                        builder.span(),
-                                                        "bits attribute didn't match bit range requirements",
-                                                    ));
-                                                }
-                                            }
-                                            _ => {
-                                                builder.bit_range =
-                                                    FieldBuilderRange::Range(start..end);
-                                            }
-                                        },
-                                        (Ok(_), Err(_)) => {
-                                            return Err(Error::new(
-                                                builder.span(),
-                                                "failed paring ending index for range",
-                                            ));
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Str(ref val) = lit.lit {
+                                    let mut ty = Some(match val.value().as_str() {
+                                        "u8" => FieldAttrBuilderType::Enum(1, format_ident!("u8")),
+                                        "u16" => {
+                                            FieldAttrBuilderType::Enum(2, format_ident!("u16"))
                                         }
-                                        (Err(_), Ok(_)) => {
-                                            return Err(Error::new(
-                                                builder.span(),
-                                                "failed paring starting index for range",
-                                            ));
+                                        "u32" => {
+                                            FieldAttrBuilderType::Enum(4, format_ident!("u32"))
+                                        }
+                                        "u64" => {
+                                            FieldAttrBuilderType::Enum(8, format_ident!("u64"))
+                                        }
+                                        "u128" => {
+                                            FieldAttrBuilderType::Enum(16, format_ident!("u128"))
                                         }
                                         _ => {
-                                            return Err(Error::new(
+                                            return Err(syn::Error::new(
                                                 builder.span(),
-                                                "failed paring range",
-                                            ));
+                                                "primitives for enums must be an unsigned integer",
+                                            ))
+                                        }
+                                    });
+                                    match builder.ty {
+                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty)
+                                        }
+                                        FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty)
+                                        }
+                                        _ => {
+                                            builder.ty = ty.unwrap();
                                         }
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "bits attribute should have data like \"0..8\"",
+                                        "defining a struct_size requires a Int Literal".to_string(),
                                     ));
                                 }
-                            } else {
-                                return Err(Error::new(
+                            }
+                        }
+                        "struct_size" => {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    let mut ty = Some(match val.base10_parse::<usize>() {
+                                        Ok(byte_length) => {
+                                            FieldAttrBuilderType::Struct(byte_length)
+                                        }
+                                        Err(err) => {
+                                            return Err(Error::new(
+                                            builder.span(),
+                                            format!("struct_size must provided a number that can be parsed as a usize [{}]", err),
+                                        ));
+                                        }
+                                    });
+                                    match builder.ty {
+                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty.as_mut())
+                                        }
+                                        FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty.as_mut())
+                                        }
+                                        _ => {
+                                            builder.ty = ty.unwrap();
+                                        }
+                                    }
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "defining a struct_size requires a Int Literal".to_string(),
+                                    ));
+                                }
+                            }
+                        }
+                        "bits" => {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Str(ref val) = lit.lit {
+                                    let val_string = val.value();
+                                    let split = val_string.split("..").collect::<Vec<&str>>();
+                                    if split.len() == 2 {
+                                        match (split[0].parse::<usize>(), split[1].parse::<usize>())
+                                        {
+                                            (Ok(start), Ok(end)) => match builder.bit_range {
+                                                FieldBuilderRange::Range(ref range) => {
+                                                    if range.end - range.start == end - start {
+                                                        builder.bit_range =
+                                                            FieldBuilderRange::Range(start..end);
+                                                    } else {
+                                                        return Err(Error::new(
+                                                        builder.span(),
+                                                        "bits attribute didn't match bit range requirements",
+                                                    ));
+                                                    }
+                                                }
+                                                _ => {
+                                                    builder.bit_range =
+                                                        FieldBuilderRange::Range(start..end);
+                                                }
+                                            },
+                                            (Ok(_), Err(_)) => {
+                                                return Err(Error::new(
+                                                    builder.span(),
+                                                    "failed paring ending index for range",
+                                                ));
+                                            }
+                                            (Err(_), Ok(_)) => {
+                                                return Err(Error::new(
+                                                    builder.span(),
+                                                    "failed paring starting index for range",
+                                                ));
+                                            }
+                                            _ => {
+                                                return Err(Error::new(
+                                                    builder.span(),
+                                                    "failed paring range",
+                                                ));
+                                            }
+                                        }
+                                    } else {
+                                        return Err(Error::new(
+                                            builder.span(),
+                                            "bits attribute should have data like \"0..8\"",
+                                        ));
+                                    }
+                                } else {
+                                    return Err(Error::new(
                                     builder.span(),
                                     "bits must use a literal str value with range inside quotes",
                                 ));
+                                }
                             }
                         }
                         "element_bit_length" => {
-                            if let Lit::Int(val) = value.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(bit_length) => {
-                                        builder.bit_range = match std::mem::take(&mut builder.bit_range) {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    match val.base10_parse::<usize>() {
+                                        Ok(bit_length) => {
+                                            builder.bit_range = match std::mem::take(&mut builder.bit_range) {
                                             FieldBuilderRange::None => {
                                                 builder.ty = match builder.ty {
                                                     FieldAttrBuilderType::Struct(_) |
@@ -361,26 +392,28 @@ impl FieldAttrBuilder {
                                                 "found Field bit range no_end while element_bit_length attribute which should never happen",
                                             )),
                                         };
-                                    }
-                                    Err(err) => {
-                                        return Err(Error::new(
+                                        }
+                                        Err(err) => {
+                                            return Err(Error::new(
                                             builder.span(),
                                             format!("bit_length must be a number that can be parsed as a usize [{}]", err),
                                         ));
+                                        }
                                     }
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "bit_length must use a literal usize",
+                                    ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "bit_length must use a literal usize",
-                                ));
                             }
                         }
                         "element_byte_length" => {
-                            if let Lit::Int(val) = value.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(byte_length) => {
-                                        builder.bit_range = match std::mem::take(&mut builder.bit_range) {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    match val.base10_parse::<usize>() {
+                                        Ok(byte_length) => {
+                                            builder.bit_range = match std::mem::take(&mut builder.bit_range) {
                                             FieldBuilderRange::None => {
                                                 builder.ty = match builder.ty {
                                                     FieldAttrBuilderType::Struct(_) |
@@ -410,26 +443,28 @@ impl FieldAttrBuilder {
                                                     "found Field bit range no_end while element_byte_length attribute which should never happen",
                                                 )),
                                         };
-                                    }
-                                    Err(err) => {
-                                        return Err(Error::new(
+                                        }
+                                        Err(err) => {
+                                            return Err(Error::new(
                                             builder.span(),
                                             format!("bit_length must be a number that can be parsed as a usize [{}]", err),
                                         ));
+                                        }
                                     }
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "bit_length must use a literal usize",
+                                    ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "bit_length must use a literal usize",
-                                ));
                             }
                         }
                         "block_bit_length" => {
-                            if let Lit::Int(val) = value.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(bit_length) => {
-                                        builder.bit_range = match std::mem::take(&mut builder.bit_range) {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    match val.base10_parse::<usize>() {
+                                        Ok(bit_length) => {
+                                            builder.bit_range = match std::mem::take(&mut builder.bit_range) {
                                             FieldBuilderRange::None => {
                                                 builder.ty = match builder.ty {
                                                     FieldAttrBuilderType::Struct(_) |
@@ -466,26 +501,28 @@ impl FieldAttrBuilder {
                                                     "found Field bit range no_end while array_bit_length attribute which should never happen",
                                                 )),
                                         };
-                                    }
-                                    Err(err) => {
-                                        return Err(Error::new(
+                                        }
+                                        Err(err) => {
+                                            return Err(Error::new(
                                             builder.span(),
                                             format!("array_bit_length must be a number that can be parsed as a usize [{}]", err),
                                         ));
+                                        }
                                     }
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "array_bit_length must use a literal usize",
+                                    ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "array_bit_length must use a literal usize",
-                                ));
                             }
                         }
                         "block_byte_length" => {
-                            if let Lit::Int(val) = value.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(byte_length) => {
-                                        builder.bit_range = match std::mem::take(&mut builder.bit_range) {
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    match val.base10_parse::<usize>() {
+                                        Ok(byte_length) => {
+                                            builder.bit_range = match std::mem::take(&mut builder.bit_range) {
                                             FieldBuilderRange::None => {
                                                 builder.ty = match builder.ty {
                                                     FieldAttrBuilderType::Struct(_) |
@@ -522,38 +559,41 @@ impl FieldAttrBuilder {
                                                 "found Field bit range no_end while array_byte_length attribute which should never happen",
                                             )),
                                         };
-                                    }
-                                    Err(err) => {
-                                        return Err(Error::new(
+                                        }
+                                        Err(err) => {
+                                            return Err(Error::new(
                                             builder.span(),
                                             format!("array_byte_length must be a number that can be parsed as a usize [{}]", err),
                                         ));
+                                        }
                                     }
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "array_byte_length must use a literal usize",
+                                    ));
                                 }
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "array_byte_length must use a literal usize",
-                                ));
                             }
                         }
                         "overlapping_bits" => {
-                            if let Lit::Int(val) = value.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(bits) => builder.overlap = OverlapOptions::Allow(bits),
-                                    Err(err) => {
-                                        return Err(Error::new(
+                            if let Expr::Lit(ref lit) = value.value {
+                                if let Lit::Int(ref val) = lit.lit {
+                                    match val.base10_parse::<usize>() {
+                                        Ok(bits) => builder.overlap = OverlapOptions::Allow(bits),
+                                        Err(err) => {
+                                            return Err(Error::new(
                                             builder.span(),
                                             format!("overlapping_bits must provided a number that can be parsed as a usize [{}]", err),
                                         ));
-                                    }
-                                };
-                            } else {
-                                return Err(Error::new(
-                                    builder.span(),
-                                    "defining a overlapping_bits requires a Int Literal"
-                                        .to_string(),
-                                ));
+                                        }
+                                    };
+                                } else {
+                                    return Err(Error::new(
+                                        builder.span(),
+                                        "defining a overlapping_bits requires a Int Literal"
+                                            .to_string(),
+                                    ));
+                                }
                             }
                         }
                         _ => {
@@ -592,17 +632,17 @@ impl FieldAttrBuilder {
                     }
                 }
             }
-            Meta::List(meta_list) => {
-                if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested {
-                        match nested_meta {
-                            NestedMeta::Meta(meta) => {
-                                Self::parse_meta(meta, last_field, builder)?;
-                            }
-                            NestedMeta::Lit(_) => {}
-                        }
-                    }
-                }
+            Meta::List(_meta_list) => {
+                // if meta_list.path.is_ident("bondrewd") {
+                //     for nested_meta in meta_list.nested {
+                //         match nested_meta {
+                //             NestedMeta::Meta(meta) => {
+                //                 Self::parse_meta(meta, last_field, builder)?;
+                //             }
+                //             NestedMeta::Lit(_) => {}
+                //         }
+                //     }
+                // }
             }
         }
         Ok(())

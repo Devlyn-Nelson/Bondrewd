@@ -7,7 +7,7 @@ use crate::structs::common::{
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{token::Pub, VisPublic};
+use syn::token::Pub;
 
 use super::common::EnumInfo;
 
@@ -166,9 +166,7 @@ pub fn create_into_bytes_field_quotes_enum(
                         name: info.name.clone(),
                         attrs,
                         fields,
-                        vis: syn::Visibility::Public(VisPublic {
-                            pub_token: Pub::default(),
-                        }),
+                        vis: syn::Visibility::Public(Pub::default()),
                         tuple: false,
                     },
                     &clear_quote,
