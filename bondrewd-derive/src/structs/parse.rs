@@ -1,9 +1,9 @@
 use proc_macro2::Span;
 use quote::format_ident;
-use syn::punctuated::Punctuated;
 use std::ops::Range;
 use syn::parse::Error;
-use syn::{Ident, Lit, Meta, Expr, Token};
+use syn::punctuated::Punctuated;
+use syn::{Expr, Ident, Lit, Meta, Token};
 
 use crate::structs::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
 

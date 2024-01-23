@@ -1574,7 +1574,7 @@ impl ObjectInfo {
                                     if value > 128 {
                                         return Err(syn::Error::new(
                                             span,
-                                            format!("Maximum id bits is 128."),
+                                            "Maximum id bits is 128.",
                                         ));
                                     }
                                     enum_info.id_bits = Some(value);
@@ -1596,7 +1596,7 @@ impl ObjectInfo {
                                     if value > 16 {
                                         return Err(syn::Error::new(
                                             span,
-                                            format!("Maximum id bytes is 16."),
+                                            "Maximum id bytes is 16.",
                                         ));
                                     }
                                     enum_info.id_bits = Some(value * 8);
@@ -1670,7 +1670,7 @@ impl ObjectInfo {
                 // }
             }
         }
-        Self::parse_struct_attrs_meta(span, info, &meta, false)?;
+        Self::parse_struct_attrs_meta(span, info, meta, false)?;
         if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
             enum_info.total_bit_size = Some(bits);
             info.enforcement = StructEnforcement::NoRules;
@@ -1695,7 +1695,7 @@ impl ObjectInfo {
                                     } else {
                                         return Err(syn::Error::new(
                                             span,
-                                            format!("must not have 2 ids defined."),
+                                            "must not have 2 ids defined.",
                                         ));
                                     }
                                 }
@@ -1731,7 +1731,7 @@ impl ObjectInfo {
                         } else {
                             return Err(syn::Error::new(
                             span,
-                            format!("improper usage of read_from, must use string ex. `read_from = \"lsb0\"`"),
+                            "improper usage of read_from, must use string ex. `read_from = \"lsb0\"`",
                         ));
                         }
                     }
@@ -1749,7 +1749,7 @@ impl ObjectInfo {
                         } else {
                             return Err(syn::Error::new(
                             span,
-                            format!("improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`"),
+                            "improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`",
                         ));
                         }
                     }
@@ -1771,7 +1771,7 @@ impl ObjectInfo {
                         } else {
                             return Err(syn::Error::new(
                             span,
-                            format!("improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`"),
+                            "improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`",
                         ));
                         }
                     }
@@ -1792,7 +1792,7 @@ impl ObjectInfo {
                         } else {
                             return Err(syn::Error::new(
                             span,
-                            format!("improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`"),
+                            "improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`",
                         ));
                         }
                     }
@@ -1820,7 +1820,7 @@ impl ObjectInfo {
                         } else {
                             return Err(syn::Error::new(
                             span,
-                            format!("improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`"),
+                            "improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`",
                         ));
                         }
                     }

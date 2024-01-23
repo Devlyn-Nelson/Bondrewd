@@ -3,7 +3,7 @@ use quote::format_ident;
 use syn::parse::Error;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
-use syn::{Attribute, DeriveInput, Expr, Ident, Lit, Meta, Variant, Token};
+use syn::{Attribute, DeriveInput, Expr, Ident, Lit, Meta, Token, Variant};
 
 #[derive(Eq, Debug, Clone)]
 pub enum EnumVariantBuilderType {
@@ -199,7 +199,7 @@ impl EnumInfo {
                 //     }
                 //     Ok(ParseMetaResult::None)
                 // } else {
-                    Ok(ParseMetaResult::None)
+                Ok(ParseMetaResult::None)
                 // }
             }
         }
@@ -278,11 +278,11 @@ impl EnumInfo {
                             partial_eq = true;
                         } else {
                             return Err(syn::Error::new(
-                            input.ident.span(),
-                            "the only supported enum attributes are u8, partial_eq currently",
-                        ));
+                                input.ident.span(),
+                                "the only supported enum attributes are u8, partial_eq currently",
+                            ));
                         }
-        
+
                         // Have we found all of the relevant attributes?
                         if primitive_type.is_some() && partial_eq {
                             break;

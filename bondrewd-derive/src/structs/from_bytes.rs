@@ -372,8 +372,8 @@ pub fn create_from_bytes_field_quotes_enum(
         }
     };
     if let Some((peek_slice_field_fns, peek_slice_field_unchecked_fns)) = peek_slice_fns_option {
-        let comment_take = format!("Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
-        let comment = format!("Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+        let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
         let from_slice_field_fns = quote! {
             #[doc = #comment_take]
             fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
@@ -453,8 +453,8 @@ pub fn create_from_bytes_field_quotes(
         }
     };
     if let Some((peek_slice_field_fns, peek_slice_field_unchecked_fns)) = peek_slice_fns_option {
-        let comment_take = format!("Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
-        let comment = format!("Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.");
+        let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+        let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
         let from_slice_field_fns = quote! {
             #[doc = #comment_take]
             fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
@@ -1213,7 +1213,7 @@ fn apply_be_math_to_field_access_quote(
         let output = match field.ty {
             FieldDataType::Number(size, _, ref type_quote) |
             FieldDataType::Enum(ref type_quote, size, _) => {
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
+                let full_quote = build_number_quote(field, BuildNumberQuotePackage { amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip})?;
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_be_bytes({
                         #full_quote
@@ -1229,7 +1229,7 @@ fn apply_be_math_to_field_access_quote(
                 }else{
                     return Err(syn::Error::new(field.ident.span(), "unsupported floating type"))
                 };
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
+                let full_quote = build_number_quote(field, BuildNumberQuotePackage { amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip})?;
                 let apply_field_to_buffer = quote! {
                     #alt_type_quote::from_be_bytes({
                         #full_quote
@@ -1238,7 +1238,7 @@ fn apply_be_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Char(size, _) => {
-                let full_quote = build_number_quote(field, amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip)?;
+                let full_quote = build_number_quote(field, BuildNumberQuotePackage { amount_of_bits, bits_in_last_byte, field_buffer_name, size, first_bits_index, starting_inject_byte, first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte, flip})?;
                 let apply_field_to_buffer = quote! {
                     u32::from_be_bytes({
                         #full_quote
@@ -1330,9 +1330,7 @@ fn apply_be_math_to_field_access_quote(
         Ok(output_quote)
     }
 }
-
-fn build_number_quote(
-    field: &FieldInfo,
+struct BuildNumberQuotePackage {
     amount_of_bits: usize,
     bits_in_last_byte: usize,
     field_buffer_name: syn::Ident,
@@ -1344,7 +1342,22 @@ fn build_number_quote(
     right_shift: i8,
     available_bits_in_first_byte: usize,
     flip: Option<usize>,
+}
+fn build_number_quote(
+    field: &FieldInfo,
+    stuff: BuildNumberQuotePackage,
 ) -> syn::Result<TokenStream> {
+    let amount_of_bits = stuff.amount_of_bits;
+    let bits_in_last_byte = stuff.bits_in_last_byte;
+    let field_buffer_name = stuff.field_buffer_name;
+    let size = stuff.size;
+    let first_bits_index = stuff.first_bits_index;
+    let starting_inject_byte = stuff.starting_inject_byte;
+    let first_bit_mask = stuff.first_bit_mask;
+    let last_bit_mask = stuff.last_bit_mask;
+    let right_shift = stuff.right_shift;
+    let available_bits_in_first_byte = stuff.available_bits_in_first_byte;
+    let flip = stuff.flip;
     let new_array_quote = if let Some(a) = add_sign_fix_quote(field, &amount_of_bits, &right_shift)?
     {
         a
