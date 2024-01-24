@@ -78,7 +78,7 @@ fn cycle_header_be() -> anyhow::Result<()> {
         assert_eq!(
             header.virtual_channel_frame_count,
             AosFrameHeaderBe::read_virtual_channel_frame_count(&bytes)
-        )
+        );
     }
 
     Ok(())
@@ -148,7 +148,7 @@ fn cycle_header_le() -> anyhow::Result<()> {
         assert_eq!(
             header.virtual_channel_frame_count,
             AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes)
-        )
+        );
     }
 
     Ok(())

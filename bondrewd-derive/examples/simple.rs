@@ -1,4 +1,4 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 #[derive(Bitfields, Clone, Debug, PartialEq)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleExample {

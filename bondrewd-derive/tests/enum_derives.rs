@@ -104,7 +104,7 @@ fn enum_centered_catch_primitive() {
 
     let invalid_test = CenteredInvalidPrimitive::from_bytes([5u8]);
     if let CenteredInvalidPrimitive::Invalid { id } = invalid_test {
-        assert_eq!(id, 5)
+        assert_eq!(id, 5);
     }
     // test the catch all functionality
     assert_eq!(invalid_test.into_bytes()[0], 5);
