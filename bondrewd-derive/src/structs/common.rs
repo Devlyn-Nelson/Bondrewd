@@ -13,30 +13,30 @@ use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, Token, Type};
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
     match num {
-        8 => 0b11111111,
-        7 => 0b11111110,
-        6 => 0b11111100,
-        5 => 0b11111000,
-        4 => 0b11110000,
-        3 => 0b11100000,
-        2 => 0b11000000,
-        1 => 0b10000000,
-        _ => 0b00000000,
+        8 => 0b1111_1111,
+        7 => 0b1111_1110,
+        6 => 0b1111_1100,
+        5 => 0b1111_1000,
+        4 => 0b1111_0000,
+        3 => 0b1110_0000,
+        2 => 0b1100_0000,
+        1 => 0b1000_0000,
+        _ => 0b0000_0000,
     }
 }
 
 /// Returns a u8 mask with provided `num` amount of 1's on the right side (least significant bit)
 pub fn get_right_and_mask(num: usize) -> u8 {
     match num {
-        8 => 0b11111111,
-        7 => 0b01111111,
-        6 => 0b00111111,
-        5 => 0b00011111,
-        4 => 0b00001111,
-        3 => 0b00000111,
-        2 => 0b00000011,
-        1 => 0b00000001,
-        _ => 0b00000000,
+        8 => 0b1111_1111,
+        7 => 0b0111_1111,
+        6 => 0b0011_1111,
+        5 => 0b0001_1111,
+        4 => 0b0000_1111,
+        3 => 0b0000_0111,
+        2 => 0b0000_0011,
+        1 => 0b0000_0001,
+        _ => 0b0000_0000,
     }
 }
 
@@ -807,7 +807,7 @@ pub struct FieldInfo {
 }
 
 impl FieldInfo {
-    pub fn ident(&self) -> &Box<FieldIdent> {
+    pub fn ident(&self) -> &FieldIdent {
         &self.ident
     }
     pub fn span(&self) -> Span {
@@ -1091,12 +1091,10 @@ impl EnumInfo {
             17..=32 => Ok(quote! {u32}),
             33..=64 => Ok(quote! {u64}),
             65..=128 => Ok(quote! {u128}),
-            _ => {
-                return Err(syn::Error::new(
-                    self.name.span(),
-                    "variant id size is invalid",
-                ));
-            }
+            _ => Err(syn::Error::new(
+                self.name.span(),
+                "variant id size is invalid",
+            )),
         }
     }
     pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
@@ -1169,9 +1167,7 @@ fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
         17..=32 => Ok(quote! {u32}),
         33..=64 => Ok(quote! {u64}),
         65..=128 => Ok(quote! {u128}),
-        _ => {
-            return Err(syn::Error::new(span, "id size is invalid"));
-        }
+        _ => Err(syn::Error::new(span, "id size is invalid")),
     }
 }
 
@@ -1183,7 +1179,7 @@ impl ObjectInfo {
         }
     }
     fn parse_struct_attrs(
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         attrs_info: &mut AttrInfo,
         is_variant: bool,
     ) -> syn::Result<()> {
@@ -1201,7 +1197,7 @@ impl ObjectInfo {
     }
 
     fn parse_enum_attrs(
-        attrs: &Vec<Attribute>,
+        attrs: &[Attribute],
         attrs_info: &mut AttrInfo,
         enum_attrs_info: &mut EnumAttrInfoBuilder,
     ) -> syn::Result<()> {
@@ -1330,9 +1326,8 @@ impl ObjectInfo {
                                 variant.name.span(),
                                 "variant identifier used twice.",
                             ));
-                        } else {
-                            used_ids.push(*value);
                         }
+                        used_ids.push(*value);
                     } else {
                         unassigned_indices.push(i);
                     }
@@ -1387,7 +1382,7 @@ impl ObjectInfo {
                 // find minimal id size from largest id value
                 used_ids.sort();
                 let min_id_size = if let Some(last_id) = used_ids.last() {
-                    let mut x = last_id.clone();
+                    let mut x = *last_id;
                     // find minimal id size from largest id value
                     let mut n = 0;
                     while x != 0 {
@@ -1398,7 +1393,7 @@ impl ObjectInfo {
                 } else {
                     return Err(Error::new(
                         data.enum_token.span(),
-                        format!("found no variants and could not determine size of id"),
+                        "found no variants and could not determine size of id".to_string(),
                     ));
                 };
                 let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
@@ -1427,21 +1422,19 @@ impl ObjectInfo {
                                 id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                             }
-                        } else {
-                            if largest < total {
-                                let id = total - largest;
-                                EnumAttrInfo {
-                                    payload_bit_size: largest,
-                                    id_bits: id,
-                                    id_position: enum_attrs.id_position,
-                                    attrs: attrs.clone(),
-                                }
-                            } else {
-                                return Err(Error::new(
-                                    data.enum_token.span(),
-                                    format!("specified total is not smaller than the largest payload size, meaning there is not room the the variant id."),
-                                ));
+                        } else if largest < total {
+                            let id = total - largest;
+                            EnumAttrInfo {
+                                payload_bit_size: largest,
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
                             }
+                        } else {
+                            return Err(Error::new(
+                                data.enum_token.span(),
+                                "specified total is not smaller than the largest payload size, meaning there is not room the the variant id.".to_string(),
+                            ));
                         }
                     }
                     (Some(payload), Some(total)) => {
@@ -1455,7 +1448,7 @@ impl ObjectInfo {
                             if payload < largest {
                                 return Err(Error::new(
                                     data.enum_token.span(),
-                                    format!("detected a variant over the maximum defined size."),
+                                    "detected a variant over the maximum defined size.".to_string(),
                                 ));
                             }
                             EnumAttrInfo {
@@ -1494,13 +1487,14 @@ impl ObjectInfo {
                 if enum_attrs.id_bits < min_id_size {
                     return Err(Error::new(
                         data.enum_token.span(),
-                        format!("the bit size being used is less than required to describe each variant"),
+                        "the bit size being used is less than required to describe each variant"
+                            .to_string(),
                     ));
                 }
                 if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
                     return Err(Error::new(
                         data.enum_token.span(),
-                        format!("the payload size being used is less than largest variant"),
+                        "the payload size being used is less than largest variant".to_string(),
                     ));
                 }
                 // let id_field_ty = FieldDataType::Number(
@@ -1885,9 +1879,8 @@ impl ObjectInfo {
             syn::Fields::Unit => {
                 if parsed_fields.first().is_none() {
                     return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
-                } else {
-                    None
                 }
+                None
             }
         };
 

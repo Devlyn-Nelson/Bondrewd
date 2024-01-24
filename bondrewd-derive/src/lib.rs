@@ -70,14 +70,14 @@
 //! ```
 //!
 //! # Crate Features
-//! ### dyn_fns
+//! ### `dyn_fns`
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
 //!
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
 //! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
-//! and return BitfieldLengthError if not enough bytes are present.
+//! and return `BitfieldLengthError` if not enough bytes are present.
 //!
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
 //!
@@ -96,7 +96,7 @@
 //!     * `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
 //!       This function will check the size of the slice, if the slice is big enough it will return
 //!       a checked structure. the structure will be the same name as the input structure with
-//!       "CheckedMut" tacked onto the end. the Checked Structure will have getters and setters for each
+//!       `CheckedMut` tacked onto the end. the Checked Structure will have getters and setters for each
 //!       of the input structures fields, the naming is the same as the standard `read_{field}` and
 //!       `write_{field}` functions.
 //!
@@ -187,11 +187,11 @@
 //!     ) -> Result<Self, bondrewd::BitfieldLengthError> { .. }
 //! }
 //! ```
-//! ### part_eq_enums
+//! ### `part_eq_enums`
 //! Implements [`PartialEq`] for the type which fits the bits of the a [`Bitfields`] enum's id on the enum.
-//! ### hex_fns
+//! ### `hex_fns`
 //! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
-//! where N is double the calculated bondrewd STRUCT_SIZE. Hex encoding and decoding is based off the
+//! where N is double the calculated bondrewd `STRUCT_SIZE`. Hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
 //! arrays so we could eliminate sizing errors.
 //!
@@ -792,7 +792,7 @@ use syn::{parse_macro_input, DeriveInput};
 
 use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 
-/// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
+/// Generates an implementation of the `bondrewd::Bitfield` trait, as well as peek and set functions for direct
 /// sized u8 arrays access. This crate is designed so that attributes are only required for fields that
 /// are not what you would expect without the attribute. For example if you provide a u8 fields with no
 /// attributes, the field would be assumed to be the next 8 bits after the field before it. If a field
@@ -803,7 +803,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
-/// - Enums which implement the BitfieldEnum trait in Bondrewd.
+/// - Enums which implement the `BitfieldEnum` trait in Bondrewd.
 /// - Structs or Enums which implement the Bitfield trait in Bondrewd.
 ///
 /// # Struct/Enum/Variant Attributes
@@ -854,14 +854,14 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// type). [example](#bitfield-array-examples)
 /// - `element_byte_length = {BYTES}` Describes a byte length for each element of an array. (default array
 /// type). [example](#bitfield-array-examples)
-/// - `enum_primitive = "u8"` Defines the size of the enum. the BitfieldEnum currently only supports u8.
+/// - `enum_primitive = "u8"` Defines the size of the enum. the `BitfieldEnum` currently only supports u8.
 /// [example](#enum-examples)
 /// - `struct_size = {SIZE}` Defines the field as a struct which implements the Bitfield trait and the
-/// BYTE_SIZE const defined in said trait. [example](#bitfield-struct-as-field-examples)
+/// `BYTE_SIZE` const defined in said trait. [example](#bitfield-struct-as-field-examples)
 /// - `reserve` Defines that this field should be ignored in from and into bytes functions.
 /// [example](#reserve-examples)
-///     - Reserve requires the fields type to impl ['Default'](https://doc.rust-lang.org/std/default/trait.Default.html).
-/// due to from_bytes needed to provided a value.
+///     - Reserve requires the fields type to impl [`Default`](https://doc.rust-lang.org/std/default/trait.Default.html).
+/// due to `from_bytes` needed to provided a value.
 ///
 /// #### Enum Variant Field Attributes
 /// - `capture_id` Tells Bondrewd to put the value for id in the field on reads, fields
@@ -875,7 +875,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
 /// above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
 /// [example](#bits-attribute-example)
-/// - `read_only` - Bondrewd will not include writing/into_bytes logic for the field.
+/// - `read_only` - Bondrewd will not include `from_bytes` or `into_bytes` logic for the field.
 /// - `overlapping_bits = {BITS}` - Tells bondrewd that the provided BITS amount is shared
 ///  with at least 1 other field and should not be included in the overall structure size.
 /// - `redundant` - Tells bondrewd that this field's bits are all shared by at least one other field.
@@ -885,7 +885,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///     - Bondrewd will read the assigned bits but will not write.
 ///     - This behaves exactly as combining the attributes:
 ///         - `read_only`
-///         - `overlapping_bits = {FIELD_BIT_LENGTH}` FIELD_BIT_LENGTH being the total amount of bits that the field uses.
+///         - `overlapping_bits = {FIELD_BIT_LENGTH}` `FIELD_BIT_LENGTH` being the total amount of bits that the field uses.
 ///
 /// # Simple Example
 /// This example is on the front page for bondrewd-derive. Here i will be adding some asserts to show what
@@ -1037,7 +1037,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// ```
 /// When using `reverse` and `read_from` in the same structure:
 /// - `lsb0` would begin at the least significant bit in the first byte.
-/// - 'msb0` would begin at the most significant bit in the last byte.
+/// - `msb0` would begin at the most significant bit in the last byte.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1103,7 +1103,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// // check that each field are in the correct endianness
 /// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000]);
 /// ```
-/// If you define the endianness of all values that require it default_endianness is not required.
+/// If you define the endianness of all values that require it `default_endianness` is not required.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1127,8 +1127,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// # Bitfield Struct as Field Examples
 /// Inner structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
-/// `struct_size = {BYTE_SIZE}, the BYTE_SIZE being the number of bytes in the outputs byte array or
-/// value in the traits const BYTE_SIZE.
+/// `struct_size = {BYTE_SIZE}`, the `BYTE_SIZE` being the number of bytes in the outputs byte array or
+/// value in the traits const `BYTE_SIZE`.
 /// ```
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
 /// use bondrewd::*;
@@ -1233,10 +1233,10 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///      0b0_0000000]);// remaining three[2] and 7 unused bits.
 /// ```
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
-/// - If bit_length of the structs or enums needs to be smaller than the output of either into_bytes or
-/// into_primitive then it is recommended to use element arrays.
+/// - If `bit_length` of the structs or enums needs to be smaller than the output of either `into_bytes` or
+/// `into_primitive` then it is recommended to use element arrays.
 /// - Block Arrays, in my opinion, shouldn't be used for Structs or Enums. because in the below example
-/// if the compressed_structures field was to use `block_bit_length = 104` the array would use
+/// if the `compressed_structures` field was to use `block_bit_length = 104` the array would use
 /// 48 bits for index 0 and 56 bits for index 1.
 /// ```
 /// // this struct uses 52 total bits which means the total
@@ -1372,11 +1372,11 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(24, FilledBytes::BIT_SIZE);
 /// ```
 /// Here im going to compare the example above to the closest alternative using a reserve field:
-/// - FilledBytes only has 2 field, so only 2 fields are required for instantiation, where as ReservedBytes
+/// - `FilledBytes` only has 2 field, so only 2 fields are required for instantiation, where as `ReservedBytes`
 /// still needs a value for the reserve field despite from/into bytes not using the value anyway.
-/// - ReservedBytes has 2 extra functions that FilledBytes does not, `write_reserve` and `read_reserve`.
+/// - `ReservedBytes` has 2 extra functions that Filled Bytes does not, `write_reserve` and `read_reserve`.
 /// - One more thing to consider is reserve fields are currently confined to primitives, if more than 128
-/// reserve bits are required at the end, fill_bytes is the only supported way of doing this.
+/// reserve bits are required at the end, `fill_bytes` is the only supported way of doing this.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1413,7 +1413,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// Here is the same example where i assigned the "incorrect" the bit_length of the first field making the
+/// Here is the same example where i assigned the "incorrect" the `bit_length` of the first field making the
 /// total 8 instead of 7.
 /// ```compile_fail
 /// use bondrewd::*;
@@ -1468,7 +1468,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// }
 /// ```
 /// To fix this we need to make sure our enforcement value is the amount fo bits defined by the fields NOT
-/// the expected FilledBytesEnforced::BYTE_SIZE.
+/// the expected `FilledBytesEnforced::BYTE_SIZE`.
 ///   
 /// Here is the Correct usage of these two attributes working together.
 /// ```
@@ -1519,8 +1519,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// # Enum Examples
-/// For enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
+/// # Enum Examples (Deprecated)
+/// For enum derive examples goto [`BitfieldEnum` Derive](BitfieldEnum).
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1628,8 +1628,8 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// # Redundant Examples
 /// In this example we will has fields share data. flags in the example will represent a u8 storing
 /// multiple boolean flags, but all of the flags within are also fields in the struct. if we mark
-/// flags as `redundant` above the boolean flag fields then flags will be "read_only"(effects nothing
-/// during an into_bytes() call).
+/// flags as `redundant` above the boolean flag fields then flags will be `read_only` (effects nothing
+/// during an [`into_bytes`] call).
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -2036,7 +2036,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 ///
 /// variant `One` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
 /// the assignment would go from top to bottom. This happens internally in bondrewd for its code generation
-/// but the `#[repr(u8)] attribute assigns values for if you want to represent the variant as a number,
+/// but the `#[repr(u8)]` attribute assigns values for if you want to represent the variant as a number,
 /// and you should be aware `repr` does not look forward or backward for used numbers, meaning you will
 /// get an error from `repr` if you:
 /// - Remove the first variant's, `Three`, id assignment of `3`. The first variant will be assigned
@@ -2172,6 +2172,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
+#[allow(clippy::too_many_lines)]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     // parse the input into a StructInfo which contains all the information we
@@ -2493,13 +2494,13 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     }
 }
 
-/// Generates an implementation of bondrewd::BitfieldEnum trait.
+/// Generates an implementation of [`bondrewd::BitfieldEnum`] trait.
 ///   
 /// Important Note: u8 is the only primitive type i have tested. My newest code should be able to handle
 /// all primitive types but, to reiterate, i have NOT tested any primitive type other than u8.
 ///
 /// # Features
-/// - Generates code for the BitfieldEnum trait which allows an enum to be used by Bitfield structs.
+/// - Generates code for the `BitfieldEnum` trait which allows an enum to be used by Bitfield structs.
 /// - Literal values. [example](#literal-example)
 /// - Automatic Value Assignment for non-literal variants. Variants are assigned values starting from 0
 /// incrementing by 1 skipping values taken by literal definitions (That means you can mix and match
@@ -2510,7 +2511,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     the defined primitive. Catch all can be defined with a `#[bondrewd_enum(invalid)]` attribute or last variant will
 ///     Automatically become a catch all if no Catch is defined. [example](#custom-catch-all-example)
 ///     - Catch Value is a variant that will store values that don't match the reset of the variants.
-///     using a Catch Value is as simple as making a variant with a primitive value (if the bondrewd_enum
+///     using a Catch Value is as simple as making a variant with a primitive value (if the `bondrewd_enum`
 ///     attribute is present the primitive types must match). [example](#catch-value-example)
 ///
 /// # Other Features
@@ -2520,7 +2521,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// Here i am letting the Derive do all of the work. The primitive type will be assumed to be u8 because
 /// there are less than 256 variants. Variants that do not define a value will be assigned a value
 /// starting with the lowest available value. Also due to the catch all system we can ignore the fact
-/// i have not covered all 255 values of a u8 because the last Variant, SimpleEnum::Three is this example,
+/// i have not covered all 255 values of a u8 because the last Variant, `SimpleEnum::Three` is this example,
 /// will be used a a default to insure not errors can occur.
 /// ```
 /// use bondrewd::BitfieldEnum;
@@ -2602,7 +2603,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// This example shows that we can mark any variant as the catch all variant. In this case Bondrewd will
-/// give SimpleEnum::One the value of 1 and make One catch all values not defined because
+/// give `SimpleEnum::One` the value of 1 and make One catch all values not defined because
 /// of the invalid attribute.
 /// ```
 /// use bondrewd::BitfieldEnum;
@@ -2629,7 +2630,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 /// # Catch Value Example
-/// In some cases we might need to know what the invalid value passed into from_primitive actually was. In
+/// In some cases we might need to know what the invalid value passed into [`from_primitive`](bondrewd::BitfieldEnum::from_primitive) actually was. In
 /// my own code there is an enum field that gets encrypted and can become pretty much any value and cause
 /// panics in the library i used before writing Bondrewd. To fix this Bondrewd offers the ability to make 1
 /// variant a tuple or struct variant with exactly one field which must be the primitive type the enum
@@ -2658,11 +2659,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 /// Here i just want to show that Literals, Auto Value Assignment, and Invalid catch all can all be used
 /// together. As you might expect Catch Primitive can not have a Literal value because it stores a value.
 /// Here we expect:
-/// - SimpleEnum::Nine = 9,
-/// - SimpleEnum::One  = 1,
-/// - SimpleEnum::Zero = 0 and accept 3, 4, 6, 7, 8, and 10..u8::MAX in from_primitive(),
-/// - SimpleEnum::Five = 5,
-/// - SimpleEnum::Two  = 2,
+/// - `SimpleEnum::Nine` = 9,
+/// - `SimpleEnum::One`  = 1,
+/// - `SimpleEnum::Zero` = 0 and accept 3, 4, 6, 7, 8, and 10-255 in [`from_primitive`](bondrewd::BitfieldEnum::from_primitive),
+/// - `SimpleEnum::Five` = 5,
+/// - `SimpleEnum::Two`  = 2,
 /// ```
 /// use bondrewd::BitfieldEnum;
 /// #[derive(BitfieldEnum, PartialEq, Debug)]

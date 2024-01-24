@@ -105,13 +105,13 @@ impl FieldAttrBuilder {
         // end ( this only works if a all bit fields are in order, ex. if a bit_range attribute defines a
         // complete range which occupies the same space as this field and that field is not the "last_field"
         // you will get a conflicting fields error returned to the user... hopefully )
-        for attr in field.attrs.iter() {
+        for attr in &field.attrs {
             // let meta = attr.parse_meta()?;
             if attr.path().is_ident("bondrewd") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-                for meta in nested.iter() {
-                    Self::parse_meta(meta, &last_field, &mut builder)?;
+                for meta in &nested {
+                    Self::parse_meta(meta, last_field, &mut builder)?;
                 }
             }
         }
@@ -120,15 +120,15 @@ impl FieldAttrBuilder {
                 last_value.attrs.bit_range.end
             } else {
                 0
-            })
+            });
         }
 
         Ok(builder)
     }
-
+    #[allow(clippy::too_many_lines)]
     fn parse_meta(
         meta: &Meta,
-        last_field: &Option<&FieldInfo>,
+        last_field: Option<&FieldInfo>,
         builder: &mut Self,
     ) -> syn::Result<()> {
         match meta {
@@ -170,7 +170,7 @@ impl FieldAttrBuilder {
                                             Err(err) => {
                                                 return Err(Error::new(
                                                 builder.span(),
-                                                format!("bit_length must be a number that can be parsed as a usize [{}]", err),
+                                                format!("bit_length must be a number that can be parsed as a usize [{err}]"),
                                             ));
                                             }
                                         }
@@ -205,7 +205,7 @@ impl FieldAttrBuilder {
                                             Err(err) => {
                                                 return Err(Error::new(
                                                 builder.span(),
-                                                format!("bit length must be a number that can be parsed as a usize [{}]", err),
+                                                format!("bit length must be a number that can be parsed as a usize [{err}]"),
                                             ));
                                             }
                                         }
@@ -248,11 +248,9 @@ impl FieldAttrBuilder {
                                         }
                                     });
                                     match builder.ty {
-                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
-                                            std::mem::swap(&mut ty, sub_ty)
-                                        }
-                                        FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
-                                            std::mem::swap(&mut ty, sub_ty)
+                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty)
+                                        | FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty);
                                         }
                                         _ => {
                                             builder.ty = ty.unwrap();
@@ -276,16 +274,14 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("struct_size must provided a number that can be parsed as a usize [{}]", err),
+                                            format!("struct_size must provided a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     });
                                     match builder.ty {
-                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty) => {
-                                            std::mem::swap(&mut ty, sub_ty.as_mut())
-                                        }
-                                        FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
-                                            std::mem::swap(&mut ty, sub_ty.as_mut())
+                                        FieldAttrBuilderType::BlockArray(ref mut sub_ty)
+                                        | FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                            std::mem::swap(&mut ty, sub_ty.as_mut());
                                         }
                                         _ => {
                                             builder.ty = ty.unwrap();
@@ -387,7 +383,7 @@ impl FieldAttrBuilder {
                                                 };
                                                 FieldBuilderRange::Range(range)
                                             }
-                                            _ => return Err(Error::new(
+                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
                                                 "found Field bit range no_end while element_bit_length attribute which should never happen",
                                             )),
@@ -396,7 +392,7 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("bit_length must be a number that can be parsed as a usize [{}]", err),
+                                            format!("bit_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
@@ -438,16 +434,16 @@ impl FieldAttrBuilder {
                                                 };
                                                 FieldBuilderRange::Range(range)
                                             }
-                                                _ => return Err(Error::new(
-                                                    builder.span(),
-                                                    "found Field bit range no_end while element_byte_length attribute which should never happen",
-                                                )),
+                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
+                                                builder.span(),
+                                                "found Field bit range no_end while element_byte_length attribute which should never happen",
+                                            )),
                                         };
                                         }
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("bit_length must be a number that can be parsed as a usize [{}]", err),
+                                            format!("bit_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
@@ -496,7 +492,7 @@ impl FieldAttrBuilder {
                                                     ));
                                                 }
                                             }
-                                            _ => return Err(Error::new(
+                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                     builder.span(),
                                                     "found Field bit range no_end while array_bit_length attribute which should never happen",
                                                 )),
@@ -505,7 +501,7 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("array_bit_length must be a number that can be parsed as a usize [{}]", err),
+                                            format!("array_bit_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
@@ -554,7 +550,7 @@ impl FieldAttrBuilder {
                                                     ));
                                                 }
                                             }
-                                            _ => return Err(Error::new(
+                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
                                                 "found Field bit range no_end while array_byte_length attribute which should never happen",
                                             )),
@@ -563,7 +559,7 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("array_byte_length must be a number that can be parsed as a usize [{}]", err),
+                                            format!("array_byte_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
@@ -583,7 +579,7 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("overlapping_bits must provided a number that can be parsed as a usize [{}]", err),
+                                            format!("overlapping_bits must provided a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     };
@@ -600,7 +596,7 @@ impl FieldAttrBuilder {
                             if ident_as_str.as_str() != "doc" {
                                 return Err(Error::new(
                                     builder.span(),
-                                    format!("\"{}\" is not a valid attribute", ident_as_str),
+                                    format!("\"{ident_as_str}\" is not a valid attribute"),
                                 ));
                             }
                         }

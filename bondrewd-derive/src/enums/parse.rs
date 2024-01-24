@@ -464,12 +464,11 @@ impl EnumInfo {
                         variants.push(enum_var);
                     }
                     continue;
-                } else {
-                    return Err(syn::Error::new(
-                        input.span(),
-                        "found key but removal failed. please open issue.",
-                    ));
                 }
+                return Err(syn::Error::new(
+                    input.span(),
+                    "found key but removal failed. please open issue.",
+                ));
             }
             if let Some(unknown_variant) = unknown_variants.pop_front() {
                 match unknown_variant.value {
@@ -519,17 +518,15 @@ impl EnumInfo {
                             ));
                         }
                         skipped = Some(lit.clone());
-                        continue;
                     } else {
                         variants.push(enum_var);
-                        continue;
                     }
-                } else {
-                    return Err(syn::Error::new(
-                        input.span(),
-                        format!("failed removing key cloned from its first key  [Key:{:?}], please open issue.", key),
-                    ));
+                    continue;
                 }
+                return Err(syn::Error::new(
+                    input.span(),
+                    format!("failed removing key cloned from its first key  [Key:{:?}], please open issue.", key),
+                ));
             }
             if skipped.is_none() || i != last_variant {
                 return Err(syn::Error::new(
@@ -598,10 +595,10 @@ impl EnumInfo {
                     0_usize..=255_usize => {
                         format_ident!("u8")
                     }
-                    256_usize..=65535 => {
+                    256_usize..=65_535_usize => {
                         format_ident!("u16")
                     }
-                    65536..=4294967296 => {
+                    65_536_usize..=4_294_967_296_usize => {
                         format_ident!("u32")
                     }
                     _ => {

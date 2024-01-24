@@ -125,7 +125,7 @@ fn create_fields_quotes(
         }
     }
     Ok(FieldQuotes {
-        field_name_list: field_name_list,
+        field_name_list,
         into_bytes_quote,
         set_fns_quote,
         set_slice_fns_option,
@@ -1166,6 +1166,7 @@ fn apply_be_math_to_field_access_quote(
         let field_byte_buffer = match field.ty {
             FieldDataType::Number(_, _, _) |
             FieldDataType::Float(_, _) |
+            FieldDataType::Enum(_, _, _) |
             FieldDataType::Char(_, _) => {
                 let field_call = quote!{#shift.to_be_bytes()};
                 let apply_field_to_buffer = quote! {
@@ -1174,13 +1175,6 @@ fn apply_be_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Enum(_, _, _) => {
-                let field_call = quote!{#shift.to_be_bytes()};
-                let apply_field_to_buffer = quote! {
-                    let #field_buffer_name = #field_call
-                };
-                apply_field_to_buffer
-            }
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
@@ -1319,10 +1313,8 @@ fn apply_be_math_to_field_access_quote(
         // both of these could benefit from a return of the number that actually got set.
         let field_as_u8_quote = match field.ty {
             FieldDataType::Char(_, _) |
-            FieldDataType::Number(_, _, _) => {
-                quote!{(#field_access_quote as u8)}
-            }
-            FieldDataType::Boolean => {
+            FieldDataType::Number(_, _, _)
+            | FieldDataType::Boolean => {
                 quote!{(#field_access_quote as u8)}
             }
             FieldDataType::Enum(_, _, _) => field_access_quote,

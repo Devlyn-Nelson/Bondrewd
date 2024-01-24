@@ -150,9 +150,7 @@ fn create_fields_quotes(
         )?;
         // fake fields do not exist in the actual structure and should only have functions
         // that read or write values into byte arrays.
-        if field.attrs.reserve.is_fake_field() {
-            continue;
-        } else {
+        if !field.attrs.reserve.is_fake_field() {
             // put the name of the field into the list of fields that are needed to create
             // the struct.
             field_name_list = quote! {#field_name_list #field_name,};
@@ -317,31 +315,27 @@ pub fn create_from_bytes_field_quotes_enum(
 
         let variant_id = if i == last_variant {
             quote! {_}
-        } else {
-            if let Some(id) = variant.attrs.id {
-                if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
-                    yes
-                } else {
-                    return Err(syn::Error::new(
-                        variant.name.span(),
-                        "failed to construct id, this is a bug in bondrewd.",
-                    ));
-                }
+        } else if let Some(id) = variant.attrs.id {
+            if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                yes
             } else {
                 return Err(syn::Error::new(
                     variant.name.span(),
-                    "failed to find id for variant, this is a bug in bondrewd.",
+                    "failed to construct id, this is a bug in bondrewd.",
                 ));
             }
+        } else {
+            return Err(syn::Error::new(
+                variant.name.span(),
+                "failed to find id for variant, this is a bug in bondrewd.",
+            ));
         };
         let variant_constructor = if field_name_list.is_empty() {
             quote! {Self::#variant_name}
+        } else if variant.tuple {
+            quote! {Self::#variant_name ( #field_name_list )}
         } else {
-            if variant.tuple {
-                quote! {Self::#variant_name ( #field_name_list )}
-            } else {
-                quote! {Self::#variant_name { #field_name_list }}
-            }
+            quote! {Self::#variant_name { #field_name_list }}
         };
         from_bytes_fn = quote! {
             #from_bytes_fn
@@ -1437,14 +1431,14 @@ fn build_number_quote(
 
 fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
     match bit_index {
-        1 => 0b01000000,
-        2 => 0b00100000,
-        3 => 0b00010000,
-        4 => 0b00001000,
-        5 => 0b00000100,
-        6 => 0b00000010,
-        7 => 0b00000001,
-        _ => 0b10000000,
+        1 => 0b0100_0000,
+        2 => 0b0010_0000,
+        3 => 0b0001_0000,
+        4 => 0b0000_1000,
+        5 => 0b0000_0100,
+        6 => 0b0000_0010,
+        7 => 0b0000_0001,
+        _ => 0b1000_0000,
     }
 }
 fn rotate_primitive_vec(
