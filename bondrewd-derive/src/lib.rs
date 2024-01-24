@@ -2714,15 +2714,15 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    let into = match enums::into_bytes::generate_into_bytes(&enum_info) {
+    let into = match enums::into_bytes::generate_enum_into_bytes_fn(&enum_info) {
         Ok(i) => i,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
-    let from = match enums::from_bytes::generate_from_bytes(&enum_info) {
+    let from = match enums::from_bytes::generate_enum_from_bytes_fn(&enum_info) {
         Ok(f) => f,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
-    let partial_eq = enums::partial_eq::generate_partial_eq(&enum_info);
+    let partial_eq = enums::partial_eq::generate_partial_eq_fn(&enum_info);
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {

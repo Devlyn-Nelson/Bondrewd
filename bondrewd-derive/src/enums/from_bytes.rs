@@ -1,9 +1,9 @@
 use crate::enums::parse::{EnumInfo, EnumVariantType};
 use quote::quote;
 
-pub fn generate_from_bytes(enum_info: &EnumInfo) -> syn::Result<proc_macro2::TokenStream> {
+pub fn generate_enum_from_bytes_fn(enum_info: &EnumInfo) -> syn::Result<proc_macro2::TokenStream> {
     let mut arms = quote! {};
-    for var in enum_info.variants.iter() {
+    for var in &enum_info.variants {
         let name = &var.name;
         let arm = match var.value {
             EnumVariantType::UnsignedValue(ref value) => {

@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, VecDeque};
+
 use proc_macro2::{Literal, Span};
 use quote::format_ident;
 use syn::parse::Error;
@@ -60,6 +62,7 @@ enum ParseMetaResult {
 }
 
 impl EnumInfo {
+    #[allow(clippy::too_many_lines)]
     fn parse_meta(
         meta: &Meta,
         invalid_found: &mut Option<EnumVariantBuilder>,
@@ -234,7 +237,7 @@ impl EnumInfo {
             if attr.path().is_ident("bondrewd_enum") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-                for meta in nested.iter() {
+                for meta in &nested {
                     match Self::parse_meta(meta, &mut temp_invalid, &mut temp, var)? {
                         ParseMetaResult::FoundInvalid => {
                             std::mem::swap(&mut temp, primitive_type);
@@ -245,7 +248,7 @@ impl EnumInfo {
                         ParseMetaResult::InvalidConflict(span, name) => {
                             return Err(syn::Error::new(
                                 span,
-                                format!("Invalid already found [{}]", name),
+                                format!("Invalid already found [{name}]"),
                             ));
                         }
                     }
@@ -254,14 +257,11 @@ impl EnumInfo {
         }
         Ok(false)
     }
-
+    #[allow(clippy::too_many_lines)]
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         // get the struct, error out if not a struct
-        let data = match input.data {
-            syn::Data::Enum(ref data) => data,
-            _ => {
-                return Err(Error::new(Span::call_site(), "input must be an enum"));
-            }
+        let syn::Data::Enum(data) = &input.data else {
+            return Err(Error::new(Span::call_site(), "Input for EnumInfo must be enum. this is likely an internal Bondrewd issue. (please report on github)"));
         };
         let mut primitive_type: Option<Ident> = None;
         let mut partial_eq = false;
@@ -269,7 +269,7 @@ impl EnumInfo {
             if attr.path().is_ident("bondrewd_enum") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-                for meta in nested.iter() {
+                for meta in &nested {
                     if let Meta::Path(path) = meta {
                         // Add an additional check to implement `partial_eq` optionally.
                         if path.is_ident("u8") {
@@ -293,10 +293,8 @@ impl EnumInfo {
         }
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
-        let mut literal_variants: std::collections::BTreeMap<usize, EnumVariant> =
-            Default::default();
-        let mut unknown_variants: std::collections::VecDeque<EnumVariantBuilder> =
-            Default::default();
+        let mut literal_variants: BTreeMap<usize, EnumVariant> = BTreeMap::default();
+        let mut unknown_variants: VecDeque<EnumVariantBuilder> = VecDeque::default();
         let mut invalid_found: Option<EnumVariantBuilder> = None;
         let last_variant = data.variants.len() - 1;
         for (var, i) in data.variants.iter().zip(0..data.variants.len()) {
@@ -372,7 +370,7 @@ impl EnumInfo {
                         }
                     }
                 }
-                _ => {
+                syn::Fields::Unit => {
                     // Check for an invalid already existing, and if this is the last variant in the variants
                     if invalid_found.is_none() && last_variant == i {
                         invalid_found = Some(EnumVariantBuilder{
@@ -436,7 +434,7 @@ impl EnumInfo {
             }
         }
         let mut skipped: Option<Literal> = None;
-        let mut variants: Vec<EnumVariant> = Default::default();
+        let mut variants: Vec<EnumVariant> = Vec::default();
         if unknown_variants.len() + literal_variants.len() != last_variant + 1 {
             return Err(Error::new(
                 input.span(),
@@ -525,7 +523,7 @@ impl EnumInfo {
                 }
                 return Err(syn::Error::new(
                     input.span(),
-                    format!("failed removing key cloned from its first key  [Key:{:?}], please open issue.", key),
+                    format!("failed removing key cloned from its first key  [Key:{key:?}], please open issue."),
                 ));
             }
             if skipped.is_none() || i != last_variant {

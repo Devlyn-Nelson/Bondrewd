@@ -45,11 +45,17 @@ pub fn get_right_and_mask(num: usize) -> u8 {
 /// Returns the index of the byte the first bits of the field
 ///
 /// # Arguments
-/// * `amount_of_bits` - amount of bits the field will be after into_bytes.
+/// * `amount_of_bits` - amount of bits the field will be after `into_bytes`.
 /// * `right_rotation` - amount of bit Rotations to preform on the field. Note if rotation is not needed
 ///                         to retain all used bits then a shift could be used.
 /// * `last_index` - total struct bytes size minus 1.
 #[inline]
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
 pub fn get_be_starting_index(
     amount_of_bits: usize,
     right_rotation: i8,
@@ -97,7 +103,7 @@ impl BitMath {
         })
     }
 
-    /// (amount_of_bits, zeros_on_left, available_bits_in_first_byte, starting_inject_byte)
+    /// Returns (`amount_of_bits`, `zeros_on_left`, `available_bits_in_first_byte`, `starting_inject_byte`)
     pub fn into_tuple(self) -> (usize, usize, usize, usize) {
         (
             self.amount_of_bits,
@@ -160,26 +166,27 @@ impl FieldDataType {
     /// byte size of actual rust type .
     pub fn size(&self) -> usize {
         match self {
-            Self::Number(ref size, _, _) => *size,
-            Self::Float(ref size, _) => *size,
-            Self::Enum(_, ref size, _) => *size,
-            Self::Struct(ref size, _) => *size,
-            Self::Char(ref size, _) => *size,
-            Self::ElementArray(ref fields, ref length, _) => fields.ty.size() * length,
-            Self::BlockArray(ref fields, size, _) => fields.ty.size() * size,
+            Self::Number(size, _, _)
+            | Self::Float(size, _)
+            | Self::Enum(_, size, _)
+            | Self::Struct(size, _)
+            | Self::Char(size, _) => *size,
+            Self::ElementArray(ref fields, size, _) | Self::BlockArray(ref fields, size, _) => {
+                fields.ty.size() * size
+            }
             Self::Boolean => 1,
         }
     }
 
     pub fn type_quote(&self) -> proc_macro2::TokenStream {
         match self {
-            Self::Number(_, _, ref ident) => ident.clone(),
-            Self::Float(_, ref ident) => ident.clone(),
-            Self::Enum(_, _, ref ident) => ident.clone(),
-            Self::Struct(_, ref ident) => ident.clone(),
-            Self::Char(_, ref ident) => ident.clone(),
-            Self::ElementArray(_, _, ref ident) => ident.clone(),
-            Self::BlockArray(_, _, ident) => ident.clone(),
+            Self::Number(_, _, ref ident)
+            | Self::Float(_, ref ident)
+            | Self::Enum(_, _, ref ident)
+            | Self::Struct(_, ref ident)
+            | Self::Char(_, ref ident)
+            | Self::ElementArray(_, _, ref ident)
+            | Self::BlockArray(_, _, ref ident) => ident.clone(),
             Self::Boolean => quote! {bool},
         }
     }
@@ -198,15 +205,16 @@ impl FieldDataType {
         match self {
             Self::Boolean => 1,
             Self::Char(_, _) => 32,
-            Self::Number(ref size, _, _) => size * 8,
-            Self::Enum(_, ref size, _) => size * 8,
-            Self::Float(ref size, _) => size * 8,
-            Self::Struct(ref size, _) => size * 8,
-            Self::BlockArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
-            Self::ElementArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
+            Self::Number(ref size, _, _)
+            | Self::Enum(_, ref size, _)
+            | Self::Float(ref size, _)
+            | Self::Struct(ref size, _) => size * 8,
+            Self::BlockArray(sub, _, _) | Self::ElementArray(sub, _, _) => {
+                sub.as_ref().ty.get_element_bit_length()
+            }
         }
     }
-
+    #[allow(clippy::too_many_lines)]
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut FieldAttrBuilder,
@@ -272,7 +280,7 @@ impl FieldDataType {
                                                     ..last_end + (array_length * *element_bit_size),
                                             )
                                         }
-                                        _ => {
+                                        FieldBuilderRange::None => {
                                             return Err(syn::Error::new(
                                                 span,
                                                 "failed getting Range for element array",
@@ -382,7 +390,7 @@ impl FieldDataType {
                                                         + (array_length * element_bit_length),
                                             )
                                         }
-                                        _ => {
+                                        FieldBuilderRange::None => {
                                             return Err(syn::Error::new(
                                                 span,
                                                 "failed getting Range for element array",
@@ -434,7 +442,7 @@ impl FieldDataType {
 
         Ok(data_type)
     }
-
+    #[allow(clippy::too_many_lines)]
     fn parse_path(
         path: &syn::Path,
         attrs: &mut FieldAttrBuilder,
@@ -447,6 +455,7 @@ impl FieldDataType {
                     let field_type_name = last_segment.ident.to_string();
                     match field_type_name.as_str() {
                         "bool" => match attrs.bit_range {
+                            #[allow(clippy::range_plus_one)]
                             FieldBuilderRange::LastEnd(start) => {
                                 attrs.bit_range = FieldBuilderRange::Range(start..start + 1);
                                 Ok(FieldDataType::Boolean)
@@ -528,12 +537,12 @@ impl FieldDataType {
                             Ok(FieldDataType::Struct(
                                 match attrs.bit_range {
                                     FieldBuilderRange::Range(ref range) => {
-                                        ((range.end - range.start) as f64 / 8.0f64).ceil() as usize
+                                        (range.end - range.start).div_ceil(8)
                                     }
                                     FieldBuilderRange::LastEnd(_) | FieldBuilderRange::None => {
                                         return Err(Error::new(
                                             field_span,
-                                            format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{}]", field_type_name),
+                                            format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
                                         ));
                                     }
                                 },
@@ -586,28 +595,22 @@ pub enum ReserveFieldOption {
 impl ReserveFieldOption {
     pub fn write_field(&self) -> bool {
         match self {
-            Self::FakeReserveField => false,
-            Self::ReserveField => false,
+            Self::ReadOnly | Self::FakeReserveField | Self::ReserveField => false,
             Self::NotReserve => true,
-            Self::ReadOnly => false,
         }
     }
 
     pub fn read_field(&self) -> bool {
         match self {
-            Self::FakeReserveField => false,
-            Self::ReserveField => false,
-            Self::NotReserve => true,
-            Self::ReadOnly => true,
+            Self::FakeReserveField | Self::ReserveField => false,
+            Self::NotReserve | Self::ReadOnly => true,
         }
     }
 
     pub fn is_fake_field(&self) -> bool {
         match self {
             Self::FakeReserveField => true,
-            Self::ReserveField => false,
-            Self::NotReserve => false,
-            Self::ReadOnly => false,
+            Self::ReserveField | Self::NotReserve | Self::ReadOnly => false,
         }
     }
 }
@@ -1025,7 +1028,7 @@ pub struct StructInfo {
 
 impl StructInfo {
     pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
-        for field in self.fields.iter() {
+        for field in &self.fields {
             if field.attrs.capture_id {
                 let name = field.ident().name();
                 return Ok(quote! {#name});
@@ -1050,7 +1053,7 @@ impl StructInfo {
     }
     pub fn total_bits(&self) -> usize {
         let mut total: usize = 0;
-        for field in self.fields.iter() {
+        for field in &self.fields {
             total += field.bit_size();
         }
 
@@ -1058,7 +1061,7 @@ impl StructInfo {
     }
 
     pub fn total_bytes(&self) -> usize {
-        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+        self.total_bits().div_ceil(8)
     }
 }
 
@@ -1082,7 +1085,7 @@ impl EnumInfo {
         total
     }
     pub fn total_bytes(&self) -> usize {
-        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+        self.total_bits().div_ceil(8)
     }
     pub fn id_ident(&self) -> syn::Result<TokenStream> {
         match self.attrs.id_bits {
@@ -1099,14 +1102,13 @@ impl EnumInfo {
     }
     pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
         let e = match &self.attrs.attrs.default_endianess {
-            Endianness::Little => Endianness::Little,
+            Endianness::None | Endianness::Little => Endianness::Little,
             Endianness::Big => Endianness::Big,
-            Endianness::None => Endianness::Little,
         };
         Ok(FieldInfo {
             ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
             ty: FieldDataType::Number(
-                (self.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
+                self.attrs.id_bits.div_ceil(8),
                 NumberSignage::Unsigned,
                 self.id_ident()?,
             ),
@@ -1183,12 +1185,12 @@ impl ObjectInfo {
         attrs_info: &mut AttrInfo,
         is_variant: bool,
     ) -> syn::Result<()> {
-        for attr in attrs.iter() {
+        for attr in attrs {
             let span = attr.pound_token.span();
             if attr.path().is_ident("bondrewd") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-                for meta in nested.iter() {
+                for meta in &nested {
                     Self::parse_struct_attrs_meta(span, attrs_info, meta, is_variant)?;
                 }
             }
@@ -1201,12 +1203,12 @@ impl ObjectInfo {
         attrs_info: &mut AttrInfo,
         enum_attrs_info: &mut EnumAttrInfoBuilder,
     ) -> syn::Result<()> {
-        for attr in attrs.iter() {
+        for attr in attrs {
             let span = attr.pound_token.span();
             if attr.path().is_ident("bondrewd") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
-                for meta in nested.iter() {
+                for meta in &nested {
                     Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, meta)?;
                 }
             }
@@ -1231,6 +1233,7 @@ impl ObjectInfo {
             )),
         }
     }
+    #[allow(clippy::too_many_lines)]
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         // get the struct, error out if not a struct
         let mut attrs = AttrInfo::default();
@@ -1267,7 +1270,7 @@ impl ObjectInfo {
                     };
                     (
                         FieldDataType::Number(
-                            (id_bits as f64 / 8.0f64).ceil() as usize,
+                            id_bits.div_ceil(8),
                             NumberSignage::Unsigned,
                             get_id_type(id_bits, name.span())?,
                         ),
@@ -1288,7 +1291,7 @@ impl ObjectInfo {
                         capture_id: false,
                     },
                 };
-                for variant in data.variants.iter() {
+                for variant in &data.variants {
                     let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
                     let mut attrs = attrs.clone();
                     if let Some((_, ref expr)) = variant.discriminant {
@@ -1380,7 +1383,7 @@ impl ObjectInfo {
                     variants.push(var);
                 }
                 // find minimal id size from largest id value
-                used_ids.sort();
+                used_ids.sort_unstable();
                 let min_id_size = if let Some(last_id) = used_ids.last() {
                     let mut x = *last_id;
                     // find minimal id size from largest id value
@@ -1503,11 +1506,10 @@ impl ObjectInfo {
                 //     get_id_type(enum_attrs.id_bits, name.span())?,
                 // );
                 // add fill_bits if needed.
-                for v in variants.iter_mut() {
+                for v in &mut variants {
                     let first_bit = v.total_bits();
                     if first_bit < largest {
-                        let fill_bytes_size =
-                            ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
+                        let fill_bytes_size = (largest - first_bit).div_ceil(8);
                         let ident = quote::format_ident!("fill_bits");
                         v.fields.push(FieldInfo {
                             ident: Box::new(ident.into()),
@@ -1539,7 +1541,7 @@ impl ObjectInfo {
                     vis: input.vis.clone(),
                 }))
             }
-            _ => Err(Error::new(Span::call_site(), "input can not be a union")),
+            syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
     }
     pub fn total_bits(&self) -> usize {
@@ -1548,9 +1550,8 @@ impl ObjectInfo {
             Self::Enum(info) => info.total_bits(),
         }
     }
-
     pub fn total_bytes(&self) -> usize {
-        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+        self.total_bits().div_ceil(8)
     }
     fn parse_enum_attrs_meta(
         span: Span,
@@ -1560,8 +1561,8 @@ impl ObjectInfo {
     ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(value) => {
-                if value.path.is_ident("id_bit_length") {
-                    if let Expr::Lit(ref lit) = value.value {
+                if let Expr::Lit(ref lit) = value.value {
+                    if value.path.is_ident("id_bit_length") {
                         if let Lit::Int(ref val) = lit.lit {
                             match val.base10_parse::<usize>() {
                                 Ok(value) => {
@@ -1576,14 +1577,12 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing id_bits value [{}]", err),
+                                        format!("failed parsing id_bits value [{err}]"),
                                     ))
                                 }
                             }
                         }
-                    }
-                } else if value.path.is_ident("id_byte_length") {
-                    if let Expr::Lit(ref lit) = value.value {
+                    } else if value.path.is_ident("id_byte_length") {
                         if let Lit::Int(ref val) = lit.lit {
                             match val.base10_parse::<usize>() {
                                 Ok(value) => {
@@ -1598,14 +1597,12 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing id_bytes value [{}]", err),
+                                        format!("failed parsing id_bytes value [{err}]"),
                                     ))
                                 }
                             }
                         }
-                    }
-                } else if value.path.is_ident("payload_bit_length") {
-                    if let Expr::Lit(ref lit) = value.value {
+                    } else if value.path.is_ident("payload_bit_length") {
                         if let Lit::Int(ref val) = lit.lit {
                             match val.base10_parse::<usize>() {
                                 Ok(value) => {
@@ -1614,14 +1611,12 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing payload_bits value [{}]", err),
+                                        format!("failed parsing payload_bits value [{err}]"),
                                     ))
                                 }
                             }
                         }
-                    }
-                } else if value.path.is_ident("payload_byte_length") {
-                    if let Expr::Lit(ref lit) = value.value {
+                    } else if value.path.is_ident("payload_byte_length") {
                         if let Lit::Int(ref val) = lit.lit {
                             match val.base10_parse::<usize>() {
                                 Ok(value) => {
@@ -1630,7 +1625,7 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing payload_bytes value [{}]", err),
+                                        format!("failed parsing payload_bytes value [{err}]"),
                                     ))
                                 }
                             }
@@ -1651,18 +1646,7 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::List(_meta_list) => {
-                // if meta_list.path.is_ident("bondrewd") {
-                //     for nested_meta in meta_list.nested.iter() {
-                //         match nested_meta {
-                //             NestedMeta::Meta(meta) => {
-                //                 Self::parse_enum_attrs_meta(span, info, enum_info, &meta)?;
-                //             }
-                //             NestedMeta::Lit(_) => {}
-                //         }
-                //     }
-                // }
-            }
+            Meta::List(_meta_list) => {}
         }
         Self::parse_struct_attrs_meta(span, info, meta, false)?;
         if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
@@ -1671,6 +1655,7 @@ impl ObjectInfo {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_lines)]
     fn parse_struct_attrs_meta(
         span: Span,
         info: &mut AttrInfo,
@@ -1696,7 +1681,7 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing id value [{}]", err),
+                                        format!("failed parsing id value [{err}]"),
                                     ))
                                 }
                             }
@@ -1734,7 +1719,7 @@ impl ObjectInfo {
                         if let Lit::Str(ref val) = lit.lit {
                             match val.value().as_str() {
                                 "le" | "lsb" | "little" | "lil" => {
-                                    info.default_endianess = Endianness::Little
+                                    info.default_endianess = Endianness::Little;
                                 }
                                 "be" | "msb" | "big" => info.default_endianess = Endianness::Big,
                                 "ne" | "native" => info.default_endianess = Endianness::None,
@@ -1758,7 +1743,7 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing enforce_bytes value [{}]", err),
+                                        format!("failed parsing enforce_bytes value [{err}]"),
                                     ))
                                 }
                             }
@@ -1779,7 +1764,7 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing enforce_bits value [{}]", err),
+                                        format!("failed parsing enforce_bits value [{err}]"),
                                     ))
                                 }
                             }
@@ -1807,7 +1792,7 @@ impl ObjectInfo {
                                 Err(err) => {
                                     return Err(syn::Error::new(
                                         span,
-                                        format!("failed parsing fill_bits value [{}]", err),
+                                        format!("failed parsing fill_bits value [{err}]"),
                                     ))
                                 }
                             }
@@ -1851,6 +1836,7 @@ impl ObjectInfo {
         }
         Ok(())
     }
+    #[allow(clippy::too_many_lines)]
     pub fn parse_fields(
         name: &Ident,
         fields: &Fields,

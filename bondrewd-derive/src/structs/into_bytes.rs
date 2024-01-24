@@ -7,7 +7,11 @@ use crate::structs::common::{
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident as IdentProcMacro, TokenStream};
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, token::{Comma, Pub}, Ident as IdentSyn};
+use syn::{
+    punctuated::Punctuated,
+    token::{Comma, Pub},
+    Ident as IdentSyn,
+};
 
 use super::common::EnumInfo;
 
@@ -101,17 +105,28 @@ fn create_fields_quotes(
                 };
             }
         }
-        let set_quote = generate_write_field_fn(&field_setter, field, info, &clear_quote, &lower_name);
+        let set_quote =
+            generate_write_field_fn(&field_setter, field, info, &clear_quote, &lower_name);
         set_fns_quote = quote! {
             #set_fns_quote
             #set_quote
         };
 
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
-            let set_slice_quote =
-                generate_write_slice_field_fn(&field_setter, field, info, &clear_quote, &lower_name);
-            let set_slice_unchecked_quote =
-                generate_write_slice_field_fn_unchecked(&field_setter, field, info, &clear_quote, &lower_name);
+            let set_slice_quote = generate_write_slice_field_fn(
+                &field_setter,
+                field,
+                info,
+                &clear_quote,
+                &lower_name,
+            );
+            let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
+                &field_setter,
+                field,
+                info,
+                &clear_quote,
+                &lower_name,
+            );
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
                 #set_slice_quote
@@ -396,9 +411,9 @@ fn generate_write_slice_field_fn(
 }
 
 /// For use on generated Checked Slice Structures.
-/// 
+///
 /// Generates a `write_field_name()` function for a slice.
-/// 
+///
 /// # Warning
 /// generated code does NOT check if the slice can be written to, Checked Slice Structures are nothing
 /// but a slice ref that has been checked to contain enough bytes for any `write_slice_field_name`
@@ -496,8 +511,7 @@ fn get_field_quote(
         FieldDataType::ElementArray(_, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
-            let mut de_refs: Punctuated<IdentSyn, Comma> =
-                Punctuated::default();
+            let mut de_refs: Punctuated<IdentSyn, Comma> = Punctuated::default();
             let outer_field_name = &field.ident().ident();
             let sub = field.get_element_iter()?;
             for sub_field in sub {
@@ -522,8 +536,7 @@ fn get_field_quote(
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
             let mut clear_buffer = quote! {};
-            let mut de_refs: Punctuated<IdentSyn, Comma> =
-                Punctuated::default();
+            let mut de_refs: Punctuated<IdentSyn, Comma> = Punctuated::default();
             let outer_field_name = &field.ident().ident();
             let sub = field.get_block_iter()?;
             for sub_field in sub {

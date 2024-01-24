@@ -8,7 +8,10 @@ use crate::structs::common::{
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, token::{Comma, Pub}};
+use syn::{
+    punctuated::Punctuated,
+    token::{Comma, Pub},
+};
 
 use super::common::{EnumInfo, NumberSignage};
 
@@ -56,7 +59,8 @@ fn make_read_fns(
     // make the slice functions if applicable.
     if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) = peek_slice_fns_option
     {
-        let peek_slice_quote = generate_read_slice_field_fn(&field_extractor, field, info, enum_name);
+        let peek_slice_quote =
+            generate_read_slice_field_fn(&field_extractor, field, info, enum_name);
         let peek_slice_unchecked_quote =
             generate_read_slice_field_fn_unchecked(&field_extractor, field, info, enum_name);
         let mut the_peek_slice_fns_quote_temp = quote! {
@@ -232,10 +236,15 @@ pub fn create_from_bytes_field_quotes_enum(
                     vis: syn::Visibility::Public(Pub::default()),
                     tuple: false,
                 };
-                let id_field = generate_read_field_fn(&field_extractor, &field, &temp_struct_info, &None);
+                let id_field =
+                    generate_read_field_fn(&field_extractor, &field, &temp_struct_info, &None);
                 if peek_slice {
-                    let id_slice_peek =
-                        generate_read_slice_field_fn(&field_extractor, &field, &temp_struct_info, &None);
+                    let id_slice_peek = generate_read_slice_field_fn(
+                        &field_extractor,
+                        &field,
+                        &temp_struct_info,
+                        &None,
+                    );
                     quote! {
                         #id_field
                         #id_slice_peek
@@ -534,9 +543,9 @@ fn generate_read_slice_field_fn(
     }
 }
 /// For use on generated Checked Slice Structures.
-/// 
+///
 /// Generates a `read_field_name()` function for a slice.
-/// 
+///
 /// # Warning
 /// generated code does NOT check if the slice is large enough to be read from, Checked Slice Structures
 /// are nothing but a slice ref that has been checked to contain enough bytes for any
@@ -1365,8 +1374,7 @@ fn build_number_quote(
     let right_shift = stuff.right_shift;
     let available_bits_in_first_byte = stuff.available_bits_in_first_byte;
     let flip = stuff.flip;
-    let new_array_quote = if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)?
-    {
+    let new_array_quote = if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)? {
         a
     } else {
         quote! {[0u8;#size]}
@@ -1454,11 +1462,7 @@ fn isolate_bit_index_mask(bit_index: usize) -> u8 {
         _ => 0b1000_0000,
     }
 }
-fn rotate_primitive_vec(
-    prim: Vec<u8>,
-    right_shift: i8,
-    field: &FieldInfo,
-) -> syn::Result<Vec<u8>> {
+fn rotate_primitive_vec(prim: Vec<u8>, right_shift: i8, field: &FieldInfo) -> syn::Result<Vec<u8>> {
     // REMEMBER SHIFTS ARE BACKWARD BECAUSE YOU COPIED AND PASTED into_bytes
     if right_shift == 0 {
         return Ok(prim);
@@ -1604,9 +1608,7 @@ fn add_sign_fix_quote(
                             Ordering::Greater => {
                                 buffer = buffer
                                     .into_iter()
-                                    .map(|x| {
-                                        x.rotate_right(u32::from(right_shift.unsigned_abs()))
-                                    })
+                                    .map(|x| x.rotate_right(u32::from(right_shift.unsigned_abs())))
                                     .collect();
                             }
                             Ordering::Less => {

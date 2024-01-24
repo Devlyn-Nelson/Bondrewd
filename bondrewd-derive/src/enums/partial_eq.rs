@@ -28,7 +28,7 @@ use quote::quote;
 ///     }
 /// }
 /// ```
-pub fn generate_partial_eq(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
+pub fn generate_partial_eq_fn(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
     // Short circuit if we're not generating parital_eq
     if !enum_info.partial_eq {
         return quote! {};
@@ -37,7 +37,7 @@ pub fn generate_partial_eq(enum_info: &EnumInfo) -> proc_macro2::TokenStream {
     let mut comp_arms = quote! {};
     let enum_name = &enum_info.name;
     let primitive_ty = &enum_info.primitive;
-    for var in enum_info.variants.iter() {
+    for var in &enum_info.variants {
         let name = &var.name;
         let arm = match var.value {
             EnumVariantType::UnsignedValue(ref v) => {
