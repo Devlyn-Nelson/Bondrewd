@@ -1948,8 +1948,7 @@ impl ObjectInfo {
                     return Err(syn::Error::new(
                         name.span(),
                         format!(
-                            "Bit Enforcement failed because bondrewd detected {} total bits used by defined fields, but the bit enforcement attribute is defined as {} bits.",
-                            bit_size, expected_total_bits
+                            "Bit Enforcement failed because bondrewd detected {bit_size} total bits used by defined fields, but the bit enforcement attribute is defined as {expected_total_bits} bits.",
                         ),
                     ));
                 }
@@ -1963,7 +1962,7 @@ impl ObjectInfo {
             } else {
                 0_usize
             };
-            let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
+            let fill_bytes_size = (fill_bits - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
             parsed_fields.push(FieldInfo {
                 ident: Box::new(ident.into()),
@@ -1985,7 +1984,7 @@ impl ObjectInfo {
         }
 
         if attrs.lsb_zero {
-            for ref mut field in parsed_fields.iter_mut() {
+            for ref mut field in &mut parsed_fields {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);
             }

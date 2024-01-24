@@ -5,20 +5,20 @@ use crate::structs::common::{
     FieldDataType, FieldInfo, StructInfo,
 };
 use convert_case::{Case, Casing};
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident as IdentProcMacro, TokenStream};
 use quote::{format_ident, quote};
-use syn::token::Pub;
+use syn::{punctuated::Punctuated, token::{Comma, Pub}, Ident as IdentSyn};
 
 use super::common::EnumInfo;
 
-pub struct IntoBytesOptions {
+pub struct GeneratedIntoBytesFunctions {
     pub into_bytes_fn: TokenStream,
     pub set_field_fns: TokenStream,
     pub set_slice_field_fns: Option<TokenStream>,
     pub set_slice_field_unchecked_fns: Option<TokenStream>,
 }
 
-fn make_checked_mut_func(name: &Ident, struct_size: usize) -> TokenStream {
+fn make_checked_mut_func(name: &IdentProcMacro, struct_size: usize) -> TokenStream {
     // all quote with all of the set slice functions appended to it.
     let checked_ident = format_ident!("{name}CheckedMut");
     let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{name}` from/to provided mutable slice.");
@@ -46,7 +46,7 @@ struct FieldQuotes {
 
 fn create_fields_quotes(
     info: &StructInfo,
-    enum_name: Option<Ident>,
+    enum_name: Option<&IdentProcMacro>,
     set_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
@@ -67,7 +67,7 @@ fn create_fields_quotes(
     } else {
         None
     };
-    for field in info.fields.iter() {
+    for field in &info.fields {
         let field_name = field.ident().ident();
         if field.attrs.reserve.is_fake_field() {
             continue;
@@ -101,7 +101,7 @@ fn create_fields_quotes(
                 };
             }
         }
-        let set_quote = make_set_fn(&field_setter, field, info, &clear_quote, &lower_name)?;
+        let set_quote = generate_write_field_fn(&field_setter, field, info, &clear_quote, &lower_name);
         set_fns_quote = quote! {
             #set_fns_quote
             #set_quote
@@ -109,9 +109,9 @@ fn create_fields_quotes(
 
         if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
             let set_slice_quote =
-                make_set_slice_fn(&field_setter, field, info, &clear_quote, &lower_name)?;
+                generate_write_slice_field_fn(&field_setter, field, info, &clear_quote, &lower_name);
             let set_slice_unchecked_quote =
-                make_set_slice_unchecked_fn(&field_setter, field, info, &clear_quote, &lower_name)?;
+                generate_write_slice_field_fn_unchecked(&field_setter, field, info, &clear_quote, &lower_name);
             let mut set_slice_fns_quote_temp = quote! {
                 #set_slice_fns_quote
                 #set_slice_quote
@@ -132,10 +132,11 @@ fn create_fields_quotes(
     })
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn create_into_bytes_field_quotes_enum(
     info: &EnumInfo,
     set_slice: bool,
-) -> Result<IntoBytesOptions, syn::Error> {
+) -> Result<GeneratedIntoBytesFunctions, syn::Error> {
     let mut id_fn: TokenStream = quote! {};
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
@@ -159,7 +160,7 @@ pub fn create_into_bytes_field_quotes_enum(
                 let attrs = info.attrs.attrs.clone();
                 let mut fields = vec![field.clone()];
                 fields[0].attrs.bit_range = 0..info.total_bits();
-                let id_field = make_set_fn(
+                let id_field = generate_write_field_fn(
                     &field_quote,
                     &field,
                     &StructInfo {
@@ -171,7 +172,7 @@ pub fn create_into_bytes_field_quotes_enum(
                     },
                     &clear_quote,
                     &None,
-                )?;
+                );
                 quote! {
                     #id_field
                 }
@@ -188,14 +189,14 @@ pub fn create_into_bytes_field_quotes_enum(
         )
     };
     let total_size = info.total_bytes();
-    for variant in info.variants.iter() {
+    for variant in &info.variants {
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let mut variant_id = variant.id_or_field_name()?;
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(variant, Some(info.name.clone()), set_slice)?;
+            let thing = create_fields_quotes(variant, Some(&info.name), set_slice)?;
             (
                 thing.field_name_list,
                 thing.into_bytes_quote,
@@ -292,14 +293,14 @@ pub fn create_into_bytes_field_quotes_enum(
         #id_fn
     };
     if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
-        Ok(IntoBytesOptions {
+        Ok(GeneratedIntoBytesFunctions {
             into_bytes_fn,
             set_field_fns: set_fns_quote,
             set_slice_field_fns: Some(set_slice_field_fns),
             set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
         })
     } else {
-        Ok(IntoBytesOptions {
+        Ok(GeneratedIntoBytesFunctions {
             into_bytes_fn,
             set_field_fns: set_fns_quote,
             set_slice_field_fns: None,
@@ -311,7 +312,7 @@ pub fn create_into_bytes_field_quotes_enum(
 pub fn create_into_bytes_field_quotes_struct(
     info: &StructInfo,
     set_slice: bool,
-) -> Result<IntoBytesOptions, syn::Error> {
+) -> Result<GeneratedIntoBytesFunctions, syn::Error> {
     let (into_bytes_quote, set_fns_quote, set_slice_fns_option) = {
         let thing = create_fields_quotes(info, None, set_slice)?;
         (
@@ -339,14 +340,14 @@ pub fn create_into_bytes_field_quotes_struct(
             #set_slice_field_fns
             #checked_struct_fn
         };
-        Ok(IntoBytesOptions {
+        Ok(GeneratedIntoBytesFunctions {
             into_bytes_fn,
             set_field_fns: set_fns_quote,
             set_slice_field_fns: Some(set_slice_field_fns),
             set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
         })
     } else {
-        Ok(IntoBytesOptions {
+        Ok(GeneratedIntoBytesFunctions {
             into_bytes_fn,
             set_field_fns: set_fns_quote,
             set_slice_field_fns: None,
@@ -355,13 +356,14 @@ pub fn create_into_bytes_field_quotes_struct(
     }
 }
 
-fn make_set_slice_fn(
+/// Generates a `write_slice_field_name()` function for a slice.
+fn generate_write_slice_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
-    prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+    prefix: &Option<IdentProcMacro>,
+) -> TokenStream {
     let field_name = field.ident().ident();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_slice_{p}_{field_name}")
@@ -372,12 +374,12 @@ fn make_set_slice_fn(
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
     let min_length = if info.attrs.flip {
-        ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
+        (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
     } else {
-        (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
+        field.attrs.bit_range.end.div_ceil(8)
     };
     let comment = format!("Writes to bits {} through {} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned", bit_range.start, bit_range.end - 1);
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldLengthError> {
@@ -390,17 +392,24 @@ fn make_set_slice_fn(
                 Ok(())
             }
         }
-    })
+    }
 }
 
-fn make_set_slice_unchecked_fn(
+/// For use on generated Checked Slice Structures.
+/// 
+/// Generates a `write_field_name()` function for a slice.
+/// 
+/// # Warning
+/// generated code does NOT check if the slice can be written to, Checked Slice Structures are nothing
+/// but a slice ref that has been checked to contain enough bytes for any `write_slice_field_name`
+/// functions.
+fn generate_write_slice_field_fn_unchecked(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
-    // (prefix_ident, buffer_index_ident)
-    prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+    prefix: &Option<IdentProcMacro>,
+) -> TokenStream {
     let field_name = field.ident().ident();
     let fn_field_name = if let Some(p) = prefix {
         format_ident!("write_{p}_{field_name}")
@@ -413,7 +422,7 @@ fn make_set_slice_unchecked_fn(
     let comment = format!(
         "Writes to bits {} through {} in pre-checked mutable slice, setting the `{field_name}` field of a [{struct_name}] in bitfield form.", bit_range.start, bit_range.end - 1
     );
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(&mut self, #field_name: #type_ident) {
@@ -421,16 +430,17 @@ fn make_set_slice_unchecked_fn(
             #clear_quote
             #field_quote
         }
-    })
+    }
 }
 
-fn make_set_fn(
+/// Generates a `write_field_name()` function.
+fn generate_write_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     clear_quote: &TokenStream,
-    prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+    prefix: &Option<IdentProcMacro>,
+) -> TokenStream {
     let field_name_short = field.ident().ident();
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{field_name_short}")
@@ -443,17 +453,17 @@ fn make_set_fn(
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
     let comment = format!("Writes to bits {} through {} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
             #clear_quote
             #field_quote
         }
-    })
+    }
 }
 
-/// the flip value must be the total amount of bytes the result of into_bytes should have MINUS ONE,
+/// the flip value must be the total amount of bytes the result of `into_bytes` should have MINUS ONE,
 /// the number is used to invert indices
 fn get_field_quote(
     field: &FieldInfo,
@@ -486,8 +496,8 @@ fn get_field_quote(
         FieldDataType::ElementArray(_, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
-            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
-                Default::default();
+            let mut de_refs: Punctuated<IdentSyn, Comma> =
+                Punctuated::default();
             let outer_field_name = &field.ident().ident();
             let sub = field.get_element_iter()?;
             for sub_field in sub {
@@ -512,8 +522,8 @@ fn get_field_quote(
         FieldDataType::BlockArray(_, _, _) => {
             let mut buffer = quote! {};
             let mut clear_buffer = quote! {};
-            let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
-                Default::default();
+            let mut de_refs: Punctuated<IdentSyn, Comma> =
+                Punctuated::default();
             let outer_field_name = &field.ident().ident();
             let sub = field.get_block_iter()?;
             for sub_field in sub {
@@ -550,6 +560,7 @@ fn get_field_quote(
     }
 }
 // first token stream is actual setter, but second one is overwrite current bits to 0.
+#[allow(clippy::too_many_lines)]
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
@@ -584,6 +595,7 @@ fn apply_le_math_to_field_access_quote(
         if bits_needed_in_msb == 0 {
             bits_needed_in_msb = 8;
         }
+        #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
             (bits_needed_in_msb as i8) - ((available_bits_in_first_byte % 8) as i8);
         if right_shift == 8 {
@@ -598,10 +610,11 @@ fn apply_le_math_to_field_access_quote(
             get_left_and_mask(bits_in_last_byte)
         };
 
-        // // create a quote that holds the bit shifting operator and shift value and the field name.
-        // // first_bits_index is the index to use in the fields byte array after shift for the
-        // // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
-        // // index of the fields byte array will be used.
+        // create a quote that holds the bit shifting operator and shift value and the field name.
+        // first_bits_index is the index to use in the fields byte array after shift for the
+        // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
+        // index of the fields byte array will be used.
+        //
         // let shift = if right_shift < 0 {
         //     // convert to left shift using absolute value
         //     let left_shift: u32 = right_shift.clone().abs() as u32;
@@ -621,6 +634,7 @@ fn apply_le_math_to_field_access_quote(
         let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let field_byte_buffer = match field.ty {
+            FieldDataType::Enum(_, _, _) |
             FieldDataType::Number(_, _, _) |
             FieldDataType::Float(_, _) |
             FieldDataType::Char(_, _) => {
@@ -631,21 +645,15 @@ fn apply_le_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Enum(_, _, _) => {
-                let field_call = quote!{#field_access_quote.to_le_bytes()};
-                let apply_field_to_buffer = quote! {
-                    let mut #field_buffer_name = #field_call
-                };
-                apply_field_to_buffer
-            }
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let mut full_quote = quote! {
             #field_byte_buffer;
         };
-        let fields_last_bits_index = (amount_of_bits as f64 / 8.0f64).ceil() as usize - 1;
+        let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
+        #[allow(clippy::cast_possible_truncation)]
         let mid_shift: u32 = 8 - available_bits_in_first_byte as u32;
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
@@ -713,8 +721,7 @@ fn apply_le_math_to_field_access_quote(
             } else {
                 starting_inject_byte - i
             };
-            #[allow(clippy::cast_sign_loss)]
-            let right_shift: u32 = right_shift as u32;
+            let right_shift: u32 = u32::from(right_shift.unsigned_abs());
             // let not_first_bit_mask = !first_bit_mask;
             // let not_last_bit_mask = !last_bit_mask;
 
@@ -913,8 +920,7 @@ fn apply_ne_math_to_field_access_quote(
                 // data. we need one for the first byte and the last byte.
                 let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
                 let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
-                #[allow(clippy::cast_sign_loss)]
-                let right_shift: u32 = right_shift as u32;
+                let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                 for i in 0usize..size {
                     let start = if flip.is_none() {
                         starting_inject_byte + i
@@ -1155,8 +1161,7 @@ fn apply_be_math_to_field_access_quote(
                     quote! { #field_access_quote }
                 } else {
                     // shift right code
-                    #[allow(clippy::cast_sign_loss)]
-                    let right_shift_usize: u32 = right_shift as u32;
+                    let right_shift_usize: u32 = u32::from(right_shift.unsigned_abs());
                     quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
                 },
                 match get_be_starting_index(amount_of_bits, right_shift, field.struct_byte_size()) {

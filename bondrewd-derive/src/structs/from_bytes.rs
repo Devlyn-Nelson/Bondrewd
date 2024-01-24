@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, str::FromStr};
+use std::{cmp::Ordering, collections::VecDeque, str::FromStr};
 
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, BitMath, Endianness,
@@ -8,11 +8,11 @@ use crate::structs::common::{
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::token::Pub;
+use syn::{punctuated::Punctuated, token::{Comma, Pub}};
 
 use super::common::{EnumInfo, NumberSignage};
 
-pub struct FromBytesOptions {
+pub struct GeneratedFromBytesFunctions {
     pub from_bytes_fn: TokenStream,
     pub peek_field_fns: TokenStream,
     pub from_slice_field_fns: Option<TokenStream>,
@@ -48,7 +48,7 @@ fn make_read_fns(
         },
     )?;
 
-    let peek_quote = make_peek_fn(&field_extractor, field, info, enum_name)?;
+    let peek_quote = generate_read_field_fn(&field_extractor, field, info, enum_name);
     *peek_fns_quote = quote! {
         #peek_fns_quote
         #peek_quote
@@ -56,9 +56,9 @@ fn make_read_fns(
     // make the slice functions if applicable.
     if let Some((ref mut the_peek_slice_fns_quote, ref mut unchecked_quote)) = peek_slice_fns_option
     {
-        let peek_slice_quote = make_peek_slice_fn(&field_extractor, field, info, enum_name)?;
+        let peek_slice_quote = generate_read_slice_field_fn(&field_extractor, field, info, enum_name);
         let peek_slice_unchecked_quote =
-            make_peek_slice_unchecked_fn(&field_extractor, field, info, enum_name)?;
+            generate_read_slice_field_fn_unchecked(&field_extractor, field, info, enum_name);
         let mut the_peek_slice_fns_quote_temp = quote! {
             #the_peek_slice_fns_quote
             #peek_slice_quote
@@ -99,7 +99,7 @@ fn get_check_slice_fn(
 
 fn create_fields_quotes(
     info: &StructInfo,
-    enum_name: Option<Ident>,
+    enum_name: Option<&Ident>,
     peek_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
@@ -139,7 +139,7 @@ fn create_fields_quotes(
         &info.fields[..]
     };
 
-    for field in fields.iter() {
+    for field in fields {
         let field_name = &field.ident().ident();
         let field_extractor = make_read_fns(
             field,
@@ -200,11 +200,11 @@ fn create_fields_quotes(
         peek_slice_fns_option,
     })
 }
-
+#[allow(clippy::too_many_lines)]
 pub fn create_from_bytes_field_quotes_enum(
     info: &EnumInfo,
     peek_slice: bool,
-) -> Result<FromBytesOptions, syn::Error> {
+) -> Result<GeneratedFromBytesFunctions, syn::Error> {
     let mut from_bytes_fn: TokenStream = quote! {};
     let mut from_vec_fn: TokenStream = quote! {};
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
@@ -232,10 +232,10 @@ pub fn create_from_bytes_field_quotes_enum(
                     vis: syn::Visibility::Public(Pub::default()),
                     tuple: false,
                 };
-                let id_field = make_peek_fn(&field_extractor, &field, &temp_struct_info, &None)?;
+                let id_field = generate_read_field_fn(&field_extractor, &field, &temp_struct_info, &None);
                 if peek_slice {
                     let id_slice_peek =
-                        make_peek_slice_fn(&field_extractor, &field, &temp_struct_info, &None)?;
+                        generate_read_slice_field_fn(&field_extractor, &field, &temp_struct_info, &None);
                     quote! {
                         #id_field
                         #id_slice_peek
@@ -275,7 +275,7 @@ pub fn create_from_bytes_field_quotes_enum(
             peek_slice_fns_option_temp,
             from_vec_quote,
         ) = {
-            let thing = create_fields_quotes(variant, Some(info.name.clone()), peek_slice)?;
+            let thing = create_fields_quotes(variant, Some(&info.name), peek_slice)?;
             (
                 thing.field_name_list,
                 thing.peek_fns_quote,
@@ -393,7 +393,7 @@ pub fn create_from_bytes_field_quotes_enum(
                 Ok(out)
             }
         };
-        Ok(FromBytesOptions {
+        Ok(GeneratedFromBytesFunctions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
             from_slice_field_fns: Some(from_slice_field_fns),
@@ -401,7 +401,7 @@ pub fn create_from_bytes_field_quotes_enum(
             peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
         })
     } else {
-        Ok(FromBytesOptions {
+        Ok(GeneratedFromBytesFunctions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
             from_slice_field_fns: None,
@@ -414,7 +414,7 @@ pub fn create_from_bytes_field_quotes_enum(
 pub fn create_from_bytes_field_quotes(
     info: &StructInfo,
     peek_slice: bool,
-) -> Result<FromBytesOptions, syn::Error> {
+) -> Result<GeneratedFromBytesFunctions, syn::Error> {
     let (
         peek_fns_quote,
         from_bytes_struct_quote,
@@ -478,7 +478,7 @@ pub fn create_from_bytes_field_quotes(
                 Ok(out)
             }
         };
-        Ok(FromBytesOptions {
+        Ok(GeneratedFromBytesFunctions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
             from_slice_field_fns: Some(from_slice_field_fns),
@@ -486,7 +486,7 @@ pub fn create_from_bytes_field_quotes(
             peek_slice_field_unchecked_fns: Some(peek_slice_field_unchecked_fns),
         })
     } else {
-        Ok(FromBytesOptions {
+        Ok(GeneratedFromBytesFunctions {
             from_bytes_fn,
             peek_field_fns: peek_fns_quote,
             from_slice_field_fns: None,
@@ -496,12 +496,13 @@ pub fn create_from_bytes_field_quotes(
     }
 }
 
-fn make_peek_slice_fn(
+/// Generates a `read_slice_field_name()` function for a slice.
+fn generate_read_slice_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+) -> TokenStream {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident().ident())
     } else {
@@ -512,12 +513,12 @@ fn make_peek_slice_fn(
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
     let min_length = if info.attrs.flip {
-        ((info.total_bits() - field.attrs.bit_range.start) as f64 / 8.0f64).ceil() as usize
+        (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
     } else {
-        (field.attrs.bit_range.end as f64 / 8.0f64).ceil() as usize
+        field.attrs.bit_range.end.div_ceil(8)
     };
     let comment = format!("Returns the value for the `{field_name}` field of a `{struct_name}` in bitfield form by reading  bits {} through {} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.", bit_range.start, bit_range.end - 1);
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, bondrewd::BitfieldLengthError> {
@@ -530,15 +531,22 @@ fn make_peek_slice_fn(
                 )
             }
         }
-    })
+    }
 }
-
-fn make_peek_slice_unchecked_fn(
+/// For use on generated Checked Slice Structures.
+/// 
+/// Generates a `read_field_name()` function for a slice.
+/// 
+/// # Warning
+/// generated code does NOT check if the slice is large enough to be read from, Checked Slice Structures
+/// are nothing but a slice ref that has been checked to contain enough bytes for any
+/// `read_slice_field_name` functions.
+fn generate_read_slice_field_fn_unchecked(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+) -> TokenStream {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident().ident())
     } else {
@@ -551,22 +559,23 @@ fn make_peek_slice_unchecked_fn(
     let comment = format!(
         "Reads bits {} through {} in pre-checked slice, getting the `{field_name}` field of a [{struct_name}] in bitfield form.", bit_range.start, bit_range.end - 1
     );
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(&self) -> #type_ident {
             let input_byte_buffer: &[u8] = self.buffer;
             #field_quote
         }
-    })
+    }
 }
 
-fn make_peek_fn(
+/// Generates a `read_field_name()` function.
+fn generate_read_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
     prefix: &Option<Ident>,
-) -> syn::Result<TokenStream> {
+) -> TokenStream {
     let field_name = if let Some(p) = prefix {
         format_ident!("{p}_{}", field.ident().ident())
     } else {
@@ -578,17 +587,15 @@ fn make_peek_fn(
     let struct_name = &info.name;
     let struct_size = &info.total_bytes();
     let comment = format!("Reads bits {} through {} within `input_byte_buffer`, getting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
-    Ok(quote! {
+    quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
             #field_quote
         }
-    })
+    }
 }
 
-/// if is_inner is false the field will be put into a variable with the fields name, otherwise
-/// it will be returned.
 fn get_field_quote(
     field: &FieldInfo,
     flip: Option<usize>,
@@ -654,6 +661,7 @@ fn get_field_quote(
     };
     Ok(output)
 }
+#[allow(clippy::too_many_lines)]
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,
     flip: Option<usize>,
@@ -689,6 +697,7 @@ fn apply_le_math_to_field_access_quote(
         if bits_needed_in_msb == 0 {
             bits_needed_in_msb = 8;
         }
+        #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
             (bits_needed_in_msb as i8) - ((available_bits_in_first_byte % 8) as i8);
         if right_shift == 8 {
@@ -724,7 +733,7 @@ fn apply_le_math_to_field_access_quote(
         // };
         let size = field.ty.size();
         let new_array_quote =
-            if let Some(a) = add_sign_fix_quote(field, &amount_of_bits, &right_shift)? {
+            if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)? {
                 a
             } else {
                 quote! {[0u8;#size]}
@@ -732,9 +741,10 @@ fn apply_le_math_to_field_access_quote(
         let mut full_quote = quote! {
             let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         };
-
-        let fields_last_bits_index = (amount_of_bits as f64 / 8.0f64).ceil() as usize - 1;
+        // normally we would round up and subtract one, but clippy doesn't like it.
+        let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
+        #[allow(clippy::cast_possible_truncation)]
         let mid_shift: u32 = 8 - available_bits_in_first_byte as u32;
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
@@ -783,7 +793,7 @@ fn apply_le_math_to_field_access_quote(
             } else {
                 starting_inject_byte - i
             };
-            let right_shift: u32 = right_shift as u32;
+            let right_shift: u32 = u32::from(right_shift.unsigned_abs());
             if used_bits < amount_of_bits {
                 full_quote = quote! {
                     #full_quote
@@ -811,7 +821,7 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             // this should give us the last index of the field
-            let left_shift: u32 = right_shift.unsigned_abs() as u32;
+            let left_shift: u32 = u32::from(right_shift.unsigned_abs());
             let mid_mask = first_bit_mask & last_bit_mask;
             if mid_mask == u8::MAX {
                 full_quote = quote! {
@@ -920,7 +930,7 @@ fn apply_le_math_to_field_access_quote(
             FieldDataType::Number(_, ref sign, ref ident) => {
                 let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
-                    field_value = add_sign_fix_quote_single_bit(field_value, field, &amount_of_bits, &starting_inject_byte);
+                    field_value = add_sign_fix_quote_single_bit(field_value, field, amount_of_bits, starting_inject_byte);
                     let mut value = quote!{
                         let mut #field_buffer_name = #field_value;
                     };
@@ -949,6 +959,7 @@ fn apply_le_math_to_field_access_quote(
         Ok(output_quote)
     }
 }
+#[allow(clippy::too_many_lines)]
 fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
     flip: Option<usize>,
@@ -974,6 +985,7 @@ fn apply_ne_math_to_field_access_quote(
                 "calculating ne right_shift failed",
             ));
         }
+        #[allow(clippy::cast_possible_truncation)]
         let right_shift: i8 = 8_i8 - ((available_bits_in_first_byte % 8) as i8);
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let full_quote = match field.ty {
@@ -992,7 +1004,7 @@ fn apply_ne_math_to_field_access_quote(
                         // data. we need one for the first byte and the last byte.
                         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
                         let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
-                        let right_shift: u32 = right_shift as u32;
+                        let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                         for i in 0..*size {
                             let start = if flip.is_none() {starting_inject_byte + i}else{starting_inject_byte - i};
                             let mut first = if current_bit_mask == u8::MAX {
@@ -1111,11 +1123,11 @@ fn apply_ne_math_to_field_access_quote(
         Ok(output)
     }
 }
-///
 /// # Arguments
-/// * `field' - reference to the FieldInfo.
+/// * `field` - reference to the `FieldInfo`.
 /// * `field_access_quote` - a quote containing access to to byte array of the field.
-///                             ex. quote!{(self.char_field as u32)}
+///                             ex. `quote!{(self.char_field as u32)}`
+#[allow(clippy::too_many_lines)]
 fn apply_be_math_to_field_access_quote(
     field: &FieldInfo,
     flip: Option<usize>,
@@ -1145,12 +1157,13 @@ fn apply_be_math_to_field_access_quote(
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
         // used byte in the buffer.
+        #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
             ((amount_of_bits % 8) as i8) - ((available_bits_in_first_byte % 8) as i8);
         // TODO this right_shift modification is a fix because left shifts in be number are broken.
         // this exists in both from and into bytes for big endian. right shift should not be mut.
         if right_shift < 0 {
-            right_shift += 8
+            right_shift += 8;
         }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
@@ -1167,7 +1180,7 @@ fn apply_be_math_to_field_access_quote(
         // index of the fields byte array will be used.
         let (shift, first_bits_index) = if right_shift < 0 {
             // convert to left shift using absolute value
-            let left_shift: u32 = right_shift.unsigned_abs() as u32;
+            let left_shift: u32 = u32::from(right_shift.unsigned_abs());
             // shift left code
             (
                 quote! { .rotate_right(#left_shift) },
@@ -1194,7 +1207,7 @@ fn apply_be_math_to_field_access_quote(
                     quote! {}
                 } else {
                     // shift right code
-                    let right_shift_usize: u32 = right_shift as u32;
+                    let right_shift_usize: u32 = u32::from(right_shift.unsigned_abs());
                     quote! { .rotate_left(#right_shift_usize) }
                 },
                 match get_be_starting_index(amount_of_bits, right_shift, field.struct_byte_size()) {
@@ -1295,7 +1308,7 @@ fn apply_be_math_to_field_access_quote(
             FieldDataType::Number(_, ref sign,ref ident) => {
                 let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
-                    field_value = add_sign_fix_quote_single_bit(field_value, field, &amount_of_bits, &starting_inject_byte);
+                    field_value = add_sign_fix_quote_single_bit(field_value, field, amount_of_bits, starting_inject_byte);
                     let mut value = quote!{
                         let mut #field_buffer_name = #field_value;
                     };
@@ -1352,7 +1365,7 @@ fn build_number_quote(
     let right_shift = stuff.right_shift;
     let available_bits_in_first_byte = stuff.available_bits_in_first_byte;
     let flip = stuff.flip;
-    let new_array_quote = if let Some(a) = add_sign_fix_quote(field, &amount_of_bits, &right_shift)?
+    let new_array_quote = if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)?
     {
         a
     } else {
@@ -1429,7 +1442,7 @@ fn build_number_quote(
     Ok(full_quote)
 }
 
-fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
+fn isolate_bit_index_mask(bit_index: usize) -> u8 {
     match bit_index {
         1 => 0b0100_0000,
         2 => 0b0010_0000,
@@ -1443,49 +1456,49 @@ fn isolate_bit_index_mask(bit_index: &usize) -> u8 {
 }
 fn rotate_primitive_vec(
     prim: Vec<u8>,
-    right_shift: &i8,
+    right_shift: i8,
     field: &FieldInfo,
 ) -> syn::Result<Vec<u8>> {
     // REMEMBER SHIFTS ARE BACKWARD BECAUSE YOU COPIED AND PASTED into_bytes
-    if *right_shift == 0 {
+    if right_shift == 0 {
         return Ok(prim);
     }
     let output = match prim.len() {
         1 => {
             let mut temp = u8::from_be_bytes([prim[0]]);
-            match *right_shift {
+            match right_shift {
                 i8::MIN..=-1 => {
-                    let left_shift = -*right_shift;
-                    temp = temp.rotate_left(left_shift as u32);
+                    let left_shift = -right_shift;
+                    temp = temp.rotate_left(u32::from(left_shift.unsigned_abs()));
                 }
                 0..=i8::MAX => {
-                    temp = temp.rotate_right(*right_shift as u32);
+                    temp = temp.rotate_right(u32::from(right_shift.unsigned_abs()));
                 }
             }
             temp.to_be_bytes().to_vec()
         }
         2 => {
             let mut temp = u16::from_be_bytes([prim[0], prim[1]]);
-            match *right_shift {
+            match right_shift {
                 i8::MIN..=-1 => {
-                    let left_shift = -*right_shift;
-                    temp = temp.rotate_left(left_shift as u32);
+                    let left_shift = -right_shift;
+                    temp = temp.rotate_left(u32::from(left_shift.unsigned_abs()));
                 }
                 0..=i8::MAX => {
-                    temp = temp.rotate_right(*right_shift as u32);
+                    temp = temp.rotate_right(u32::from(right_shift.unsigned_abs()));
                 }
             }
             temp.to_be_bytes().to_vec()
         }
         4 => {
             let mut temp = u32::from_be_bytes([prim[0], prim[1], prim[2], prim[3]]);
-            match *right_shift {
+            match right_shift {
                 i8::MIN..=-1 => {
-                    let left_shift = -*right_shift;
-                    temp = temp.rotate_left(left_shift as u32);
+                    let left_shift = -right_shift;
+                    temp = temp.rotate_left(u32::from(left_shift.unsigned_abs()));
                 }
                 0..=i8::MAX => {
-                    temp = temp.rotate_right(*right_shift as u32);
+                    temp = temp.rotate_right(u32::from(right_shift.unsigned_abs()));
                 }
             }
             temp.to_be_bytes().to_vec()
@@ -1494,13 +1507,13 @@ fn rotate_primitive_vec(
             let mut temp = u64::from_be_bytes([
                 prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7],
             ]);
-            match *right_shift {
+            match right_shift {
                 i8::MIN..=-1 => {
-                    let left_shift = -*right_shift;
-                    temp = temp.rotate_left(left_shift as u32);
+                    let left_shift = -right_shift;
+                    temp = temp.rotate_left(u32::from(left_shift.unsigned_abs()));
                 }
                 0..=i8::MAX => {
-                    temp = temp.rotate_right(*right_shift as u32);
+                    temp = temp.rotate_right(u32::from(right_shift.unsigned_abs()));
                 }
             }
             temp.to_be_bytes().to_vec()
@@ -1510,13 +1523,13 @@ fn rotate_primitive_vec(
                 prim[0], prim[1], prim[2], prim[3], prim[4], prim[5], prim[6], prim[7], prim[8],
                 prim[9], prim[10], prim[11], prim[12], prim[13], prim[14], prim[15],
             ]);
-            match *right_shift {
+            match right_shift {
                 i8::MIN..=-1 => {
-                    let left_shift = -*right_shift;
-                    temp = temp.rotate_left(left_shift as u32);
+                    let left_shift = -right_shift;
+                    temp = temp.rotate_left(u32::from(left_shift.unsigned_abs()));
                 }
                 0..=i8::MAX => {
-                    temp = temp.rotate_right(*right_shift as u32);
+                    temp = temp.rotate_right(u32::from(right_shift.unsigned_abs()));
                 }
             }
             temp.to_be_bytes().to_vec()
@@ -1533,11 +1546,11 @@ fn rotate_primitive_vec(
 
 fn add_sign_fix_quote(
     field: &FieldInfo,
-    amount_of_bits: &usize,
-    right_shift: &i8,
+    amount_of_bits: usize,
+    right_shift: i8,
 ) -> syn::Result<Option<TokenStream>> {
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
-        if *amount_of_bits != *size * 8 {
+        if amount_of_bits != size * 8 {
             if let NumberSignage::Signed = sign {
                 let (bit_to_isolate, sign_index) = match field.attrs.endianness.as_ref() {
                     Endianness::Big => (
@@ -1552,12 +1565,12 @@ fn add_sign_fix_quote(
                     }
                     Endianness::None => return Ok(None),
                 };
-                let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
+                let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let sign_bit = quote! {
                     (input_byte_buffer[#sign_index] & #sign_mask)
                 };
                 let mut unused_bits = (size * 8) - amount_of_bits;
-                let mut buffer: std::collections::VecDeque<u8> = Default::default();
+                let mut buffer: VecDeque<u8> = VecDeque::default();
                 for _i in 0..*size {
                     if unused_bits > 7 {
                         buffer.push_back(get_left_and_mask(8));
@@ -1569,11 +1582,10 @@ fn add_sign_fix_quote(
                         buffer.push_back(get_left_and_mask(0));
                     }
                 }
-                let mut bit_buffer: syn::punctuated::Punctuated<u8, syn::token::Comma> =
-                    Default::default();
+                let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
                 match field.attrs.endianness.as_ref() {
                     Endianness::Big => {
-                        buffer = std::collections::VecDeque::from(rotate_primitive_vec(
+                        buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),
                             right_shift,
                             field,
@@ -1592,11 +1604,13 @@ fn add_sign_fix_quote(
                             Ordering::Greater => {
                                 buffer = buffer
                                     .into_iter()
-                                    .map(|x| x.rotate_right(*right_shift as u32))
+                                    .map(|x| {
+                                        x.rotate_right(u32::from(right_shift.unsigned_abs()))
+                                    })
                                     .collect();
                             }
                             Ordering::Less => {
-                                let left_shift = -right_shift as u32;
+                                let left_shift = u32::from(right_shift.unsigned_abs());
                                 buffer = buffer
                                     .into_iter()
                                     .map(|x| x.rotate_left(left_shift))
@@ -1627,14 +1641,14 @@ fn add_sign_fix_quote(
 fn add_sign_fix_quote_single_bit(
     field_access: TokenStream,
     field: &FieldInfo,
-    amount_of_bits: &usize,
-    byte_index: &usize,
+    amount_of_bits: usize,
+    byte_index: usize,
 ) -> TokenStream {
     if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
-        if *amount_of_bits != *size * 8 {
+        if amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
                 let bit_to_isolate = field.attrs.bit_range.start % 8;
-                let sign_mask = isolate_bit_index_mask(&bit_to_isolate);
+                let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let neg_mask = get_left_and_mask(bit_to_isolate + 1);
                 let sign_bit = quote! {
                     (input_byte_buffer[#byte_index] & #sign_mask)
