@@ -546,7 +546,7 @@ fn get_field_quote(
     match field.attrs.endianness.as_ref() {
         Endianness::Big => apply_be_math_to_field_access_quote(field, quote_field_name, flip),
         Endianness::Little => apply_le_math_to_field_access_quote(field, quote_field_name, flip),
-        Endianness::None => apply_ne_math_to_field_access_quote(field, quote_field_name, flip),
+        Endianness::None => apply_ne_math_to_field_access_quote(field, &quote_field_name, flip),
     }
 }
 // first token stream is actual setter, but second one is overwrite current bits to 0.
@@ -713,6 +713,7 @@ fn apply_le_math_to_field_access_quote(
             } else {
                 starting_inject_byte - i
             };
+            #[allow(clippy::cast_sign_loss)]
             let right_shift: u32 = right_shift as u32;
             // let not_first_bit_mask = !first_bit_mask;
             // let not_last_bit_mask = !last_bit_mask;
@@ -753,7 +754,7 @@ fn apply_le_math_to_field_access_quote(
                 starting_inject_byte - i
             };
             // this should give us the last index of the field
-            let left_shift: u32 = right_shift.unsigned_abs() as u32;
+            let left_shift: u32 = u32::from(right_shift.unsigned_abs());
             let mut last_mask = first_bit_mask;
             if amount_of_bits <= used_bits {
                 last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
@@ -827,10 +828,8 @@ fn apply_le_math_to_field_access_quote(
         let field_as_u8_quote = match field.ty {
             FieldDataType::Char(_, _) |
 
-            FieldDataType::Number(_, _, _) => {
-                quote!{(#field_access_quote as u8)}
-            }
-            FieldDataType::Boolean => {
+            FieldDataType::Number(_, _, _)
+            | FieldDataType::Boolean => {
                 quote!{(#field_access_quote as u8)}
             }
             FieldDataType::Enum(_, _, _) => field_access_quote,
@@ -855,9 +854,10 @@ fn apply_le_math_to_field_access_quote(
         Ok((apply_field_to_buffer, clear_quote))
     }
 }
+#[allow(clippy::too_many_lines)]
 fn apply_ne_math_to_field_access_quote(
     field: &FieldInfo,
-    field_access_quote: proc_macro2::TokenStream,
+    field_access_quote: &proc_macro2::TokenStream,
     flip: Option<usize>,
 ) -> Result<(proc_macro2::TokenStream, proc_macro2::TokenStream), syn::Error> {
     let (amount_of_bits, zeros_on_left, available_bits_in_first_byte, mut starting_inject_byte) =
@@ -881,6 +881,7 @@ fn apply_ne_math_to_field_access_quote(
                 "calculating ne right_shift failed",
             ));
         }
+        #[allow(clippy::cast_possible_truncation)]
         let right_shift: i8 = 8_i8 - ((available_bits_in_first_byte % 8) as i8);
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
@@ -912,6 +913,7 @@ fn apply_ne_math_to_field_access_quote(
                 // data. we need one for the first byte and the last byte.
                 let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
                 let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
+                #[allow(clippy::cast_sign_loss)]
                 let right_shift: u32 = right_shift as u32;
                 for i in 0usize..size {
                     let start = if flip.is_none() {
@@ -950,7 +952,7 @@ fn apply_ne_math_to_field_access_quote(
             Ordering::Less => {
                 return Err(syn::Error::new(
                     field.ident.span(),
-                    "left shifting struct was removed to see if it would ever happened",
+                    "left shifting struct was removed to see if it would ever happen (please open issue on github)",
                 ));
                 /* left shift (this means that the last bits are in the first byte)
                 // because we are applying bits in place we need masks in insure we don't effect other fields
@@ -1074,9 +1076,10 @@ fn apply_ne_math_to_field_access_quote(
 }
 ///
 /// # Arguments
-/// * `field' - reference to the FieldInfo.
+/// * `field` - reference to the `FieldInfo`.
 /// * `field_access_quote` - a quote containing access to to byte array of the field.
-///                             ex. quote!{(self.char_field as u32)}
+///                             ex. `quote!{(self.char_field as u32)}`
+#[allow(clippy::too_many_lines)]
 fn apply_be_math_to_field_access_quote(
     field: &FieldInfo,
     field_access_quote: proc_macro2::TokenStream,
@@ -1104,10 +1107,11 @@ fn apply_be_math_to_field_access_quote(
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
         // used byte in the buffer.
+        #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
             ((amount_of_bits % 8) as i8) - ((available_bits_in_first_byte % 8) as i8);
         if right_shift < 0 {
-            right_shift += 8
+            right_shift += 8;
         }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
@@ -1124,7 +1128,7 @@ fn apply_be_math_to_field_access_quote(
         // index of the fields byte array will be used.
         let (shift, first_bits_index) = if right_shift < 0 {
             // convert to left shift using absolute value
-            let left_shift: u32 = right_shift.unsigned_abs() as u32;
+            let left_shift: u32 = u32::from(right_shift.unsigned_abs());
             // shift left code
             (
                 quote! { (#field_access_quote.rotate_left(#left_shift)) },
@@ -1151,6 +1155,7 @@ fn apply_be_math_to_field_access_quote(
                     quote! { #field_access_quote }
                 } else {
                     // shift right code
+                    #[allow(clippy::cast_sign_loss)]
                     let right_shift_usize: u32 = right_shift as u32;
                     quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
                 },
