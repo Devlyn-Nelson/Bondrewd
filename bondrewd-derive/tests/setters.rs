@@ -65,7 +65,9 @@ mod getter_setter_tests {
         #[bondrewd(bit_length = 69)]
         nine: u128,
         #[bondrewd(bit_length = 111)]
-        ten: i128, //366
+        ten: i128,
+        #[bondrewd(bit_length = 27)]
+        c: char,
         #[bondrewd(bit_length = 593)]
         test_struct: TestInner,
     }
@@ -110,8 +112,8 @@ mod getter_setter_tests {
     #[test]
     fn setters_and_getters_basic() {
         let data = [TestInnerArb::rand(), TestInnerArb::rand()];
-        assert_eq!(959, Test::BIT_SIZE);
-        assert_eq!(120, Test::BYTE_SIZE);
+        assert_eq!(986, Test::BIT_SIZE);
+        assert_eq!(124, Test::BYTE_SIZE);
         let mut test = Test {
             one: 0,
             two: 0,
@@ -123,6 +125,7 @@ mod getter_setter_tests {
             eight: 0,
             nine: 0,
             ten: 0,
+            c: 'a',
             test_struct: TestInner {
                 one: 0,
                 two: 0,
@@ -139,6 +142,13 @@ mod getter_setter_tests {
                 b_one: false,
             },
         };
+        let c = match char::from_u32(data[1].f_one as u32) {
+            Some(c) => c,
+            None => {
+                test.c = char::MAX;
+                char::MAX
+            }
+        };
         test.set_one(data[1].one);
         test.set_two(data[1].two);
         test.set_three(data[1].three);
@@ -149,6 +159,7 @@ mod getter_setter_tests {
         test.set_eight(data[1].eight);
         test.set_nine(data[1].nine);
         test.set_ten(data[1].ten);
+        test.set_c(c);
 
         test.test_struct.set_one(data[0].one);
         test.test_struct.set_two(data[0].two);

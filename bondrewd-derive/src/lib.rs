@@ -12,14 +12,13 @@
 //! because they have to be done during my free time which i spend on other/more-fun projects. These are
 //! the only changes i am currently considering at the moment:
 //!
-//! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
-//!     we could just use the calculated smallest allowable.
 //! - Full support for floating point numbers. I would like to be able to be able to
 //!     have fully dynamic floating point with customizable exponent and mantissa as well
 //!     and unsigned option.
+//! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
+//!     we could just use the calculated smallest allowable.
 //! - Getters and Setters. Most of this is actually done already, just need:
-//!     - Finish array logic.
-//!     - Fix char setter logic.
+//!     - Write array setters.
 //!
 //! ### Other Planned Changes
 //! - Merge `from_bytes` and `into_bytes` generation to have less duplicated code/runtime-logic.

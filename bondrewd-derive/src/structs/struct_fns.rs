@@ -146,44 +146,57 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Char(ref _size, ref type_ident) => {
-            // let mut full_quote = quote! {
-            //     self.#field_name = value.clone();
-            //     value
-            // };
-            // let bit_length = field.bit_size();
-            // if bit_length != size * 8 {
-            //     let Ok(bl) = u32::try_from(bit_length) else {
-            //         return Err(syn::Error::new(field.span(), "unsupported bit_length"));
-            //     };
-            //     let max: u32 = 2_u32.pow(bl) - 1;
-            //     full_quote = quote! {
-            //         if value as u32 > #max {
-            //             self.#field_name = #max;
-            //             #max
-            //         }else {
-            //             #full_quote
-            //         }
-            //     };
-            // }
+        FieldDataType::Char(ref size, ref type_ident) => {
+            let mut full_quote = quote! {
+                self.#field_name = value.clone();
+                value
+            };
+            let bit_length = field.bit_size();
+            if bit_length != size * 8 {
+                let Ok(mut bl) = u32::try_from(bit_length) else {
+                    return Err(syn::Error::new(field.span(), "unsupported bit_length"));
+                };
+                let mut max: char = '0';
+                while {
+                    match char::from_u32(2_u32.pow(bl) - 1) {
+                        Some(m) => {
+                            max = m;
+                            false
+                        }
+                        None => {
+                            bl -= 1;
+                            true
+                        }
+                    }
+                } {}
+                full_quote = quote! {
+                    if value > #max {
+                        self.#field_name = #max;
+                        #max
+                    }else {
+                        #full_quote
+                    }
+                };
+            }
             let field_fn_name = format_ident!("set_{}", field_name);
-            // pub fn #field_fn_name(&mut self, value: #type_ident) -> #type_ident {
-            //     #full_quote
-            // }
-            // TODO the char setter doesn't actually check if it is valid.
             quote! {
-                pub fn #field_fn_name(&mut self, mut value: #type_ident) -> #type_ident {
-                    core::mem::swap(&mut self.#field_name, &mut value);
-                    value
+                pub fn #field_fn_name(&mut self, value: #type_ident) -> #type_ident {
+                    #full_quote
                 }
                 pub fn #field_name(&self) -> #type_ident {
                     self.#field_name
                 }
             }
         }
-        FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => {
+        FieldDataType::ElementArray(_, _, ref type_ident)
+        | FieldDataType::BlockArray(_, _, ref type_ident) => {
             // TODO write getters/setters for arrays
-            quote! {}
+            // let field_fn_name = format_ident!("set_{}", field_name);
+            quote! {
+                pub fn #field_name(&self) -> &#type_ident {
+                    &self.#field_name
+                }
+            }
         }
         FieldDataType::Boolean => {
             let field_fn_name = format_ident!("set_{}", field_name);
