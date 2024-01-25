@@ -6,7 +6,7 @@ pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Erro
     // all of the fields set functions that disallow numbers that are too large to fit into bit length.
     let mut set_fns_quote = quote! {};
     for field in &info.fields {
-        if !field.attrs.reserve.is_fake_field(){
+        if !field.attrs.reserve.is_fake_field() {
             let q = make_set_field_quote(field)?;
             set_fns_quote = quote! {
                 #set_fns_quote
