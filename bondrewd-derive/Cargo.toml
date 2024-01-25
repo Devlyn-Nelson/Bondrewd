@@ -20,7 +20,6 @@ quote = "1.0"
 syn = { version = "2.0", features = ["parsing", "derive"] }
 
 [features]
-default = ["part_eq_enums", "setters"]
 dyn_fns = []
 hex_fns = []
 part_eq_enums = []
