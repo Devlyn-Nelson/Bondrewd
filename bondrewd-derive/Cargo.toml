@@ -23,7 +23,6 @@ syn = { version = "2.0", features = ["parsing", "derive"] }
 dyn_fns = []
 hex_fns = []
 part_eq_enums = []
-# the setters feature is considered a nice to have and because chars are currently making this not work we are leaving its commented out
 setters = []
 
 [dev-dependencies]
