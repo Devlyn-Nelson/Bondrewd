@@ -2195,8 +2195,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_name = struct_info.name();
 
     let dyn_fns: bool;
-    let setters: bool;
-    let hex: bool;
     #[cfg(not(feature = "dyn_fns"))]
     {
         dyn_fns = false;
@@ -2204,22 +2202,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     #[cfg(feature = "dyn_fns")]
     {
         dyn_fns = true;
-    }
-    #[cfg(not(feature = "setters"))]
-    {
-        setters = false;
-    }
-    #[cfg(feature = "setters")]
-    {
-        setters = true;
-    }
-    #[cfg(feature = "hex_fns")]
-    {
-        hex = true;
-    }
-    #[cfg(not(feature = "hex_fns"))]
-    {
-        hex = false;
     }
     let (fields_into_bytes, fields_from_bytes) = match struct_info {
         ObjectInfo::Struct(ref struct_info) => {
@@ -2274,20 +2256,26 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     }
 
     let (getter_setters_quotes, vis) = match struct_info {
+        #[cfg(not(feature = "setters"))]
         ObjectInfo::Struct(ref struct_info) => {
-            // TODO get setters working fully with enums and arrays.
+            (quote! {
+                impl #struct_name {
+                    #peek_quotes
+                    #set_quotes
+                }
+            }, &struct_info.vis)
+        }
+        #[cfg(feature = "setters")]
+        ObjectInfo::Struct(ref struct_info) => {
+            // TODO get setter for arrays working.
             // get the setters, functions that set a field disallowing numbers
             // outside of the range the Bitfield.
-            let setters_quote = if setters {
-                match structs::struct_fns::create_setters_quotes(&struct_info) {
+            let setters_quote = match structs::struct_fns::create_setters_quotes(&struct_info) {
                     Ok(parsed_struct) => parsed_struct,
                     Err(err) => {
                         return TokenStream::from(err.to_compile_error());
                     }
-                }
-            } else {
-                quote! {}
-            };
+                };
             (quote! {
                 impl #struct_name {
                     #peek_quotes
@@ -2297,6 +2285,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }, &struct_info.vis)
         }
         ObjectInfo::Enum(ref enum_info) => {
+            // TODO implement getters and setters for enums.
             (quote! {
                 impl #struct_name {
                     #peek_quotes
@@ -2305,20 +2294,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }, &enum_info.vis)
         }
     };
-    let hex_size = struct_size * 2;
-    let mut hex_fns_quote = if hex {
-        quote! {
-            impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
-        }
-    } else {
-        quote! {}
-    };
-    if dyn_fns && hex {
-        hex_fns_quote = quote! {
-            #hex_fns_quote
-            impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
-        };
-    }
 
     // get the bit size of the entire set of fields to fill in trait requirement.
     let bit_size = struct_info.total_bits();
@@ -2329,9 +2304,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // that buffer.
     // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
     // slap peek quotes inside a impl block at the end and we good to go
-    #[cfg(feature = "part_eq_enums")]
+    #[cfg(any(feature = "part_eq_enums", feature = "hex_fns"))]
     let mut to_bytes_quote;
-    #[cfg(not(feature = "part_eq_enums"))]
+    #[cfg(not(any(feature = "part_eq_enums", feature = "hex_fns")))]
     let to_bytes_quote;
     to_bytes_quote = quote! {
         impl bondrewd::Bitfields<#struct_size> for #struct_name {
@@ -2340,7 +2315,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             #from_bytes_quote
         }
         #getter_setters_quotes
-        #hex_fns_quote
     };
     #[cfg(feature = "part_eq_enums")]
     if let ObjectInfo::Enum(ref ei) = struct_info {
@@ -2358,6 +2332,21 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 }
             }
         };
+    }
+    #[cfg(feature = "hex_fns")]
+    {
+        let hex_size = struct_size * 2;
+        to_bytes_quote = quote! {
+            #to_bytes_quote
+            impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+        };
+        #[cfg(feature = "dyn_fns")]
+        {
+            to_bytes_quote = quote! {
+                #to_bytes_quote
+                impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+            };
+        }
     }
     if dyn_fns {
         let from_vec_quote = fields_from_bytes.from_slice_field_fns;
@@ -2407,7 +2396,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         TokenStream::from(to_bytes_quote)
     }
 }
-
 /// Generates an implementation of [`bondrewd::BitfieldEnum`] trait.
 ///   
 /// Important Note: u8 is the only primitive type i have tested. My newest code should be able to handle
