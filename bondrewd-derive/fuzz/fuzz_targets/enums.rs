@@ -1,6 +1,6 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
-use bondrewd::{Bitfields, self};
+use bondrewd::Bitfields;
 use bondrewd_derive::Bitfields as BitfieldsDerive;
 
 // #[derive(BitfieldDerive, Clone, PartialEq,  Debug)]
@@ -13,16 +13,15 @@ use bondrewd_derive::Bitfields as BitfieldsDerive;
 // }
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
-// #[derive(BitfieldsDerive, Clone, PartialEq,  Debug)]
-// #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]
-// pub enum TestInvalid {
-//     One,
-//     Two,
-//     Invalid(u8),
-// }
+#[derive(BitfieldEnumDerive, Clone, PartialEq,  Debug)]
+pub enum TestInvalid {
+    One,
+    Two,
+    Invalid(u8),
+}
 
 #[derive(BitfieldsDerive, Clone, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(default_endianness = "le")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -75,7 +74,7 @@ pub struct TestInnerArb {
 }
 // 593
 #[derive(BitfieldsDerive, Clone, PartialEq,  Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(default_endianness = "le")]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -97,7 +96,7 @@ pub struct Test {
     nine: u128,
     #[bondrewd(bit_length = 111)]
     ten: i128,//366
-    #[bondrewd(bit_length = 593)]
+    #[bondrewd(struct_size = 75, bit_length = 593)]
     test_struct: TestInner,
 }
 

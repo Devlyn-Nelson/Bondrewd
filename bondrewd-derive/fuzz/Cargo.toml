@@ -11,8 +11,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 arbitrary = { version = "1", features = ["derive"] }
-bondrewd = { path = "../../bondrewd" }
-bondrewd-derive = { path = "../", features = ["setters"] }
+bondrewd = { path = "../../bondrewd", features = ["dyn_fns"] }
+bondrewd-derive = { path = "../", features = ["setters", "dyn_fns"] }
 
 # Prevent this from interfering with workspaces
 [workspace]

@@ -60,8 +60,8 @@ pub enum BitfieldHexDynError {
 impl fmt::Display for BitfieldHexDynError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BitfieldHexDynError::Hex(err) => write!(fmt, "{}", err),
-            BitfieldHexDynError::Length(err) => write!(fmt, "{}", err),
+            BitfieldHexDynError::Hex(err) => write!(fmt, "{err}"),
+            BitfieldHexDynError::Length(err) => write!(fmt, "{err}"),
         }
     }
 }

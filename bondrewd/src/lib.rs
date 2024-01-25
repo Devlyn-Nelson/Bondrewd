@@ -64,6 +64,3 @@ pub use hex::BitfieldHexDyn;
 #[cfg(feature = "derive")]
 #[doc(hidden)]
 pub use bondrewd_derive::*;
-
-#[cfg(all(not(feature = "derive"), feature = "dyn_fns"))]
-compile_error!("the dyn_fns attribute depends on the derive attribute");

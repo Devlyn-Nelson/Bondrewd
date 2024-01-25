@@ -17,6 +17,13 @@
 //! - Full support for floating point numbers. I would like to be able to be able to
 //!     have fully dynamic floating point with customizable exponent and mantissa as well
 //!     and unsigned option.
+//! - Getters and Setters. Most of this is actually done already, just need:
+//!     - Finish array logic.
+//!     - Fix char setter logic.
+//!
+//! ### Other Planned Changes
+//! - Merge `from_bytes` and `into_bytes` generation to have less duplicated code/runtime-logic.
+//! - LOTS of in code documentation, this is greatly needed in the math code.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait

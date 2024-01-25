@@ -1,16 +1,16 @@
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use bondrewd::Bitfields;
-use bondrewd_derive::{Bitfields as BitfieldsDerive, BitfieldEnum as BitfieldEnumDerive};
+use bondrewd_derive::Bitfields as BitfieldsDerive;
 
-#[derive(BitfieldEnumDerive, Clone, PartialEq,  Debug)]
-#[bondrewd_enum(u8)]
-pub enum Test2Bits {
-    One,
-    Two,
-    Three,
-    FourInvalid,
-}
+// #[derive(BitfieldDerive, Clone, PartialEq,  Debug)]
+// #[bondrewd_enum(u8)]
+// pub enum Test2Bits {
+//     One,
+//     Two,
+//     Three,
+//     FourInvalid,
+// }
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
 #[derive(BitfieldEnumDerive, Clone, PartialEq,  Debug)]
@@ -96,7 +96,7 @@ pub struct Test {
     nine: u128,
     #[bondrewd(bit_length = 111)]
     ten: i128,//366
-    #[bondrewd(struct_size = 75, bit_length = 593)]
+    #[bondrewd(bit_length = 593)]
     test_struct: TestInner,
 }
 
