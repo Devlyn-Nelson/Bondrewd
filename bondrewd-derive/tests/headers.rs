@@ -83,6 +83,38 @@ fn cycle_header_be() -> anyhow::Result<()> {
 
     Ok(())
 }
+#[test]
+fn cycle_header_be_slice() -> anyhow::Result<()> {
+    let mut header = AosFrameHeaderBe {
+        transfer_frame_version: 0,
+        space_craft_id: 55,
+        vcid: AosFrameVirtualChannelId::Orbital,
+        virtual_channel_frame_count: 0,
+        replay_flag: false,
+        vc_frame_count_usage: false,
+        reserved: 0,
+        vc_frame_count_cycle: 0,
+        reserved_spare: 0,
+        first_header_pointer: 0xff,
+    };
+
+    let mut bytes = header.clone().into_bytes();
+
+    let end = 2_u32.pow(24) - 1;
+    while header.virtual_channel_frame_count != end {
+        header.virtual_channel_frame_count += 1;
+        let _ = AosFrameHeaderBe::write_slice_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderBe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
+        );
+    }
+
+    Ok(())
+}
 
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
@@ -148,6 +180,39 @@ fn cycle_header_le() -> anyhow::Result<()> {
         assert_eq!(
             header.virtual_channel_frame_count,
             AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes)
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn cycle_header_le_slice() -> anyhow::Result<()> {
+    let mut header = AosFrameHeaderLe {
+        transfer_frame_version: 0,
+        space_craft_id: 55,
+        vcid: AosFrameVirtualChannelId::Orbital,
+        virtual_channel_frame_count: 0,
+        replay_flag: false,
+        vc_frame_count_usage: false,
+        reserved: 0,
+        vc_frame_count_cycle: 0,
+        reserved_spare: 0,
+        first_header_pointer: 0xff,
+    };
+
+    let mut bytes = header.clone().into_bytes();
+
+    let end = 2_u32.pow(24) - 1;
+    while header.virtual_channel_frame_count != end {
+        header.virtual_channel_frame_count += 1;
+        let _ = AosFrameHeaderLe::write_slice_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderLe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
         );
     }
 

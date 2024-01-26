@@ -793,7 +793,7 @@ use structs::into_bytes::{
 use structs::{common::ObjectInfo, from_bytes::create_from_bytes_field_quotes};
 
 use proc_macro::TokenStream;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
 use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
@@ -2194,39 +2194,29 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();
 
-    let dyn_fns: bool;
-    #[cfg(not(feature = "dyn_fns"))]
-    {
-        dyn_fns = false;
-    }
-    #[cfg(feature = "dyn_fns")]
-    {
-        dyn_fns = true;
-    }
     let (fields_into_bytes, fields_from_bytes) = match struct_info {
         ObjectInfo::Struct(ref struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
             let fields_into_bytes =
-                match create_into_bytes_field_quotes_struct(&struct_info, dyn_fns) {
+                match create_into_bytes_field_quotes_struct(&struct_info) {
                     Ok(ftb) => ftb,
                     Err(err) => return TokenStream::from(err.to_compile_error()),
                 };
-            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, dyn_fns) {
+            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
             (fields_into_bytes, fields_from_bytes)
         }
         ObjectInfo::Enum(ref enum_info) => {
-            // let dyn_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns) {
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info) {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns) {
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
@@ -2235,25 +2225,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     };
     // combine all of the write_ function quotes separated by newlines
     let into_bytes_quote = fields_into_bytes.into_bytes_fn;
-    let mut set_quotes = fields_into_bytes.set_field_fns;
-
-    if let Some(set_slice_quote) = fields_into_bytes.set_slice_field_fns {
-        set_quotes = quote! {
-            #set_quotes
-            #set_slice_quote
-        }
-    }
+    let set_quotes = fields_into_bytes.set_field_fns;
 
     // combine all of the read_ function quotes separated by newlines
     let from_bytes_quote = fields_from_bytes.from_bytes_fn;
-    let mut peek_quotes = fields_from_bytes.peek_field_fns;
-
-    if let Some(peek_slice_quote) = fields_from_bytes.peek_slice_field_fns {
-        peek_quotes = quote! {
-            #peek_quotes
-            #peek_slice_quote
-        }
-    }
+    let peek_quotes = fields_from_bytes.read_field_fns;
 
     let (getter_setters_quotes, vis) = match struct_info {
         #[cfg(not(feature = "setters"))]
@@ -2348,11 +2324,12 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             };
         }
     }
-    if dyn_fns {
+    #[cfg(feature = "dyn_fns")]
+    {
         let from_vec_quote = fields_from_bytes.from_slice_field_fns;
-        let checked_ident = format_ident!("{}Checked", &struct_name);
-        let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
-        let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+        let checked_ident = quote::format_ident!("{}Checked", &struct_name);
+        let checked_mut_ident = quote::format_ident!("{}CheckedMut", &struct_name);
+        let unchecked_functions = fields_from_bytes.read_slice_field_unchecked_fns;
         let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
         let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
         let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
@@ -2392,7 +2369,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
         };
         TokenStream::from(to_bytes_quote)
-    } else {
+    }
+    #[cfg(not(feature = "dyn_fns"))]
+    {
         TokenStream::from(to_bytes_quote)
     }
 }

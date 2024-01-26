@@ -18,8 +18,7 @@ use super::common::EnumInfo;
 pub struct GeneratedIntoBytesFunctions {
     pub into_bytes_fn: TokenStream,
     pub set_field_fns: TokenStream,
-    pub set_slice_field_fns: Option<TokenStream>,
-    pub set_slice_field_unchecked_fns: Option<TokenStream>,
+    pub set_slice_field_unchecked_fns: TokenStream,
 }
 
 fn make_checked_mut_func(name: &IdentProcMacro, struct_size: usize) -> TokenStream {
@@ -45,13 +44,12 @@ struct FieldQuotes {
     field_name_list: TokenStream,
     into_bytes_quote: TokenStream,
     set_fns_quote: TokenStream,
-    set_slice_fns_option: Option<(TokenStream, TokenStream)>,
+    set_slice_fns_unchecked: TokenStream,
 }
 
 fn create_fields_quotes(
     info: &StructInfo,
     enum_name: Option<&IdentProcMacro>,
-    set_slice: bool,
 ) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
         Some(format_ident!(
@@ -66,11 +64,10 @@ fn create_fields_quotes(
     // all of the fields set functions will be appended to this
     let mut into_bytes_quote = quote! {};
     // TODO make sure this gets fixed for enums.
-    let mut set_slice_fns_option = if set_slice {
-        Some((quote! {}, quote! {}))
-    } else {
-        None
-    };
+    #[cfg(feature = "dyn_fns")]
+    let mut set_slice_fns_unchecked = quote! {};
+    #[cfg(not(feature = "dyn_fns"))]
+    let set_slice_fns_unchecked = quote! {};
     for field in &info.fields {
         let field_name = field.ident().ident();
         if field.attrs.reserve.is_fake_field() {
@@ -111,8 +108,8 @@ fn create_fields_quotes(
             #set_fns_quote
             #set_quote
         };
-
-        if let Some((ref mut set_slice_fns_quote, ref mut unchecked)) = set_slice_fns_option {
+        #[cfg(feature = "dyn_fns")]
+        {
             let set_slice_quote = generate_write_slice_field_fn(
                 &field_setter,
                 field,
@@ -120,6 +117,10 @@ fn create_fields_quotes(
                 &clear_quote,
                 &lower_name,
             );
+            set_fns_quote = quote! {
+                #set_fns_quote
+                #set_slice_quote
+            };
             let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
                 &field_setter,
                 field,
@@ -127,36 +128,29 @@ fn create_fields_quotes(
                 &clear_quote,
                 &lower_name,
             );
-            let mut set_slice_fns_quote_temp = quote! {
-                #set_slice_fns_quote
-                #set_slice_quote
-            };
-            let mut unchecked_temp = quote! {
-                #unchecked
+            set_slice_fns_unchecked = quote! {
+                #set_slice_fns_unchecked
                 #set_slice_unchecked_quote
             };
-            std::mem::swap(set_slice_fns_quote, &mut set_slice_fns_quote_temp);
-            std::mem::swap(unchecked, &mut unchecked_temp);
         }
     }
     Ok(FieldQuotes {
         field_name_list,
         into_bytes_quote,
         set_fns_quote,
-        set_slice_fns_option,
+        set_slice_fns_unchecked,
     })
 }
 
 #[allow(clippy::too_many_lines)]
 pub fn create_into_bytes_field_quotes_enum(
     info: &EnumInfo,
-    set_slice: bool,
 ) -> Result<GeneratedIntoBytesFunctions, syn::Error> {
     let mut id_fn: TokenStream = quote! {};
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
-
-    let (mut set_fns_quote, mut set_slice_fns_option, id_ident) = {
+    let mut set_slice_fns_unchecked = quote!{};
+    let (mut set_fns_quote, id_ident) = {
         (
             {
                 let field = info.generate_id_field()?;
@@ -188,17 +182,17 @@ pub fn create_into_bytes_field_quotes_enum(
                     &clear_quote,
                     &None,
                 );
-                quote! {
+                let out = quote! {
                     #id_field
-                }
-            },
-            if set_slice {
-                Some((
-                    make_checked_mut_func(&info.name, info.total_bytes()),
-                    quote! {},
-                ))
-            } else {
-                None
+                };
+                let out = {
+                    let q  = make_checked_mut_func(&info.name, info.total_bytes());
+                    quote!{
+                        #out
+                        #q
+                    }
+                };
+                out
             },
             info.id_ident()?,
         )
@@ -210,30 +204,21 @@ pub fn create_into_bytes_field_quotes_enum(
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let mut variant_id = variant.id_or_field_name()?;
-        let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_option_temp) = {
-            let thing = create_fields_quotes(variant, Some(&info.name), set_slice)?;
+        let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_unchecked_temp) = {
+            let thing = create_fields_quotes(variant, Some(&info.name))?;
             (
                 thing.field_name_list,
                 thing.into_bytes_quote,
                 thing.set_fns_quote,
-                thing.set_slice_fns_option,
+                thing.set_slice_fns_unchecked,
             )
         };
-        if let (
-            Some((mut set_slice_fns_quote_temp, mut unchecked_temp)),
-            Some((set_slice_fns_quote, unchecked)),
-        ) = (set_slice_fns_option_temp, set_slice_fns_option.as_mut())
+        #[cfg(feature = "dyn_fns")]
         {
-            set_slice_fns_quote_temp = quote! {
-                #set_slice_fns_quote
-                #set_slice_fns_quote_temp
+            set_slice_fns_unchecked = quote! {
+                #set_slice_fns_unchecked
+                #set_slice_fns_unchecked_temp
             };
-            unchecked_temp = quote! {
-                #unchecked
-                #unchecked_temp
-            };
-            std::mem::swap(set_slice_fns_quote, &mut set_slice_fns_quote_temp);
-            std::mem::swap(unchecked, &mut unchecked_temp);
         }
         set_fns_quote = quote! {
             #set_fns_quote
@@ -307,33 +292,22 @@ pub fn create_into_bytes_field_quotes_enum(
         #set_fns_quote
         #id_fn
     };
-    if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
-        Ok(GeneratedIntoBytesFunctions {
-            into_bytes_fn,
-            set_field_fns: set_fns_quote,
-            set_slice_field_fns: Some(set_slice_field_fns),
-            set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
-        })
-    } else {
-        Ok(GeneratedIntoBytesFunctions {
-            into_bytes_fn,
-            set_field_fns: set_fns_quote,
-            set_slice_field_fns: None,
-            set_slice_field_unchecked_fns: None,
-        })
-    }
+    Ok(GeneratedIntoBytesFunctions {
+        into_bytes_fn,
+        set_field_fns: set_fns_quote,
+        set_slice_field_unchecked_fns: set_slice_fns_unchecked,
+    })
 }
 
 pub fn create_into_bytes_field_quotes_struct(
     info: &StructInfo,
-    set_slice: bool,
 ) -> Result<GeneratedIntoBytesFunctions, syn::Error> {
-    let (into_bytes_quote, set_fns_quote, set_slice_fns_option) = {
-        let thing = create_fields_quotes(info, None, set_slice)?;
+    let (into_bytes_quote, set_fns_quote, set_slice_fns_unchecked) = {
+        let thing = create_fields_quotes(info, None)?;
         (
             thing.into_bytes_quote,
             thing.set_fns_quote,
-            thing.set_slice_fns_option,
+            thing.set_slice_fns_unchecked,
         )
     };
     let struct_size = &info.total_bytes();
@@ -349,26 +323,16 @@ pub fn create_into_bytes_field_quotes_struct(
             output_byte_buffer
         }
     };
-    if let Some((set_slice_field_fns, set_slice_field_unchecked_fns)) = set_slice_fns_option {
-        let checked_struct_fn = make_checked_mut_func(&info.name, info.total_bytes());
-        let set_slice_field_fns = quote! {
-            #set_slice_field_fns
-            #checked_struct_fn
-        };
-        Ok(GeneratedIntoBytesFunctions {
-            into_bytes_fn,
-            set_field_fns: set_fns_quote,
-            set_slice_field_fns: Some(set_slice_field_fns),
-            set_slice_field_unchecked_fns: Some(set_slice_field_unchecked_fns),
-        })
-    } else {
-        Ok(GeneratedIntoBytesFunctions {
-            into_bytes_fn,
-            set_field_fns: set_fns_quote,
-            set_slice_field_fns: None,
-            set_slice_field_unchecked_fns: None,
-        })
-    }
+    let checked_struct_fn = make_checked_mut_func(&info.name, info.total_bytes());
+    let set_fns_quote = quote! {
+        #set_fns_quote
+        #checked_struct_fn
+    };
+    Ok(GeneratedIntoBytesFunctions {
+        into_bytes_fn,
+        set_field_fns: set_fns_quote,
+        set_slice_field_unchecked_fns: set_slice_fns_unchecked,
+    })
 }
 
 /// Generates a `write_slice_field_name()` function for a slice.
