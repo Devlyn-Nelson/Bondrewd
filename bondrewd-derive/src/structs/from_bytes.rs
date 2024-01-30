@@ -23,10 +23,15 @@ pub struct GeneratedFromBytesFunctions {
 }
 
 struct FieldQuotes {
+    /// List of fields for creating initializer lists.
     field_name_list: TokenStream,
+    /// Functions that belong in `Bitfields` impl for object.
     from_bytes_quote: TokenStream,
+    /// Functions that belong in `BitfieldsDyn` impl for object.
     from_vec_quote: TokenStream,
+    /// Functions that belong in impl for object.
     read_fns_quote: TokenStream,
+    /// Functions that belong in impl for generated checked slice object.
     read_slice_fns_option: TokenStream,
 }
 fn make_read_fns(
@@ -34,8 +39,7 @@ fn make_read_fns(
     info: &StructInfo,
     enum_name: &Option<Ident>,
     peek_fns_quote: &mut TokenStream,
-    #[cfg(feature = "dyn_fns")]
-    peek_slice_fns_option: &mut TokenStream,
+    #[cfg(feature = "dyn_fns")] peek_slice_fns_option: &mut TokenStream,
 ) -> syn::Result<TokenStream> {
     // let peek_name = if let Some((prefix, _, _)) = enum_name {
     //     format_ident!("read_{prefix}_{}", field_name.as_ref())
@@ -76,6 +80,7 @@ fn make_read_fns(
     Ok(field_extractor)
 }
 
+#[cfg(feature = "dyn_fns")]
 fn get_check_slice_fn(
     name: &Ident,
     // total_bytes
@@ -100,10 +105,7 @@ fn get_check_slice_fn(
     }
 }
 
-fn create_fields_quotes(
-    info: &StructInfo,
-    enum_name: Option<&Ident>,
-) -> syn::Result<FieldQuotes> {
+fn create_fields_quotes(info: &StructInfo, enum_name: Option<&Ident>) -> syn::Result<FieldQuotes> {
     let lower_name = if enum_name.is_some() {
         Some(format_ident!(
             "{}",
@@ -118,13 +120,24 @@ fn create_fields_quotes(
     let mut from_vec_quote = quote! {};
     // all quote with all of the peek slice functions appended to it. the second tokenstream is an unchecked
     // version for the checked_struct.
+    #[cfg(feature = "dyn_fns")]
     let mut peek_slice_fns_option = quote! {};
+    #[cfg(not(feature = "dyn_fns"))]
+    let peek_slice_fns_option = quote! {};
     // all quote with all of the peek functions appended to it.
     let mut peek_fns_quote;
     #[cfg(not(feature = "dyn_fns"))]
-    {peek_fns_quote = quote! {};}
+    {
+        peek_fns_quote = quote! {};
+    }
     #[cfg(feature = "dyn_fns")]
-    {peek_fns_quote = if enum_name.is_some() {quote!{}}else{get_check_slice_fn(&info.name, info.total_bytes())};}
+    {
+        peek_fns_quote = if enum_name.is_some() {
+            quote! {}
+        } else {
+            get_check_slice_fn(&info.name, info.total_bytes())
+        };
+    }
     // TODO make each variant decide if the id field needs to be accounted for.
     // currently the id fields is added the each enum variant as the first field so we
     // skip it assuming there will be one made that is common across all variants.
@@ -201,6 +214,7 @@ pub fn create_from_bytes_field_quotes_enum(
     info: &EnumInfo,
 ) -> Result<GeneratedFromBytesFunctions, syn::Error> {
     let mut from_bytes_fn: TokenStream = quote! {};
+    #[cfg(feature = "dyn_fns")]
     let mut from_vec_fn: TokenStream = quote! {};
     let (mut peek_fns_quote, mut peek_slice_fns_option) = {
         (
@@ -229,7 +243,7 @@ pub fn create_from_bytes_field_quotes_enum(
                 };
                 let id_field =
                     generate_read_field_fn(&field_extractor, &field, &temp_struct_info, &None);
-                    #[cfg(feature = "dyn_fns")]
+                #[cfg(feature = "dyn_fns")]
                 {
                     let id_slice_peek = generate_read_slice_field_fn(
                         &field_extractor,
@@ -257,6 +271,7 @@ pub fn create_from_bytes_field_quotes_enum(
     };
     let struct_size = info.total_bytes();
     let last_variant = info.variants.len() - 1;
+    #[allow(unused_variables)]
     for (i, variant) in info.variants.iter().enumerate() {
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
@@ -293,7 +308,7 @@ pub fn create_from_bytes_field_quotes_enum(
         };
         #[cfg(feature = "dyn_fns")]
         {
-            peek_fns_quote = quote!{
+            peek_fns_quote = quote! {
                 #peek_fns_quote
                 pub const #v_byte_const_name: usize = #v_byte_size;
                 pub const #v_bit_const_name: usize = #v_bit_size;
@@ -350,6 +365,7 @@ pub fn create_from_bytes_field_quotes_enum(
     }
     let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
     let v_id_call = format_ident!("read_{v_id}");
+    #[cfg(feature = "dyn_fns")]
     let v_id_slice_call = format_ident!("read_slice_{v_id}");
     let from_bytes_fn = quote! {
         fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
@@ -405,6 +421,7 @@ pub fn create_from_bytes_field_quotes_enum(
 pub fn create_from_bytes_field_quotes(
     info: &StructInfo,
 ) -> Result<GeneratedFromBytesFunctions, syn::Error> {
+    #[allow(unused_variables)]
     let (
         peek_fns_quote,
         from_bytes_struct_quote,
@@ -484,6 +501,7 @@ pub fn create_from_bytes_field_quotes(
 }
 
 /// Generates a `read_slice_field_name()` function for a slice.
+#[cfg(feature = "dyn_fns")]
 fn generate_read_slice_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
@@ -528,6 +546,7 @@ fn generate_read_slice_field_fn(
 /// generated code does NOT check if the slice is large enough to be read from, Checked Slice Structures
 /// are nothing but a slice ref that has been checked to contain enough bytes for any
 /// `read_slice_field_name` functions.
+#[cfg(feature = "dyn_fns")]
 fn generate_read_slice_field_fn_unchecked(
     field_quote: &TokenStream,
     field: &FieldInfo,

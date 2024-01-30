@@ -1174,6 +1174,13 @@ fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
 }
 
 impl ObjectInfo {
+    #[cfg(feature = "dyn_fns")]
+    pub fn vis(&self) -> &syn::Visibility {
+        match self {
+            ObjectInfo::Struct(s) => &s.vis,
+            ObjectInfo::Enum(e) => &e.vis,
+        }
+    }
     pub fn name(&self) -> Ident {
         match self {
             ObjectInfo::Struct(s) => s.name.clone(),

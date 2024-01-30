@@ -16,8 +16,11 @@ use syn::{
 use super::common::EnumInfo;
 
 pub struct GeneratedIntoBytesFunctions {
+    /// Functions that belong in `Bitfields` impl for object.
     pub into_bytes_fn: TokenStream,
+    /// Functions that belong in impl for object.
     pub set_field_fns: TokenStream,
+    /// Functions that belong in impl for generated checked slice object.
     pub set_slice_field_unchecked_fns: TokenStream,
 }
 
@@ -41,9 +44,13 @@ fn make_checked_mut_func(name: &IdentProcMacro, struct_size: usize) -> TokenStre
 }
 
 struct FieldQuotes {
+    /// List of fields for creating initializer lists.
     field_name_list: TokenStream,
+    /// Functions that belong in `Bitfields` impl for object.
     into_bytes_quote: TokenStream,
+    /// Functions that belong in impl for object.
     set_fns_quote: TokenStream,
+    /// Functions that belong in impl for generated checked slice object.
     set_slice_fns_unchecked: TokenStream,
 }
 
@@ -149,7 +156,10 @@ pub fn create_into_bytes_field_quotes_enum(
     let mut id_fn: TokenStream = quote! {};
     let mut into_bytes_fn: TokenStream = quote! {};
     // all quote with all of the set functions appended to it.
-    let mut set_slice_fns_unchecked = quote!{};
+    #[cfg(feature = "dyn_fns")]
+    let mut set_slice_fns_unchecked = quote! {};
+    #[cfg(not(feature = "dyn_fns"))]
+    let set_slice_fns_unchecked = quote! {};
     let (mut set_fns_quote, id_ident) = {
         (
             {
@@ -186,8 +196,8 @@ pub fn create_into_bytes_field_quotes_enum(
                     #id_field
                 };
                 let out = {
-                    let q  = make_checked_mut_func(&info.name, info.total_bytes());
-                    quote!{
+                    let q = make_checked_mut_func(&info.name, info.total_bytes());
+                    quote! {
                         #out
                         #q
                     }
@@ -204,6 +214,7 @@ pub fn create_into_bytes_field_quotes_enum(
         let v_name = &variant.name;
         let variant_name = quote! {#v_name};
         let mut variant_id = variant.id_or_field_name()?;
+        #[allow(unused_variables)]
         let (field_name_list, into_bytes_quote, set_fns_quote_temp, set_slice_fns_unchecked_temp) = {
             let thing = create_fields_quotes(variant, Some(&info.name))?;
             (
@@ -336,6 +347,7 @@ pub fn create_into_bytes_field_quotes_struct(
 }
 
 /// Generates a `write_slice_field_name()` function for a slice.
+#[cfg(feature = "dyn_fns")]
 fn generate_write_slice_field_fn(
     field_quote: &TokenStream,
     field: &FieldInfo,
@@ -382,6 +394,7 @@ fn generate_write_slice_field_fn(
 /// generated code does NOT check if the slice can be written to, Checked Slice Structures are nothing
 /// but a slice ref that has been checked to contain enough bytes for any `write_slice_field_name`
 /// functions.
+#[cfg(feature = "dyn_fns")]
 fn generate_write_slice_field_fn_unchecked(
     field_quote: &TokenStream,
     field: &FieldInfo,

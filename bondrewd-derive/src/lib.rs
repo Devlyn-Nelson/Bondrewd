@@ -2198,11 +2198,10 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         ObjectInfo::Struct(ref struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes =
-                match create_into_bytes_field_quotes_struct(&struct_info) {
-                    Ok(ftb) => ftb,
-                    Err(err) => return TokenStream::from(err.to_compile_error()),
-                };
+            let fields_into_bytes = match create_into_bytes_field_quotes_struct(&struct_info) {
+                Ok(ftb) => ftb,
+                Err(err) => return TokenStream::from(err.to_compile_error()),
+            };
             let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
@@ -2231,15 +2230,15 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let from_bytes_quote = fields_from_bytes.from_bytes_fn;
     let peek_quotes = fields_from_bytes.read_field_fns;
 
-    let (getter_setters_quotes, vis) = match struct_info {
+    let getter_setters_quotes = match struct_info {
         #[cfg(not(feature = "setters"))]
-        ObjectInfo::Struct(ref struct_info) => {
-            (quote! {
+        ObjectInfo::Struct(ref _struct_info) => {
+            quote! {
                 impl #struct_name {
                     #peek_quotes
                     #set_quotes
                 }
-            }, &struct_info.vis)
+            }
         }
         #[cfg(feature = "setters")]
         ObjectInfo::Struct(ref struct_info) => {
@@ -2247,27 +2246,27 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             // get the setters, functions that set a field disallowing numbers
             // outside of the range the Bitfield.
             let setters_quote = match structs::struct_fns::create_setters_quotes(&struct_info) {
-                    Ok(parsed_struct) => parsed_struct,
-                    Err(err) => {
-                        return TokenStream::from(err.to_compile_error());
-                    }
-                };
-            (quote! {
+                Ok(parsed_struct) => parsed_struct,
+                Err(err) => {
+                    return TokenStream::from(err.to_compile_error());
+                }
+            };
+            quote! {
                 impl #struct_name {
                     #peek_quotes
                     #set_quotes
                     #setters_quote
                 }
-            }, &struct_info.vis)
+            }
         }
-        ObjectInfo::Enum(ref enum_info) => {
+        ObjectInfo::Enum(ref _enum_info) => {
             // TODO implement getters and setters for enums.
-            (quote! {
+            quote! {
                 impl #struct_name {
                     #peek_quotes
                     #set_quotes
                 }
-            }, &enum_info.vis)
+            }
         }
     };
 
@@ -2326,6 +2325,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     }
     #[cfg(feature = "dyn_fns")]
     {
+        let vis = struct_info.vis();
         let from_vec_quote = fields_from_bytes.from_slice_field_fns;
         let checked_ident = quote::format_ident!("{}Checked", &struct_name);
         let checked_mut_ident = quote::format_ident!("{}CheckedMut", &struct_name);
