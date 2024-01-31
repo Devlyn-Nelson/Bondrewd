@@ -15,6 +15,8 @@
 //! - Full support for floating point numbers. I would like to be able to be able to
 //!     have fully dynamic floating point with customizable exponent and mantissa as well
 //!     and unsigned option.
+//! - Checked Enum's can have a Checked Struct for each variant rather than only 1 Checked Struct that covers all variants.
+//!     - This allows for `check_slice` to return a "Checked Enum" which is just an enum with all the same variants of the original Bitfield Enum but the variants will have 1 field containing the checked struct for that variant.
 //! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
 //! - Getters and Setters. Most of this is actually done already, just need:
