@@ -61,22 +61,22 @@ pub struct TestInnerArb {
 }
 
 #[derive(BitfieldsDerive, PartialEq, Clone)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 366)]
+#[bondrewd(id_bit_length = 3, enforce_bits = 366, default_endianness = "le")]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]
         one: u8,
         #[bondrewd(bit_length = 4)]
         two: i8,
-        #[bondrewd(bit_length = 9)] //0
+        #[bondrewd(bit_length = 9)]
         three: u16,
-        #[bondrewd(bit_length = 14)] //2
+        #[bondrewd(bit_length = 14)]
         four: i16,
-        #[bondrewd(bit_length = 30)] //4
+        #[bondrewd(bit_length = 30)]
         five: u32,
-        #[bondrewd(bit_length = 27)] //7
+        #[bondrewd(bit_length = 27)]
         six: i32,
-        #[bondrewd(bit_length = 56)] //
+        #[bondrewd(bit_length = 56)]
         seven: u64,
         #[bondrewd(bit_length = 43)]
         eight: i64,
@@ -92,15 +92,15 @@ pub enum TestEnum {
         nine: u128,
         #[bondrewd(bit_length = 43)]
         eight: i64,
-        #[bondrewd(bit_length = 56)] //
+        #[bondrewd(bit_length = 56)]
         seven: u64,
-        #[bondrewd(bit_length = 27)] //7
+        #[bondrewd(bit_length = 27)]
         six: i32,
-        #[bondrewd(bit_length = 30)] //4
+        #[bondrewd(bit_length = 30)]
         five: u32,
-        #[bondrewd(bit_length = 14)] //2
+        #[bondrewd(bit_length = 14)]
         four: i16,
-        #[bondrewd(bit_length = 9)] //0
+        #[bondrewd(bit_length = 9)]
         three: u16,
         #[bondrewd(bit_length = 4)]
         two: i8,

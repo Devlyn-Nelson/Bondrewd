@@ -12,7 +12,8 @@ fn hard_core_test() {
     let w = Weird::default();
     let bytes = w.into_bytes();
     if let Ok(checked) = Weird::check_slice(&bytes) {
-        assert!(checked.read_one());
+        assert_eq!(checked.read_one(), 0);
     } else {
+        panic!("???");
     }
 }
