@@ -747,7 +747,6 @@ fn apply_le_math_to_field_access_quote(
         let mut full_quote = quote! {
             let mut #field_buffer_name: [u8;#size] = #new_array_quote;
         };
-        // normally we would round up and subtract one, but clippy doesn't like it.
         let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
         #[allow(clippy::cast_possible_truncation)]
@@ -1154,7 +1153,7 @@ fn apply_be_math_to_field_access_quote(
         if amount_of_bits < available_bits_in_first_byte {
             return Err(syn::Error::new(
                 field.ident.span(),
-                "calculating be bits_in_last_bytes failed",
+                "calculating le `bits_in_last_bytes` failed",
             ));
         }
         let bits_in_last_byte = (amount_of_bits - available_bits_in_first_byte) % 8;

@@ -572,7 +572,7 @@ fn apply_le_math_to_field_access_quote(
         if amount_of_bits < available_bits_in_first_byte {
             return Err(syn::Error::new(
                 field.ident.span(),
-                "calculating be bits_in_last_bytes failed",
+                "calculating le `bits_in_last_bytes` failed",
             ));
         }
         let bits_in_last_byte = (amount_of_bits - available_bits_in_first_byte) % 8;

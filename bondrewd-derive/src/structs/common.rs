@@ -138,6 +138,15 @@ impl Endianness {
             true
         }
     }
+    pub fn is_little(&self) -> bool {
+        matches!(self, Self::Little)
+    }
+    pub fn is_big(&self) -> bool {
+        matches!(self, Self::Big)
+    }
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1027,6 +1036,13 @@ pub struct StructInfo {
 }
 
 impl StructInfo {
+    pub fn get_flip(&self) -> Option<usize> {
+        if self.attrs.flip {
+            Some(self.total_bytes() - 1)
+        } else {
+            None
+        }
+    }
     pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
         for field in &self.fields {
             if field.attrs.capture_id {
