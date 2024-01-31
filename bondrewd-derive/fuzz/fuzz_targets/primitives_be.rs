@@ -1,7 +1,7 @@
 #![no_main]
-use libfuzzer_sys::fuzz_target;
-use bondrewd::{Bitfields, self};
+use bondrewd::{self, Bitfields};
 use bondrewd_derive::Bitfields as BitfieldsDerive;
+use libfuzzer_sys::fuzz_target;
 
 // #[derive(BitfieldDerive, Clone, PartialEq,  Debug)]
 // #[bondrewd_enum(u8)]
@@ -41,19 +41,23 @@ pub struct TestInner {
 
 impl std::cmp::PartialEq<TestInner> for TestInner {
     fn eq(&self, other: &TestInner) -> bool {
-        self.one == other.one &&
-        self.two == other.two &&
-        self.three == other.three &&
-        self.four == other.four &&
-        self.five == other.five &&
-        self.six == other.six &&
-        self.seven == other.seven &&
-        self.eight == other.eight &&
-        self.nine == other.nine &&
-        self.ten == other.ten &&
-        (self.f_one == other.f_one || (self.f_one.is_nan() && other.f_one.is_nan()) || (self.f_one.is_infinite() && other.f_one.is_infinite())) &&
-        (self.f_two == other.f_two || (self.f_two.is_nan() && other.f_two.is_nan()) || (self.f_two.is_infinite() && other.f_two.is_infinite())) &&
-        self.b_one == other.b_one
+        self.one == other.one
+            && self.two == other.two
+            && self.three == other.three
+            && self.four == other.four
+            && self.five == other.five
+            && self.six == other.six
+            && self.seven == other.seven
+            && self.eight == other.eight
+            && self.nine == other.nine
+            && self.ten == other.ten
+            && (self.f_one == other.f_one
+                || (self.f_one.is_nan() && other.f_one.is_nan())
+                || (self.f_one.is_infinite() && other.f_one.is_infinite()))
+            && (self.f_two == other.f_two
+                || (self.f_two.is_nan() && other.f_two.is_nan())
+                || (self.f_two.is_infinite() && other.f_two.is_infinite()))
+            && self.b_one == other.b_one
     }
 }
 
@@ -74,58 +78,58 @@ pub struct TestInnerArb {
     b_one: bool,
 }
 // 593
-#[derive(BitfieldsDerive, Clone, PartialEq,  Debug)]
+#[derive(BitfieldsDerive, Clone, PartialEq, Debug)]
 #[bondrewd(default_endianness = "be")]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
     #[bondrewd(bit_length = 4)]
     two: i8,
-    #[bondrewd(bit_length = 9)]//0
+    #[bondrewd(bit_length = 9)] //0
     three: u16,
-    #[bondrewd(bit_length = 14)]//2
+    #[bondrewd(bit_length = 14)] //2
     four: i16,
-    #[bondrewd(bit_length = 30)]//4
+    #[bondrewd(bit_length = 30)] //4
     five: u32,
-    #[bondrewd(bit_length = 27)]//7
+    #[bondrewd(bit_length = 27)] //7
     six: i32,
-    #[bondrewd(bit_length = 56)]//
+    #[bondrewd(bit_length = 56)] //
     seven: u64,
     #[bondrewd(bit_length = 43)]
     eight: i64,
     #[bondrewd(bit_length = 69)]
     nine: u128,
     #[bondrewd(bit_length = 111)]
-    ten: i128,//366
+    ten: i128, //366
     #[bondrewd(bit_length = 593)]
     test_struct: TestInner,
 }
 
-fuzz_target!(|data: [TestInnerArb;2]| {
+fuzz_target!(|data: [TestInnerArb; 2]| {
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
     let mut test = Test {
-        one:0,
-        two:0,
-        three:0,
-        four:0,
-        five:0,
-        six:0,
-        seven:0,
-        eight:0,
-        nine:0,
-        ten:0,
-        test_struct: TestInner{
-            one:0,
-            two:0,
-            three:0,
-            four:0,
-            five:0,
-            six:0,
-            seven:0,
-            eight:0,
-            nine:0,
-            ten:0,
+        one: 0,
+        two: 0,
+        three: 0,
+        four: 0,
+        five: 0,
+        six: 0,
+        seven: 0,
+        eight: 0,
+        nine: 0,
+        ten: 0,
+        test_struct: TestInner {
+            one: 0,
+            two: 0,
+            three: 0,
+            four: 0,
+            five: 0,
+            six: 0,
+            seven: 0,
+            eight: 0,
+            nine: 0,
+            ten: 0,
             f_one: 0.0,
             f_two: 0.0,
             b_one: false,
@@ -168,10 +172,10 @@ fuzz_target!(|data: [TestInnerArb;2]| {
         assert_eq!(checked.eight(), test.eight);
         assert_eq!(checked.nine(), test.nine);
         assert_eq!(checked.ten(), test.ten);
-    }else{
+    } else {
         panic!("checking slice failed");
     }
-    
+
     let new_test = Test::from_bytes(bytes);
     assert_eq!(new_test, test);
 });
