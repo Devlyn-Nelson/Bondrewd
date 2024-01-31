@@ -138,15 +138,15 @@ impl Endianness {
             true
         }
     }
-    pub fn is_little(&self) -> bool {
-        matches!(self, Self::Little)
-    }
-    pub fn is_big(&self) -> bool {
-        matches!(self, Self::Big)
-    }
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
+    // pub fn is_little(&self) -> bool {
+    //     matches!(self, Self::Little)
+    // }
+    // pub fn is_big(&self) -> bool {
+    //     matches!(self, Self::Big)
+    // }
+    // pub fn is_none(&self) -> bool {
+    //     matches!(self, Self::None)
+    // }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -819,36 +819,36 @@ pub struct FieldInfo {
 }
 
 impl FieldInfo {
-    pub fn right_shift(&self, math: &BitMath) -> i8 {
-        match *self.attrs.endianness {
-            Endianness::Little => {
-                let mut bits_needed_in_msb = math.amount_of_bits % 8;
-                if bits_needed_in_msb == 0 {
-                    bits_needed_in_msb = 8;
-                }
-                let right_shift: i8 =
-                    (bits_needed_in_msb as i8) - ((math.available_bits_in_first_byte % 8) as i8);
-                if right_shift == 8 {
-                    0
-                } else {
-                    right_shift
-                }
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            Endianness::Big => {
-                let mut right_shift: i8 = ((math.amount_of_bits % 8) as i8)
-                    - ((math.available_bits_in_first_byte % 8) as i8);
-                // TODO this right_shift modification is a fix because left shifts in be number are broken.
-                // this exists in both from and into bytes for big endian. right shift should not be mut.
-                while right_shift < 0 {
-                    right_shift += 8;
-                }
-                right_shift
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            Endianness::None => 8_i8 - ((math.available_bits_in_first_byte % 8) as i8),
-        }
-    }
+    // pub fn right_shift(&self, math: &BitMath) -> i8 {
+    //     match *self.attrs.endianness {
+    //         Endianness::Little => {
+    //             let mut bits_needed_in_msb = math.amount_of_bits % 8;
+    //             if bits_needed_in_msb == 0 {
+    //                 bits_needed_in_msb = 8;
+    //             }
+    //             let right_shift: i8 =
+    //                 (bits_needed_in_msb as i8) - ((math.available_bits_in_first_byte % 8) as i8);
+    //             if right_shift == 8 {
+    //                 0
+    //             } else {
+    //                 right_shift
+    //             }
+    //         }
+    //         #[allow(clippy::cast_possible_truncation)]
+    //         Endianness::Big => {
+    //             let mut right_shift: i8 = ((math.amount_of_bits % 8) as i8)
+    //                 - ((math.available_bits_in_first_byte % 8) as i8);
+    //             // TODO this right_shift modification is a fix because left shifts in be number are broken.
+    //             // this exists in both from and into bytes for big endian. right shift should not be mut.
+    //             while right_shift < 0 {
+    //                 right_shift += 8;
+    //             }
+    //             right_shift
+    //         }
+    //         #[allow(clippy::cast_possible_truncation)]
+    //         Endianness::None => 8_i8 - ((math.available_bits_in_first_byte % 8) as i8),
+    //     }
+    // }
     pub fn ident(&self) -> &FieldIdent {
         &self.ident
     }

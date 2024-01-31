@@ -85,15 +85,7 @@ fn create_fields_quotes(
             continue;
         }
         field_name_list = quote! {#field_name_list #field_name,};
-        let (field_setter, clear_quote) = get_field_quote(
-            field,
-            if info.attrs.flip {
-                Some(info.total_bytes() - 1)
-            } else {
-                None
-            },
-            false,
-        )?;
+        let (field_setter, clear_quote) = get_field_quote(field, info.get_flip(), false)?;
         if field.attrs.reserve.write_field() {
             if let Some(ref name) = lower_name {
                 let fn_name = format_ident!("write_{name}_{field_name}");

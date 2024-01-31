@@ -1,5 +1,5 @@
-use bondrewd_derive::Bitfields as BitfieldsDerive;
 use bondrewd::Bitfields;
+use bondrewd_derive::Bitfields as BitfieldsDerive;
 
 #[derive(BitfieldsDerive)]
 struct Weird {

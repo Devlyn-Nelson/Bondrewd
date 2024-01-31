@@ -46,14 +46,7 @@ fn make_read_fns(
     // } else{
     //     format_ident!("read_{}", field_name.as_ref())
     // };
-    let field_extractor = get_field_quote(
-        field,
-        if info.attrs.flip {
-            Some(info.total_bytes() - 1)
-        } else {
-            None
-        },
-    )?;
+    let field_extractor = get_field_quote(field, info.get_flip())?;
 
     let peek_quote = generate_read_field_fn(&field_extractor, field, info, enum_name);
     *peek_fns_quote = quote! {
