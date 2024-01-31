@@ -1,3 +1,4 @@
+//! This file is an effort to merge from and into bytes, which is being delayed for now.
 use quote::{format_ident, quote};
 
 use super::common::{EnumInfo, FieldInfo, StructInfo};
