@@ -325,6 +325,15 @@ enum GenerateWriteQuoteFn {
             TokenStream,
         ) -> syn::Result<(TokenStream, TokenStream)>,
     },
+    MultiNoEndianness {
+        right_shift: i8,
+        gen_fn: fn(
+            &FieldInfo,
+            &QuoteInfo,
+            i8,
+            TokenStream,
+        ) -> syn::Result<(TokenStream, TokenStream)>,
+    },
 }
 
 impl GenerateWriteQuoteFn {
@@ -339,9 +348,152 @@ impl GenerateWriteQuoteFn {
     pub fn le_single_byte() -> Self {
         Self::Single(FieldInfo::get_write_le_single_byte_quote)
     }
+    pub fn ne_multi_byte(right_shift: i8) -> Self {
+        Self::MultiNoEndianness {
+            right_shift,
+            gen_fn: FieldInfo::get_write_ne_multi_byte_quote,
+        }
+    }
+    pub fn ne_single_byte() -> Self {
+        Self::Single(FieldInfo::get_write_ne_single_byte_quote)
+    }
+    pub fn be_multi_byte(right_shift: i8, first_bit_mask: u8, last_bit_mask: u8) -> Self {
+        Self::Multi {
+            right_shift,
+            first_bit_mask,
+            last_bit_mask,
+            gen_fn: FieldInfo::get_write_be_multi_byte_quote,
+        }
+    }
+    pub fn be_single_byte() -> Self {
+        Self::Single(FieldInfo::get_write_be_single_byte_quote)
+    }
+    pub fn run(&self, field_info: &FieldInfo, quote_info: &QuoteInfo, field_access: TokenStream) -> syn::Result<(TokenStream,TokenStream)> {
+        match self {
+            GenerateWriteQuoteFn::Single(gen_fn) => gen_fn(field_info, quote_info, field_access),
+            GenerateWriteQuoteFn::Multi {
+                right_shift,
+                first_bit_mask,
+                last_bit_mask,
+                gen_fn,
+            } => gen_fn(
+                field_info,
+                quote_info,
+                *right_shift,
+                *first_bit_mask,
+                *last_bit_mask,
+                field_access,
+            ),
+            GenerateWriteQuoteFn::MultiNoEndianness {
+                right_shift,
+                gen_fn,
+            } => gen_fn(
+                field_info,
+                quote_info,
+                *right_shift,
+                field_access,
+            ),
+        }
+    }
 }
 
 impl FieldInfo {
+    /// This function is kind of funny. it is essentially a function that gets called by either
+    /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
+    /// as a parameter `gen_write_fn`. and example of a function that can be used as `gen_write_fn` would
+    /// be `get_write_le_multibyte_quote`;
+    fn get_write_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        gen_write_fn: &GenerateWriteQuoteFn,
+        with_self: bool,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        let field_name = self.ident().name();
+        let field_access = match self.ty {
+            FieldDataType::Float(_, _) => {
+                if with_self {
+                    quote! {self.#field_name.to_bits()}
+                } else {
+                    quote! {#field_name.to_bits()}
+                }
+            }
+            FieldDataType::Char(_, _) => {
+                if with_self {
+                    quote! {(self.#field_name as u32)}
+                } else {
+                    quote! {(#field_name as u32)}
+                }
+            }
+            FieldDataType::Enum(_, _, _) => {
+                if with_self {
+                    quote! {((self.#field_name).into_primitive())}
+                } else {
+                    quote! {((#field_name).into_primitive())}
+                }
+            }
+            // Array types need to recurse which is the reason this in-between function exists.
+            FieldDataType::ElementArray(_, _, _) => {
+                let mut clear_buffer = quote! {};
+                let mut buffer = quote! {};
+                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
+                let outer_field_name = &self.ident().ident();
+                let sub = self.get_element_iter()?;
+                for sub_field in sub {
+                    let field_name = &sub_field.ident().name();
+                    let (sub_field_quote, clear) =
+                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                    buffer = quote! {
+                        #buffer
+                        #sub_field_quote
+                    };
+                    clear_buffer = quote! {
+                        #clear_buffer
+                        #clear
+                    };
+                    de_refs.push(format_ident!("{}", field_name));
+                }
+                buffer = quote! {
+                    let [#de_refs] = #outer_field_name;
+                    #buffer
+                };
+                return Ok((buffer, clear_buffer));
+            }
+            FieldDataType::BlockArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let mut clear_buffer = quote! {};
+                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
+                let outer_field_name = &self.ident().ident();
+                let sub = self.get_block_iter()?;
+                for sub_field in sub {
+                    let field_name = &sub_field.ident().name();
+                    let (sub_field_quote, clear) =
+                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                    buffer = quote! {
+                        #buffer
+                        #sub_field_quote
+                    };
+                    clear_buffer = quote! {
+                        #clear_buffer
+                        #clear
+                    };
+                    de_refs.push(format_ident!("{}", field_name));
+                }
+                buffer = quote! {
+                    let [#de_refs] = #outer_field_name;
+                    #buffer
+                };
+                return Ok((buffer, clear_buffer));
+            }
+            _ => {
+                if with_self {
+                    quote! {self.#field_name}
+                } else {
+                    quote! {#field_name}
+                }
+            }
+        };
+        gen_write_fn.run(self, quote_info, field_access)
+    }
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<FieldQuotes> {
         let qi = QuoteInfo::new(self, struct_info)?;
         match *self.attrs.endianness {
@@ -351,7 +503,7 @@ impl FieldInfo {
         }
     }
     fn get_le_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
+        let (read,write,clear) = if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
             // our bytes for the buffer.
@@ -419,18 +571,58 @@ impl FieldInfo {
                 &gen_write_fn,
                 false
             )?;
+            (read,write,clear)
         } else {
             // single bytes logic
             let read = self.get_read_le_single_byte_quote(&quote_info)?;
             let gen_write_fn =
                 GenerateWriteQuoteFn::le_single_byte();
             let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
-        }
-        todo!("merged Little Endianness from_bytes/into_bytes Generation code here")
+            (read,write,clear)
+        };
+        Ok(FieldQuotes { read, write, zero: clear })
     }
-    // fn get_ne_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-
-    // }
+    fn get_ne_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
+        let (read,write,clear) = if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
+            // how many times to shift the number right.
+            // NOTE if negative shift left.
+            // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+            // for a f32) then use the last byte in the fields byte array after shifting for the first
+            // used byte in the buffer.
+            if 8 < quote_info.available_bits_in_first_byte() % 8 {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating ne right_shift failed",
+                ));
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+            // generate
+            let read = self.get_read_ne_multi_byte_quote(
+                &quote_info,
+                right_shift,
+            )?;
+            let gen_write_fn =
+                GenerateWriteQuoteFn::ne_multi_byte(right_shift);
+            let (write, clear) = self.get_write_quote(
+                &quote_info,
+                &gen_write_fn,
+                false
+            )?;
+            (read,write,clear)
+        }else{
+            // single bytes logic
+            let read = self.get_read_ne_single_byte_quote(&quote_info)?;
+            let gen_write_fn =
+                GenerateWriteQuoteFn::ne_single_byte();
+            let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+            (read,write,clear)
+        };
+        Ok(FieldQuotes { read, write, zero: clear })
+    }
+    fn get_be_quotes(&self, _quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
+        todo!("merged Big Endianness from_bytes/into_bytes Generation code here")
+    }
     fn get_read_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
@@ -667,117 +859,6 @@ impl FieldInfo {
 
         Ok(output)
     }
-    /// This function is kind of funny. it is essentially a function that gets called by either
-    /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
-    /// as a parameter `gen_write_fn`. and example of a function that can be used as `gen_write_fn` would
-    /// be `get_write_le_multibyte_quote`;
-    fn get_write_quote(
-        &self,
-        quote_info: &QuoteInfo,
-        gen_write_fn: &GenerateWriteQuoteFn,
-        with_self: bool,
-    ) -> syn::Result<(TokenStream, TokenStream)> {
-        let field_name = self.ident().name();
-        let field_access = match self.ty {
-            FieldDataType::Float(_, _) => {
-                if with_self {
-                    quote! {self.#field_name.to_bits()}
-                } else {
-                    quote! {#field_name.to_bits()}
-                }
-            }
-            FieldDataType::Char(_, _) => {
-                if with_self {
-                    quote! {(self.#field_name as u32)}
-                } else {
-                    quote! {(#field_name as u32)}
-                }
-            }
-            FieldDataType::Enum(_, _, _) => {
-                if with_self {
-                    quote! {((self.#field_name).into_primitive())}
-                } else {
-                    quote! {((#field_name).into_primitive())}
-                }
-            }
-            // Array types need to recurse which is the reason this in-between function exists.
-            FieldDataType::ElementArray(_, _, _) => {
-                let mut clear_buffer = quote! {};
-                let mut buffer = quote! {};
-                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
-                let outer_field_name = &self.ident().ident();
-                let sub = self.get_element_iter()?;
-                for sub_field in sub {
-                    let field_name = &sub_field.ident().name();
-                    let (sub_field_quote, clear) =
-                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
-                    buffer = quote! {
-                        #buffer
-                        #sub_field_quote
-                    };
-                    clear_buffer = quote! {
-                        #clear_buffer
-                        #clear
-                    };
-                    de_refs.push(format_ident!("{}", field_name));
-                }
-                buffer = quote! {
-                    let [#de_refs] = #outer_field_name;
-                    #buffer
-                };
-                return Ok((buffer, clear_buffer));
-            }
-            FieldDataType::BlockArray(_, _, _) => {
-                let mut buffer = quote! {};
-                let mut clear_buffer = quote! {};
-                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
-                let outer_field_name = &self.ident().ident();
-                let sub = self.get_block_iter()?;
-                for sub_field in sub {
-                    let field_name = &sub_field.ident().name();
-                    let (sub_field_quote, clear) =
-                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
-                    buffer = quote! {
-                        #buffer
-                        #sub_field_quote
-                    };
-                    clear_buffer = quote! {
-                        #clear_buffer
-                        #clear
-                    };
-                    de_refs.push(format_ident!("{}", field_name));
-                }
-                buffer = quote! {
-                    let [#de_refs] = #outer_field_name;
-                    #buffer
-                };
-                return Ok((buffer, clear_buffer));
-            }
-            _ => {
-                if with_self {
-                    quote! {self.#field_name}
-                } else {
-                    quote! {#field_name}
-                }
-            }
-        };
-        match gen_write_fn {
-            GenerateWriteQuoteFn::Single(gen_fn) => gen_fn(self, quote_info, field_access),
-            GenerateWriteQuoteFn::Multi {
-                right_shift,
-                first_bit_mask,
-                last_bit_mask,
-                gen_fn,
-            } => gen_fn(
-                self,
-                quote_info,
-                *right_shift,
-                *first_bit_mask,
-                *last_bit_mask,
-                field_access,
-            ),
-        }
-    }
     fn get_write_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
@@ -1009,11 +1090,374 @@ impl FieldInfo {
 
         Ok((full_quote, clear_quote))
     }
-    fn get_ne_quotes(&self, _quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        todo!("merged None Endianness from_bytes/into_bytes Generation code here")
+    fn get_read_ne_single_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+    ) -> syn::Result<TokenStream> {
+        if 8 < (quote_info.zeros_on_left() + quote_info.amount_of_bits()) {
+            return Err(syn::Error::new(
+                self.ident.span(),
+                "calculating zeros_on_right failed",
+            ));
+        }
+        let zeros_on_right = 8 - (quote_info.zeros_on_left() + quote_info.amount_of_bits());
+        let mask = get_right_and_mask(quote_info.available_bits_in_first_byte())
+            & get_left_and_mask(8 - zeros_on_right);
+        if 8 < quote_info.amount_of_bits() || 8 - quote_info.amount_of_bits() < self.attrs.bit_range.start % 8 {
+            return Err(syn::Error::new(
+                self.ident.span(),
+                "calculating ne shift_left failed",
+            ));
+        }
+        let starting_inject_byte = quote_info.starting_inject_byte();
+        let output = match self.ty {
+            FieldDataType::Number(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
+            FieldDataType::Boolean => {
+                quote!{(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
+            }
+            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char not supported for single byte insert logic")),
+            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was given Endianness which should be described by the struct implementing Bitfield")),
+            FieldDataType::Struct(_, _) => {
+                let used_bits_in_byte = 8 - quote_info.available_bits_in_first_byte();
+                quote!{([((input_byte_buffer[#starting_inject_byte] & #mask)) << #used_bits_in_byte])}
+            }
+            FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
+            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+        };
+        Ok(output)
     }
-    fn get_be_quotes(&self, _quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        todo!("merged Big Endianness from_bytes/into_bytes Generation code here")
+    fn get_read_ne_multi_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        right_shift: i8,
+    ) -> syn::Result<TokenStream> {
+        // here we finish the buffer setup and give it the value returned by to_bytes from the number
+        let full_quote = match self.ty {
+            FieldDataType::Number(_, _,_ ) |
+            FieldDataType::Float(_, _) |
+            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char was not given Endianness, please report this.")),
+            FieldDataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was not given Endianness, please report this.")),
+            FieldDataType::Struct(ref size, _) => {
+                let buffer_ident = format_ident!("{}_buffer", self.ident().ident());
+                let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
+                match right_shift.cmp(&0) {
+                    Ordering::Greater => {
+                        // right shift (this means that the last bits are in the first byte)
+                        // because we are applying bits in place we need masks in insure we don't effect other fields
+                        // data. we need one for the first byte and the last byte.
+                        let current_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+                        let next_bit_mask = get_left_and_mask(8 - quote_info.available_bits_in_first_byte());
+                        let right_shift: u32 = u32::from(right_shift.unsigned_abs());
+                        for i in 0..*size {
+                            let start = quote_info.offset_starting_inject_byte(i);
+                            let mut first = if current_bit_mask == u8::MAX {
+                                quote!{
+                                    #buffer_ident[#i] = input_byte_buffer[#start];
+                                }
+                            }else{
+                                quote!{
+                                    #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
+                                }
+                            };
+                            if quote_info.available_bits_in_first_byte() + (8 * i) < quote_info.amount_of_bits() && next_bit_mask != 0 {
+                                let next_index = quote_info.next_index(start);
+                                first = quote!{
+                                    #first
+                                    #buffer_ident[#i] |= input_byte_buffer[#next_index] & #next_bit_mask;
+                                };
+                            }
+                            quote_builder = quote!{
+                                #quote_builder
+                                #first
+                                #buffer_ident[#i] = #buffer_ident[#i].rotate_left(#right_shift);
+                            };
+                        }
+                    }
+                    Ordering::Less => {
+                        return Err(syn::Error::new(
+                            self.ident.span(),
+                            "left shifting struct was removed to see if it would ever happen",
+                        ));
+                        //TODO this might be impossible for structs
+                        // left shift (this means that the last bits are in the first byte)
+                        // because we are applying bits in place we need masks in insure we don't effect other fields
+                        // data. we need one for the first byte and the last byte.
+                        /*let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
+                        let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
+                        let left_shift = right_shift.clone().abs() as u32;
+                        for i in 0..*size {
+                            let start = if let None = flip {starting_inject_byte + i}else{starting_inject_byte - i};
+                            let mut first = quote!{
+                                #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
+                            };
+                            if i + 1 <= *size {
+                                first = quote!{
+                                    #first
+                                    #buffer_ident[#i] = input_byte_buffer[#start #operator 1] & #next_bit_mask;
+                                };
+                            }
+                            quote_builder = quote!{
+                                #quote_builder
+                                #first
+                                #buffer_ident[#i] = #buffer_ident[#i].rotate_right(#left_shift);
+                            };
+                        }*/
+                    }
+                    Ordering::Equal => {
+                        // no shift can be more faster.
+                        let current_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+                        for i in 0..*size {
+                            let start = quote_info.offset_starting_inject_byte(i);
+                            if i == 0{
+                                quote_builder = quote!{
+                                    #quote_builder
+                                    #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
+                                };
+                            }else{
+                                quote_builder = quote!{
+                                    #quote_builder
+                                    #buffer_ident[#i] = input_byte_buffer[#start];
+                                }
+                            }
+                        }
+                    }
+                }
+                // return the value
+                quote_builder = quote!{
+                    #quote_builder
+                    #buffer_ident
+                };
+                quote_builder
+            }
+            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+        };
+
+        Ok(full_quote)
+    }
+    fn get_write_ne_single_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
+        // currently only u8 and i8 fields will work here. verify bool works it might.
+        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
+        // left)
+        if 8 < (quote_info.zeros_on_left() + quote_info.amount_of_bits()) {
+            return Err(syn::Error::new(
+                self.ident.span(),
+                "calculating zeros_on_right failed",
+            ));
+        }
+        let zeros_on_right = 8 - (quote_info.zeros_on_left() + quote_info.amount_of_bits());
+        // combining the left and right masks will give us a mask that keeps the amount og bytes we
+        // have in the position we need them to be in for this byte. we use available_bytes for
+        // right mask because param is amount of 1's on the side specified (right), and
+        // available_bytes is (8 - zeros_on_left) which is equal to ones_on_right.
+        let mask = get_right_and_mask(quote_info.available_bits_in_first_byte())
+            & get_left_and_mask(8 - zeros_on_right);
+        // calculate how many left shifts need to occur to the number in order to position the bytes
+        // we want to keep in the position we want.
+        if 8 < quote_info.amount_of_bits() || 8 - quote_info.amount_of_bits() < self.attrs.bit_range.start % 8 {
+            return Err(syn::Error::new(
+                self.ident.span(),
+                "calculating ne shift_left failed",
+            ));
+        }
+        let shift_left = (8 - quote_info.amount_of_bits()) - (self.attrs.bit_range.start % 8);
+        let starting_inject_byte = quote_info.starting_inject_byte();
+        let not_mask = !mask;
+        let clear_quote = quote! {
+            output_byte_buffer[#starting_inject_byte] &= #not_mask;
+        };
+        // a quote that puts the field into a byte buffer we assume exists (because this is a
+        // fragment).
+        // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
+        // bits the size attribute says it can. for example if our field is a u8 but the bit_length
+        // attribute say to only use 2 bits, then the possible values are 0-3. so if the u8 (0-255)
+        // is set to 4 then the extra bit being used will be dropped by the mask making the value 0.
+        // FEATURE remove the "#mask & " from this quote to make it faster. but that means the
+        // numbers have to be correct. if you want the no-mask feature then suggested enforcement of
+        // the number would be:
+        //      - generate setters that make a mask that drops bits not desired. (fast)
+        //      - generate setters that check if its above max_value for the bit_length and set it
+        //          to the max_value if its larger. (prevents situations like the 2bit u8 example
+        //          in the note above)
+        // both of these could benefit from a return of the number that actually got set.
+        let finished_quote = match self.ty {
+            FieldDataType::Number(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
+            FieldDataType::Boolean => {
+                quote!{output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
+            }
+            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char not supported for single byte insert logic")),
+            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was given Endianness which should be described by the struct implementing Bitfield")),
+            FieldDataType::Struct(_, _) => {
+                let used_bits_in_byte = 8 - quote_info.available_bits_in_first_byte();
+                quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
+            }
+            FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
+            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+        };
+        Ok((finished_quote, clear_quote))
+    }
+    fn get_write_ne_multi_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        right_shift: i8,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        // make a name for the buffer that we will store the number in byte form
+        let field_buffer_name = format_ident!("{}_bytes", self.ident().ident());
+        // here we finish the buffer setup and give it the value returned by to_bytes from the number
+        let (field_byte_buffer, size) = match self.ty {
+            FieldDataType::Number(_, _,_ ) |
+            FieldDataType::Float(_, _) |
+            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.span(), "Char was not given Endianness, please report this.")),
+            FieldDataType::Boolean => return Err(syn::Error::new(self.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.span(), "Enum was not given Endianness, please report this.")),
+            FieldDataType::Struct(ref size, _) => {
+                let field_call = quote!{#field_access_quote.into_bytes()};
+                let apply_field_to_buffer = quote! {
+                    let mut #field_buffer_name = #field_call
+                };
+                (apply_field_to_buffer, *size)
+            }
+            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+        };
+        let mut clear_quote = quote! {};
+        let mut full_quote = quote! {
+            #field_byte_buffer;
+        };
+        // fill in the rest of the bits
+        match right_shift.cmp(&0) {
+            Ordering::Greater => {
+                // right shift (this means that the last bits are in the first byte)
+                // because we are applying bits in place we need masks in insure we don't effect other fields
+                // data. we need one for the first byte and the last byte.
+                let current_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+                let next_bit_mask = get_left_and_mask(8 - quote_info.available_bits_in_first_byte());
+                let right_shift: u32 = u32::from(right_shift.unsigned_abs());
+                for i in 0usize..size {
+                    let start = quote_info.offset_starting_inject_byte(i);
+                    let not_current_bit_mask = !current_bit_mask;
+                    let not_next_bit_mask = !next_bit_mask;
+                    clear_quote = quote! {
+                        #clear_quote
+                        output_byte_buffer[#start] &= #not_current_bit_mask;
+                    };
+                    full_quote = quote! {
+                        #full_quote
+                        #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
+                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                    };
+                    let next_index = quote_info.next_index(start);
+                    if quote_info.available_bits_in_first_byte() + (8 * i) < quote_info.amount_of_bits() {
+                        if not_next_bit_mask != u8::MAX {
+                            clear_quote = quote! {
+                                #clear_quote
+                                output_byte_buffer[#next_index] &= #not_next_bit_mask;
+                            };
+                        }
+                        if next_bit_mask != 0 {
+                            full_quote = quote! {
+                                #full_quote
+                                output_byte_buffer[#next_index] |= #field_buffer_name[#i] & #next_bit_mask;
+                            };
+                        }
+                    }
+                }
+            }
+            Ordering::Less => {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "left shifting struct was removed to see if it would ever happen (please open issue on github)",
+                ));
+                /* left shift (this means that the last bits are in the first byte)
+                // because we are applying bits in place we need masks in insure we don't effect other fields
+                // data. we need one for the first byte and the last byte.
+                let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
+                let next_bit_mask = get_left_and_mask(8 - available_bits_in_first_byte);
+                let left_shift = right_shift.clone().abs() as u32;
+                for i in 0usize..size {
+                    let start = if let None = flip {starting_inject_byte + i}else{starting_inject_byte - i};
+                    full_quote = quote!{
+                        #full_quote
+                        #field_buffer_name[#i] = #field_buffer_name[#i].rotate_left(#left_shift);
+                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                    };
+                    if i + 1 != size {
+                        full_quote = quote!{
+                            #full_quote
+                        }
+                    }
+                }*/
+            }
+            Ordering::Equal => {
+                // no shift can be more faster.
+                let current_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+
+                for i in 0usize..size {
+                    let start = quote_info.offset_starting_inject_byte(i);
+                    let not_current_bit_mask = !current_bit_mask;
+                    clear_quote = quote! {
+                        #clear_quote
+                        output_byte_buffer[#start] &= #not_current_bit_mask;
+                    };
+                    if i == 0 {
+                        if current_bit_mask == u8::MAX {
+                            full_quote = quote! {
+                                #full_quote
+                                output_byte_buffer[#start] |= #field_buffer_name[#i];
+                            };
+                        } else {
+                            full_quote = quote! {
+                                #full_quote
+                                output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                            };
+                        }
+                    } else {
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i];
+                        };
+                    }
+                }
+            }
+        }
+        Ok((full_quote, clear_quote))
+    }
+    fn get_read_be_single_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+    ) -> syn::Result<TokenStream> {
+        todo!("write be generate fns")
+    }
+    fn get_read_be_multi_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        right_shift: i8,
+        first_bit_mask: u8,
+        last_bit_mask: u8,
+    ) -> syn::Result<TokenStream> {
+        todo!("write be generate fns")
+    }
+    fn get_write_be_single_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        todo!("write be generate fns")
+    }
+    fn get_write_be_multi_byte_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        right_shift: i8,
+        first_bit_mask: u8,
+        last_bit_mask: u8,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        todo!("write be generate fns")
     }
 }
 
