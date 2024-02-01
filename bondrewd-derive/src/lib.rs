@@ -786,9 +786,12 @@
 //! }
 //! ```
 extern crate proc_macro;
+// mods
 mod enums;
-use enums::parse::EnumInfo;
 mod structs;
+mod gen;
+// uses
+use enums::parse::EnumInfo;
 use structs::into_bytes::{
     create_into_bytes_field_quotes_enum, create_into_bytes_field_quotes_struct,
 };
