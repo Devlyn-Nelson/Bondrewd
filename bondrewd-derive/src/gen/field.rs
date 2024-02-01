@@ -110,6 +110,9 @@ impl QuoteInfo {
     pub fn fields_last_bits_index(&self) -> usize {
         self.amount_of_bits.div_ceil(8) - 1
     }
+    pub fn flip(&self) -> Option<usize> {
+        self.flip.clone()
+    }
 }
 
 pub enum GenerateWriteQuoteFn {
@@ -230,6 +233,101 @@ impl GenerateWriteQuoteFn {
         }
     }
 }
+pub enum GenerateReadQuoteFn {
+    Single(fn(&FieldInfo, &QuoteInfo) -> syn::Result<TokenStream>),
+    MultiLittleEndianness {
+        right_shift: i8,
+        first_bit_mask: u8,
+        last_bit_mask: u8,
+        gen_fn: fn(&FieldInfo, &QuoteInfo, i8, u8, u8) -> syn::Result<TokenStream>,
+    },
+    MultiBigEndianness {
+        right_shift: i8,
+        first_bit_mask: u8,
+        last_bit_mask: u8,
+        bits_in_last_byte: usize,
+        gen_fn: fn(&FieldInfo, &QuoteInfo, i8, u8, u8, usize) -> syn::Result<TokenStream>,
+    },
+    MultiNoEndianness {
+        right_shift: i8,
+        gen_fn: fn(&FieldInfo, &QuoteInfo, i8) -> syn::Result<TokenStream>,
+    },
+}
+
+impl GenerateReadQuoteFn {
+    pub fn le_multi_byte(right_shift: i8, first_bit_mask: u8, last_bit_mask: u8) -> Self {
+        Self::MultiLittleEndianness {
+            right_shift,
+            first_bit_mask,
+            last_bit_mask,
+            gen_fn: FieldInfo::get_read_le_multi_byte_quote,
+        }
+    }
+    pub fn le_single_byte() -> Self {
+        Self::Single(FieldInfo::get_read_le_single_byte_quote)
+    }
+    pub fn ne_multi_byte(right_shift: i8) -> Self {
+        Self::MultiNoEndianness {
+            right_shift,
+            gen_fn: FieldInfo::get_read_ne_multi_byte_quote,
+        }
+    }
+    pub fn ne_single_byte() -> Self {
+        Self::Single(FieldInfo::get_read_ne_single_byte_quote)
+    }
+    pub fn be_multi_byte(
+        right_shift: i8,
+        first_bit_mask: u8,
+        last_bit_mask: u8,
+        bits_in_last_byte: usize,
+    ) -> Self {
+        Self::MultiBigEndianness {
+            right_shift,
+            first_bit_mask,
+            last_bit_mask,
+            bits_in_last_byte,
+            gen_fn: FieldInfo::get_read_be_multi_byte_quote,
+        }
+    }
+    pub fn be_single_byte() -> Self {
+        Self::Single(FieldInfo::get_read_be_single_byte_quote)
+    }
+    pub fn run(&self, field_info: &FieldInfo, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
+        match self {
+            Self::Single(gen_fn) => gen_fn(field_info, quote_info),
+            Self::MultiLittleEndianness {
+                right_shift,
+                first_bit_mask,
+                last_bit_mask,
+                gen_fn,
+            } => gen_fn(
+                field_info,
+                quote_info,
+                *right_shift,
+                *first_bit_mask,
+                *last_bit_mask,
+            ),
+            Self::MultiBigEndianness {
+                right_shift,
+                first_bit_mask,
+                last_bit_mask,
+                bits_in_last_byte,
+                gen_fn,
+            } => gen_fn(
+                field_info,
+                quote_info,
+                *right_shift,
+                *first_bit_mask,
+                *last_bit_mask,
+                *bits_in_last_byte,
+            ),
+            Self::MultiNoEndianness {
+                right_shift,
+                gen_fn,
+            } => gen_fn(field_info, quote_info, *right_shift),
+        }
+    }
+}
 
 impl FieldInfo {
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<FieldQuotes> {
@@ -239,6 +337,68 @@ impl FieldInfo {
             Endianness::Big => self.get_be_quotes(qi),
             Endianness::None => self.get_ne_quotes(qi),
         }
+    }
+    fn get_read_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        gen_read_fn: &GenerateReadQuoteFn,
+    ) -> syn::Result<TokenStream> {
+        let value_retrieval = match self.ty {
+            FieldDataType::ElementArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let sub = self.get_element_iter()?;
+                for sub_field in sub {
+                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    buffer = quote! {
+                        #buffer
+                        {#sub_field_quote},
+                    };
+                }
+                let buffer = quote! { [#buffer] };
+                buffer
+            }
+            FieldDataType::BlockArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let sub = self.get_block_iter()?;
+                for sub_field in sub {
+                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    buffer = quote! {
+                        #buffer
+                        {#sub_field_quote},
+                    };
+                }
+                let buffer = quote! { [#buffer] };
+                buffer
+            }
+            _ => gen_read_fn.run(self, quote_info)?,
+        };
+
+        let output = match self.ty {
+            FieldDataType::Float(_, ref ident) => {
+                quote! {#ident::from_bits(#value_retrieval)}
+            }
+            FieldDataType::Char(_, _) => {
+                quote! {
+                    if let Some(c) = char::from_u32({
+                        #value_retrieval
+                    }) {
+                        c
+                    }else{
+                        '�'
+                    }
+                }
+            }
+            FieldDataType::Enum(_, _, ref ident) => {
+                quote! {#ident::from_primitive(#value_retrieval)}
+            }
+            FieldDataType::Struct(_, ref ident) => {
+                quote! {#ident::from_bytes({#value_retrieval})}
+            }
+            _ => {
+                quote! {#value_retrieval}
+            }
+        };
+        Ok(output)
     }
     /// This function is kind of funny. it is essentially a function that gets called by either
     /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
@@ -393,21 +553,13 @@ impl FieldInfo {
                 //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
                 //     }
                 // };
-                let read = self.get_read_le_multi_byte_quote(
-                    &quote_info,
-                    right_shift,
-                    first_bit_mask,
-                    last_bit_mask,
-                )?;
-                let gen_write_fn =
-                    GenerateWriteQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask);
-                let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask))?;
+                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask), false)?;
                 (read, write, clear)
             } else {
                 // single bytes logic
-                let read = self.get_read_le_single_byte_quote(&quote_info)?;
-                let gen_write_fn = GenerateWriteQuoteFn::le_single_byte();
-                let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_single_byte())?;
+                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_single_byte(), false)?;
                 (read, write, clear)
             };
         Ok(FieldQuotes {
@@ -434,15 +586,13 @@ impl FieldInfo {
             #[allow(clippy::cast_possible_truncation)]
             let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
             // generate
-            let read = self.get_read_ne_multi_byte_quote(&quote_info, right_shift)?;
-            let gen_write_fn = GenerateWriteQuoteFn::ne_multi_byte(right_shift);
-            let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::ne_multi_byte(right_shift))?;
+            let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_multi_byte(right_shift), false)?;
             (read, write, clear)
         } else {
             // single bytes logic
-            let read = self.get_read_ne_single_byte_quote(&quote_info)?;
-            let gen_write_fn = GenerateWriteQuoteFn::ne_single_byte();
-            let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::ne_single_byte())?;
+            let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_single_byte(), false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -485,27 +635,24 @@ impl FieldInfo {
                     get_left_and_mask(bits_in_last_byte)
                 };
                 // generate
-                let read = self.get_read_be_multi_byte_quote(
-                    &quote_info,
-                    right_shift,
-                    first_bit_mask,
-                    last_bit_mask,
-                )?;
-                let gen_write_fn = GenerateWriteQuoteFn::be_multi_byte(
+                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_multi_byte(right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte))?;
+                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_multi_byte(
                     right_shift,
                     first_bit_mask,
                     last_bit_mask,
                     bits_in_last_byte,
-                );
-                let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+                ), false)?;
                 (read, write, clear)
             } else {
                 // single bytes logic
-                let read = self.get_read_be_single_byte_quote(&quote_info)?;
-                let gen_write_fn = GenerateWriteQuoteFn::be_single_byte();
-                let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
+                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_single_byte())?;
+                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_single_byte(), false)?;
                 (read, write, clear)
             };
-        todo!("merged Big Endianness from_bytes/into_bytes Generation code here")
+        Ok(FieldQuotes {
+            read,
+            write,
+            zero: clear,
+        })
     }
 }
