@@ -5,4 +5,4 @@ pub mod parse;
 #[cfg(feature = "setters")]
 pub mod struct_fns;
 
-// pub mod gen;
+pub mod gen;

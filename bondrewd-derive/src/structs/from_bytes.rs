@@ -660,6 +660,7 @@ fn get_field_quote(
     };
     Ok(output)
 }
+/// TokenSteam is getter
 #[allow(clippy::too_many_lines)]
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,
@@ -711,10 +712,11 @@ fn apply_le_math_to_field_access_quote(
             get_left_and_mask(bits_in_last_byte)
         };
 
-        // // create a quote that holds the bit shifting operator and shift value and the field name.
-        // // first_bits_index is the index to use in the fields byte array after shift for the
-        // // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
-        // // index of the fields byte array will be used.
+        // create a quote that holds the bit shifting operator and shift value and the field name.
+        // first_bits_index is the index to use in the fields byte array after shift for the
+        // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
+        // index of the fields byte array will be used.
+        //
         // let shift = if right_shift < 0 {
         //     // convert to left shift using absolute value
         //     let left_shift: u32 = right_shift.clone().abs() as u32;
@@ -730,15 +732,16 @@ fn apply_le_math_to_field_access_quote(
         //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
         //     }
         // };
-        let size = field.ty.size();
+
+        let rust_type_size = field.ty.size();
         let new_array_quote =
             if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)? {
                 a
             } else {
-                quote! {[0u8;#size]}
+                quote! {[0u8;#rust_type_size]}
             };
         let mut full_quote = quote! {
-            let mut #field_buffer_name: [u8;#size] = #new_array_quote;
+            let mut #field_buffer_name: [u8;#rust_type_size] = #new_array_quote;
         };
         let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
@@ -851,9 +854,9 @@ fn apply_le_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Float(_, _) => {
-                let alt_type_quote = if size == 4 {
+                let alt_type_quote = if rust_type_size == 4 {
                     quote!{u32}
-                }else if size == 8 {
+                }else if rust_type_size == 8 {
                     quote!{u64}
                 }else{
                     return Err(syn::Error::new(field.ident.span(), "unsupported floating type"))

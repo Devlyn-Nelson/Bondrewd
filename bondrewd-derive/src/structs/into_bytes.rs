@@ -541,7 +541,7 @@ fn get_field_quote(
         Endianness::None => apply_ne_math_to_field_access_quote(field, &quote_field_name, flip),
     }
 }
-// first token stream is actual setter, but second one is overwrite current bits to 0.
+/// first token stream is actual setter, but second one is overwrite current bits to 0.
 #[allow(clippy::too_many_lines)]
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,
@@ -612,26 +612,26 @@ fn apply_le_math_to_field_access_quote(
         //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
         //     }
         // };
+
+        // ___________________START HERE____________________________
+
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", field.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let field_byte_buffer = match field.ty {
+        let mut full_quote = match field.ty {
             FieldDataType::Enum(_, _, _) |
             FieldDataType::Number(_, _, _) |
             FieldDataType::Float(_, _) |
             FieldDataType::Char(_, _) => {
                 let field_call = quote!{#field_access_quote.to_le_bytes()};
                 let apply_field_to_buffer = quote! {
-                    let mut #field_buffer_name = #field_call
+                    let mut #field_buffer_name = #field_call;
                 };
                 apply_field_to_buffer
             }
             FieldDataType::Boolean => return Err(syn::Error::new(field.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
-        };
-        let mut full_quote = quote! {
-            #field_byte_buffer;
         };
         let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(available_bits_in_first_byte);
