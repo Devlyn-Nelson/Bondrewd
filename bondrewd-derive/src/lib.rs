@@ -788,8 +788,8 @@
 extern crate proc_macro;
 // mods
 mod enums;
-mod structs;
 mod gen;
+mod structs;
 // uses
 use enums::parse::EnumInfo;
 use structs::into_bytes::{

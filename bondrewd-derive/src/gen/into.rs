@@ -3,9 +3,11 @@ use std::cmp::Ordering;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-use crate::structs::common::{get_left_and_mask, get_right_and_mask, get_be_starting_index, FieldDataType, FieldInfo};
+use crate::structs::common::{
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
+};
 
-use super::gen_field::QuoteInfo;
+use super::field::QuoteInfo;
 
 impl FieldInfo {
     pub fn get_write_le_single_byte_quote(

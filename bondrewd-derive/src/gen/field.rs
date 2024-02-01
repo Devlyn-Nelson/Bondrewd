@@ -3,7 +3,9 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use crate::structs::common::{get_left_and_mask, get_right_and_mask, Endianness, FieldDataType, FieldInfo, StructInfo};
+use crate::structs::common::{
+    get_left_and_mask, get_right_and_mask, Endianness, FieldDataType, FieldInfo, StructInfo,
+};
 pub struct FieldQuotes {
     read: proc_macro2::TokenStream,
     write: proc_macro2::TokenStream,
@@ -483,8 +485,18 @@ impl FieldInfo {
                     get_left_and_mask(bits_in_last_byte)
                 };
                 // generate
-                let read = self.get_read_be_multi_byte_quote(&quote_info, right_shift, first_bit_mask, last_bit_mask)?;
-                let gen_write_fn = GenerateWriteQuoteFn::be_multi_byte(right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte);
+                let read = self.get_read_be_multi_byte_quote(
+                    &quote_info,
+                    right_shift,
+                    first_bit_mask,
+                    last_bit_mask,
+                )?;
+                let gen_write_fn = GenerateWriteQuoteFn::be_multi_byte(
+                    right_shift,
+                    first_bit_mask,
+                    last_bit_mask,
+                    bits_in_last_byte,
+                );
                 let (write, clear) = self.get_write_quote(&quote_info, &gen_write_fn, false)?;
                 (read, write, clear)
             } else {
