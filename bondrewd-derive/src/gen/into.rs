@@ -2,14 +2,111 @@ use std::cmp::Ordering;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::{punctuated::Punctuated, token::Comma};
 
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
 };
 
-use super::field::QuoteInfo;
+use super::field::{GenerateWriteQuoteFn, QuoteInfo};
 
 impl FieldInfo {
+    /// This function is kind of funny. it is essentially a function that gets called by either
+    /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
+    /// as a parameter `gen_write_fn`. and example of a function that can be used as `gen_write_fn` would
+    /// be `get_write_le_multi_byte_quote`;
+    pub fn get_write_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        gen_write_fn: &GenerateWriteQuoteFn,
+        with_self: bool,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        let field_name = self.ident().name();
+        let field_access = match self.ty {
+            FieldDataType::Float(_, _) => {
+                if with_self {
+                    quote! {self.#field_name.to_bits()}
+                } else {
+                    quote! {#field_name.to_bits()}
+                }
+            }
+            FieldDataType::Char(_, _) => {
+                if with_self {
+                    quote! {(self.#field_name as u32)}
+                } else {
+                    quote! {(#field_name as u32)}
+                }
+            }
+            FieldDataType::Enum(_, _, _) => {
+                if with_self {
+                    quote! {((self.#field_name).into_primitive())}
+                } else {
+                    quote! {((#field_name).into_primitive())}
+                }
+            }
+            // Array types need to recurse which is the reason this in-between function exists.
+            FieldDataType::ElementArray(_, _, _) => {
+                let mut clear_buffer = quote! {};
+                let mut buffer = quote! {};
+                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
+                let outer_field_name = &self.ident().ident();
+                let sub = self.get_element_iter()?;
+                for sub_field in sub {
+                    let field_name = &sub_field.ident().name();
+                    let (sub_field_quote, clear) =
+                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                    buffer = quote! {
+                        #buffer
+                        #sub_field_quote
+                    };
+                    clear_buffer = quote! {
+                        #clear_buffer
+                        #clear
+                    };
+                    de_refs.push(format_ident!("{}", field_name));
+                }
+                buffer = quote! {
+                    let [#de_refs] = #outer_field_name;
+                    #buffer
+                };
+                return Ok((buffer, clear_buffer));
+            }
+            FieldDataType::BlockArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let mut clear_buffer = quote! {};
+                let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
+                let outer_field_name = &self.ident().ident();
+                let sub = self.get_block_iter()?;
+                for sub_field in sub {
+                    let field_name = &sub_field.ident().name();
+                    let (sub_field_quote, clear) =
+                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                    buffer = quote! {
+                        #buffer
+                        #sub_field_quote
+                    };
+                    clear_buffer = quote! {
+                        #clear_buffer
+                        #clear
+                    };
+                    de_refs.push(format_ident!("{}", field_name));
+                }
+                buffer = quote! {
+                    let [#de_refs] = #outer_field_name;
+                    #buffer
+                };
+                return Ok((buffer, clear_buffer));
+            }
+            _ => {
+                if with_self {
+                    quote! {self.#field_name}
+                } else {
+                    quote! {#field_name}
+                }
+            }
+        };
+        gen_write_fn.run(self, quote_info, field_access)
+    }
     pub fn get_write_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,

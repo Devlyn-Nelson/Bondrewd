@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use super::field::QuoteInfo;
+use super::field::{GenerateReadQuoteFn, QuoteInfo};
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, Endianness, FieldDataType,
     FieldInfo, NumberSignage,
@@ -328,6 +328,68 @@ fn add_sign_fix_quote_single_bit(
 }
 
 impl FieldInfo {
+    pub fn get_read_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        gen_read_fn: &GenerateReadQuoteFn,
+    ) -> syn::Result<TokenStream> {
+        let value_retrieval = match self.ty {
+            FieldDataType::ElementArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let sub = self.get_element_iter()?;
+                for sub_field in sub {
+                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    buffer = quote! {
+                        #buffer
+                        {#sub_field_quote},
+                    };
+                }
+                let buffer = quote! { [#buffer] };
+                buffer
+            }
+            FieldDataType::BlockArray(_, _, _) => {
+                let mut buffer = quote! {};
+                let sub = self.get_block_iter()?;
+                for sub_field in sub {
+                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    buffer = quote! {
+                        #buffer
+                        {#sub_field_quote},
+                    };
+                }
+                let buffer = quote! { [#buffer] };
+                buffer
+            }
+            _ => gen_read_fn.run(self, quote_info)?,
+        };
+
+        let output = match self.ty {
+            FieldDataType::Float(_, ref ident) => {
+                quote! {#ident::from_bits(#value_retrieval)}
+            }
+            FieldDataType::Char(_, _) => {
+                quote! {
+                    if let Some(c) = char::from_u32({
+                        #value_retrieval
+                    }) {
+                        c
+                    }else{
+                        '�'
+                    }
+                }
+            }
+            FieldDataType::Enum(_, _, ref ident) => {
+                quote! {#ident::from_primitive(#value_retrieval)}
+            }
+            FieldDataType::Struct(_, ref ident) => {
+                quote! {#ident::from_bytes({#value_retrieval})}
+            }
+            _ => {
+                quote! {#value_retrieval}
+            }
+        };
+        Ok(output)
+    }
     pub fn get_read_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
