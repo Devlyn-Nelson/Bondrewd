@@ -328,7 +328,7 @@ fn add_sign_fix_quote_single_bit(
 }
 
 impl FieldInfo {
-    pub fn get_read_quote(
+    pub(crate) fn get_read_quote(
         &self,
         quote_info: &QuoteInfo,
         gen_read_fn: &GenerateReadQuoteFn,
@@ -338,7 +338,8 @@ impl FieldInfo {
                 let mut buffer = quote! {};
                 let sub = self.get_element_iter()?;
                 for sub_field in sub {
-                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    let sub_field_quote =
+                        Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
                     buffer = quote! {
                         #buffer
                         {#sub_field_quote},
@@ -351,7 +352,8 @@ impl FieldInfo {
                 let mut buffer = quote! {};
                 let sub = self.get_block_iter()?;
                 for sub_field in sub {
-                    let sub_field_quote = Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
+                    let sub_field_quote =
+                        Self::get_read_quote(&sub_field, quote_info, gen_read_fn)?;
                     buffer = quote! {
                         #buffer
                         {#sub_field_quote},
@@ -390,7 +392,7 @@ impl FieldInfo {
         };
         Ok(output)
     }
-    pub fn get_read_le_single_byte_quote(
+    pub(crate) fn get_read_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
     ) -> syn::Result<TokenStream> {
@@ -472,7 +474,7 @@ impl FieldInfo {
         };
         Ok(output_quote)
     }
-    pub fn get_read_le_multi_byte_quote(
+    pub(crate) fn get_read_le_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,
@@ -626,7 +628,7 @@ impl FieldInfo {
 
         Ok(output)
     }
-    pub fn get_read_ne_single_byte_quote(
+    pub(crate) fn get_read_ne_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
     ) -> syn::Result<TokenStream> {
@@ -664,7 +666,7 @@ impl FieldInfo {
         };
         Ok(output)
     }
-    pub fn get_read_ne_multi_byte_quote(
+    pub(crate) fn get_read_ne_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,
@@ -773,7 +775,7 @@ impl FieldInfo {
 
         Ok(full_quote)
     }
-    pub fn get_read_be_single_byte_quote(
+    pub(crate) fn get_read_be_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
     ) -> syn::Result<TokenStream> {
@@ -855,7 +857,7 @@ impl FieldInfo {
         };
         Ok(output_quote)
     }
-    pub fn get_read_be_multi_byte_quote(
+    pub(crate) fn get_read_be_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,

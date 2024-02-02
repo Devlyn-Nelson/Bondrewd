@@ -329,6 +329,13 @@ impl GenerateReadQuoteFn {
 }
 
 impl FieldInfo {
+    /// This will return a [`FieldQuotes`] which contains the code that goes into functions like:
+    /// - `read_field`
+    /// - `write_field`
+    /// - `write_slice_field`
+    /// - `StructChecked::read_field`
+    ///
+    /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<FieldQuotes> {
         let qi = QuoteInfo::new(self, struct_info)?;
         match *self.attrs.endianness {
@@ -338,71 +345,80 @@ impl FieldInfo {
         }
     }
     fn get_le_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        let (read, write, clear) =
-            if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
-                // calculate how many of the bits will be inside the least significant byte we are adding to.
-                // this will also be the number used for shifting to the right >> because that will line up
-                // our bytes for the buffer.
-                if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                    return Err(syn::Error::new(
-                        self.ident.span(),
-                        "calculating le `bits_in_last_bytes` failed",
-                    ));
-                }
-                let bits_in_last_byte =
-                    (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
-                // how many times to shift the number right.
-                // NOTE if negative shift left.
-                // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
-                // for a f32) then use the last byte in the fields byte array after shifting for the first
-                // used byte in the buffer.
-                let mut bits_needed_in_msb = quote_info.amount_of_bits() % 8;
-                if bits_needed_in_msb == 0 {
-                    bits_needed_in_msb = 8;
-                }
-                #[allow(clippy::cast_possible_truncation)]
-                let mut right_shift: i8 = (bits_needed_in_msb as i8)
-                    - ((quote_info.available_bits_in_first_byte() % 8) as i8);
-                if right_shift == 8 {
-                    right_shift = 0;
-                }
-                // because we are applying bits in place we need masks in insure we don't effect other fields
-                // data. we need one for the first byte and the last byte.
-                let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
-                let last_bit_mask = if bits_in_last_byte == 0 {
-                    get_left_and_mask(8)
-                } else {
-                    get_left_and_mask(bits_in_last_byte)
-                };
-                // create a quote that holds the bit shifting operator and shift value and the field name.
-                // first_bits_index is the index to use in the fields byte array after shift for the
-                // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
-                // index of the fields byte array will be used.
-                //
-                // let shift = if right_shift < 0 {
-                //     // convert to left shift using absolute value
-                //     let left_shift: u32 = right_shift.clone().abs() as u32;
-                //     // shift left code
-                //     quote! { (#field_access_quote.rotate_left(#left_shift)) }
-                // } else {
-                //     if right_shift == 0 {
-                //         // no shift no code, just the
-                //         quote! { #field_access_quote }
-                //     } else {
-                //         // shift right code
-                //         let right_shift_usize: u32 = right_shift.clone() as u32;
-                //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
-                //     }
-                // };
-                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask))?;
-                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask), false)?;
-                (read, write, clear)
+        let (read, write, clear) = if quote_info.amount_of_bits()
+            > quote_info.available_bits_in_first_byte()
+        {
+            // calculate how many of the bits will be inside the least significant byte we are adding to.
+            // this will also be the number used for shifting to the right >> because that will line up
+            // our bytes for the buffer.
+            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating le `bits_in_last_bytes` failed",
+                ));
+            }
+            let bits_in_last_byte =
+                (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
+            // how many times to shift the number right.
+            // NOTE if negative shift left.
+            // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+            // for a f32) then use the last byte in the fields byte array after shifting for the first
+            // used byte in the buffer.
+            let mut bits_needed_in_msb = quote_info.amount_of_bits() % 8;
+            if bits_needed_in_msb == 0 {
+                bits_needed_in_msb = 8;
+            }
+            #[allow(clippy::cast_possible_truncation)]
+            let mut right_shift: i8 = (bits_needed_in_msb as i8)
+                - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+            if right_shift == 8 {
+                right_shift = 0;
+            }
+            // because we are applying bits in place we need masks in insure we don't effect other fields
+            // data. we need one for the first byte and the last byte.
+            let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+            let last_bit_mask = if bits_in_last_byte == 0 {
+                get_left_and_mask(8)
             } else {
-                // single bytes logic
-                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_single_byte())?;
-                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_single_byte(), false)?;
-                (read, write, clear)
+                get_left_and_mask(bits_in_last_byte)
             };
+            // create a quote that holds the bit shifting operator and shift value and the field name.
+            // first_bits_index is the index to use in the fields byte array after shift for the
+            // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
+            // index of the fields byte array will be used.
+            //
+            // let shift = if right_shift < 0 {
+            //     // convert to left shift using absolute value
+            //     let left_shift: u32 = right_shift.clone().abs() as u32;
+            //     // shift left code
+            //     quote! { (#field_access_quote.rotate_left(#left_shift)) }
+            // } else {
+            //     if right_shift == 0 {
+            //         // no shift no code, just the
+            //         quote! { #field_access_quote }
+            //     } else {
+            //         // shift right code
+            //         let right_shift_usize: u32 = right_shift.clone() as u32;
+            //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
+            //     }
+            // };
+            let read = self.get_read_quote(
+                &quote_info,
+                &GenerateReadQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask),
+            )?;
+            let (write, clear) = self.get_write_quote(
+                &quote_info,
+                &GenerateWriteQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask),
+                false,
+            )?;
+            (read, write, clear)
+        } else {
+            // single bytes logic
+            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_single_byte())?;
+            let (write, clear) =
+                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_single_byte(), false)?;
+            (read, write, clear)
+        };
         Ok(FieldQuotes {
             read,
             write,
@@ -427,13 +443,21 @@ impl FieldInfo {
             #[allow(clippy::cast_possible_truncation)]
             let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
             // generate
-            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::ne_multi_byte(right_shift))?;
-            let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_multi_byte(right_shift), false)?;
+            let read = self.get_read_quote(
+                &quote_info,
+                &GenerateReadQuoteFn::ne_multi_byte(right_shift),
+            )?;
+            let (write, clear) = self.get_write_quote(
+                &quote_info,
+                &GenerateWriteQuoteFn::ne_multi_byte(right_shift),
+                false,
+            )?;
             (read, write, clear)
         } else {
             // single bytes logic
             let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::ne_single_byte())?;
-            let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_single_byte(), false)?;
+            let (write, clear) =
+                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_single_byte(), false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -443,53 +467,67 @@ impl FieldInfo {
         })
     }
     fn get_be_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        let (read, write, clear) =
-            if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
-                // calculate how many of the bits will be inside the least significant byte we are adding to.
-                // this will also be the number used for shifting to the right >> because that will line up
-                // our bytes for the buffer.
-                if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                    return Err(syn::Error::new(
-                        self.ident.span(),
-                        "calculating be bits_in_last_bytes failed",
-                    ));
-                }
-                let bits_in_last_byte =
-                    (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
-                // how many times to shift the number right.
-                // NOTE if negative shift left.
-                // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
-                // for a f32) then use the last byte in the fields byte array after shifting for the first
-                // used byte in the buffer.
-                #[allow(clippy::cast_possible_truncation)]
-                let mut right_shift: i8 = ((quote_info.amount_of_bits() % 8) as i8)
-                    - ((quote_info.available_bits_in_first_byte() % 8) as i8);
-                if right_shift < 0 {
-                    right_shift += 8;
-                }
-                // because we are applying bits in place we need masks in insure we don't effect other fields
-                // data. we need one for the first byte and the last byte.
-                let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
-                let last_bit_mask = if bits_in_last_byte == 0 {
-                    get_left_and_mask(8)
-                } else {
-                    get_left_and_mask(bits_in_last_byte)
-                };
-                // generate
-                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_multi_byte(right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte))?;
-                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_multi_byte(
+        let (read, write, clear) = if quote_info.amount_of_bits
+            > quote_info.available_bits_in_first_byte
+        {
+            // calculate how many of the bits will be inside the least significant byte we are adding to.
+            // this will also be the number used for shifting to the right >> because that will line up
+            // our bytes for the buffer.
+            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating be bits_in_last_bytes failed",
+                ));
+            }
+            let bits_in_last_byte =
+                (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
+            // how many times to shift the number right.
+            // NOTE if negative shift left.
+            // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+            // for a f32) then use the last byte in the fields byte array after shifting for the first
+            // used byte in the buffer.
+            #[allow(clippy::cast_possible_truncation)]
+            let mut right_shift: i8 = ((quote_info.amount_of_bits() % 8) as i8)
+                - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+            if right_shift < 0 {
+                right_shift += 8;
+            }
+            // because we are applying bits in place we need masks in insure we don't effect other fields
+            // data. we need one for the first byte and the last byte.
+            let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
+            let last_bit_mask = if bits_in_last_byte == 0 {
+                get_left_and_mask(8)
+            } else {
+                get_left_and_mask(bits_in_last_byte)
+            };
+            // generate
+            let read = self.get_read_quote(
+                &quote_info,
+                &GenerateReadQuoteFn::be_multi_byte(
                     right_shift,
                     first_bit_mask,
                     last_bit_mask,
                     bits_in_last_byte,
-                ), false)?;
-                (read, write, clear)
-            } else {
-                // single bytes logic
-                let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_single_byte())?;
-                let (write, clear) = self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_single_byte(), false)?;
-                (read, write, clear)
-            };
+                ),
+            )?;
+            let (write, clear) = self.get_write_quote(
+                &quote_info,
+                &GenerateWriteQuoteFn::be_multi_byte(
+                    right_shift,
+                    first_bit_mask,
+                    last_bit_mask,
+                    bits_in_last_byte,
+                ),
+                false,
+            )?;
+            (read, write, clear)
+        } else {
+            // single bytes logic
+            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_single_byte())?;
+            let (write, clear) =
+                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_single_byte(), false)?;
+            (read, write, clear)
+        };
         Ok(FieldQuotes {
             read,
             write,

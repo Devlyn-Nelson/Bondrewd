@@ -15,7 +15,7 @@ impl FieldInfo {
     /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
     /// as a parameter `gen_write_fn`. and example of a function that can be used as `gen_write_fn` would
     /// be `get_write_le_multi_byte_quote`;
-    pub fn get_write_quote(
+    pub(crate) fn get_write_quote(
         &self,
         quote_info: &QuoteInfo,
         gen_write_fn: &GenerateWriteQuoteFn,
@@ -107,7 +107,7 @@ impl FieldInfo {
         };
         gen_write_fn.run(self, quote_info, field_access)
     }
-    pub fn get_write_le_single_byte_quote(
+    pub(crate) fn get_write_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
@@ -185,7 +185,7 @@ impl FieldInfo {
         };
         Ok((apply_field_to_buffer, clear_quote))
     }
-    pub fn get_write_le_multi_byte_quote(
+    pub(crate) fn get_write_le_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,
@@ -338,7 +338,7 @@ impl FieldInfo {
 
         Ok((full_quote, clear_quote))
     }
-    pub fn get_write_ne_single_byte_quote(
+    pub(crate) fn get_write_ne_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
@@ -406,7 +406,7 @@ impl FieldInfo {
         };
         Ok((finished_quote, clear_quote))
     }
-    pub fn get_write_ne_multi_byte_quote(
+    pub(crate) fn get_write_ne_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,
@@ -537,7 +537,7 @@ impl FieldInfo {
         }
         Ok((full_quote, clear_quote))
     }
-    pub fn get_write_be_single_byte_quote(
+    pub(crate) fn get_write_be_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
@@ -607,7 +607,7 @@ impl FieldInfo {
         };
         Ok((apply_field_to_buffer, clear_quote))
     }
-    pub fn get_write_be_multi_byte_quote(
+    pub(crate) fn get_write_be_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
         right_shift: i8,
