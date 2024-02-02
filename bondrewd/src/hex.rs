@@ -20,9 +20,9 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => return Err(crate::BitfieldHexError(c as char, c_i)),
+                _ => Err(crate::BitfieldHexError(c as char, c_i)),
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
@@ -35,8 +35,8 @@ where
         let bytes = self.into_bytes();
         let mut output: [u8; HEX_SIZE] = [0; HEX_SIZE];
         for (i, byte) in (0..HEX_SIZE).step_by(2).zip(bytes) {
-            output[i] = Self::UPPERS[((byte & 0b11110000) >> 4) as usize];
-            output[i + 1] = Self::UPPERS[(byte & 0b00001111) as usize];
+            output[i] = Self::UPPERS[((byte & 0b1111_0000) >> 4) as usize];
+            output[i + 1] = Self::UPPERS[(byte & 0b0000_1111) as usize];
         }
         output
     }
@@ -48,8 +48,8 @@ where
         let bytes = self.into_bytes();
         let mut output: [u8; HEX_SIZE] = [0; HEX_SIZE];
         for (i, byte) in (0..HEX_SIZE).step_by(2).zip(bytes) {
-            output[i] = Self::LOWERS[((byte & 0b11110000) >> 4) as usize];
-            output[i + 1] = Self::LOWERS[(byte & 0b00001111) as usize];
+            output[i] = Self::LOWERS[((byte & 0b1111_0000) >> 4) as usize];
+            output[i + 1] = Self::LOWERS[(byte & 0b0000_1111) as usize];
         }
         output
     }
@@ -78,12 +78,12 @@ where
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
                 _ => {
-                    return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                    Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
                         c as char, c_i,
                     )))
                 }
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
@@ -103,12 +103,12 @@ where
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
                 _ => {
-                    return Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                    Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
                         c as char, c_i,
                     )))
                 }
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4)
+            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
