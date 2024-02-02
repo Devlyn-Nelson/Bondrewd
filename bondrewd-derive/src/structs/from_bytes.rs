@@ -660,7 +660,7 @@ fn get_field_quote(
     };
     Ok(output)
 }
-/// TokenSteam is getter
+/// `TokenSteam` is getter
 #[allow(clippy::too_many_lines)]
 fn apply_le_math_to_field_access_quote(
     field: &FieldInfo,

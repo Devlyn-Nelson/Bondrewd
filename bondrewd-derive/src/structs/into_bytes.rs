@@ -187,14 +187,14 @@ pub fn create_into_bytes_field_quotes_enum(
                 let out = quote! {
                     #id_field
                 };
-                let out = {
+                
+                {
                     let q = make_checked_mut_func(&info.name, info.total_bytes());
                     quote! {
                         #out
                         #q
                     }
-                };
-                out
+                }
             },
             info.id_ident()?,
         )

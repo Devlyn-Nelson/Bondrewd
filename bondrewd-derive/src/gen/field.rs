@@ -98,7 +98,7 @@ impl QuoteInfo {
             index + 1
         }
     }
-    /// Returns the starting_inject_byte plus or minus `offset` depending on if the bytes order is reversed.
+    /// Returns the `starting_inject_byte` plus or minus `offset` depending on if the bytes order is reversed.
     pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
         if self.flip.is_some() {
             self.starting_inject_byte - offset
@@ -110,7 +110,7 @@ impl QuoteInfo {
         self.amount_of_bits.div_ceil(8) - 1
     }
     pub fn flip(&self) -> Option<usize> {
-        self.flip.clone()
+        self.flip
     }
 }
 

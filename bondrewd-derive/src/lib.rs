@@ -2203,11 +2203,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         ObjectInfo::Struct(ref struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_struct(&struct_info) {
+            let fields_into_bytes = match create_into_bytes_field_quotes_struct(struct_info) {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info) {
+            let fields_from_bytes = match create_from_bytes_field_quotes(struct_info) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
@@ -2216,11 +2216,11 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         ObjectInfo::Enum(ref enum_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info) {
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(enum_info) {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info) {
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(enum_info) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };

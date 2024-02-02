@@ -33,11 +33,11 @@ impl StructInfo {
 impl EnumInfo {
     pub fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         // function for getting the id of an enum.
-        let mut id_fn = quote! {};
-        let mut bitfield_trait_impl_fns = quote! {};
-        let mut impl_fns = quote! {};
+        let _id_fn = quote! {};
+        let _bitfield_trait_impl_fns = quote! {};
+        let _impl_fns = quote! {};
         #[cfg(feature = "dyn_fns")]
-        let mut bitfield_dyn_trait_impl_fns = quote! {};
+        let _bitfield_dyn_trait_impl_fns = quote! {};
         todo!("finish merged (from AND into) generate functions for EnumInfo");
     }
 }
