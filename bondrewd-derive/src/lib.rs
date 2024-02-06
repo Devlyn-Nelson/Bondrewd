@@ -2194,7 +2194,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    // println!("{:?}", struct_info);
+    struct_info.generate();
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();

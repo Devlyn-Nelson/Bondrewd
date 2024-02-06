@@ -77,11 +77,9 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => {
-                    Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
-                        c as char, c_i,
-                    )))
-                }
+                _ => Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                    c as char, c_i,
+                ))),
             };
             bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
@@ -102,11 +100,9 @@ where
                 b'A'..=b'F' => Ok(c - b'A' + 10u8),
                 b'a'..=b'f' => Ok(c - b'a' + 10u8),
                 b'0'..=b'9' => Ok(c - b'0'),
-                _ => {
-                    Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
-                        c as char, c_i,
-                    )))
-                }
+                _ => Err(crate::BitfieldHexDynError::Hex(crate::BitfieldHexError(
+                    c as char, c_i,
+                ))),
             };
             bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
