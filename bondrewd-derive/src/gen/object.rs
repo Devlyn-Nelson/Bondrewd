@@ -31,13 +31,30 @@ impl Default for GeneratedFunctions {
 
 impl Into<TokenStream> for GeneratedFunctions {
     fn into(self) -> TokenStream {
-        let quote = self.bitfield_trait_impl_fns;
+        let trait_fns = self.bitfield_trait_impl_fns;
+        let impl_fns = self.impl_fns;
+        #[cfg(feature = "dyn_fns")]
+        let unchecked = self.checked_struct_impl_fns;
+        #[cfg(feature = "dyn_fns")]
+        let dyn_trait_fns = self.bitfield_dyn_trait_impl_fns;
+        #[cfg(feature = "dyn_fns")]
+        let quote = quote!{
+            #trait_fns
+            #impl_fns
+            #unchecked
+            #dyn_trait_fns
+        };
+        #[cfg(not(feature = "dyn_fns"))]
+        let quote = quote!{
+            #trait_fns
+            #impl_fns
+        };
         quote
     }
 }
 
 impl GeneratedFunctions {
-    pub fn merge(&mut self, other: Self) {
+    fn merge(&mut self, other: Self) {
         let bitfield_trait_impl_fns = &self.bitfield_trait_impl_fns;
         let other_bitfield_trait_impl_fns = &other.bitfield_trait_impl_fns;
         self.bitfield_trait_impl_fns = quote! {
@@ -66,14 +83,14 @@ impl GeneratedFunctions {
             };
         }
     }
-    pub fn append_bitfield_trait_impl_fns(&mut self, quote: TokenStream) {
+    fn append_bitfield_trait_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.bitfield_trait_impl_fns;
         self.bitfield_trait_impl_fns = quote! {
             #old
             #quote
         };
     }
-    pub fn append_impl_fns(&mut self, quote: TokenStream) {
+    fn append_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.impl_fns;
         self.impl_fns = quote! {
             #old
@@ -81,7 +98,7 @@ impl GeneratedFunctions {
         };
     }
     #[cfg(feature = "dyn_fns")]
-    pub fn append_checked_struct_impl_fns(&mut self, quote: TokenStream) {
+    fn append_checked_struct_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.checked_struct_impl_fns;
         self.checked_struct_impl_fns = quote! {
             #old
@@ -89,7 +106,7 @@ impl GeneratedFunctions {
         };
     }
     #[cfg(feature = "dyn_fns")]
-    pub fn append_bitfield_dyn_trait_impl_fns(&mut self, quote: TokenStream) {
+    fn append_bitfield_dyn_trait_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.bitfield_dyn_trait_impl_fns;
         self.bitfield_dyn_trait_impl_fns = quote! {
             #old
@@ -118,7 +135,7 @@ struct FieldQuotes {
 }
 
 impl StructInfo {
-    pub fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
+    fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         let mut quotes = self.create_field_quotes(None)?;
         let struct_size = &self.total_bytes();
         let from_bytes_quote = &quotes.read_fns.bitfield_trait_impl_fns;
@@ -174,7 +191,7 @@ impl StructInfo {
         Ok(quotes.read_fns)
         // todo!("finish merged (from AND into) generate functions for StructInfo");
     }
-    fn create_field_quotes(&self, enum_name: Option<&Ident>)-> syn::Result<FieldQuotes> {
+    fn create_field_quotes(&self, enum_name: Option<&Ident>) -> syn::Result<FieldQuotes> {
         let variant_name = if enum_name.is_some() {
             // We what to use the name of the struct because enum variants are just StructInfos internally.
             Some(format_ident!(
@@ -201,7 +218,7 @@ impl StructInfo {
             impl_fns,
             ..Default::default()
         };
-        let mut field_name_list = quote!{};
+        let mut field_name_list = quote! {};
         for field in fields {
             self.make_read_fns(field, &variant_name, &mut field_name_list, &mut gen)?;
         }
@@ -308,9 +325,7 @@ impl StructInfo {
 }
 
 impl EnumInfo {
-    pub fn generate_bitfield_functions(
-        &self,
-    ) -> syn::Result<GeneratedFunctions> {
+    fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         let enum_name: Option<&Ident> = Some(&self.name);
         // function for getting the id of an enum.
         let _id_fn = quote! {};
@@ -359,7 +374,12 @@ fn generate_read_field_fn(
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
     let struct_size = &info.total_bytes();
-    let comment = format!("Reads bits {} through {} within `input_byte_buffer`, getting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!("Reads {comment_bits} within `input_byte_buffer`, getting the `{field_name}` field of a `{struct_name}` in bitfield form.");
     quote! {
         #[inline]
         #[doc = #comment]
@@ -421,8 +441,13 @@ fn generate_read_slice_field_fn_unchecked(
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
     let comment = format!(
-        "Reads bits {} through {} in pre-checked slice, getting the `{field_name}` field of a [{struct_name}] in bitfield form.", bit_range.start, bit_range.end - 1
+        "Reads {comment_bits} in pre-checked slice, getting the `{field_name}` field of a [{struct_name}] in bitfield form."
     );
     quote! {
         #[inline]

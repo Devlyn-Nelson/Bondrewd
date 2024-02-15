@@ -2227,10 +2227,20 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         }
     };
     // TODO remove this, its for comparing new and old code gen.
-    println!("{}\n\n\n", fields_from_bytes.from_bytes_fn);
+    std::fs::write("old.txt", format!("{}", Into::<proc_macro2::TokenStream>::into(crate::gen::object::GeneratedFunctions{
+        bitfield_trait_impl_fns: fields_from_bytes.from_bytes_fn.clone(),
+        impl_fns: fields_from_bytes.read_field_fns.clone(),
+        #[cfg(feature = "dyn_fns")]
+        checked_struct_impl_fns: fields_from_bytes.read_slice_field_unchecked_fns.clone(),
+        #[cfg(feature = "dyn_fns")]
+        bitfield_dyn_trait_impl_fns: fields_from_bytes.from_slice_field_fns.clone().unwrap(),
+    })).as_bytes());
     // THIS IS NEW REFACTORED CODE.
     match struct_info.generate() {
-        Ok(gen) => println!("{}", gen.bitfield_trait_impl_fns),
+        Ok(gen) => {
+            let new = format!("{}", Into::<proc_macro2::TokenStream>::into(gen));
+            std::fs::write("new.txt", new.as_bytes());
+        }
         Err(err) => println!("new gen code failed {err}"),
     }
     // END OF REFACTORED CODE.
