@@ -292,8 +292,8 @@ pub fn create_from_bytes_field_quotes_enum(
             )
         };
         peek_slice_fns_option = quote! {
-            #peek_slice_field_unchecked_fns
             #peek_slice_fns_option
+            #peek_slice_field_unchecked_fns
         };
         peek_fns_quote = quote! {
             #peek_fns_quote

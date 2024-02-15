@@ -40,6 +40,12 @@ pub struct QuoteInfo {
 }
 impl QuoteInfo {
     pub fn new(field_info: &FieldInfo, struct_info: &StructInfo) -> syn::Result<Self> {
+        Self::new_inner(field_info, struct_info.get_flip())
+    }
+    pub fn new_no_flip(field_info: &FieldInfo) -> syn::Result<Self> {
+        Self::new_inner(field_info, None)
+    }
+    fn new_inner(field_info: &FieldInfo, flip: Option<usize>) -> syn::Result<Self> {
         // get the total number of bits the field uses.
         let amount_of_bits = field_info.attrs.bit_length();
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
@@ -56,7 +62,7 @@ impl QuoteInfo {
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
         let mut starting_inject_byte: usize = field_info.attrs.bit_range.start / 8;
-        let flip = if let Some(flip) = struct_info.get_flip() {
+        let flip = if let Some(flip) = flip {
             starting_inject_byte = flip - starting_inject_byte;
             Some(flip)
         } else {
@@ -338,6 +344,14 @@ impl FieldInfo {
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<FieldQuotes> {
         let qi = QuoteInfo::new(self, struct_info)?;
+        match *self.attrs.endianness {
+            Endianness::Little => self.get_le_quotes(qi),
+            Endianness::Big => self.get_be_quotes(qi),
+            Endianness::None => self.get_ne_quotes(qi),
+        }
+    }
+    pub fn get_quotes_no_flip(&self) -> syn::Result<FieldQuotes> {
+        let qi = QuoteInfo::new_no_flip(self)?;
         match *self.attrs.endianness {
             Endianness::Little => self.get_le_quotes(qi),
             Endianness::Big => self.get_be_quotes(qi),

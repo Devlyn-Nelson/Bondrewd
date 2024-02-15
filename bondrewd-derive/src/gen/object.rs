@@ -1,7 +1,10 @@
+use std::str::FromStr;
+
 use crate::structs::common::{EnumInfo, FieldInfo, ObjectInfo, StructInfo};
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
+use syn::token::Pub;
 
 pub struct GeneratedFunctions {
     /// Functions that belong in `Bitfields` impl for object.
@@ -38,14 +41,14 @@ impl Into<TokenStream> for GeneratedFunctions {
         #[cfg(feature = "dyn_fns")]
         let dyn_trait_fns = self.bitfield_dyn_trait_impl_fns;
         #[cfg(feature = "dyn_fns")]
-        let quote = quote!{
+        let quote = quote! {
             #trait_fns
             #impl_fns
             #unchecked
             #dyn_trait_fns
         };
         #[cfg(not(feature = "dyn_fns"))]
-        let quote = quote!{
+        let quote = quote! {
             #trait_fns
             #impl_fns
         };
@@ -121,9 +124,6 @@ impl ObjectInfo {
             ObjectInfo::Struct(s) => s.generate_bitfield_functions(),
             ObjectInfo::Enum(e) => e.generate_bitfield_functions(),
         }
-        // todo!(
-        //     "generate all code here, this means moving the code generation code inside lib.rs here"
-        // )
     }
 }
 
@@ -136,7 +136,9 @@ struct FieldQuotes {
 
 impl StructInfo {
     fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
+        // generate basic generated code for field access functions.
         let mut quotes = self.create_field_quotes(None)?;
+        // Gather information to finish [`Bitfields::from_bytes`]
         let struct_size = &self.total_bytes();
         let from_bytes_quote = &quotes.read_fns.bitfield_trait_impl_fns;
         let fields_list = &quotes.field_list;
@@ -155,6 +157,7 @@ impl StructInfo {
         };
         #[cfg(feature = "dyn_fns")]
         {
+            // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
             let from_bytes_dyn_quote = &quotes.read_fns.bitfield_dyn_trait_impl_fns;
             let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
@@ -208,15 +211,17 @@ impl StructInfo {
         } else {
             get_check_slice_fn(&self.name, self.total_bytes())
         };
-        let fields = if enum_name.is_some() && !self.fields[0].attrs.capture_id {
-            &self.fields[1..]
-        } else {
-            &self.fields[..]
-        };
         let mut gen = GeneratedFunctions {
             #[cfg(feature = "dyn_fns")]
             impl_fns,
             ..Default::default()
+        };
+        // If we are building code for an enum variant that does not capture the id
+        // then we should skip the id field to avoid creating an get_id function for each variant.
+        let fields = if enum_name.is_some() && !self.fields[0].attrs.capture_id {
+            &self.fields[1..]
+        } else {
+            &self.fields[..]
         };
         let mut field_name_list = quote! {};
         for field in fields {
@@ -327,14 +332,191 @@ impl StructInfo {
 impl EnumInfo {
     fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         let enum_name: Option<&Ident> = Some(&self.name);
-        // function for getting the id of an enum.
-        let _id_fn = quote! {};
-        let _bitfield_trait_impl_fns = quote! {};
-        let _impl_fns = quote! {};
-        #[cfg(feature = "dyn_fns")]
-        let _bitfield_dyn_trait_impl_fns = quote! {};
+        let mut gen = GeneratedFunctions {
+            impl_fns: {
+                let field = self.generate_id_field()?;
+                let flip = false;
+                let access = field.get_quotes_no_flip()?;
+                let attrs = self.attrs.attrs.clone();
+                let mut fields = vec![field.clone()];
+                fields[0].attrs.bit_range = 0..self.total_bits();
+                let temp_struct_info = StructInfo {
+                    name: self.name.clone(),
+                    attrs,
+                    fields,
+                    vis: syn::Visibility::Public(Pub::default()),
+                    tuple: false,
+                };
+                let field_name =  &field.ident().ident();
+                let id_field =
+                    generate_read_field_fn(access.read(), &field, &temp_struct_info, field_name);
+                #[cfg(feature = "dyn_fns")]
+                {
+                    let id_slice_peek = generate_read_slice_field_fn(
+                        access.read(),
+                        &field,
+                        &temp_struct_info,
+                        field_name,
+                    );
+                    quote! {
+                        #id_field
+                        #id_slice_peek
+                    }
+                }
+                #[cfg(not(feature = "dyn_fns"))]
+                {
+                    quote! {
+                        #id_field
+                    }
+                }
+            },
+            #[cfg(feature = "dyn_fns")]
+            checked_struct_impl_fns: get_check_slice_fn(&self.name, self.total_bytes()),
+            ..Default::default()
+        };
+        let struct_size = self.total_bytes();
+        let last_variant = self.variants.len() - 1;
 
-        todo!("finish merged (from AND into) generate functions for EnumInfo");
+        for (i, variant) in self.variants.iter().enumerate() {
+            // this is the slice indexing that will fool the set function code into thinking
+            // it is looking at a smaller array.
+            let v_name = &variant.name;
+            let upper_v_name = v_name.to_string().to_case(Case::UpperSnake);
+            let v_byte_const_name = format_ident!("{upper_v_name}_BYTE_SIZE");
+            let v_bit_const_name = format_ident!("{upper_v_name}_BIT_SIZE");
+            let v_byte_size = variant.total_bytes();
+            let v_bit_size = variant.total_bits();
+            let variant_name = quote! {#v_name};
+            #[cfg(feature = "dyn_fns")]
+            let stuff: (TokenStream,TokenStream,TokenStream,TokenStream,TokenStream,);
+            #[cfg(not(feature = "dyn_fns"))]
+            let stuff: (TokenStream,TokenStream,TokenStream,);
+            stuff = {
+                let thing = variant.create_field_quotes(enum_name)?;
+                (
+                    thing.field_list,
+                    thing.read_fns.impl_fns,
+                    thing.read_fns.bitfield_trait_impl_fns,
+                    #[cfg(feature = "dyn_fns")]
+                    thing.read_fns.checked_struct_impl_fns,
+                    #[cfg(feature = "dyn_fns")]
+                    thing.read_fns.bitfield_dyn_trait_impl_fns,
+                )
+            };
+            #[cfg(feature = "dyn_fns")]
+            let (
+                field_name_list,
+                peek_fns_quote_temp,
+                from_bytes_quote,
+                peek_slice_field_unchecked_fns,
+                from_vec_quote,
+            ) = (stuff.0, stuff.1, stuff.2, stuff.3, stuff.4);
+            #[cfg(not(feature = "dyn_fns"))]
+            let (
+                field_name_list,
+                peek_fns_quote_temp,
+                from_bytes_quote,
+            ) = (stuff.0, stuff.1, stuff.2);
+            #[cfg(feature = "dyn_fns")]
+            gen.append_checked_struct_impl_fns(peek_slice_field_unchecked_fns);
+            gen.append_impl_fns(peek_fns_quote_temp);
+            gen.append_impl_fns(quote!{
+                pub const #v_byte_const_name: usize = #v_byte_size;
+                pub const #v_bit_const_name: usize = #v_bit_size;
+            });
+            // make setter for each field.
+            // construct from bytes function. use input_byte_buffer as input name because,
+            // that is what the field quotes expect to extract from.
+            // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+            // because all of the from_bytes field quote store there data in a temporary variable with the same
+            // name as its destination field the list of field names will be just fine.
+    
+            let variant_id = if i == last_variant {
+                quote! {_}
+            } else if let Some(id) = variant.attrs.id {
+                if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                    yes
+                } else {
+                    return Err(syn::Error::new(
+                        variant.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
+            } else {
+                return Err(syn::Error::new(
+                    variant.name.span(),
+                    "failed to find id for variant, this is a bug in bondrewd.",
+                ));
+            };
+            let variant_constructor = if field_name_list.is_empty() {
+                quote! {Self::#variant_name}
+            } else if variant.tuple {
+                quote! {Self::#variant_name ( #field_name_list )}
+            } else {
+                quote! {Self::#variant_name { #field_name_list }}
+            };
+            gen.append_bitfield_trait_impl_fns(quote! {
+                #variant_id => {
+                    #from_bytes_quote
+                    #variant_constructor
+                }
+            });
+            #[cfg(feature = "dyn_fns")]
+            {
+                gen.append_bitfield_dyn_trait_impl_fns(quote! {
+                    #variant_id => {
+                        #from_vec_quote
+                        #variant_constructor
+                    }
+                });
+            }
+        }
+
+        let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
+        let v_id_call = format_ident!("read_{v_id}");
+        #[cfg(feature = "dyn_fns")]
+        let v_id_slice_call = format_ident!("read_slice_{v_id}");
+        let from_bytes_fn = &gen.bitfield_trait_impl_fns;
+        gen.bitfield_trait_impl_fns = quote! {
+            fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
+                let #v_id = Self::#v_id_call(&input_byte_buffer);
+                match #v_id {
+                    #from_bytes_fn
+                }
+            }
+        };
+        #[cfg(feature = "dyn_fns")]
+        {
+            let from_vec_fn = &gen.bitfield_dyn_trait_impl_fns;
+            let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+            let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+            gen.bitfield_dyn_trait_impl_fns = quote! {
+                #[doc = #comment_take]
+                fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                    if input_byte_buffer.len() < Self::BYTE_SIZE {
+                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                    }
+                    let #v_id = Self::#v_id_slice_call(&input_byte_buffer)?;
+                    let out = match #v_id {
+                        #from_vec_fn
+                    };
+                    let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                    Ok(out)
+                }
+                #[doc = #comment]
+                fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
+                    if input_byte_buffer.len() < Self::BYTE_SIZE {
+                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                    }
+                    let #v_id = Self::#v_id_slice_call(&input_byte_buffer)?;
+                    let out = match #v_id {
+                        #from_vec_fn
+                    };
+                    Ok(out)
+                }
+            };
+        }
+        Ok(gen)
     }
 }
 

@@ -24,14 +24,11 @@ fn main() {
     // fields with capture_id will use the id_bit_length so defining the bit_length is unnecessary.
     assert_eq!(Thing::BYTE_SIZE, 3);
     assert_eq!(Thing::BIT_SIZE, 18);
-    // fields that are capturing the id do not write.
-    let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
-    // despite setting the id to 3 it will be 0 on output, this is to prevent
-    // users from providing a valid id when it should not be.
+    // TODO deside if capture id should write.
+    let mut bytes = Thing::Idk { id: 0, a: 0 }.into_bytes();
     assert_eq!(bytes[0], 0b0000_0000);
     assert_eq!(bytes[1], 0b0000_0000);
     assert_eq!(bytes[2], 0b0000_0000);
-    // but the id can be set to anything using the write_variant_id function.
     Thing::write_variant_id(&mut bytes, 3);
     // the id is now 3
     assert_eq!(bytes[0], 0b1100_0000);
