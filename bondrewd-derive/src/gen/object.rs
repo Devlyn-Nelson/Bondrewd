@@ -130,6 +130,7 @@ impl ObjectInfo {
 /// This contains incomplete function generation. this should only be used by `StructInfo` or `EnumInfo` internally.
 struct FieldQuotes {
     read_fns: GeneratedFunctions,
+    write_fns: GeneratedFunctions,
     /// A list of field names to be used in initializing a new struct from bytes.
     field_list: TokenStream,
 }
@@ -229,6 +230,7 @@ impl StructInfo {
         }
         Ok(FieldQuotes {
             read_fns: gen,
+            write_fns: todo!("make writing side of new code gen"),
             field_list: field_name_list,
         })
     }
@@ -347,7 +349,7 @@ impl EnumInfo {
                     vis: syn::Visibility::Public(Pub::default()),
                     tuple: false,
                 };
-                let field_name =  &field.ident().ident();
+                let field_name = &field.ident().ident();
                 let id_field =
                     generate_read_field_fn(access.read(), &field, &temp_struct_info, field_name);
                 #[cfg(feature = "dyn_fns")]
@@ -388,9 +390,15 @@ impl EnumInfo {
             let v_bit_size = variant.total_bits();
             let variant_name = quote! {#v_name};
             #[cfg(feature = "dyn_fns")]
-            let stuff: (TokenStream,TokenStream,TokenStream,TokenStream,TokenStream,);
+            let stuff: (
+                TokenStream,
+                TokenStream,
+                TokenStream,
+                TokenStream,
+                TokenStream,
+            );
             #[cfg(not(feature = "dyn_fns"))]
-            let stuff: (TokenStream,TokenStream,TokenStream,);
+            let stuff: (TokenStream, TokenStream, TokenStream);
             stuff = {
                 let thing = variant.create_field_quotes(enum_name)?;
                 (
@@ -412,15 +420,12 @@ impl EnumInfo {
                 from_vec_quote,
             ) = (stuff.0, stuff.1, stuff.2, stuff.3, stuff.4);
             #[cfg(not(feature = "dyn_fns"))]
-            let (
-                field_name_list,
-                peek_fns_quote_temp,
-                from_bytes_quote,
-            ) = (stuff.0, stuff.1, stuff.2);
+            let (field_name_list, peek_fns_quote_temp, from_bytes_quote) =
+                (stuff.0, stuff.1, stuff.2);
             #[cfg(feature = "dyn_fns")]
             gen.append_checked_struct_impl_fns(peek_slice_field_unchecked_fns);
             gen.append_impl_fns(peek_fns_quote_temp);
-            gen.append_impl_fns(quote!{
+            gen.append_impl_fns(quote! {
                 pub const #v_byte_const_name: usize = #v_byte_size;
                 pub const #v_bit_const_name: usize = #v_bit_size;
             });
@@ -430,7 +435,7 @@ impl EnumInfo {
             // wrap our list of field names with commas with Self{} so we it instantiate our struct,
             // because all of the from_bytes field quote store there data in a temporary variable with the same
             // name as its destination field the list of field names will be just fine.
-    
+
             let variant_id = if i == last_variant {
                 quote! {_}
             } else if let Some(id) = variant.attrs.id {

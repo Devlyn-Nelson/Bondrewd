@@ -25,6 +25,8 @@ dyn_fns = []
 hex_fns = []
 part_eq_enums = []
 setters = []
+# this feature is for in development stuff and shall be removed before releasing 0.5
+diff = []
 
 [dev-dependencies]
 rand = "0.8"

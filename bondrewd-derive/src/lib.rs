@@ -2227,6 +2227,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         }
     };
     // TODO remove this, its for comparing new and old code gen.
+    #[cfg(feature = "diff")]
     let _ = std::fs::write(
         "old.txt",
         format!(
@@ -2249,6 +2250,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     match struct_info.generate() {
         Ok(gen) => {
             let new = format!("{}", Into::<proc_macro2::TokenStream>::into(gen));
+            #[cfg(feature = "diff")]
             let _ = std::fs::write("new.txt", new.as_bytes());
             // println!("{new}");
         }
