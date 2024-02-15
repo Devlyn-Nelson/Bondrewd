@@ -2194,7 +2194,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    struct_info.generate();
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();
@@ -2227,6 +2226,15 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             (fields_into_bytes, fields_from_bytes)
         }
     };
+    // TODO remove this, its for comparing new and old code gen.
+    println!("{}\n\n\n", fields_from_bytes.from_bytes_fn);
+    // THIS IS NEW REFACTORED CODE.
+    match struct_info.generate() {
+        Ok(gen) => println!("{}", gen.bitfield_trait_impl_fns),
+        Err(err) => println!("new gen code failed {err}"),
+    }
+    // END OF REFACTORED CODE.
+
     // combine all of the write_ function quotes separated by newlines
     let into_bytes_quote = fields_into_bytes.into_bytes_fn;
     let set_quotes = fields_into_bytes.set_field_fns;
