@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use super::field::{GenerateReadQuoteFn, QuoteInfo};
+use super::{GenerateReadQuoteFn, QuoteInfo};
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, Endianness, FieldDataType,
     FieldInfo, NumberSignage,

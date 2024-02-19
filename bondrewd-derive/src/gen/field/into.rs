@@ -8,7 +8,7 @@ use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
 };
 
-use super::field::{GenerateWriteQuoteFn, QuoteInfo};
+use super::{GenerateWriteQuoteFn, QuoteInfo};
 
 impl FieldInfo {
     /// This function is kind of funny. it is essentially a function that gets called by either

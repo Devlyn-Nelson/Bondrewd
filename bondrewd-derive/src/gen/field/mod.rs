@@ -1,4 +1,6 @@
 //! This file is an effort to merge from and into bytes, which is being delayed for now.
+mod from;
+mod into;
 use proc_macro2::{Ident, TokenStream};
 use quote::format_ident;
 
