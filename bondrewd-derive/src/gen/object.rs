@@ -350,8 +350,11 @@ impl EnumInfo {
                     tuple: false,
                 };
                 let field_name = &field.ident().ident();
-                let id_field =
+                let id_field_read =
                     generate_read_field_fn(access.read(), &field, &temp_struct_info, field_name);
+                // START_HERE add `id_field_write to output quotes`
+                let id_field_write =
+                    generate_write_field_fn(&field, &temp_struct_info, access.write(), access.zero(), field_name);
                 #[cfg(feature = "dyn_fns")]
                 {
                     let id_slice_peek = generate_read_slice_field_fn(
@@ -361,14 +364,14 @@ impl EnumInfo {
                         field_name,
                     );
                     quote! {
-                        #id_field
+                        #id_field_read
                         #id_slice_peek
                     }
                 }
                 #[cfg(not(feature = "dyn_fns"))]
                 {
                     quote! {
-                        #id_field
+                        #id_field_read
                     }
                 }
             },
@@ -641,6 +644,31 @@ fn generate_read_slice_field_fn_unchecked(
         #[doc = #comment]
         pub fn #fn_field_name(&self) -> #type_ident {
             let input_byte_buffer: &[u8] = self.buffer;
+            #field_quote
+        }
+    }
+}
+
+/// Generates a `write_field_name()` function.
+fn generate_write_field_fn(
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_quote: &TokenStream,
+    clear_quote: &TokenStream,
+    field_name: &Ident,
+) -> TokenStream {
+    let field_name_short = field.ident().ident();
+    let struct_size = info.total_bytes();
+    let bit_range = &field.attrs.bit_range;
+    let fn_field_name = format_ident!("write_{field_name}");
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let comment = format!("Writes to bits {} through {} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
+            #clear_quote
             #field_quote
         }
     }

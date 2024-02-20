@@ -44,6 +44,7 @@ impl QuoteInfo {
     pub fn new(field_info: &FieldInfo, struct_info: &StructInfo) -> syn::Result<Self> {
         Self::new_inner(field_info, struct_info.get_flip())
     }
+    /// TODO im not sure `new_no_flip` should exist. no flip might not be needed.
     pub fn new_no_flip(field_info: &FieldInfo) -> syn::Result<Self> {
         Self::new_inner(field_info, None)
     }
