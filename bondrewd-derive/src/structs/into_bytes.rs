@@ -202,7 +202,7 @@ pub fn create_into_bytes_field_quotes_enum(
                     }
                 }
             },
-            info.id_ident()?,
+            info.id_type_ident()?,
         )
     };
     let total_size = info.total_bytes();

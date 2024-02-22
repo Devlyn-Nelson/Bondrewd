@@ -1133,7 +1133,7 @@ impl EnumInfo {
     pub fn total_bytes(&self) -> usize {
         self.total_bits().div_ceil(8)
     }
-    pub fn id_ident(&self) -> syn::Result<TokenStream> {
+    pub fn id_type_ident(&self) -> syn::Result<TokenStream> {
         match self.attrs.id_bits {
             0..=8 => Ok(quote! {u8}),
             9..=16 => Ok(quote! {u16}),
@@ -1156,7 +1156,7 @@ impl EnumInfo {
             ty: FieldDataType::Number(
                 self.attrs.id_bits.div_ceil(8),
                 NumberSignage::Unsigned,
-                self.id_ident()?,
+                self.id_type_ident()?,
             ),
             attrs: FieldAttrs {
                 endianness: Box::new(e),

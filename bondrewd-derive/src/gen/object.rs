@@ -231,6 +231,7 @@ impl StructInfo {
         Ok(FieldQuotes {
             read_fns: gen,
             write_fns: todo!("make writing side of new code gen"),
+            // write_fns: GeneratedFunctions::default(),
             field_list: field_name_list,
         })
     }
@@ -352,31 +353,37 @@ impl EnumInfo {
                 let field_name = &field.ident().ident();
                 let id_field_read =
                     generate_read_field_fn(access.read(), &field, &temp_struct_info, field_name);
-                // START_HERE add `id_field_write to output quotes`
                 let id_field_write =
-                    generate_write_field_fn(&field, &temp_struct_info, access.write(), access.zero(), field_name);
+                    generate_write_field_fn(access.write(), access.zero(), &field, &temp_struct_info, field_name);
+                let output = quote! {
+                    #id_field_read
+                    #id_field_write
+                };
                 #[cfg(feature = "dyn_fns")]
                 {
-                    let id_slice_peek = generate_read_slice_field_fn(
+                    let check_slice_fn = get_check_slice_fn(&self.name, self.total_bytes());
+                    let check_slice_mut_fn = get_check_slice_mut_fn(&self.name, self.total_bytes());
+                    let id_slice_read = generate_read_slice_field_fn(
                         access.read(),
                         &field,
                         &temp_struct_info,
                         field_name,
                     );
-                    quote! {
-                        #id_field_read
-                        #id_slice_peek
+                    // START_HERE i just added `id_slice_write` to the output.
+                    let id_slice_write = generate_write_slice_field_fn(access.write(), access.zero(), &field, &temp_struct_info, field_name);
+                    quote!{
+                        #output
+                        #id_slice_read
+                        #id_slice_write
+                        #check_slice_fn
+                        #check_slice_mut_fn
                     }
                 }
                 #[cfg(not(feature = "dyn_fns"))]
                 {
-                    quote! {
-                        #id_field_read
-                    }
+                    output
                 }
             },
-            #[cfg(feature = "dyn_fns")]
-            checked_struct_impl_fns: get_check_slice_fn(&self.name, self.total_bytes()),
             ..Default::default()
         };
         let struct_size = self.total_bytes();
@@ -552,6 +559,24 @@ fn get_check_slice_fn(
         }
     }
 }
+fn get_check_slice_mut_fn(name: &Ident, struct_size: usize) -> TokenStream {
+    // all quote with all of the set slice functions appended to it.
+    let checked_ident = format_ident!("{name}CheckedMut");
+    let comment = format!("Returns a [{checked_ident}] which allows you to read/write any field for a `{name}` from/to provided mutable slice.");
+    quote! {
+        #[doc = #comment]
+        pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+            let buf_len = buffer.len();
+            if buf_len >= #struct_size {
+                Ok(#checked_ident {
+                    buffer
+                })
+            }else{
+                Err(bondrewd::BitfieldLengthError(buf_len, #struct_size))
+            }
+        }
+    }
+}
 /// Generates a `read_field_name()` function.
 fn generate_read_field_fn(
     field_quote: &TokenStream,
@@ -651,10 +676,10 @@ fn generate_read_slice_field_fn_unchecked(
 
 /// Generates a `write_field_name()` function.
 fn generate_write_field_fn(
-    field: &FieldInfo,
-    info: &StructInfo,
     field_quote: &TokenStream,
     clear_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
     field_name: &Ident,
 ) -> TokenStream {
     let field_name_short = field.ident().ident();
@@ -663,13 +688,52 @@ fn generate_write_field_fn(
     let fn_field_name = format_ident!("write_{field_name}");
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    let comment = format!("Writes to bits {} through {} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.", bit_range.start, bit_range.end - 1);
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!("Writes to {comment_bits} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.");
     quote! {
         #[inline]
         #[doc = #comment]
         pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
             #clear_quote
             #field_quote
+        }
+    }
+}
+/// Generates a `write_slice_field_name()` function for a slice.
+#[cfg(feature = "dyn_fns")]
+fn generate_write_slice_field_fn(
+    field_quote: &TokenStream,
+    clear_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_name: &Ident,
+) -> TokenStream {
+    let fn_field_name = format_ident!("write_slice_{field_name}");
+    let bit_range = &field.attrs.bit_range;
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let min_length = if info.attrs.flip {
+        (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
+    } else {
+        field.attrs.bit_range.end.div_ceil(8)
+    };
+    let comment = format!("Writes to bits {} through {} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned", bit_range.start, bit_range.end - 1);
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldLengthError> {
+            let slice_length = output_byte_buffer.len();
+            if slice_length < #min_length {
+                Err(bondrewd::BitfieldLengthError(slice_length, #min_length))
+            } else {
+                #clear_quote
+                #field_quote
+                Ok(())
+            }
         }
     }
 }
