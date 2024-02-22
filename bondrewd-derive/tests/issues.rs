@@ -11,7 +11,7 @@ pub struct Packet {
 }
 
 #[test]
-fn issue_12(){
+fn issue_12() {
     // The 1s here mark the `reserve` field.
     let test_bytes = [0b1111_1110, 0b0000_0000];
     let packet = Packet::from_bytes(test_bytes);
