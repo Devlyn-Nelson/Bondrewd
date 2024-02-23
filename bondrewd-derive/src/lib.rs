@@ -2229,7 +2229,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // TODO remove this, its for comparing new and old code gen.
     #[cfg(feature = "diff")]
     let _ = std::fs::write(
-        "old.txt",
+        "old_read.txt",
         format!(
             "{}",
             Into::<proc_macro2::TokenStream>::into(crate::gen::object::GeneratedFunctions {
@@ -2246,15 +2246,38 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         )
         .as_bytes(),
     );
+    let _ = std::fs::write(
+        "old_write.txt",
+        format!(
+            "{}",
+            Into::<proc_macro2::TokenStream>::into(crate::gen::object::GeneratedFunctions {
+                bitfield_trait_impl_fns: fields_into_bytes.into_bytes_fn.clone(),
+                impl_fns: fields_into_bytes.set_field_fns.clone(),
+                #[cfg(feature = "dyn_fns")]
+                checked_struct_impl_fns: fields_into_bytes.set_slice_field_unchecked_fns.clone(),
+                #[cfg(feature = "dyn_fns")]
+                bitfield_dyn_trait_impl_fns: quote! {},
+            })
+        )
+        .as_bytes(),
+    );
     // THIS IS NEW REFACTORED CODE.
-    match struct_info.generate() {
-        Ok(gen) => {
-            let new = format!("{}", Into::<proc_macro2::TokenStream>::into(gen));
-            #[cfg(feature = "diff")]
-            let _ = std::fs::write("new.txt", new.as_bytes());
-            // println!("{new}");
-        }
-        Err(err) => println!("new gen code failed {err}"),
+    match struct_info {
+        ObjectInfo::Struct(ref s) => match s.generate_bitfield_functions() {
+            Ok(gen) => {
+                let new_read = format!("{}", Into::<proc_macro2::TokenStream>::into(gen.read_fns));
+                let new_write =
+                    format!("{}", Into::<proc_macro2::TokenStream>::into(gen.write_fns));
+                #[cfg(feature = "diff")]
+                {
+                    let _ = std::fs::write("new_read.txt", new_read.as_bytes());
+                    let _ = std::fs::write("new_write.txt", new_write.as_bytes());
+                }
+                // println!("{new}");
+            }
+            Err(err) => println!("new gen code failed {err}"),
+        },
+        ObjectInfo::Enum(e) => todo!("test enums"),
     }
     // END OF REFACTORED CODE.
 
