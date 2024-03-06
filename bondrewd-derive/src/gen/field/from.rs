@@ -887,7 +887,7 @@ impl FieldInfo {
                         self.struct_byte_size(),
                     ) {
                         Ok(good) => good,
-                        Err(err) => return Err(syn::Error::new(self.ident.span(), err)),
+                        Err(err) => return Err(syn::Error::new(self.ident.span(), format!("{} (from 1)", err))),
                     }
                 },
             )
@@ -907,7 +907,7 @@ impl FieldInfo {
                     self.struct_byte_size(),
                 ) {
                     Ok(good) => good,
-                    Err(err) => return Err(syn::Error::new(self.ident.span(), err)),
+                    Err(err) => return Err(syn::Error::new(self.ident.span(), format!("{} (from 2)", err))),
                 },
             )
         };

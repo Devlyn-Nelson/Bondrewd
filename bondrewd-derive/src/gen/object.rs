@@ -6,6 +6,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::token::Pub;
 
+#[derive(Clone)]
 pub struct GeneratedFunctions {
     /// Functions that belong in `Bitfields` impl for object.
     pub bitfield_trait_impl_fns: proc_macro2::TokenStream,
@@ -14,6 +15,9 @@ pub struct GeneratedFunctions {
     /// Functions that belong in impl for generated checked slice object.
     #[cfg(feature = "dyn_fns")]
     pub checked_struct_impl_fns: proc_macro2::TokenStream,
+    /// Functions that belong in impl for generated checked mut slice object.
+    #[cfg(feature = "dyn_fns")]
+    pub checked_mut_struct_impl_fns: proc_macro2::TokenStream,
     /// Functions that belong in `BitfieldsDyn` impl for object.
     #[cfg(feature = "dyn_fns")]
     pub bitfield_dyn_trait_impl_fns: proc_macro2::TokenStream,
@@ -27,6 +31,8 @@ impl Default for GeneratedFunctions {
             #[cfg(feature = "dyn_fns")]
             checked_struct_impl_fns: Default::default(),
             #[cfg(feature = "dyn_fns")]
+            checked_mut_struct_impl_fns: Default::default(),
+            #[cfg(feature = "dyn_fns")]
             bitfield_dyn_trait_impl_fns: Default::default(),
         }
     }
@@ -39,12 +45,15 @@ impl Into<TokenStream> for GeneratedFunctions {
         #[cfg(feature = "dyn_fns")]
         let unchecked = self.checked_struct_impl_fns;
         #[cfg(feature = "dyn_fns")]
+        let unchecked_mut = self.checked_mut_struct_impl_fns;
+        #[cfg(feature = "dyn_fns")]
         let dyn_trait_fns = self.bitfield_dyn_trait_impl_fns;
         #[cfg(feature = "dyn_fns")]
         let quote = quote! {
             #trait_fns
             #impl_fns
             #unchecked
+            #unchecked_mut
             #dyn_trait_fns
         };
         #[cfg(not(feature = "dyn_fns"))]
@@ -78,6 +87,12 @@ impl GeneratedFunctions {
                 #checked_struct_impl_fns
                 #other_checked_struct_impl_fns
             };
+            let checked_mut_struct_impl_fns = &self.checked_mut_struct_impl_fns;
+            let other_checked_mut_struct_impl_fns = &other.checked_mut_struct_impl_fns;
+            self.checked_mut_struct_impl_fns = quote! {
+                #checked_mut_struct_impl_fns
+                #other_checked_mut_struct_impl_fns
+            };
             let bitfield_dyn_trait_impl_fns = &self.bitfield_dyn_trait_impl_fns;
             let other_bitfield_dyn_trait_impl_fns = &other.bitfield_dyn_trait_impl_fns;
             self.bitfield_dyn_trait_impl_fns = quote! {
@@ -104,6 +119,14 @@ impl GeneratedFunctions {
     fn append_checked_struct_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.checked_struct_impl_fns;
         self.checked_struct_impl_fns = quote! {
+            #old
+            #quote
+        };
+    }
+    #[cfg(feature = "dyn_fns")]
+    fn append_checked_mut_struct_impl_fns(&mut self, quote: TokenStream) {
+        let old = &self.checked_mut_struct_impl_fns;
+        self.checked_mut_struct_impl_fns = quote! {
             #old
             #quote
         };
@@ -245,6 +268,7 @@ impl StructInfo {
         };
         let mut field_name_list = quote! {};
         for field in fields {
+            println!("*************************\n({field:?})");
             let field_access = field.get_quotes(self)?;
             self.make_read_fns(
                 field,
@@ -399,7 +423,7 @@ impl StructInfo {
 
         gen.append_impl_fns(impl_fns);
         #[cfg(feature = "dyn_fns")]
-        gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
+        gen.append_checked_mut_struct_impl_fns(checked_struct_impl_fns);
     }
     fn make_write_fns_inner(
         &self,
@@ -436,7 +460,7 @@ impl StructInfo {
 }
 
 impl EnumInfo {
-    fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
+    pub fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         let enum_name: Option<&Ident> = Some(&self.name);
         let mut gen = GeneratedFunctions {
             impl_fns: {
@@ -564,7 +588,7 @@ impl EnumInfo {
             #[cfg(feature = "dyn_fns")]
             {
                 gen.append_checked_struct_impl_fns(thing.read_fns.checked_struct_impl_fns);
-                gen.append_checked_struct_impl_fns(thing.write_fns.checked_struct_impl_fns);
+                gen.append_checked_mut_struct_impl_fns(thing.write_fns.checked_mut_struct_impl_fns);
             }
             gen.append_impl_fns(thing.read_fns.impl_fns);
             gen.append_impl_fns(thing.write_fns.impl_fns);

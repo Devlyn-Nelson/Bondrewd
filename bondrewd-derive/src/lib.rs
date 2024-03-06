@@ -2198,6 +2198,159 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();
 
+    println!("=======================({struct_name})");
+    println!("-----------------------(new)");
+    #[cfg(feature = "new")]
+    match struct_info.generate() {
+        Ok(gen) => {
+            let impl_fns = gen.impl_fns;
+            let impl_quote = match struct_info {
+                #[cfg(not(feature = "setters"))]
+                ObjectInfo::Struct(ref _struct_info) => {
+                    quote! {
+                        impl #struct_name {
+                            #impl_fns
+                        }
+                    }
+                }
+                #[cfg(feature = "setters")]
+                ObjectInfo::Struct(ref struct_info) => {
+                    // TODO get setter for arrays working.
+                    // get the setters, functions that set a field disallowing numbers
+                    // outside of the range the Bitfield.
+                    let setters_quote =
+                        match structs::struct_fns::create_setters_quotes(&struct_info) {
+                            Ok(parsed_struct) => parsed_struct,
+                            Err(err) => {
+                                return TokenStream::from(err.to_compile_error());
+                            }
+                        };
+                    quote! {
+                        impl #struct_name {
+                            #impl_fns
+                            #setters_quote
+                        }
+                    }
+                }
+                ObjectInfo::Enum(ref _enum_info) => {
+                    // TODO implement getters and setters for enums.
+                    quote! {
+                        impl #struct_name {
+                            #impl_fns
+                        }
+                    }
+                }
+            };
+            // get the bit size of the entire set of fields to fill in trait requirement.
+            let bit_size = struct_info.total_bits();
+            let trait_impl_quote = gen.bitfield_trait_impl_fns;
+
+            // put it all together.
+            // to_bytes_quote will put all of the fields in self into a array called output_byte_buffer.
+            // so for into_bytes all we need is the fn declaration, the output_byte_buffer, and to return
+            // that buffer.
+            // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
+            // slap peek quotes inside a impl block at the end and we good to go
+            #[cfg(any(feature = "part_eq_enums", feature = "hex_fns"))]
+            let mut to_bytes_quote;
+            #[cfg(not(any(feature = "part_eq_enums", feature = "hex_fns")))]
+            let to_bytes_quote;
+            to_bytes_quote = quote! {
+                impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                    const BIT_SIZE: usize = #bit_size;
+                    #trait_impl_quote
+                }
+                #impl_quote
+            };
+            #[cfg(feature = "part_eq_enums")]
+            if let ObjectInfo::Enum(ref ei) = struct_info {
+                let id_ident = &ei.name;
+                to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    impl PartialEq<#id_ident> for #struct_name {
+                        fn eq(&self, other: &#id_ident) -> bool {
+                            self.id() == *other
+                        }
+                    }
+                };
+            }
+            #[cfg(feature = "hex_fns")]
+            {
+                let hex_size = struct_size * 2;
+                to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+                };
+                #[cfg(feature = "dyn_fns")]
+                {
+                    to_bytes_quote = quote! {
+                        #to_bytes_quote
+                        impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                    };
+                }
+            }
+            #[cfg(feature = "dyn_fns")]
+            let output = {
+                let vis = struct_info.vis();
+                let from_vec_quote = gen.bitfield_dyn_trait_impl_fns;
+                let checked_ident = quote::format_ident!("{}Checked", &struct_name);
+                let checked_mut_ident = quote::format_ident!("{}CheckedMut", &struct_name);
+                let unchecked_functions = gen.checked_struct_impl_fns;
+                let unchecked_mut_functions = gen.checked_mut_struct_impl_fns;
+                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    #[doc = #comment]
+                    #vis struct #checked_ident<'a> {
+                        buffer: &'a [u8],
+                    }
+                    impl<'a> #checked_ident<'a> {
+                        #unchecked_functions
+                        #[doc = #unchecked_comment]
+                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    #[doc = #comment_mut]
+                    #vis struct #checked_mut_ident<'a> {
+                        buffer: &'a mut [u8],
+                    }
+                    impl<'a> #checked_mut_ident<'a> {
+                        #unchecked_functions
+                        #unchecked_mut_functions
+                        #[doc = #unchecked_comment_mut]
+                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
+                    }
+                };
+                TokenStream::from(to_bytes_quote)
+            };
+            #[cfg(not(feature = "dyn_fns"))]
+            let output = {
+                TokenStream::from(to_bytes_quote)
+            };
+            #[cfg(feature = "diff")]
+            {
+                let _ = std::fs::write(
+                    "new.txt",
+                    format!("{output}"),
+                );
+            }
+        }
+        Err(err) => println!("{err}"),
+    };
+    println!("-----------------------(old)");
     let (fields_into_bytes, fields_from_bytes) = match struct_info {
         ObjectInfo::Struct(ref struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
@@ -2226,60 +2379,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             (fields_into_bytes, fields_from_bytes)
         }
     };
-    // TODO remove this, its for comparing new and old code gen.
-    #[cfg(feature = "diff")]
-    let _ = std::fs::write(
-        "old_read.txt",
-        format!(
-            "{}",
-            Into::<proc_macro2::TokenStream>::into(crate::gen::object::GeneratedFunctions {
-                bitfield_trait_impl_fns: fields_from_bytes.from_bytes_fn.clone(),
-                impl_fns: fields_from_bytes.read_field_fns.clone(),
-                #[cfg(feature = "dyn_fns")]
-                checked_struct_impl_fns: fields_from_bytes.read_slice_field_unchecked_fns.clone(),
-                #[cfg(feature = "dyn_fns")]
-                bitfield_dyn_trait_impl_fns: fields_from_bytes
-                    .from_slice_field_fns
-                    .clone()
-                    .unwrap(),
-            })
-        )
-        .as_bytes(),
-    );
-    let _ = std::fs::write(
-        "old_write.txt",
-        format!(
-            "{}",
-            Into::<proc_macro2::TokenStream>::into(crate::gen::object::GeneratedFunctions {
-                bitfield_trait_impl_fns: fields_into_bytes.into_bytes_fn.clone(),
-                impl_fns: fields_into_bytes.set_field_fns.clone(),
-                #[cfg(feature = "dyn_fns")]
-                checked_struct_impl_fns: fields_into_bytes.set_slice_field_unchecked_fns.clone(),
-                #[cfg(feature = "dyn_fns")]
-                bitfield_dyn_trait_impl_fns: quote! {},
-            })
-        )
-        .as_bytes(),
-    );
-    // THIS IS NEW REFACTORED CODE.
-    match struct_info {
-        ObjectInfo::Struct(ref s) => match s.generate_bitfield_functions() {
-            Ok(gen) => {
-                let new_read = format!("{}", Into::<proc_macro2::TokenStream>::into(gen.read_fns));
-                let new_write =
-                    format!("{}", Into::<proc_macro2::TokenStream>::into(gen.write_fns));
-                #[cfg(feature = "diff")]
-                {
-                    let _ = std::fs::write("new_read.txt", new_read.as_bytes());
-                    let _ = std::fs::write("new_write.txt", new_write.as_bytes());
-                }
-                // println!("{new}");
-            }
-            Err(err) => println!("new gen code failed {err}"),
-        },
-        ObjectInfo::Enum(e) => todo!("test enums"),
-    }
-    // END OF REFACTORED CODE.
 
     // combine all of the write_ function quotes separated by newlines
     let into_bytes_quote = fields_into_bytes.into_bytes_fn;
@@ -2352,12 +2451,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     };
     #[cfg(feature = "part_eq_enums")]
     if let ObjectInfo::Enum(ref ei) = struct_info {
-        let id_ident = match ei.id_ident() {
-            Ok(ii) => ii,
-            Err(err) => {
-                return err.to_compile_error().into();
-            }
-        };
+        let id_ident = &ei.name;
         to_bytes_quote = quote! {
             #to_bytes_quote
             impl PartialEq<#id_ident> for #struct_name {
@@ -2383,7 +2477,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         }
     }
     #[cfg(feature = "dyn_fns")]
-    {
+    let output = {
         let vis = struct_info.vis();
         let from_vec_quote = fields_from_bytes.from_slice_field_fns;
         let checked_ident = quote::format_ident!("{}Checked", &struct_name);
@@ -2428,11 +2522,19 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             }
         };
         TokenStream::from(to_bytes_quote)
-    }
+    };
     #[cfg(not(feature = "dyn_fns"))]
-    {
+    let output = {
         TokenStream::from(to_bytes_quote)
+    };
+    #[cfg(feature = "diff")]
+    {
+        let _ = std::fs::write(
+            "old.txt",
+            format!("{output}"),
+        );
     }
+    output
 }
 /// Generates an implementation of [`bondrewd::BitfieldEnum`] trait.
 ///   
