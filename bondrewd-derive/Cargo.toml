@@ -20,14 +20,9 @@ quote = "1.0"
 syn = { version = "2.0", features = ["parsing", "derive"] }
 
 [features]
-# default = [""]
 dyn_fns = []
 hex_fns = []
-# part_eq_enums = []
 setters = []
-# this feature is for in development stuff and shall be removed before releasing 0.5
-diff = []
-new = []
 
 [dev-dependencies]
 rand = "0.8"

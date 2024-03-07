@@ -73,50 +73,6 @@ pub fn get_be_starting_index(
     }
 }
 
-pub struct BitMath {
-    pub amount_of_bits: usize,
-    pub zeros_on_left: usize,
-    pub available_bits_in_first_byte: usize,
-    pub starting_inject_byte: usize,
-}
-
-impl BitMath {
-    pub fn from_field(field: &FieldInfo) -> Result<Self, syn::Error> {
-        // get the total number of bits the field uses.
-        let amount_of_bits = field.attrs.bit_length();
-        // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
-        // left)
-        let zeros_on_left = field.attrs.bit_range.start % 8;
-        // NOTE endianness is only for determining how to get the bytes we will apply to the output.
-        // calculate how many of the bits will be inside the most significant byte we are adding to.
-        if 7 < zeros_on_left {
-            return Err(syn::Error::new(
-                field.ident.span(),
-                "ne 8 - zeros_on_left = underflow",
-            ));
-        }
-        let available_bits_in_first_byte = 8 - zeros_on_left;
-        // calculate the starting byte index in the outgoing buffer
-        let starting_inject_byte: usize = field.attrs.bit_range.start / 8;
-        Ok(Self {
-            amount_of_bits,
-            zeros_on_left,
-            available_bits_in_first_byte,
-            starting_inject_byte,
-        })
-    }
-
-    /// Returns (`amount_of_bits`, `zeros_on_left`, `available_bits_in_first_byte`, `starting_inject_byte`)
-    pub fn into_tuple(self) -> (usize, usize, usize, usize) {
-        (
-            self.amount_of_bits,
-            self.zeros_on_left,
-            self.available_bits_in_first_byte,
-            self.starting_inject_byte,
-        )
-    }
-}
-
 #[derive(Clone, Debug)]
 pub enum Endianness {
     Little,

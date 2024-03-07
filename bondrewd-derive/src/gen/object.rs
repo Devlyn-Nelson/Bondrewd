@@ -301,6 +301,7 @@ impl StructInfo {
         };
 
         let mut impl_fns = quote! {};
+        #[cfg(feature = "dyn_fns")]
         let mut checked_struct_impl_fns = quote! {};
         let field_extractor = field_access.read();
         self.make_read_fns_inner(
@@ -308,6 +309,7 @@ impl StructInfo {
             &prefixed_name,
             field_extractor,
             &mut impl_fns,
+            #[cfg(feature = "dyn_fns")]
             &mut checked_struct_impl_fns,
         );
         gen.append_impl_fns(impl_fns);
@@ -358,7 +360,7 @@ impl StructInfo {
         field_name: &Ident,
         field_extractor: &TokenStream,
         peek_quote: &mut TokenStream,
-        peek_slice_fns_option: &mut TokenStream,
+        #[cfg(feature = "dyn_fns")] peek_slice_fns_option: &mut TokenStream,
     ) {
         *peek_quote = generate_read_field_fn(field_extractor, field, self, &field_name);
         // make the slice functions if applicable.
@@ -411,6 +413,7 @@ impl StructInfo {
         }
 
         let mut impl_fns = quote! {};
+        #[cfg(feature = "dyn_fns")]
         let mut checked_struct_impl_fns = quote! {};
         self.make_write_fns_inner(
             field,
@@ -418,6 +421,7 @@ impl StructInfo {
             field_setter,
             clear_quote,
             &mut impl_fns,
+            #[cfg(feature = "dyn_fns")]
             &mut checked_struct_impl_fns,
         );
 
@@ -432,7 +436,7 @@ impl StructInfo {
         field_setter: &TokenStream,
         clear_quote: &TokenStream,
         write_quote: &mut TokenStream,
-        write_slice_fns_option: &mut TokenStream,
+        #[cfg(feature = "dyn_fns")] write_slice_fns_option: &mut TokenStream,
     ) {
         *write_quote =
             generate_write_field_fn(&field_setter, &clear_quote, field, self, field_name);
