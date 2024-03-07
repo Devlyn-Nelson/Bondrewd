@@ -2164,7 +2164,7 @@ use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 /// ```
 ///
 /// > Note that when no id values are specified they will be assigned automatically starting at zero,
-/// incrementing 1 for each variant.
+/// incrementing 1 for each variant.r
 ///
 /// If for some reason the last variant should not be the catch all you can specify a specific variant.
 /// So for this next example:
@@ -2198,8 +2198,8 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let struct_size = struct_info.total_bytes();
     let struct_name = struct_info.name();
 
-    println!("=======================({struct_name})");
-    println!("-----------------------(new)");
+    // println!("=======================({struct_name})");
+    // println!("-----------------------(new)");
     #[cfg(feature = "new")]
     match struct_info.generate() {
         Ok(gen) => {
@@ -2337,20 +2337,15 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 TokenStream::from(to_bytes_quote)
             };
             #[cfg(not(feature = "dyn_fns"))]
-            let output = {
-                TokenStream::from(to_bytes_quote)
-            };
+            let output = { TokenStream::from(to_bytes_quote) };
             #[cfg(feature = "diff")]
             {
-                let _ = std::fs::write(
-                    "new.txt",
-                    format!("{output}"),
-                );
+                let _ = std::fs::write("new.txt", format!("{output}"));
             }
         }
         Err(err) => println!("{err}"),
     };
-    println!("-----------------------(old)");
+    // println!("-----------------------(old)");
     let (fields_into_bytes, fields_from_bytes) = match struct_info {
         ObjectInfo::Struct(ref struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
@@ -2524,15 +2519,10 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
         TokenStream::from(to_bytes_quote)
     };
     #[cfg(not(feature = "dyn_fns"))]
-    let output = {
-        TokenStream::from(to_bytes_quote)
-    };
+    let output = { TokenStream::from(to_bytes_quote) };
     #[cfg(feature = "diff")]
     {
-        let _ = std::fs::write(
-            "old.txt",
-            format!("{output}"),
-        );
+        let _ = std::fs::write("old.txt", format!("{output}"));
     }
     output
 }

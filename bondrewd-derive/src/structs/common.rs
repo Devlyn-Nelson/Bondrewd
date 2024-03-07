@@ -61,7 +61,10 @@ pub fn get_be_starting_index(
     right_rotation: i8,
     last_index: usize,
 ) -> Result<usize, String> {
-    println!("be_start_index = [last;{}] - ([aob;{}] - [rs;{}]) / 8", last_index, amount_of_bits, right_rotation);
+    // println!(
+    //     "be_start_index = [last;{}] - ([aob;{}] - [rs;{}]) / 8",
+    //     last_index, amount_of_bits, right_rotation
+    // );
     let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
     if last_index < first {
         Err("Failed getting the starting index for big endianness, field's type doesn't fix the bit size".to_string())

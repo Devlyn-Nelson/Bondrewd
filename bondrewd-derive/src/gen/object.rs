@@ -268,7 +268,7 @@ impl StructInfo {
         };
         let mut field_name_list = quote! {};
         for field in fields {
-            println!("*************************\n({field:?})");
+            // println!("*************************\n({field:?})");
             let field_access = field.get_quotes(self)?;
             self.make_read_fns(
                 field,
@@ -465,8 +465,9 @@ impl EnumInfo {
         let mut gen = GeneratedFunctions {
             impl_fns: {
                 let field = self.generate_id_field()?;
-                let access = field.get_quotes_no_flip()?;
-                let attrs = self.attrs.attrs.clone();
+                let mut attrs = self.attrs.attrs.clone();
+                // TODO Still don't know if flipping should be ignored.
+                attrs.flip = false;
                 let mut fields = vec![field.clone()];
                 fields[0].attrs.bit_range = 0..self.total_bits();
                 let temp_struct_info = StructInfo {
@@ -477,6 +478,7 @@ impl EnumInfo {
                     tuple: false,
                 };
                 let field_name = &field.ident().ident();
+                let access = field.get_quotes(&temp_struct_info)?;
                 let id_field_read =
                     generate_read_field_fn(access.read(), &field, &temp_struct_info, field_name);
                 let id_field_write = generate_write_field_fn(

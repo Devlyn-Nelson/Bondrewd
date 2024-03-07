@@ -5,10 +5,10 @@ use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo, StructInfo,
 };
 
-use super::{GenerateWriteQuoteFn, QuoteInfo};
+use super::{QuoteInfo, LittleQuoteInfo, NoneQuoteInfo, BigQuoteInfo};
 
 impl FieldInfo {
     /// This function is kind of funny. it is essentially a function that gets called by either
@@ -17,8 +17,8 @@ impl FieldInfo {
     /// be `get_write_le_multi_byte_quote`;
     pub(crate) fn get_write_quote(
         &self,
-        quote_info: &QuoteInfo,
-        gen_write_fn: &GenerateWriteQuoteFn,
+        struct_info: &StructInfo,
+        gen_write_fn: fn(&FieldInfo, &QuoteInfo, TokenStream) -> syn::Result<(TokenStream, TokenStream)>,
         with_self: bool,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let field_name = self.ident().name();
@@ -54,7 +54,7 @@ impl FieldInfo {
                 for sub_field in sub {
                     let field_name = &sub_field.ident().name();
                     let (sub_field_quote, clear) =
-                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                        Self::get_write_quote(&sub_field, struct_info, gen_write_fn, with_self)?;
                     buffer = quote! {
                         #buffer
                         #sub_field_quote
@@ -80,7 +80,7 @@ impl FieldInfo {
                 for sub_field in sub {
                     let field_name = &sub_field.ident().name();
                     let (sub_field_quote, clear) =
-                        self.get_write_quote(quote_info, gen_write_fn, with_self)?;
+                        Self::get_write_quote(&sub_field, struct_info, gen_write_fn, with_self)?;
                     buffer = quote! {
                         #buffer
                         #sub_field_quote
@@ -105,7 +105,49 @@ impl FieldInfo {
                 }
             }
         };
-        gen_write_fn.run(self, quote_info, field_access)
+        let quote_info: QuoteInfo = (self, struct_info).try_into()?;
+        gen_write_fn(self, &quote_info, field_access)
+    }
+    pub(crate) fn get_write_le_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        if quote_info.amount_of_bits()
+            > quote_info.available_bits_in_first_byte()
+        {
+            // calculate how many of the bits will be inside the least significant byte we are adding to.
+            // this will also be the number used for shifting to the right >> because that will line up
+            // our bytes for the buffer.
+            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating le `bits_in_last_bytes` failed, amount of bit is less than available bits in first byte",
+                ));
+            }
+            // create a quote that holds the bit shifting operator and shift value and the field name.
+            // first_bits_index is the index to use in the fields byte array after shift for the
+            // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
+            // index of the fields byte array will be used.
+            //
+            // let shift = if right_shift < 0 {
+            //     // convert to left shift using absolute value
+            //     let left_shift: u32 = right_shift.clone().abs() as u32;
+            //     // shift left code
+            //     quote! { (#field_access_quote.rotate_left(#left_shift)) }
+            // } else {
+            //     if right_shift == 0 {
+            //         // no shift no code, just the
+            //         quote! { #field_access_quote }
+            //     } else {
+            //         // shift right code
+            //         let right_shift_usize: u32 = right_shift.clone() as u32;
+            //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
+            //     }
+            self.get_write_le_multi_byte_quote(quote_info, field_access_quote)
+        } else {
+            self.get_write_le_single_byte_quote(quote_info, field_access_quote)
+        }
     }
     pub(crate) fn get_write_le_single_byte_quote(
         &self,
@@ -188,11 +230,12 @@ impl FieldInfo {
     pub(crate) fn get_write_le_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
+        let (right_shift, first_bit_mask, last_bit_mask): (i8, u8, u8) = {
+            let thing: LittleQuoteInfo = quote_info.into();
+            (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask)
+        };
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = quote_info.field_buffer_name();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
@@ -338,6 +381,30 @@ impl FieldInfo {
 
         Ok((full_quote, clear_quote))
     }
+    pub(crate) fn get_write_ne_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        if quote_info.amount_of_bits
+            > quote_info.available_bits_in_first_byte
+        {
+            // how many times to shift the number right.
+            // NOTE if negative shift left.
+            // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+            // for a f32) then use the last byte in the fields byte array after shifting for the first
+            // used byte in the buffer.
+            if 8 < quote_info.available_bits_in_first_byte() % 8 {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating ne right_shift failed",
+                ));
+            }
+            self.get_write_ne_multi_byte_quote(quote_info, field_access_quote)
+        } else {
+            self.get_write_ne_single_byte_quote(quote_info, field_access_quote)
+        }
+    }
     pub(crate) fn get_write_ne_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
@@ -409,9 +476,12 @@ impl FieldInfo {
     pub(crate) fn get_write_ne_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        right_shift: i8,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
+        let right_shift: i8 = {
+            let thing: NoneQuoteInfo = quote_info.into();
+            thing.right_shift
+        };
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", self.ident().ident());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
@@ -537,6 +607,28 @@ impl FieldInfo {
         }
         Ok((full_quote, clear_quote))
     }
+    pub(crate) fn get_write_be_quote(
+        &self,
+        quote_info: &QuoteInfo,
+        field_access_quote: TokenStream,
+    ) -> syn::Result<(TokenStream, TokenStream)> {
+        if quote_info.amount_of_bits
+            > quote_info.available_bits_in_first_byte
+        {
+            // calculate how many of the bits will be inside the least significant byte we are adding to.
+            // this will also be the number used for shifting to the right >> because that will line up
+            // our bytes for the buffer.
+            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
+                return Err(syn::Error::new(
+                    self.ident.span(),
+                    "calculating be bits_in_last_bytes failed",
+                ));
+            }
+            self.get_write_be_multi_byte_quote(quote_info, field_access_quote)
+        } else {
+            self.get_write_be_single_byte_quote(quote_info, field_access_quote)
+        }
+    }
     pub(crate) fn get_write_be_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
@@ -610,12 +702,12 @@ impl FieldInfo {
     pub(crate) fn get_write_be_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        bits_in_last_byte: usize,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
+        let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
+            let thing: BigQuoteInfo = quote_info.into();
+            (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask, thing.bits_in_last_byte)
+        };
         // create a quote that holds the bit shifting operator and shift value and the field name.
         // first_bits_index is the index to use in the fields byte array after shift for the
         // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
@@ -638,7 +730,12 @@ impl FieldInfo {
                         self.struct_byte_size(),
                     ) {
                         Ok(good) => good,
-                        Err(err) => return Err(syn::Error::new(self.ident.span(), format!("{} (into 1)", err))),
+                        Err(err) => {
+                            return Err(syn::Error::new(
+                                self.ident.span(),
+                                format!("{} (into 1)", err),
+                            ))
+                        }
                     }
                 },
             )
@@ -658,7 +755,12 @@ impl FieldInfo {
                     self.struct_byte_size(),
                 ) {
                     Ok(good) => good,
-                    Err(err) => return Err(syn::Error::new(self.ident.span(), format!("{} (into 2)", err))),
+                    Err(err) => {
+                        return Err(syn::Error::new(
+                            self.ident.span(),
+                            format!("{} (into 2)", err),
+                        ))
+                    }
                 },
             )
         };

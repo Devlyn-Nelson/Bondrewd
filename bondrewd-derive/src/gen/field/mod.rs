@@ -26,6 +26,94 @@ impl FieldQuotes {
         &self.zero
     }
 }
+
+pub struct BigQuoteInfo {
+    pub right_shift: i8,
+    pub first_bit_mask: u8,
+    pub last_bit_mask: u8,
+    pub bits_in_last_byte: usize,
+}
+impl From<&QuoteInfo> for BigQuoteInfo {
+    fn from(qi: &QuoteInfo) -> Self {
+        let bits_in_last_byte =
+            (qi.amount_of_bits() - qi.available_bits_in_first_byte()) % 8;
+        // how many times to shift the number right.
+        // NOTE if negative shift left.
+        // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+        // for a f32) then use the last byte in the fields byte array after shifting for the first
+        // used byte in the buffer.
+        #[allow(clippy::cast_possible_truncation)]
+        let mut right_shift: i8 = ((qi.amount_of_bits() % 8) as i8)
+            - ((qi.available_bits_in_first_byte() % 8) as i8);
+        if right_shift < 0 {
+            right_shift += 8;
+        }
+        // because we are applying bits in place we need masks in insure we don't effect other fields
+        // data. we need one for the first byte and the last byte.
+        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte());
+        let last_bit_mask = if bits_in_last_byte == 0 {
+            get_left_and_mask(8)
+        } else {
+            get_left_and_mask(bits_in_last_byte)
+        };
+        Self {
+            right_shift,
+            first_bit_mask,
+            last_bit_mask,
+            bits_in_last_byte,
+        }
+    }
+}
+pub struct LittleQuoteInfo {
+    pub right_shift: i8,
+    pub first_bit_mask: u8,
+    pub last_bit_mask: u8,
+}
+impl From<&QuoteInfo> for LittleQuoteInfo {
+    fn from(qi: &QuoteInfo) -> Self {
+        let bits_in_last_byte = (qi.amount_of_bits() - qi.available_bits_in_first_byte()) % 8;
+        // how many times to shift the number right.
+        // NOTE if negative shift left.
+        // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
+        // for a f32) then use the last byte in the fields byte array after shifting for the first
+        // used byte in the buffer.
+        let mut bits_needed_in_msb = qi.amount_of_bits() % 8;
+        if bits_needed_in_msb == 0 {
+            bits_needed_in_msb = 8;
+        }
+        #[allow(clippy::cast_possible_truncation)]
+        let mut right_shift: i8 =
+            (bits_needed_in_msb as i8) - ((qi.available_bits_in_first_byte() % 8) as i8);
+        if right_shift == 8 {
+            right_shift = 0;
+        }
+        // because we are applying bits in place we need masks in insure we don't effect other fields
+        // data. we need one for the first byte and the last byte.
+        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte());
+        let last_bit_mask = if bits_in_last_byte == 0 {
+            get_left_and_mask(8)
+        } else {
+            get_left_and_mask(bits_in_last_byte)
+        };
+        Self {
+            right_shift,
+            first_bit_mask,
+            last_bit_mask,
+        }
+    }
+}
+pub struct NoneQuoteInfo {
+    pub right_shift: i8,
+}
+impl From<&QuoteInfo> for NoneQuoteInfo {
+    fn from(quote_info: &QuoteInfo) -> Self {
+        #[allow(clippy::cast_possible_truncation)]
+            let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+            Self {
+                right_shift
+            }
+    }
+}
 pub struct QuoteInfo {
     /// Amount of bits the field uses in bit form.
     amount_of_bits: usize,
@@ -122,218 +210,10 @@ impl QuoteInfo {
         self.flip
     }
 }
-
-pub enum GenerateWriteQuoteFn {
-    Single(fn(&FieldInfo, &QuoteInfo, TokenStream) -> syn::Result<(TokenStream, TokenStream)>),
-    MultiLittleEndianness {
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        gen_fn: fn(
-            &FieldInfo,
-            &QuoteInfo,
-            i8,
-            u8,
-            u8,
-            TokenStream,
-        ) -> syn::Result<(TokenStream, TokenStream)>,
-    },
-    MultiBigEndianness {
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        bits_in_last_byte: usize,
-        gen_fn: fn(
-            &FieldInfo,
-            &QuoteInfo,
-            i8,
-            u8,
-            u8,
-            usize,
-            TokenStream,
-        ) -> syn::Result<(TokenStream, TokenStream)>,
-    },
-    MultiNoEndianness {
-        right_shift: i8,
-        gen_fn:
-            fn(&FieldInfo, &QuoteInfo, i8, TokenStream) -> syn::Result<(TokenStream, TokenStream)>,
-    },
-}
-
-impl GenerateWriteQuoteFn {
-    pub fn le_multi_byte(right_shift: i8, first_bit_mask: u8, last_bit_mask: u8) -> Self {
-        Self::MultiLittleEndianness {
-            right_shift,
-            first_bit_mask,
-            last_bit_mask,
-            gen_fn: FieldInfo::get_write_le_multi_byte_quote,
-        }
-    }
-    pub fn le_single_byte() -> Self {
-        Self::Single(FieldInfo::get_write_le_single_byte_quote)
-    }
-    pub fn ne_multi_byte(right_shift: i8) -> Self {
-        Self::MultiNoEndianness {
-            right_shift,
-            gen_fn: FieldInfo::get_write_ne_multi_byte_quote,
-        }
-    }
-    pub fn ne_single_byte() -> Self {
-        Self::Single(FieldInfo::get_write_ne_single_byte_quote)
-    }
-    pub fn be_multi_byte(
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        bits_in_last_byte: usize,
-    ) -> Self {
-        Self::MultiBigEndianness {
-            right_shift,
-            first_bit_mask,
-            last_bit_mask,
-            bits_in_last_byte,
-            gen_fn: FieldInfo::get_write_be_multi_byte_quote,
-        }
-    }
-    pub fn be_single_byte() -> Self {
-        Self::Single(FieldInfo::get_write_be_single_byte_quote)
-    }
-    pub fn run(
-        &self,
-        field_info: &FieldInfo,
-        quote_info: &QuoteInfo,
-        field_access: TokenStream,
-    ) -> syn::Result<(TokenStream, TokenStream)> {
-        match self {
-            GenerateWriteQuoteFn::Single(gen_fn) => gen_fn(field_info, quote_info, field_access),
-            GenerateWriteQuoteFn::MultiLittleEndianness {
-                right_shift,
-                first_bit_mask,
-                last_bit_mask,
-                gen_fn,
-            } => gen_fn(
-                field_info,
-                quote_info,
-                *right_shift,
-                *first_bit_mask,
-                *last_bit_mask,
-                field_access,
-            ),
-            GenerateWriteQuoteFn::MultiBigEndianness {
-                right_shift,
-                first_bit_mask,
-                last_bit_mask,
-                bits_in_last_byte,
-                gen_fn,
-            } => gen_fn(
-                field_info,
-                quote_info,
-                *right_shift,
-                *first_bit_mask,
-                *last_bit_mask,
-                *bits_in_last_byte,
-                field_access,
-            ),
-            GenerateWriteQuoteFn::MultiNoEndianness {
-                right_shift,
-                gen_fn,
-            } => gen_fn(field_info, quote_info, *right_shift, field_access),
-        }
-    }
-}
-pub enum GenerateReadQuoteFn {
-    Single(fn(&FieldInfo, &QuoteInfo) -> syn::Result<TokenStream>),
-    MultiLittleEndianness {
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        gen_fn: fn(&FieldInfo, &QuoteInfo, i8, u8, u8) -> syn::Result<TokenStream>,
-    },
-    MultiBigEndianness {
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        bits_in_last_byte: usize,
-        gen_fn: fn(&FieldInfo, &QuoteInfo, i8, u8, u8, usize) -> syn::Result<TokenStream>,
-    },
-    MultiNoEndianness {
-        right_shift: i8,
-        gen_fn: fn(&FieldInfo, &QuoteInfo, i8) -> syn::Result<TokenStream>,
-    },
-}
-
-impl GenerateReadQuoteFn {
-    pub fn le_multi_byte(right_shift: i8, first_bit_mask: u8, last_bit_mask: u8) -> Self {
-        Self::MultiLittleEndianness {
-            right_shift,
-            first_bit_mask,
-            last_bit_mask,
-            gen_fn: FieldInfo::get_read_le_multi_byte_quote,
-        }
-    }
-    pub fn le_single_byte() -> Self {
-        Self::Single(FieldInfo::get_read_le_single_byte_quote)
-    }
-    pub fn ne_multi_byte(right_shift: i8) -> Self {
-        Self::MultiNoEndianness {
-            right_shift,
-            gen_fn: FieldInfo::get_read_ne_multi_byte_quote,
-        }
-    }
-    pub fn ne_single_byte() -> Self {
-        Self::Single(FieldInfo::get_read_ne_single_byte_quote)
-    }
-    pub fn be_multi_byte(
-        right_shift: i8,
-        first_bit_mask: u8,
-        last_bit_mask: u8,
-        bits_in_last_byte: usize,
-    ) -> Self {
-        Self::MultiBigEndianness {
-            right_shift,
-            first_bit_mask,
-            last_bit_mask,
-            bits_in_last_byte,
-            gen_fn: FieldInfo::get_read_be_multi_byte_quote,
-        }
-    }
-    pub fn be_single_byte() -> Self {
-        Self::Single(FieldInfo::get_read_be_single_byte_quote)
-    }
-    pub fn run(&self, field_info: &FieldInfo, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
-        match self {
-            Self::Single(gen_fn) => gen_fn(field_info, quote_info),
-            Self::MultiLittleEndianness {
-                right_shift,
-                first_bit_mask,
-                last_bit_mask,
-                gen_fn,
-            } => gen_fn(
-                field_info,
-                quote_info,
-                *right_shift,
-                *first_bit_mask,
-                *last_bit_mask,
-            ),
-            Self::MultiBigEndianness {
-                right_shift,
-                first_bit_mask,
-                last_bit_mask,
-                bits_in_last_byte,
-                gen_fn,
-            } => gen_fn(
-                field_info,
-                quote_info,
-                *right_shift,
-                *first_bit_mask,
-                *last_bit_mask,
-                *bits_in_last_byte,
-            ),
-            Self::MultiNoEndianness {
-                right_shift,
-                gen_fn,
-            } => gen_fn(field_info, quote_info, *right_shift),
-        }
+impl TryFrom<(&FieldInfo, &StructInfo)> for QuoteInfo {
+    type Error = syn::Error;
+    fn try_from((fi, si): (&FieldInfo, &StructInfo)) -> Result<Self, Self::Error> {
+        QuoteInfo::new(fi, si)
     }
 }
 
@@ -346,94 +226,17 @@ impl FieldInfo {
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<FieldQuotes> {
-        let qi = QuoteInfo::new(self, struct_info)?;
         match *self.attrs.endianness {
-            Endianness::Little => self.get_le_quotes(qi),
-            Endianness::Big => self.get_be_quotes(qi),
-            Endianness::None => self.get_ne_quotes(qi),
+            Endianness::Little => self.get_le_quotes(struct_info),
+            Endianness::Big => self.get_be_quotes(struct_info),
+            Endianness::None => self.get_ne_quotes(struct_info),
         }
     }
-    pub fn get_quotes_no_flip(&self) -> syn::Result<FieldQuotes> {
-        let qi = QuoteInfo::new_no_flip(self)?;
-        match *self.attrs.endianness {
-            Endianness::Little => self.get_le_quotes(qi),
-            Endianness::Big => self.get_be_quotes(qi),
-            Endianness::None => self.get_ne_quotes(qi),
-        }
-    }
-    fn get_le_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        let (read, write, clear) = if quote_info.amount_of_bits()
-            > quote_info.available_bits_in_first_byte()
-        {
-            // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
-            // our bytes for the buffer.
-            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                return Err(syn::Error::new(
-                    self.ident.span(),
-                    "calculating le `bits_in_last_bytes` failed",
-                ));
-            }
-            let bits_in_last_byte =
-                (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
-            // how many times to shift the number right.
-            // NOTE if negative shift left.
-            // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
-            // for a f32) then use the last byte in the fields byte array after shifting for the first
-            // used byte in the buffer.
-            let mut bits_needed_in_msb = quote_info.amount_of_bits() % 8;
-            if bits_needed_in_msb == 0 {
-                bits_needed_in_msb = 8;
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let mut right_shift: i8 = (bits_needed_in_msb as i8)
-                - ((quote_info.available_bits_in_first_byte() % 8) as i8);
-            if right_shift == 8 {
-                right_shift = 0;
-            }
-            // because we are applying bits in place we need masks in insure we don't effect other fields
-            // data. we need one for the first byte and the last byte.
-            let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
-            let last_bit_mask = if bits_in_last_byte == 0 {
-                get_left_and_mask(8)
-            } else {
-                get_left_and_mask(bits_in_last_byte)
-            };
-            // create a quote that holds the bit shifting operator and shift value and the field name.
-            // first_bits_index is the index to use in the fields byte array after shift for the
-            // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
-            // index of the fields byte array will be used.
-            //
-            // let shift = if right_shift < 0 {
-            //     // convert to left shift using absolute value
-            //     let left_shift: u32 = right_shift.clone().abs() as u32;
-            //     // shift left code
-            //     quote! { (#field_access_quote.rotate_left(#left_shift)) }
-            // } else {
-            //     if right_shift == 0 {
-            //         // no shift no code, just the
-            //         quote! { #field_access_quote }
-            //     } else {
-            //         // shift right code
-            //         let right_shift_usize: u32 = right_shift.clone() as u32;
-            //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
-            //     }
-            // };
-            let read = self.get_read_quote(
-                &quote_info,
-                &GenerateReadQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask),
-            )?;
-            let (write, clear) = self.get_write_quote(
-                &quote_info,
-                &GenerateWriteQuoteFn::le_multi_byte(right_shift, first_bit_mask, last_bit_mask),
-                false,
-            )?;
-            (read, write, clear)
-        } else {
-            // single bytes logic
-            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::le_single_byte())?;
+    fn get_le_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
+        let (read, write, clear) = {
+            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_le_quote)?;
             let (write, clear) =
-                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::le_single_byte(), false)?;
+                self.get_write_quote(&struct_info, FieldInfo::get_write_le_quote, false,)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -442,39 +245,18 @@ impl FieldInfo {
             zero: clear,
         })
     }
-    fn get_ne_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        let (read, write, clear) = if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
-            // how many times to shift the number right.
-            // NOTE if negative shift left.
-            // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
-            // for a f32) then use the last byte in the fields byte array after shifting for the first
-            // used byte in the buffer.
-            if 8 < quote_info.available_bits_in_first_byte() % 8 {
-                return Err(syn::Error::new(
-                    self.ident.span(),
-                    "calculating ne right_shift failed",
-                ));
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+    fn get_ne_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
+        let (read, write, clear) = {
             // generate
             let read = self.get_read_quote(
-                &quote_info,
-                &GenerateReadQuoteFn::ne_multi_byte(right_shift),
+                &struct_info,
+                FieldInfo::get_read_ne_quote,
             )?;
             let (write, clear) = self.get_write_quote(
-                &quote_info,
-                &GenerateWriteQuoteFn::ne_multi_byte(right_shift),
+                &struct_info,
+                FieldInfo::get_write_ne_quote,
                 false,
             )?;
-            (read, write, clear)
-        } else {
-            // single bytes logic
-            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::ne_single_byte())?;
-            let (write, clear) =
-                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::ne_single_byte(), false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -483,66 +265,18 @@ impl FieldInfo {
             zero: clear,
         })
     }
-    fn get_be_quotes(&self, quote_info: QuoteInfo) -> Result<FieldQuotes, syn::Error> {
-        let (read, write, clear) = if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
-            // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
-            // our bytes for the buffer.
-            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                return Err(syn::Error::new(
-                    self.ident.span(),
-                    "calculating be bits_in_last_bytes failed",
-                ));
-            }
-            let bits_in_last_byte =
-                (quote_info.amount_of_bits() - quote_info.available_bits_in_first_byte()) % 8;
-            // how many times to shift the number right.
-            // NOTE if negative shift left.
-            // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
-            // for a f32) then use the last byte in the fields byte array after shifting for the first
-            // used byte in the buffer.
-            #[allow(clippy::cast_possible_truncation)]
-            let mut right_shift: i8 = ((quote_info.amount_of_bits() % 8) as i8)
-                - ((quote_info.available_bits_in_first_byte() % 8) as i8);
-            if right_shift < 0 {
-                right_shift += 8;
-            }
-            // because we are applying bits in place we need masks in insure we don't effect other fields
-            // data. we need one for the first byte and the last byte.
-            let first_bit_mask = get_right_and_mask(quote_info.available_bits_in_first_byte());
-            let last_bit_mask = if bits_in_last_byte == 0 {
-                get_left_and_mask(8)
-            } else {
-                get_left_and_mask(bits_in_last_byte)
-            };
+    fn get_be_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
+        let (read, write, clear) = {
             // generate
             let read = self.get_read_quote(
-                &quote_info,
-                &GenerateReadQuoteFn::be_multi_byte(
-                    right_shift,
-                    first_bit_mask,
-                    last_bit_mask,
-                    bits_in_last_byte,
-                ),
+                &struct_info,
+                FieldInfo::get_read_be_quote,
             )?;
             let (write, clear) = self.get_write_quote(
-                &quote_info,
-                &GenerateWriteQuoteFn::be_multi_byte(
-                    right_shift,
-                    first_bit_mask,
-                    last_bit_mask,
-                    bits_in_last_byte,
-                ),
+                &struct_info,
+                FieldInfo::get_write_be_quote,
                 false,
             )?;
-            (read, write, clear)
-        } else {
-            // single bytes logic
-            let read = self.get_read_quote(&quote_info, &GenerateReadQuoteFn::be_single_byte())?;
-            let (write, clear) =
-                self.get_write_quote(&quote_info, &GenerateWriteQuoteFn::be_single_byte(), false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
