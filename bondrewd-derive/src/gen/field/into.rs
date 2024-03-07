@@ -5,10 +5,11 @@ use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
 use crate::structs::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo, StructInfo,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
+    StructInfo,
 };
 
-use super::{QuoteInfo, LittleQuoteInfo, NoneQuoteInfo, BigQuoteInfo};
+use super::{BigQuoteInfo, LittleQuoteInfo, NoneQuoteInfo, QuoteInfo};
 
 impl FieldInfo {
     /// This function is kind of funny. it is essentially a function that gets called by either
@@ -18,7 +19,11 @@ impl FieldInfo {
     pub(crate) fn get_write_quote(
         &self,
         struct_info: &StructInfo,
-        gen_write_fn: fn(&FieldInfo, &QuoteInfo, TokenStream) -> syn::Result<(TokenStream, TokenStream)>,
+        gen_write_fn: fn(
+            &FieldInfo,
+            &QuoteInfo,
+            TokenStream,
+        ) -> syn::Result<(TokenStream, TokenStream)>,
         with_self: bool,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let field_name = self.ident().name();
@@ -113,18 +118,7 @@ impl FieldInfo {
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        if quote_info.amount_of_bits()
-            > quote_info.available_bits_in_first_byte()
-        {
-            // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
-            // our bytes for the buffer.
-            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                return Err(syn::Error::new(
-                    self.ident.span(),
-                    "calculating le `bits_in_last_bytes` failed, amount of bit is less than available bits in first byte",
-                ));
-            }
+        if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the
             // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
@@ -386,9 +380,7 @@ impl FieldInfo {
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
+        if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // how many times to shift the number right.
             // NOTE if negative shift left.
             // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -612,9 +604,7 @@ impl FieldInfo {
         quote_info: &QuoteInfo,
         field_access_quote: TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
+        if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
             // our bytes for the buffer.
@@ -706,7 +696,12 @@ impl FieldInfo {
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
             let thing: BigQuoteInfo = quote_info.into();
-            (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask, thing.bits_in_last_byte)
+            (
+                thing.right_shift,
+                thing.first_bit_mask,
+                thing.last_bit_mask,
+                thing.bits_in_last_byte,
+            )
         };
         // create a quote that holds the bit shifting operator and shift value and the field name.
         // first_bits_index is the index to use in the fields byte array after shift for the

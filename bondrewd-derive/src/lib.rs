@@ -2342,8 +2342,9 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             {
                 let _ = std::fs::write("new.txt", format!("{output}"));
             }
+            return output;
         }
-        Err(err) => println!("{err}"),
+        Err(err) => return TokenStream::from(err.to_compile_error()),
     };
     // println!("-----------------------(old)");
     let (fields_into_bytes, fields_from_bytes) = match struct_info {

@@ -414,7 +414,7 @@ impl StructInfo {
         let mut checked_struct_impl_fns = quote! {};
         self.make_write_fns_inner(
             field,
-            &field_name,
+            &prefixed_name,
             field_setter,
             clear_quote,
             &mut impl_fns,
@@ -605,7 +605,7 @@ impl EnumInfo {
             // because all of the from_bytes field quote store there data in a temporary variable with the same
             // name as its destination field the list of field names will be just fine.
 
-            let mut variant_id = if i == last_variant {
+            let variant_id = if i == last_variant {
                 quote! {_}
             } else if let Some(id) = variant.attrs.id {
                 if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
@@ -622,6 +622,7 @@ impl EnumInfo {
                     "failed to find id for variant, this is a bug in bondrewd.",
                 ));
             };
+            let mut variant_value = variant.id_or_field_name()?;
             let variant_constructor = if thing.field_list.is_empty() {
                 quote! {Self::#variant_name}
             } else if variant.tuple {
@@ -642,9 +643,10 @@ impl EnumInfo {
             };
             #[cfg(feature = "dyn_fns")]
             {
+                let bitfield_dyn_trait_impl_fns = &gen.bitfield_dyn_trait_impl_fns;
                 let from_vec_quote = &thing.read_fns.bitfield_dyn_trait_impl_fns;
-                from_bytes_dyn_fn = quote! {
-                    #from_bytes_dyn_fn
+                gen.bitfield_dyn_trait_impl_fns = quote! {
+                    #bitfield_dyn_trait_impl_fns
                     #variant_id => {
                         #from_vec_quote
                         #variant_constructor
@@ -656,19 +658,19 @@ impl EnumInfo {
             into_bytes_fn = quote! {
                 #into_bytes_fn
                 #variant_constructor => {
-                    Self::#v_id_write_call(&mut output_byte_buffer, #variant_id);
+                    Self::#v_id_write_call(&mut output_byte_buffer, #variant_value);
                     #into_bytes_quote
                 }
             };
             // Variant Id fn
             if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
                 let id_field_name = &variant.fields[0].ident().name();
-                variant_id = quote! {#id_field_name};
+                variant_value = quote! {#id_field_name};
             }
 
             let mut ignore_fields = if variant.fields[0].attrs.capture_id {
                 let id_field_name = &variant.fields[0].ident().name();
-                variant_id = quote! {*#variant_id};
+                variant_value = quote! {*#variant_value};
                 quote! { #id_field_name, }
             } else {
                 quote! {}
@@ -685,7 +687,7 @@ impl EnumInfo {
             }
             id_fn = quote! {
                 #id_fn
-                Self::#variant_name #ignore_fields => #variant_id,
+                Self::#variant_name #ignore_fields => #variant_value,
             };
         }
         // Finish `from_bytes` function.
@@ -926,9 +928,10 @@ fn generate_write_slice_field_fn(
     clear_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    field_name: &Ident,
+    prefixed_field_name: &Ident,
 ) -> TokenStream {
-    let fn_field_name = format_ident!("write_slice_{field_name}");
+    let field_name = field.ident().name();
+    let fn_field_name = format_ident!("write_slice_{prefixed_field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
@@ -972,9 +975,10 @@ fn generate_write_slice_field_fn_unchecked(
     clear_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    field_name: &Ident,
+    prefixed_field_name: &Ident,
 ) -> TokenStream {
-    let fn_field_name = format_ident!("write_{field_name}");
+    let field_name = field.ident().name();
+    let fn_field_name = format_ident!("write_{prefixed_field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
@@ -984,7 +988,7 @@ fn generate_write_slice_field_fn_unchecked(
         format!("bit {}", bit_range.start)
     };
     let comment = format!(
-        "Writes to {comment_bits} in pre-checked mutable slice, setting the `{field_name}` field of a [{struct_name}] in bitfield form.",
+        "Writes to {comment_bits} in pre-checked mutable slice, setting the `{prefixed_field_name}` field of a [{struct_name}] in bitfield form.",
     );
     quote! {
         #[inline]

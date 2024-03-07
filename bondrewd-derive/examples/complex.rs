@@ -1,18 +1,6 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(id_bit_length = 3, default_endianness = "be")]
-enum EyeColor {
-    Blue,
-    Green,
-    Brown,
-    Other {
-        #[bondrewd(capture_id)]
-        test: u8,
-    },
-}
-
-#[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct PersonParts {
     head: bool,
@@ -43,6 +31,18 @@ struct PersonStuff {
     // how many times they have blinked each of their eyes
     #[bondrewd(bit_length = 60)]
     blinks: u64,
+}
+
+#[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
+#[bondrewd(id_bit_length = 3, default_endianness = "be")]
+enum EyeColor {
+    Blue,
+    Green,
+    Brown,
+    Other {
+        #[bondrewd(capture_id)]
+        test: u8,
+    },
 }
 
 fn main() {

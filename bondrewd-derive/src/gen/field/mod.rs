@@ -35,16 +35,15 @@ pub struct BigQuoteInfo {
 }
 impl From<&QuoteInfo> for BigQuoteInfo {
     fn from(qi: &QuoteInfo) -> Self {
-        let bits_in_last_byte =
-            (qi.amount_of_bits() - qi.available_bits_in_first_byte()) % 8;
+        let bits_in_last_byte = (qi.amount_of_bits() - qi.available_bits_in_first_byte()) % 8;
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
         // used byte in the buffer.
         #[allow(clippy::cast_possible_truncation)]
-        let mut right_shift: i8 = ((qi.amount_of_bits() % 8) as i8)
-            - ((qi.available_bits_in_first_byte() % 8) as i8);
+        let mut right_shift: i8 =
+            ((qi.amount_of_bits() % 8) as i8) - ((qi.available_bits_in_first_byte() % 8) as i8);
         if right_shift < 0 {
             right_shift += 8;
         }
@@ -108,10 +107,8 @@ pub struct NoneQuoteInfo {
 impl From<&QuoteInfo> for NoneQuoteInfo {
     fn from(quote_info: &QuoteInfo) -> Self {
         #[allow(clippy::cast_possible_truncation)]
-            let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
-            Self {
-                right_shift
-            }
+        let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+        Self { right_shift }
     }
 }
 pub struct QuoteInfo {
@@ -236,7 +233,7 @@ impl FieldInfo {
         let (read, write, clear) = {
             let read = self.get_read_quote(&struct_info, FieldInfo::get_read_le_quote)?;
             let (write, clear) =
-                self.get_write_quote(&struct_info, FieldInfo::get_write_le_quote, false,)?;
+                self.get_write_quote(&struct_info, FieldInfo::get_write_le_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -248,15 +245,9 @@ impl FieldInfo {
     fn get_ne_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.get_read_quote(
-                &struct_info,
-                FieldInfo::get_read_ne_quote,
-            )?;
-            let (write, clear) = self.get_write_quote(
-                &struct_info,
-                FieldInfo::get_write_ne_quote,
-                false,
-            )?;
+            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_ne_quote)?;
+            let (write, clear) =
+                self.get_write_quote(&struct_info, FieldInfo::get_write_ne_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -268,15 +259,9 @@ impl FieldInfo {
     fn get_be_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.get_read_quote(
-                &struct_info,
-                FieldInfo::get_read_be_quote,
-            )?;
-            let (write, clear) = self.get_write_quote(
-                &struct_info,
-                FieldInfo::get_write_be_quote,
-                false,
-            )?;
+            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_be_quote)?;
+            let (write, clear) =
+                self.get_write_quote(&struct_info, FieldInfo::get_write_be_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {

@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use super::{ LittleQuoteInfo, NoneQuoteInfo, BigQuoteInfo, QuoteInfo};
+use super::{BigQuoteInfo, LittleQuoteInfo, NoneQuoteInfo, QuoteInfo};
 use crate::structs::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, Endianness, FieldDataType,
     FieldInfo, NumberSignage, StructInfo,
@@ -395,22 +395,8 @@ impl FieldInfo {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_le_quote(
-        &self,
-        quote_info: &QuoteInfo,
-    ) -> syn::Result<TokenStream> {
-        if quote_info.amount_of_bits()
-            > quote_info.available_bits_in_first_byte()
-        {
-            // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
-            // our bytes for the buffer.
-            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-                return Err(syn::Error::new(
-                    self.ident.span(),
-                    "calculating le `bits_in_last_bytes` failed, amount of bit is less than available bits in first byte",
-                ));
-            }
+    pub(crate) fn get_read_le_quote(&self, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
+        if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the
             // starting byte in the byte buffer. when left shifts happen on full sized numbers the last
@@ -439,15 +425,6 @@ impl FieldInfo {
         &self,
         quote_info: &QuoteInfo,
     ) -> syn::Result<TokenStream> {
-        // calculate how many of the bits will be inside the least significant byte we are adding to.
-        // this will also be the number used for shifting to the right >> because that will line up
-        // our bytes for the buffer.
-        if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
-            return Err(syn::Error::new(
-                self.ident.span(),
-                "calculating le `bits_in_last_bytes` failed, amount of bit is less than available bits in first byte",
-            ));
-        }
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
         // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
@@ -539,6 +516,9 @@ impl FieldInfo {
                 "calculating le `bits_in_last_bytes` failed, amount of bit is less than available bits in first byte",
             ));
         }
+        // calculate how many of the bits will be inside the least significant byte we are adding to.
+        // this will also be the number used for shifting to the right >> because that will line up
+        // our bytes for the buffer.
         let (right_shift, first_bit_mask, last_bit_mask): (i8, u8, u8) = {
             let thing: LittleQuoteInfo = quote_info.into();
             (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask)
@@ -690,13 +670,8 @@ impl FieldInfo {
 
         Ok(output)
     }
-    pub(crate) fn get_read_ne_quote(
-        &self,
-        quote_info: &QuoteInfo,
-    ) -> syn::Result<TokenStream> {
-        if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
+    pub(crate) fn get_read_ne_quote(&self, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
+        if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // how many times to shift the number right.
             // NOTE if negative shift left.
             // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -886,13 +861,8 @@ impl FieldInfo {
         Ok(full_quote)
     }
 
-    pub(crate) fn get_read_be_quote(
-        &self,
-        quote_info: &QuoteInfo,
-    ) -> syn::Result<TokenStream> {
-        if quote_info.amount_of_bits
-            > quote_info.available_bits_in_first_byte
-        {
+    pub(crate) fn get_read_be_quote(&self, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
+        if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
             // our bytes for the buffer.
@@ -995,7 +965,12 @@ impl FieldInfo {
     ) -> syn::Result<TokenStream> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
             let thing: BigQuoteInfo = quote_info.into();
-            (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask, thing.bits_in_last_byte)
+            (
+                thing.right_shift,
+                thing.first_bit_mask,
+                thing.last_bit_mask,
+                thing.bits_in_last_byte,
+            )
         };
         // create a quote that holds the bit shifting operator and shift value and the field name.
         // first_bits_index is the index to use in the fields byte array after shift for the
