@@ -386,7 +386,7 @@ impl StructInfo {
             let ename = if enum_name.is_some() {
                 Some(&struct_name)
             } else {
-                Some(&self.name)
+                None
             };
 
             let check_slice_info = CheckedSliceGen::new(&self.name, self.total_bytes(), ename);
@@ -677,7 +677,7 @@ impl EnumInfo {
             (quote! {}, format_ident!("{}CheckedMut", &self.name));
         // Stores a build up for creating a match enum type that contains CheckStruct for each variant.
         #[cfg(feature = "dyn_fns")]
-        let (mut checked_slice_enum, mut checked_slice_enum_mut): (TokenStream, TokenStream) = (quote! {}, quote! {});
+        let (mut checked_slice_enum, mut checked_slice_enum_mut, mut lifetime): (TokenStream, TokenStream, bool) = (quote! {}, quote! {}, false);
         // the string `variant_id` as an Ident
         let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
         // setup function names for getting variant id.
@@ -804,53 +804,57 @@ impl EnumInfo {
                 // Check Slice
                 if let Some(slice_info) = thing.slice_info {
                     // do the match statement stuff
-                    let check_slice_name = format_ident!("check_slice_{}", slice_info.check_slice_fn_name);
+                    let check_slice_name = &slice_info.check_slice_fn_name;
                     let check_slice_struct = &slice_info.check_slice_struct_name;
                     check_slice_fn = quote! {
                         #check_slice_fn
                         #variant_id => {
-                            #checked_ident :: #variant_name (Self::#check_slice_name(buffer))
+                            Ok(#checked_ident :: #variant_name (Self::#check_slice_name(buffer)?))
                         }
                     };
-                    let check_slice_name_mut = format_ident!("check_slice_mut_{}", slice_info.check_mut_slice_fn_name);
+                    let check_slice_name_mut = &slice_info.check_mut_slice_fn_name;
                     let check_slice_struct_mut = &slice_info.check_mut_slice_struct_name;
                     check_slice_mut_fn = quote! {
                         #check_slice_mut_fn
                         #variant_id => {
-                            #checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer))
+                            Ok(#checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer)?))
                         }
                     };
+
                     // do enum stuff
+                    if !lifetime {
+                        lifetime = true;
+                    }
                     checked_slice_enum = quote!{
                         #checked_slice_enum
-                        #checked_ident (#check_slice_struct),
+                        #v_name (#check_slice_struct<'a>),
                     };
                     checked_slice_enum_mut = quote!{
                         #checked_slice_enum_mut
-                        #checked_ident_mut (#check_slice_struct_mut),
+                        #v_name (#check_slice_struct_mut<'a>),
                     };
                 }else{
                     // do the match statement stuff
                     check_slice_fn = quote! {
                         #check_slice_fn
                         #variant_id => {
-                            #checked_ident :: #variant_name
+                            Ok(#checked_ident :: #variant_name)
                         }
                     };
                     check_slice_mut_fn = quote! {
                         #check_slice_mut_fn
                         #variant_id => {
-                            #checked_ident_mut :: #variant_name
+                            Ok(#checked_ident_mut :: #variant_name)
                         }
                     };
                     // do enum stuff
                     checked_slice_enum = quote!{
                         #checked_slice_enum
-                        #checked_ident,
+                        #v_name,
                     };
                     checked_slice_enum_mut = quote!{
                         #checked_slice_enum_mut
-                        #checked_ident_mut,
+                        #v_name,
                     };
                 }
             }
@@ -956,11 +960,16 @@ impl EnumInfo {
                     }
                 }
             });
+            let lifetime = if lifetime {
+                quote!{<'a>}
+            }else{
+                quote!{}
+            };
             gen.append_checked_struct_impl_fns(quote!{
-                pub enum #checked_ident {
+                pub enum #checked_ident #lifetime {
                     #checked_slice_enum
                 }
-                pub enum #checked_ident_mut {
+                pub enum #checked_ident_mut #lifetime {
                     #checked_slice_enum_mut
                 }
             });
@@ -1012,12 +1021,12 @@ fn get_check_mut_slice_fn(
 ) -> (TokenStream, Ident) {
     let (checked_ident_mut, fn_name) = if let Some(ename) = enum_name {
         (
-            format_ident!("{ename}Checked"),
+            format_ident!("{ename}CheckedMut"),
             format_ident!("check_slice_mut_{}", name.to_string().to_case(Case::Snake)),
         )
     } else {
         (
-            format_ident!("{name}Checked"),
+            format_ident!("{name}CheckedMut"),
             format_ident!("check_slice_mut"),
         )
     };
