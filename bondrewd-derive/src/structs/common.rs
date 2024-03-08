@@ -1025,6 +1025,10 @@ pub struct StructInfo {
 }
 
 impl StructInfo {
+    #[cfg(feature = "dyn_fns")]
+    pub fn vis(&self) -> &syn::Visibility {
+        &self.vis
+    }
     pub fn get_flip(&self) -> Option<usize> {
         if self.attrs.flip {
             Some(self.total_bytes() - 1)
@@ -1079,6 +1083,10 @@ pub struct EnumInfo {
 
 impl EnumInfo {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
+    // #[cfg(feature = "dyn_fns")]
+    // pub fn vis(&self) -> &syn::Visibility {
+    //     &self.vis
+    // }
     pub fn total_bits(&self) -> usize {
         let mut total = self.variants[0].total_bits();
         for variant in self.variants.iter().skip(1) {
@@ -1179,13 +1187,13 @@ fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
 }
 
 impl ObjectInfo {
-    #[cfg(feature = "dyn_fns")]
-    pub fn vis(&self) -> &syn::Visibility {
-        match self {
-            ObjectInfo::Struct(s) => &s.vis,
-            ObjectInfo::Enum(e) => &e.vis,
-        }
-    }
+    // #[cfg(feature = "dyn_fns")]
+    // pub fn vis(&self) -> &syn::Visibility {
+    //     match self {
+    //         ObjectInfo::Struct(s) => &s.vis,
+    //         ObjectInfo::Enum(e) => &e.vis,
+    //     }
+    // }
     pub fn name(&self) -> Ident {
         match self {
             ObjectInfo::Struct(s) => s.name.clone(),

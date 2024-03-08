@@ -130,9 +130,9 @@ impl QuoteInfo {
         Self::new_inner(field_info, struct_info.get_flip())
     }
     /// TODO im not sure `new_no_flip` should exist. no flip might not be needed.
-    pub fn new_no_flip(field_info: &FieldInfo) -> syn::Result<Self> {
-        Self::new_inner(field_info, None)
-    }
+    // pub fn new_no_flip(field_info: &FieldInfo) -> syn::Result<Self> {
+    //     Self::new_inner(field_info, None)
+    // }
     fn new_inner(field_info: &FieldInfo, flip: Option<usize>) -> syn::Result<Self> {
         // get the total number of bits the field uses.
         let amount_of_bits = field_info.attrs.bit_length();

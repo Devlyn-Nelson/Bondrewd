@@ -10,10 +10,16 @@ struct Weird {
 #[test]
 fn hard_core_test() {
     let w = Weird::default();
-    let bytes = w.into_bytes();
+    let mut bytes = w.into_bytes();
     if let Ok(checked) = Weird::check_slice(&bytes) {
         assert_eq!(checked.read_one(), 0);
     } else {
-        panic!("???");
+        panic!("failed size check");
+    }
+    if let Ok(mut checked) = Weird::check_slice_mut(&mut bytes) {
+        checked.write_one(4);
+        assert_eq!(checked.read_one(), 4);
+    } else {
+        panic!("failed size check");
     }
 }

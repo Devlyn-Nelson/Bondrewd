@@ -1,6 +1,8 @@
 use std::str::FromStr;
 
 use crate::structs::common::{EnumInfo, FieldInfo, ObjectInfo, StructInfo};
+#[cfg(feature = "setters")]
+use crate::structs::struct_fns;
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
@@ -15,9 +17,6 @@ pub struct GeneratedFunctions {
     /// Functions that belong in impl for generated checked slice object.
     #[cfg(feature = "dyn_fns")]
     pub checked_struct_impl_fns: proc_macro2::TokenStream,
-    /// Functions that belong in impl for generated checked mut slice object.
-    #[cfg(feature = "dyn_fns")]
-    pub checked_mut_struct_impl_fns: proc_macro2::TokenStream,
     /// Functions that belong in `BitfieldsDyn` impl for object.
     #[cfg(feature = "dyn_fns")]
     pub bitfield_dyn_trait_impl_fns: proc_macro2::TokenStream,
@@ -31,8 +30,6 @@ impl Default for GeneratedFunctions {
             #[cfg(feature = "dyn_fns")]
             checked_struct_impl_fns: Default::default(),
             #[cfg(feature = "dyn_fns")]
-            checked_mut_struct_impl_fns: Default::default(),
-            #[cfg(feature = "dyn_fns")]
             bitfield_dyn_trait_impl_fns: Default::default(),
         }
     }
@@ -45,15 +42,12 @@ impl Into<TokenStream> for GeneratedFunctions {
         #[cfg(feature = "dyn_fns")]
         let unchecked = self.checked_struct_impl_fns;
         #[cfg(feature = "dyn_fns")]
-        let unchecked_mut = self.checked_mut_struct_impl_fns;
-        #[cfg(feature = "dyn_fns")]
         let dyn_trait_fns = self.bitfield_dyn_trait_impl_fns;
         #[cfg(feature = "dyn_fns")]
         let quote = quote! {
             #trait_fns
             #impl_fns
             #unchecked
-            #unchecked_mut
             #dyn_trait_fns
         };
         #[cfg(not(feature = "dyn_fns"))]
@@ -87,12 +81,6 @@ impl GeneratedFunctions {
                 #checked_struct_impl_fns
                 #other_checked_struct_impl_fns
             };
-            let checked_mut_struct_impl_fns = &self.checked_mut_struct_impl_fns;
-            let other_checked_mut_struct_impl_fns = &other.checked_mut_struct_impl_fns;
-            self.checked_mut_struct_impl_fns = quote! {
-                #checked_mut_struct_impl_fns
-                #other_checked_mut_struct_impl_fns
-            };
             let bitfield_dyn_trait_impl_fns = &self.bitfield_dyn_trait_impl_fns;
             let other_bitfield_dyn_trait_impl_fns = &other.bitfield_dyn_trait_impl_fns;
             self.bitfield_dyn_trait_impl_fns = quote! {
@@ -124,14 +112,6 @@ impl GeneratedFunctions {
         };
     }
     #[cfg(feature = "dyn_fns")]
-    fn append_checked_mut_struct_impl_fns(&mut self, quote: TokenStream) {
-        let old = &self.checked_mut_struct_impl_fns;
-        self.checked_mut_struct_impl_fns = quote! {
-            #old
-            #quote
-        };
-    }
-    #[cfg(feature = "dyn_fns")]
     fn append_bitfield_dyn_trait_impl_fns(&mut self, quote: TokenStream) {
         let old = &self.bitfield_dyn_trait_impl_fns;
         self.bitfield_dyn_trait_impl_fns = quote! {
@@ -142,12 +122,98 @@ impl GeneratedFunctions {
 }
 
 impl ObjectInfo {
-    pub fn generate(&self) -> syn::Result<GeneratedFunctions> {
-        match self {
+    pub fn generate(&self) -> syn::Result<TokenStream> {
+        let gen = match self {
             ObjectInfo::Struct(s) => Ok(s.generate_bitfield_functions()?.finish()),
             ObjectInfo::Enum(e) => e.generate_bitfield_functions(),
+        }?;
+        // get the struct size and name so we can use them in a quote.
+        let struct_size = self.total_bytes();
+        let struct_name = self.name();
+        let impl_fns = gen.impl_fns;
+        let mut output = match self {
+            #[cfg(not(feature = "setters"))]
+            ObjectInfo::Struct(ref _struct_info) => {
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                }
+            }
+            #[cfg(feature = "setters")]
+            ObjectInfo::Struct(ref struct_info) => {
+                // TODO get setter for arrays working.
+                // get the setters, functions that set a field disallowing numbers
+                // outside of the range the Bitfield.
+                let setters_quote = match struct_fns::create_setters_quotes(&struct_info) {
+                    Ok(parsed_struct) => parsed_struct,
+                    Err(err) => {
+                        return Err(err);
+                    }
+                };
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                        #setters_quote
+                    }
+                }
+            }
+            ObjectInfo::Enum(ref _enum_info) => {
+                // TODO implement getters and setters for enums.
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                }
+            }
+        };
+        // get the bit size of the entire set of fields to fill in trait requirement.
+        let bit_size = self.total_bits();
+        let trait_impl_fn = gen.bitfield_trait_impl_fns;
+        output = quote! {
+            #output
+            impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                const BIT_SIZE: usize = #bit_size;
+                #trait_impl_fn
+            }
+        };
+        #[cfg(feature = "hex_fns")]
+        {
+            let hex_size = struct_size * 2;
+            output = quote! {
+                #output
+                impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+            };
+            #[cfg(feature = "dyn_fns")]
+            {
+                output = quote! {
+                    #output
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
         }
+        #[cfg(feature = "dyn_fns")]
+        {
+            let checked_structs = gen.checked_struct_impl_fns;
+            let from_vec_quote = gen.bitfield_dyn_trait_impl_fns;
+            output = quote! {
+                #output
+                #checked_structs
+                impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                    #from_vec_quote
+                }
+            }
+        }
+        Ok(output)
     }
+}
+
+#[cfg(feature = "dyn_fns")]
+pub struct SliceInfo {
+    check_slice_fn_name: Ident,
+    check_mut_slice_fn_name: Ident,
+    check_slice_struct_name: Ident,
+    check_mut_slice_struct_name: Ident,
 }
 
 // TODO nothing about field quotes should be public
@@ -157,6 +223,8 @@ pub struct FieldQuotes {
     pub write_fns: GeneratedFunctions,
     /// A list of field names to be used in initializing a new struct from bytes.
     field_list: TokenStream,
+    #[cfg(feature = "dyn_fns")]
+    slice_info: Option<SliceInfo>,
 }
 impl FieldQuotes {
     pub fn finish(self) -> GeneratedFunctions {
@@ -173,7 +241,7 @@ impl StructInfo {
         // generate basic generated code for field access functions.
         let mut quotes = self.create_field_quotes(None)?;
         // Gather information to finish [`Bitfields::from_bytes`]
-        let struct_size = &self.total_bytes();
+        let struct_size = self.total_bytes();
         let from_bytes_quote = &quotes.read_fns.bitfield_trait_impl_fns;
         let fields_list = &quotes.field_list;
         // construct from bytes function. use input_byte_buffer as input name because,
@@ -246,18 +314,7 @@ impl StructInfo {
         } else {
             None
         };
-        #[cfg(feature = "dyn_fns")]
-        let impl_fns = if enum_name.is_some() {
-            // TODO impl proper check_slice support for enums. (should just be get_check_slice_fn for each variant)
-            quote! {}
-        } else {
-            get_check_slice_fns(&self.name, self.total_bytes())
-        };
-        let mut gen_read = GeneratedFunctions {
-            #[cfg(feature = "dyn_fns")]
-            impl_fns,
-            ..Default::default()
-        };
+        let mut gen_read = GeneratedFunctions::default();
         let mut gen_write = GeneratedFunctions::default();
         // If we are building code for an enum variant that does not capture the id
         // then we should skip the id field to avoid creating an get_id function for each variant.
@@ -268,7 +325,6 @@ impl StructInfo {
         };
         let mut field_name_list = quote! {};
         for field in fields {
-            // println!("*************************\n({field:?})");
             let field_access = field.get_quotes(self)?;
             self.make_read_fns(
                 field,
@@ -279,10 +335,90 @@ impl StructInfo {
             )?;
             self.make_write_fns(field, &variant_name, &mut gen_write, &field_access);
         }
+        // Do checked struct of this type
+        #[cfg(feature = "dyn_fns")]
+        let checked = if !fields.is_empty() {
+            let struct_name = if let Some(e_name) = enum_name {
+                quote::format_ident!("{e_name}{}", &self.name)
+            } else {
+                self.name.clone()
+            };
+            let vis = self.vis();
+            let checked_ident = quote::format_ident!("{struct_name}Checked");
+            let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
+            let unchecked_functions = gen_read.checked_struct_impl_fns;
+            let unchecked_mut_functions = gen_write.checked_struct_impl_fns;
+            let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+            let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+            let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+            let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+            gen_write.checked_struct_impl_fns = quote! {
+                #[doc = #comment_mut]
+                #vis struct #checked_mut_ident<'a> {
+                    buffer: &'a mut [u8],
+                }
+                impl<'a> #checked_mut_ident<'a> {
+                    #unchecked_functions
+                    #unchecked_mut_functions
+                    #[doc = #unchecked_comment_mut]
+                    pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                        Self{
+                            buffer: data
+                        }
+                    }
+                }
+            };
+            gen_read.checked_struct_impl_fns = quote! {
+                #[doc = #comment]
+                #vis struct #checked_ident<'a> {
+                    buffer: &'a [u8],
+                }
+                impl<'a> #checked_ident<'a> {
+                    #unchecked_functions
+                    #[doc = #unchecked_comment]
+                    pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                        Self{
+                            buffer: data
+                        }
+                    }
+                }
+            };
+            let ename = if enum_name.is_some() {
+                Some(&struct_name)
+            } else {
+                Some(&self.name)
+            };
+
+            let check_slice_info = CheckedSliceGen::new(&self.name, self.total_bytes(), ename);
+
+            let check_slice_fn = check_slice_info.fn_gen;
+            let impl_fns = gen_read.impl_fns;
+            gen_read.impl_fns = quote! {
+                #impl_fns
+                #check_slice_fn
+            };
+
+            let check_slice_mut_fn = check_slice_info.mut_fn_gen;
+            let impl_fns = gen_write.impl_fns;
+            gen_write.impl_fns = quote! {
+                #impl_fns
+                #check_slice_mut_fn
+            };
+            Some(SliceInfo {
+                check_slice_fn_name: check_slice_info.fn_name,
+                check_mut_slice_fn_name: check_slice_info.mut_fn_name,
+                check_slice_struct_name: checked_ident,
+                check_mut_slice_struct_name: checked_mut_ident,
+            })
+        } else {
+            None
+        };
         Ok(FieldQuotes {
             read_fns: gen_read,
             write_fns: gen_write,
             field_list: field_name_list,
+            #[cfg(feature = "dyn_fns")]
+            slice_info: checked,
         })
     }
     fn make_read_fns(
@@ -427,7 +563,7 @@ impl StructInfo {
 
         gen.append_impl_fns(impl_fns);
         #[cfg(feature = "dyn_fns")]
-        gen.append_checked_mut_struct_impl_fns(checked_struct_impl_fns);
+        gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
     }
     fn make_write_fns_inner(
         &self,
@@ -498,7 +634,6 @@ impl EnumInfo {
                 };
                 #[cfg(feature = "dyn_fns")]
                 {
-                    let check_slice_fns = get_check_slice_fns(&self.name, self.total_bytes());
                     let id_slice_read = generate_read_slice_field_fn(
                         access.read(),
                         &field,
@@ -516,7 +651,6 @@ impl EnumInfo {
                         #output
                         #id_slice_read
                         #id_slice_write
-                        #check_slice_fns
                     }
                 }
                 #[cfg(not(feature = "dyn_fns"))]
@@ -525,14 +659,25 @@ impl EnumInfo {
                 }
             },
             ..Default::default()
-        };
+        }; //
         let struct_size = self.total_bytes();
         let last_variant = self.variants.len() - 1;
+        // stores all of the into/from bytes functions across variants.
         let mut into_bytes_fn: TokenStream = quote! {};
         let mut from_bytes_fn: TokenStream = quote! {};
-        #[cfg(feature = "dyn_fns")]
-        let mut from_bytes_dyn_fn: TokenStream = quote! {};
+        // stores the build up for the id function.
         let mut id_fn: TokenStream = quote! {};
+        // stores the build up for the `check_slice` fn for an enum.
+        #[cfg(feature = "dyn_fns")]
+        let (mut check_slice_fn, checked_ident): (TokenStream, Ident) =
+            (quote! {}, format_ident!("{}Checked", &self.name));
+        // stores the build up for the `check_slice_mut` fn for an enum.
+        #[cfg(feature = "dyn_fns")]
+        let (mut check_slice_mut_fn, checked_ident_mut): (TokenStream, Ident) =
+            (quote! {}, format_ident!("{}CheckedMut", &self.name));
+        // Stores a build up for creating a match enum type that contains CheckStruct for each variant.
+        #[cfg(feature = "dyn_fns")]
+        let (mut checked_slice_enum, mut checked_slice_enum_mut): (TokenStream, TokenStream) = (quote! {}, quote! {});
         // the string `variant_id` as an Ident
         let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
         // setup function names for getting variant id.
@@ -594,7 +739,7 @@ impl EnumInfo {
             #[cfg(feature = "dyn_fns")]
             {
                 gen.append_checked_struct_impl_fns(thing.read_fns.checked_struct_impl_fns);
-                gen.append_checked_mut_struct_impl_fns(thing.write_fns.checked_mut_struct_impl_fns);
+                gen.append_checked_struct_impl_fns(thing.write_fns.checked_struct_impl_fns);
             }
             gen.append_impl_fns(thing.read_fns.impl_fns);
             gen.append_impl_fns(thing.write_fns.impl_fns);
@@ -656,6 +801,58 @@ impl EnumInfo {
                         #variant_constructor
                     }
                 };
+                // Check Slice
+                if let Some(slice_info) = thing.slice_info {
+                    // do the match statement stuff
+                    let check_slice_name = format_ident!("check_slice_{}", slice_info.check_slice_fn_name);
+                    let check_slice_struct = &slice_info.check_slice_struct_name;
+                    check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            #checked_ident :: #variant_name (Self::#check_slice_name(buffer))
+                        }
+                    };
+                    let check_slice_name_mut = format_ident!("check_slice_mut_{}", slice_info.check_mut_slice_fn_name);
+                    let check_slice_struct_mut = &slice_info.check_mut_slice_struct_name;
+                    check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            #checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer))
+                        }
+                    };
+                    // do enum stuff
+                    checked_slice_enum = quote!{
+                        #checked_slice_enum
+                        #checked_ident (#check_slice_struct),
+                    };
+                    checked_slice_enum_mut = quote!{
+                        #checked_slice_enum_mut
+                        #checked_ident_mut (#check_slice_struct_mut),
+                    };
+                }else{
+                    // do the match statement stuff
+                    check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            #checked_ident :: #variant_name
+                        }
+                    };
+                    check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            #checked_ident_mut :: #variant_name
+                        }
+                    };
+                    // do enum stuff
+                    checked_slice_enum = quote!{
+                        #checked_slice_enum
+                        #checked_ident,
+                    };
+                    checked_slice_enum_mut = quote!{
+                        #checked_slice_enum_mut
+                        #checked_ident_mut,
+                    };
+                }
             }
             // Into Bytes
             let into_bytes_quote = &thing.write_fns.bitfield_trait_impl_fns;
@@ -733,6 +930,40 @@ impl EnumInfo {
                     Ok(out)
                 }
             };
+            let comment = format!(
+                "Returns a checked structure which allows you to read any field for a `{}` from provided slice.",
+                &self.name
+            );
+            gen.append_impl_fns(quote! {
+                #[doc = #comment]
+                pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                    match #v_id {
+                        #check_slice_fn
+                    }
+                }
+            });
+            let comment = format!(
+                "Returns a checked mutable structure which allows you to read/write any field for a `{}` from provided mut slice.",
+                &self.name
+            );
+            gen.append_impl_fns(quote! {
+                #[doc = #comment]
+                pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                    match #v_id {
+                        #check_slice_mut_fn
+                    }
+                }
+            });
+            gen.append_checked_struct_impl_fns(quote!{
+                pub enum #checked_ident {
+                    #checked_slice_enum
+                }
+                pub enum #checked_ident_mut {
+                    #checked_slice_enum_mut
+                }
+            });
         }
         // Finish `into_bytes` function.
         into_bytes_fn = quote! {
@@ -758,44 +989,133 @@ impl EnumInfo {
             #from_bytes_fn
             #into_bytes_fn
         };
+
+
         Ok(gen)
     }
 }
 
 #[cfg(feature = "dyn_fns")]
-fn get_check_slice_fns(
+/// generates the check_slice fn. please do not use, use `CheckedSliceGen`.
+/// returns (fn, fn_name).
+///
+/// `name` is the name of the structure or variant
+/// `check_size` is the total byte size of the struct or variant
+/// `enum_name` if we are generating code for a variant (not a structure) then a
+///     Some value containing the prefixed name shall be provided.
+///     ex. enum and variant -> Test::One = "test_one" <- prefixed name
+fn get_check_mut_slice_fn(
     name: &Ident,
     // total_bytes
     check_size: usize,
-) -> TokenStream {
-    let checked_ident = format_ident!("{name}Checked");
-    let comment = format!(
-        "Returns a [{checked_ident}] which allows you to read any field for a `{name}` from provided slice.",
-    );
-    let checked_ident_mut = format_ident!("{name}CheckedMut");
-    let comment_mut = format!("Returns a [{checked_ident_mut}] which allows you to read/write any field for a `{name}` from/to provided mutable slice.");
-    quote! {
-        #[doc = #comment]
-        pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
-            let buf_len = buffer.len();
-            if buf_len >= #check_size {
-                Ok(#checked_ident {
-                    buffer
-                })
-            }else{
-                Err(bondrewd::BitfieldLengthError(buf_len, #check_size))
-            }
+    enum_name: Option<&Ident>,
+) -> (TokenStream, Ident) {
+    let (checked_ident_mut, fn_name) = if let Some(ename) = enum_name {
+        (
+            format_ident!("{ename}Checked"),
+            format_ident!("check_slice_mut_{}", name.to_string().to_case(Case::Snake)),
+        )
+    } else {
+        (
+            format_ident!("{name}Checked"),
+            format_ident!("check_slice_mut"),
+        )
+    };
+    let comment_mut = format!(
+        "Returns a [{checked_ident_mut}] which allows you to read/write any field for a `{}` from/to provided mutable slice.",
+        if let Some(ename) = enum_name {
+            format!("{ename}::{name}")
+        }else{
+            name.to_string()
         }
-        #[doc = #comment_mut]
-        pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
-            let buf_len = buffer.len();
-            if buf_len >= #check_size {
-                Ok(#checked_ident_mut {
-                    buffer
-                })
-            }else{
-                Err(bondrewd::BitfieldLengthError(buf_len, #check_size))
+    );
+    (
+        quote! {
+            #[doc = #comment_mut]
+            pub fn #fn_name(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+                let buf_len = buffer.len();
+                if buf_len >= #check_size {
+                    Ok(#checked_ident_mut {
+                        buffer
+                    })
+                }else{
+                    Err(bondrewd::BitfieldLengthError(buf_len, #check_size))
+                }
             }
+        },
+        fn_name,
+    )
+}
+#[cfg(feature = "dyn_fns")]
+/// generates the check_slice fn. please do not use, use `CheckedSliceGen`.
+/// returns (fn, fn_name).
+///
+/// `name` is the name of the structure or variant
+/// `check_size` is the total byte size of the struct or variant
+/// `enum_name` if we are generating code for a variant (not a structure) then a
+///     Some value containing the prefixed name shall be provided.
+///     ex. enum and variant -> Test::One = "test_one" <- prefixed name
+fn get_check_slice_fn(
+    name: &Ident,
+    // total_bytes
+    check_size: usize,
+    enum_name: Option<&Ident>,
+) -> (TokenStream, Ident) {
+    let (checked_ident, fn_name) = if let Some(ename) = enum_name {
+        (
+            format_ident!("{ename}Checked"),
+            format_ident!("check_slice_{}", name.to_string().to_case(Case::Snake)),
+        )
+    } else {
+        (format_ident!("{name}Checked"), format_ident!("check_slice"))
+    };
+    let comment = format!(
+        "Returns a [{checked_ident}] which allows you to read any field for a `{}` from provided slice.",
+        if let Some(ename) = enum_name {
+            format!("{ename}::{name}")
+        }else{
+            name.to_string()
+        }
+    );
+    (
+        quote! {
+            #[doc = #comment]
+            pub fn #fn_name(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+                let buf_len = buffer.len();
+                if buf_len >= #check_size {
+                    Ok(#checked_ident {
+                        buffer
+                    })
+                }else{
+                    Err(bondrewd::BitfieldLengthError(buf_len, #check_size))
+                }
+            }
+        },
+        fn_name,
+    )
+}
+#[cfg(feature = "dyn_fns")]
+struct CheckedSliceGen {
+    fn_gen: TokenStream,
+    mut_fn_gen: TokenStream,
+    fn_name: Ident,
+    mut_fn_name: Ident,
+}
+#[cfg(feature = "dyn_fns")]
+impl CheckedSliceGen {
+    fn new(
+        name: &Ident,
+        // total_bytes
+        check_size: usize,
+        enum_name: Option<&Ident>,
+    ) -> Self {
+        let (fn_gen, fn_name) = get_check_slice_fn(name, check_size, enum_name);
+        let (mut_fn_gen, mut_fn_name) = get_check_mut_slice_fn(name, check_size, enum_name);
+        Self {
+            fn_gen,
+            mut_fn_gen,
+            fn_name,
+            mut_fn_name,
         }
     }
 }
