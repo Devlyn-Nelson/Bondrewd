@@ -442,6 +442,8 @@ impl StructInfo {
         let field_extractor = field_access.read();
         self.make_read_fns_inner(
             field,
+            #[cfg(feature = "dyn_fns")]
+            &field_name,
             &prefixed_name,
             field_extractor,
             &mut impl_fns,
@@ -493,24 +495,25 @@ impl StructInfo {
     fn make_read_fns_inner(
         &self,
         field: &FieldInfo,
-        field_name: &Ident,
+        #[cfg(feature = "dyn_fns")] field_name: &Ident,
+        prefixed_name: &Ident,
         field_extractor: &TokenStream,
         peek_quote: &mut TokenStream,
         #[cfg(feature = "dyn_fns")] peek_slice_fns_option: &mut TokenStream,
     ) {
-        *peek_quote = generate_read_field_fn(field_extractor, field, self, &field_name);
+        *peek_quote = generate_read_field_fn(field_extractor, field, self, &prefixed_name);
         // make the slice functions if applicable.
         #[cfg(feature = "dyn_fns")]
         {
             let peek_slice_quote =
-                generate_read_slice_field_fn(field_extractor, field, self, &field_name);
+                generate_read_slice_field_fn(field_extractor, field, self, &prefixed_name);
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_quote
             };
 
             let peek_slice_unchecked_quote =
-                generate_read_slice_field_fn_unchecked(field_extractor, field, self, &field_name);
+                generate_read_slice_field_fn_unchecked(field_extractor, field, self, field_name);
             *peek_slice_fns_option = quote! {
                 #peek_slice_fns_option
                 #peek_slice_unchecked_quote
@@ -584,13 +587,8 @@ impl StructInfo {
                 #write_quote
                 #set_slice_quote
             };
-            let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
-                field_setter,
-                clear_quote,
-                field,
-                self,
-                field_name,
-            );
+            let set_slice_unchecked_quote =
+                generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field, self);
             *write_slice_fns_option = quote! {
                 #write_slice_fns_option
                 #set_slice_unchecked_quote
@@ -1311,10 +1309,9 @@ fn generate_write_slice_field_fn_unchecked(
     clear_quote: &TokenStream,
     field: &FieldInfo,
     info: &StructInfo,
-    prefixed_field_name: &Ident,
 ) -> TokenStream {
     let field_name = field.ident().name();
-    let fn_field_name = format_ident!("write_{prefixed_field_name}");
+    let fn_field_name = format_ident!("write_{field_name}");
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
@@ -1324,7 +1321,7 @@ fn generate_write_slice_field_fn_unchecked(
         format!("bit {}", bit_range.start)
     };
     let comment = format!(
-        "Writes to {comment_bits} in pre-checked mutable slice, setting the `{prefixed_field_name}` field of a [{struct_name}] in bitfield form.",
+        "Writes to {comment_bits} in pre-checked mutable slice, setting the `{field_name}` field of a [{struct_name}] in bitfield form.",
     );
     quote! {
         #[inline]

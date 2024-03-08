@@ -159,3 +159,78 @@ fn tuple_enum() {
     assert!(matches!(two, _new_two));
     assert!(matches!(err, _new_err));
 }
+
+#[derive(Bitfields, Debug, Clone)]
+#[bondrewd(id_bit_length = 8)]
+enum CrazyEnum {
+    Wack {
+        #[bondrewd(bit_length = 4)]
+        funky: u8,
+        #[bondrewd(bit_length = 4)]
+        groovy: u8,
+    },
+    Loco(u8),
+    InsaneInTheBrain,
+    CrazyBin(#[bondrewd(capture_id)] u8, i8),
+}
+
+#[cfg(dyn_fns)]
+#[test]
+fn crazy_enum() {
+    let mut thing = CrazyEnum::Wack {
+        funky: 1,
+        groovy: 2,
+    }
+    .into_bytes();
+    match CrazyEnum::check_slice(&thing) {
+        Ok(checked) => match checked {
+            CrazyEnumChecked::Wack(w) => {
+                assert_eq!(w.read_funky(), 1);
+                assert_eq!(w.read_groovy(), 2);
+            }
+            CrazyEnumChecked::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
+            CrazyEnumChecked::InsaneInTheBrain(_) => {
+                panic!("check slice returned incorrect variant (InsaneInTheBrain)")
+            }
+            CrazyEnumChecked::CrazyBin(_) => {
+                panic!("check slice returned incorrect variant (CrazyBin)")
+            }
+        },
+        Err(err) => panic!("{err}"),
+    }
+    match CrazyEnum::check_slice_mut(&mut thing) {
+        Ok(checked) => match checked {
+            CrazyEnumCheckedMut::Wack(mut w) => {
+                w.write_funky(3);
+                w.write_groovy(4);
+                assert_eq!(w.read_funky(), 3);
+                assert_eq!(w.read_groovy(), 4);
+            }
+            CrazyEnumCheckedMut::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
+            CrazyEnumCheckedMut::InsaneInTheBrain(_) => {
+                panic!("check slice returned incorrect variant (InsaneInTheBrain)")
+            }
+            CrazyEnumCheckedMut::CrazyBin(_) => {
+                panic!("check slice returned incorrect variant (CrazyBin)")
+            }
+        },
+        Err(err) => panic!("{err}"),
+    }
+    CrazyEnum::write_variant_id(&mut thing, 3);
+    match CrazyEnum::check_slice(&thing) {
+        Ok(checked) => match checked {
+            CrazyEnumChecked::Wack(_) => {
+                panic!("check slice returned incorrect variant (CrazyBin)")
+            }
+            CrazyEnumChecked::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
+            CrazyEnumChecked::InsaneInTheBrain(_) => {
+                panic!("check slice returned incorrect variant (InsaneInTheBrain)")
+            }
+            CrazyEnumChecked::CrazyBin(cb) => {
+                assert_eq!(cb.read_field_1(), 0b00110100);
+                assert_eq!(cb.read_variant_id(), 3);
+            }
+        },
+        Err(err) => panic!("{err}"),
+    }
+}

@@ -2192,7 +2192,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 
     match struct_info.generate() {
         Ok(gen) => {
-            let _ = std::fs::write("test.txt", gen.to_string());
+            // let _ = std::fs::write("test.txt", gen.to_string());
             gen.into()
         }
         Err(err) => TokenStream::from(err.to_compile_error()),
