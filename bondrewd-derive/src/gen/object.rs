@@ -677,7 +677,11 @@ impl EnumInfo {
             (quote! {}, format_ident!("{}CheckedMut", &self.name));
         // Stores a build up for creating a match enum type that contains CheckStruct for each variant.
         #[cfg(feature = "dyn_fns")]
-        let (mut checked_slice_enum, mut checked_slice_enum_mut, mut lifetime): (TokenStream, TokenStream, bool) = (quote! {}, quote! {}, false);
+        let (mut checked_slice_enum, mut checked_slice_enum_mut, mut lifetime): (
+            TokenStream,
+            TokenStream,
+            bool,
+        ) = (quote! {}, quote! {}, false);
         // the string `variant_id` as an Ident
         let v_id = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
         // setup function names for getting variant id.
@@ -825,15 +829,15 @@ impl EnumInfo {
                     if !lifetime {
                         lifetime = true;
                     }
-                    checked_slice_enum = quote!{
+                    checked_slice_enum = quote! {
                         #checked_slice_enum
                         #v_name (#check_slice_struct<'a>),
                     };
-                    checked_slice_enum_mut = quote!{
+                    checked_slice_enum_mut = quote! {
                         #checked_slice_enum_mut
                         #v_name (#check_slice_struct_mut<'a>),
                     };
-                }else{
+                } else {
                     // do the match statement stuff
                     check_slice_fn = quote! {
                         #check_slice_fn
@@ -848,11 +852,11 @@ impl EnumInfo {
                         }
                     };
                     // do enum stuff
-                    checked_slice_enum = quote!{
+                    checked_slice_enum = quote! {
                         #checked_slice_enum
                         #v_name,
                     };
-                    checked_slice_enum_mut = quote!{
+                    checked_slice_enum_mut = quote! {
                         #checked_slice_enum_mut
                         #v_name,
                     };
@@ -961,11 +965,11 @@ impl EnumInfo {
                 }
             });
             let lifetime = if lifetime {
-                quote!{<'a>}
-            }else{
-                quote!{}
+                quote! {<'a>}
+            } else {
+                quote! {}
             };
-            gen.append_checked_struct_impl_fns(quote!{
+            gen.append_checked_struct_impl_fns(quote! {
                 pub enum #checked_ident #lifetime {
                     #checked_slice_enum
                 }
@@ -998,7 +1002,6 @@ impl EnumInfo {
             #from_bytes_fn
             #into_bytes_fn
         };
-
 
         Ok(gen)
     }
