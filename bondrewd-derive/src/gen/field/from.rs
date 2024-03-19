@@ -997,7 +997,7 @@ impl FieldInfo {
                         Err(err) => {
                             return Err(syn::Error::new(
                                 self.ident.span(),
-                                format!("{} (from 1)", err),
+                                format!("{err} (from 1)"),
                             ))
                         }
                     }
@@ -1022,7 +1022,7 @@ impl FieldInfo {
                     Err(err) => {
                         return Err(syn::Error::new(
                             self.ident.span(),
-                            format!("{} (from 2)", err),
+                            format!("{err} (from 2)"),
                         ))
                     }
                 },

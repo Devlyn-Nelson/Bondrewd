@@ -231,9 +231,9 @@ impl FieldInfo {
     }
     fn get_le_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
         let (read, write, clear) = {
-            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_le_quote)?;
+            let read = self.get_read_quote(struct_info, FieldInfo::get_read_le_quote)?;
             let (write, clear) =
-                self.get_write_quote(&struct_info, FieldInfo::get_write_le_quote, false)?;
+                self.get_write_quote(struct_info, FieldInfo::get_write_le_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -245,9 +245,9 @@ impl FieldInfo {
     fn get_ne_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_ne_quote)?;
+            let read = self.get_read_quote(struct_info, FieldInfo::get_read_ne_quote)?;
             let (write, clear) =
-                self.get_write_quote(&struct_info, FieldInfo::get_write_ne_quote, false)?;
+                self.get_write_quote(struct_info, FieldInfo::get_write_ne_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {
@@ -259,9 +259,9 @@ impl FieldInfo {
     fn get_be_quotes(&self, struct_info: &StructInfo) -> Result<FieldQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.get_read_quote(&struct_info, FieldInfo::get_read_be_quote)?;
+            let read = self.get_read_quote(struct_info, FieldInfo::get_read_be_quote)?;
             let (write, clear) =
-                self.get_write_quote(&struct_info, FieldInfo::get_write_be_quote, false)?;
+                self.get_write_quote(struct_info, FieldInfo::get_write_be_quote, false)?;
             (read, write, clear)
         };
         Ok(FieldQuotes {

@@ -1,12 +1,12 @@
 [package]
 name = "bondrewd-derive"
-version = "0.4.3-pre0.5-7"
+version = "0.5.0"
 edition = "2021"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Dev <devlynknelson@gmail.com>"]
 license = "MIT OR Apache-2.0"
-keywords = ["bitfields", "packed-struct", "bit-compression", "packed-fields", "packing"]
-# categories = ["compression","data-structures","development-tools"]
+keywords = ["bitfields", "serialization", "packing"]
+categories = ["data-structures","development-tools"]
 readme = "../README.md"
 repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 

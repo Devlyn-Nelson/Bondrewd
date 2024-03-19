@@ -8,7 +8,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::token::Pub;
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct GeneratedFunctions {
     /// Functions that belong in `Bitfields` impl for object.
     pub bitfield_trait_impl_fns: proc_macro2::TokenStream,
@@ -22,27 +22,14 @@ pub struct GeneratedFunctions {
     pub bitfield_dyn_trait_impl_fns: proc_macro2::TokenStream,
 }
 
-impl Default for GeneratedFunctions {
-    fn default() -> Self {
-        Self {
-            bitfield_trait_impl_fns: Default::default(),
-            impl_fns: Default::default(),
-            #[cfg(feature = "dyn_fns")]
-            checked_struct_impl_fns: Default::default(),
-            #[cfg(feature = "dyn_fns")]
-            bitfield_dyn_trait_impl_fns: Default::default(),
-        }
-    }
-}
-
-impl Into<TokenStream> for GeneratedFunctions {
-    fn into(self) -> TokenStream {
-        let trait_fns = self.bitfield_trait_impl_fns;
-        let impl_fns = self.impl_fns;
+impl From<GeneratedFunctions> for TokenStream {
+    fn from(val: GeneratedFunctions) -> Self {
+        let trait_fns = val.bitfield_trait_impl_fns;
+        let impl_fns = val.impl_fns;
         #[cfg(feature = "dyn_fns")]
-        let unchecked = self.checked_struct_impl_fns;
+        let unchecked = val.checked_struct_impl_fns;
         #[cfg(feature = "dyn_fns")]
-        let dyn_trait_fns = self.bitfield_dyn_trait_impl_fns;
+        let dyn_trait_fns = val.bitfield_dyn_trait_impl_fns;
         #[cfg(feature = "dyn_fns")]
         let quote = quote! {
             #trait_fns
@@ -501,12 +488,12 @@ impl StructInfo {
         peek_quote: &mut TokenStream,
         #[cfg(feature = "dyn_fns")] peek_slice_fns_option: &mut TokenStream,
     ) {
-        *peek_quote = generate_read_field_fn(field_extractor, field, self, &prefixed_name);
+        *peek_quote = generate_read_field_fn(field_extractor, field, self, prefixed_name);
         // make the slice functions if applicable.
         #[cfg(feature = "dyn_fns")]
         {
             let peek_slice_quote =
-                generate_read_slice_field_fn(field_extractor, field, self, &prefixed_name);
+                generate_read_slice_field_fn(field_extractor, field, self, prefixed_name);
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_quote
@@ -577,12 +564,11 @@ impl StructInfo {
         write_quote: &mut TokenStream,
         #[cfg(feature = "dyn_fns")] write_slice_fns_option: &mut TokenStream,
     ) {
-        *write_quote =
-            generate_write_field_fn(&field_setter, &clear_quote, field, self, field_name);
+        *write_quote = generate_write_field_fn(field_setter, clear_quote, field, self, field_name);
         #[cfg(feature = "dyn_fns")]
         {
             let set_slice_quote =
-                generate_write_slice_field_fn(&field_setter, &clear_quote, field, self, field_name);
+                generate_write_slice_field_fn(field_setter, clear_quote, field, self, field_name);
             *write_quote = quote! {
                 #write_quote
                 #set_slice_quote
@@ -1006,14 +992,14 @@ impl EnumInfo {
 }
 
 #[cfg(feature = "dyn_fns")]
-/// generates the check_slice fn. please do not use, use `CheckedSliceGen`.
-/// returns (fn, fn_name).
+/// generates the `check_slice` fn. please do not use, use `CheckedSliceGen`.
+/// returns (fn, `fn_name`).
 ///
 /// `name` is the name of the structure or variant
 /// `check_size` is the total byte size of the struct or variant
 /// `enum_name` if we are generating code for a variant (not a structure) then a
 ///     Some value containing the prefixed name shall be provided.
-///     ex. enum and variant -> Test::One = "test_one" <- prefixed name
+///     ex. enum and variant -> `Test::One` = "`test_one`" <- prefixed name
 fn get_check_mut_slice_fn(
     name: &Ident,
     // total_bytes
@@ -1057,14 +1043,14 @@ fn get_check_mut_slice_fn(
     )
 }
 #[cfg(feature = "dyn_fns")]
-/// generates the check_slice fn. please do not use, use `CheckedSliceGen`.
-/// returns (fn, fn_name).
+/// generates the `check_slice` fn. please do not use, use `CheckedSliceGen`.
+/// returns (fn, `fn_name`).
 ///
 /// `name` is the name of the structure or variant
 /// `check_size` is the total byte size of the struct or variant
 /// `enum_name` if we are generating code for a variant (not a structure) then a
 ///     Some value containing the prefixed name shall be provided.
-///     ex. enum and variant -> Test::One = "test_one" <- prefixed name
+///     ex. enum and variant -> `Test::One` = "`test_one`" <- prefixed name
 fn get_check_slice_fn(
     name: &Ident,
     // total_bytes
