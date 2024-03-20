@@ -812,12 +812,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
 /// - Enums which implement the `BitfieldEnum` trait in Bondrewd.
-/// - Structs or Enums which implement the Bitfield trait in Bondrewd.
+/// - Structs or Enums which implement the `Bitfield` trait in Bondrewd.
 ///
-/// # Struct/Enum/Variant Attributes
+/// # Attributes
 ///
 /// #### Common Attributes
-/// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
+/// These attributes can be used on a struct, enum or enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
 /// `0.3.27` the endianness will default to Little Endianness.
@@ -827,7 +827,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 /// byte index). This has no runtime cost. [example](#reverse-example)
 ///
-/// #### Struct/Variant Attributes
+/// #### Struct and Variant Attributes
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 /// BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
