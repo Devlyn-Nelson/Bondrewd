@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, Default, PartialEq, Eq)]
-#[bondrewd(read_from = "msb0", default_endianness = "le", enforce_bytes = 2)]
+#[bondrewd(bit_traversal = "msb", default_endianness = "le", enforce_bytes = 2)]
 pub struct Packet {
     #[bondrewd(bit_length = 7, reserve)]
     #[allow(dead_code)]

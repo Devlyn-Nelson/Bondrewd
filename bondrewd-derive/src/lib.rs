@@ -21,7 +21,6 @@
 //!     - Write array setters.
 //!     - better struct/enum setters/getters.
 //! - LOTS of in code documentation, this is greatly needed in the math code.
-//! - Make the `read_from` attribute easier to understand.
 //! - Add attributes 'isolate' for fields and `isolate-fields` for struct/enums. I believe this would
 //! solve issue 12. basically `isolate` would force tell bondrewd to disallow other fields from sharing
 //! space in a byte with the field, for example if a struct had 3 4-bit fields and the center field was
@@ -822,7 +821,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
 /// `0.3.27` the endianness will default to Little Endianness.
 /// [example](#endianness-examples)
-/// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
+/// - `bit_traversal = {"msb" or "lsb"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 /// byte index). This has no runtime cost. [example](#reverse-example)
@@ -1005,7 +1004,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(read_from = "msb0")]
+/// #[bondrewd(bit_traversal = "msb0")]
 /// struct ExampleMSB {
 ///     #[bondrewd(bit_length = 2)]
 ///     one: u8,
@@ -1016,7 +1015,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(read_from = "lsb0")]
+/// #[bondrewd(bit_traversal = "lsb0")]
 /// struct ExampleLSB {
 ///     #[bondrewd(bit_length = 2)]
 ///     one: u8,
@@ -1043,13 +1042,13 @@ use syn::{parse_macro_input, DeriveInput};
 /// // 2 then field one being the last 2 bits
 /// assert_eq!(test_lsb.into_bytes(), [0b000_101_00]);
 /// ```
-/// When using `reverse` and `read_from` in the same structure:
+/// When using `reverse` and `bit_traversal` in the same structure:
 /// - `lsb0` would begin at the least significant bit in the first byte.
 /// - `msb0` would begin at the most significant bit in the last byte.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(read_from = "msb0", reverse)]
+/// #[bondrewd(bit_traversal = "msb0", reverse)]
 /// struct ExampleMSB {
 ///     #[bondrewd(bit_length = 5)]
 ///     one: u8,
@@ -1060,7 +1059,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(read_from = "lsb0", reverse)]
+/// #[bondrewd(bit_traversal = "lsb0", reverse)]
 /// struct ExampleLSB {
 ///     #[bondrewd(bit_length = 5)]
 ///     one: u8,

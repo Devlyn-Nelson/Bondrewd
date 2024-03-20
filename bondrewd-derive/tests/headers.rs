@@ -18,7 +18,7 @@ pub enum AosFrameVirtualChannelId {
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
 #[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "msb", read_from = "msb0", enforce_bytes = 8)]
+#[bondrewd(default_endianness = "msb", bit_traversal = "msb0", enforce_bytes = 8)]
 pub struct AosFrameHeaderBe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]
@@ -120,7 +120,7 @@ fn cycle_header_be_slice() -> anyhow::Result<()> {
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
 #[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "le", read_from = "msb0", enforce_bytes = 8)]
+#[bondrewd(default_endianness = "le", bit_traversal = "msb0", enforce_bytes = 8)]
 pub struct AosFrameHeaderLe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]

@@ -1739,24 +1739,30 @@ impl ObjectInfo {
                                 ));
                             }
                         }
-                        "read_from" | "read-from" => {
+                        "bit_traversal" | "bit-traversal" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Str(ref val) = lit.lit {
                                     match val.value().as_str() {
-                                    "lsb0" => info.lsb_zero = true,
-                                    "msb0" => info.lsb_zero = false,
+                                    "lsb" | "lsb0" => info.lsb_zero = true,
+                                    "msb" | "msb0" => info.lsb_zero = false,
                                     _ => return Err(Error::new(
                                         val.span(),
-                                        "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
+                                        "Expected literal str \"lsb\" or \"msb\" for bit_traversal attribute.",
                                     )),
                                 }
                                 } else {
                                     return Err(syn::Error::new(
                                     span,
-                                    "improper usage of read_from, must use string ex. `read_from = \"lsb0\"`",
+                                    "improper usage of bit_traversal, must use string ex. `bit_traversal = \"lsb\"`",
                                 ));
                                 }
                             }
+                        }
+                        "read_from" | "read-from" => {
+                            return Err(syn::Error::new(
+                                span,
+                                "`read_from` has been deprecated, please use `bit_traversal`",
+                            ));
                         }
                         "default_endianness" | "default-endianness" => {
                             if let Expr::Lit(ref lit) = value.value {
@@ -1766,10 +1772,10 @@ impl ObjectInfo {
                                             info.default_endianess = Endianness::Little;
                                         }
                                         "be" | "msb" | "big" => {
-                                            info.default_endianess = Endianness::Big
+                                            info.default_endianess = Endianness::Big;
                                         }
                                         "ne" | "native" => {
-                                            info.default_endianess = Endianness::None
+                                            info.default_endianess = Endianness::None;
                                         }
                                         _ => {}
                                     }

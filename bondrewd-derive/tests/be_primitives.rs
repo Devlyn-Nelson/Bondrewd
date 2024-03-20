@@ -83,7 +83,7 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", read_from = "lsb0")]
+#[bondrewd(default_endianness = "be", bit_traversal = "lsb0")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -122,7 +122,7 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", read_from = "msb0")]
+#[bondrewd(default_endianness = "be", bit_traversal = "msb0")]
 struct SimpleWithReserve {
     #[bondrewd(bit_length = 9)]
     one: u16,
