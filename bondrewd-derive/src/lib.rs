@@ -113,7 +113,7 @@
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
 //!
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
-//! 
+//!
 //! > Enums will generate a separate "Checked" structure set for each variant.
 //!
 //! * `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array
@@ -789,8 +789,8 @@
 //! ```
 extern crate proc_macro;
 // mods
-mod old_enums;
 mod gen;
+mod old_enums;
 mod parse;
 // uses
 use old_enums::parse::EnumInfo;

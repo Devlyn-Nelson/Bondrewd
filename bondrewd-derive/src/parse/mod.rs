@@ -2,7 +2,6 @@ pub mod common;
 #[cfg(feature = "setters")]
 pub mod struct_fns;
 
-
 use proc_macro2::Span;
 use quote::format_ident;
 use std::ops::Range;
@@ -158,7 +157,7 @@ impl FieldAttrBuilder {
                                 }
                             }
                         }
-                        "bit_length" => {
+                        "bit_length" | "bit-length" => {
                             if let FieldBuilderRange::None = builder.bit_range {
                                 if let Expr::Lit(ref lit) = value.value {
                                     if let Lit::Int(ref val) = lit.lit {
@@ -175,25 +174,25 @@ impl FieldAttrBuilder {
                                             Err(err) => {
                                                 return Err(Error::new(
                                                 builder.span(),
-                                                format!("bit_length must be a number that can be parsed as a usize [{err}]"),
+                                                format!("bit-length must be a number that can be parsed as a usize [{err}]"),
                                             ));
                                             }
                                         }
                                     } else {
                                         return Err(Error::new(
                                             builder.span(),
-                                            "bit_length must use a literal usize",
+                                            "bit-length must use a literal usize",
                                         ));
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "please don't double define bit_length",
+                                        "please don't double define bit-length",
                                     ));
                                 }
                             }
                         }
-                        "byte_length" => {
+                        "byte_length" | "byte-length" => {
                             if let FieldBuilderRange::None = builder.bit_range {
                                 if let Expr::Lit(ref lit) = value.value {
                                     if let Lit::Int(ref val) = lit.lit {
@@ -228,7 +227,7 @@ impl FieldAttrBuilder {
                                 }
                             }
                         }
-                        "enum_primitive" => {
+                        "enum_primitive" | "enum-primitive" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Str(ref val) = lit.lit {
                                     let mut ty = Some(match val.value().as_str() {
@@ -269,7 +268,7 @@ impl FieldAttrBuilder {
                                 }
                             }
                         }
-                        "struct_size" => {
+                        "struct_size" | "struct-size" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     let mut ty = Some(match val.base10_parse::<usize>() {
@@ -358,7 +357,7 @@ impl FieldAttrBuilder {
                                 }
                             }
                         }
-                        "element_bit_length" => {
+                        "element_bit_length" | "element-bit-length" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -390,26 +389,26 @@ impl FieldAttrBuilder {
                                             }
                                             FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
-                                                "found Field bit range no_end while element_bit_length attribute which should never happen",
+                                                "found Field bit range no_end while element-bit-length attribute which should never happen",
                                             )),
                                         };
                                         }
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("bit_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("bit-length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "bit_length must use a literal usize",
+                                        "bit-length must use a literal usize",
                                     ));
                                 }
                             }
                         }
-                        "element_byte_length" => {
+                        "element_byte_length" | "element-byte-length" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -441,26 +440,26 @@ impl FieldAttrBuilder {
                                             }
                                             FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
-                                                "found Field bit range no_end while element_byte_length attribute which should never happen",
+                                                "found Field bit range no_end while element-byte-length attribute which should never happen",
                                             )),
                                         };
                                         }
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("bit_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("bit-length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "bit_length must use a literal usize",
+                                        "bit-length must use a literal usize",
                                     ));
                                 }
                             }
                         }
-                        "block_bit_length" => {
+                        "block_bit_length" | "block-bit-length" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -493,32 +492,32 @@ impl FieldAttrBuilder {
                                                 }else{
                                                     return Err(Error::new(
                                                         builder.span(),
-                                                        "size of bit-range provided by (bits, bit_length, or byte_length) does not match array_bit_length",
+                                                        "size of bit-range provided by (bits, bit-length, or byte-length) does not match array-bit-length",
                                                     ));
                                                 }
                                             }
                                             FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                     builder.span(),
-                                                    "found Field bit range no_end while array_bit_length attribute which should never happen",
+                                                    "found Field bit range no-end while array-bit-length attribute which should never happen",
                                                 )),
                                         };
                                         }
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("array_bit_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("array-bit-length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "array_bit_length must use a literal usize",
+                                        "array-bit-length must use a literal usize",
                                     ));
                                 }
                             }
                         }
-                        "block_byte_length" => {
+                        "block_byte_length" | "block-byte-length" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -551,32 +550,32 @@ impl FieldAttrBuilder {
                                                 }else{
                                                     return Err(Error::new(
                                                         builder.span(),
-                                                        "size of bit-range provided by (bits, bit_length, or byte_length) does not match array_byte_length",
+                                                        "size of bit-range provided by (bits, bit-length, or byte_length) does not match array-byte-length",
                                                     ));
                                                 }
                                             }
                                             FieldBuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
-                                                "found Field bit range no_end while array_byte_length attribute which should never happen",
+                                                "found Field bit range no-end while array-byte-length attribute which should never happen",
                                             )),
                                         };
                                         }
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("array_byte_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("array-byte-length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     }
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "array_byte_length must use a literal usize",
+                                        "array-byte-length must use a literal usize",
                                     ));
                                 }
                             }
                         }
-                        "overlapping_bits" => {
+                        "overlapping_bits" | "overlapping-bits" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -584,14 +583,14 @@ impl FieldAttrBuilder {
                                         Err(err) => {
                                             return Err(Error::new(
                                             builder.span(),
-                                            format!("overlapping_bits must provided a number that can be parsed as a usize [{err}]"),
+                                            format!("overlapping-bits must provided a number that can be parsed as a usize [{err}]"),
                                         ));
                                         }
                                     };
                                 } else {
                                     return Err(Error::new(
                                         builder.span(),
-                                        "defining a overlapping_bits requires a Int Literal"
+                                        "defining a overlapping-bits requires a Int Literal"
                                             .to_string(),
                                     ));
                                 }
@@ -610,14 +609,15 @@ impl FieldAttrBuilder {
             }
             Meta::Path(path) => {
                 if let Some(ident) = path.get_ident() {
-                    match ident.to_string().as_str() {
+                    let ident_str = ident.to_string();
+                    match ident_str.as_str() {
                         "reserve" => {
                             builder.reserve = ReserveFieldOption::ReserveField;
                         }
-                        "read_only" => {
+                        "read_only" | "read-only" => {
                             builder.reserve = ReserveFieldOption::ReadOnly;
                         }
-                        "capture_id" => {
+                        "capture_id" | "capture-id" => {
                             builder.capture_id = true;
                         }
                         // TODO  can not enable this until i figure out a way to express exactly the amount
@@ -629,7 +629,14 @@ impl FieldAttrBuilder {
                             builder.overlap = OverlapOptions::Redundant;
                             builder.reserve = ReserveFieldOption::ReadOnly;
                         }
-                        _ => {}
+                        _ => {
+                            if ident_str.as_str() != "doc" {
+                                return Err(Error::new(
+                                    builder.span(),
+                                    format!("\"{ident_str}\" is not a valid attribute"),
+                                ));
+                            }
+                        }
                     }
                 }
             }
