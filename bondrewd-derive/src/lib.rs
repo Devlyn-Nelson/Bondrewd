@@ -806,6 +806,12 @@ use syn::{parse_macro_input, DeriveInput};
 /// of bool type without attributes is defined, the field would be assumed to be the next bit after
 /// the field before it.
 ///
+/// # Packed vs Aligned
+/// By default Bondrewd will "pack" your fields meaning that it will try to create an output which
+/// insures as few unused bits as possible, this is great for communication packet headers but some
+/// cases require non-packed or "aligned" fields. For more information about aligned fields please read
+/// [Aligned Examples](#packed-vs-aligned-examples)
+///
 /// # Supported Field Types
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
@@ -2178,6 +2184,16 @@ use syn::{parse_macro_input, DeriveInput};
 ///     Two, // value of 2
 /// }
 /// ```
+/// # Packed vs Aligned
+/// To properly demonstrate the different i will be explaining the difference in output between the 3
+/// structures in the `aligned` example in the Bondrewd github.
+///
+/// To start we have a standard packed structure which outputs 2 bytes with 0 unused bits
+/// ```
+///
+/// ```
+///
+///
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 #[allow(clippy::too_many_lines)]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
