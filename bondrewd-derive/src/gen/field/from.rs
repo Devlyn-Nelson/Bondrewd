@@ -5,7 +5,7 @@ use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
 use super::{BigQuoteInfo, LittleQuoteInfo, NoneQuoteInfo, QuoteInfo};
-use crate::structs::common::{
+use crate::parse::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, Endianness, FieldDataType,
     FieldInfo, NumberSignage, StructInfo,
 };
@@ -24,7 +24,7 @@ struct BuildNumberQuotePackage<'a> {
 }
 fn build_number_quote(
     field: &FieldInfo,
-    stuff: BuildNumberQuotePackage,
+    stuff: &BuildNumberQuotePackage,
 ) -> syn::Result<TokenStream> {
     let amount_of_bits = stuff.amount_of_bits;
     let bits_in_last_byte = stuff.bits_in_last_byte;
@@ -1032,7 +1032,8 @@ impl FieldInfo {
         let output = match self.ty {
             FieldDataType::Number(size, _, ref type_quote) |
             FieldDataType::Enum(ref type_quote, size, _) => {
-                let full_quote = build_number_quote(self, BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()})?;
+                let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                let full_quote = build_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_be_bytes({
                         #full_quote
@@ -1048,7 +1049,8 @@ impl FieldInfo {
                 }else{
                     return Err(syn::Error::new(self.ident.span(), "unsupported floating type"))
                 };
-                let full_quote = build_number_quote(self, BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()})?;
+                let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                let full_quote = build_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     #alt_type_quote::from_be_bytes({
                         #full_quote
@@ -1057,7 +1059,8 @@ impl FieldInfo {
                 apply_field_to_buffer
             }
             FieldDataType::Char(size, _) => {
-                let full_quote = build_number_quote(self, BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()})?;
+                let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                let full_quote = build_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     u32::from_be_bytes({
                         #full_quote

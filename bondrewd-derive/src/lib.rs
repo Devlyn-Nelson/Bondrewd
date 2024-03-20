@@ -15,16 +15,18 @@
 //! - Full support for floating point numbers. I would like to be able to be able to
 //!     have fully dynamic floating point with customizable exponent and mantissa as well
 //!     and unsigned option.
-//! - Checked Enum's can have a Checked Struct for each variant rather than only 1 Checked Struct that covers all variants.
-//!     - This allows for `check_slice` to return a "Checked Enum" which is just an enum with all the same variants of the original Bitfield Enum but the variants will have 1 field containing the checked struct for that variant.
 //! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is defined
 //!     we could just use the calculated smallest allowable.
 //! - Getters and Setters. Most of this is actually done already, just need:
 //!     - Write array setters.
-//!
-//! ### Other Planned Changes
-//! - Merge `from_bytes` and `into_bytes` generation to have less duplicated code/runtime-logic.
+//!     - better struct/enum setters/getters.
 //! - LOTS of in code documentation, this is greatly needed in the math code.
+//! - Make the `read_from` attribute easier to understand.
+//! - Add attributes 'isolate' for fields and `isolate-fields` for struct/enums. I believe this would
+//! solve issue 12. basically `isolate` would force tell bondrewd to disallow other fields from sharing
+//! space in a byte with the field, for example if a struct had 3 4-bit fields and the center field was
+//! marked with `isolate`. the struct would take 3 bytes, with 12 of those bits not being used. `isolate-fields`
+//! would force all fields to be `isolate`.
 //!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
@@ -111,6 +113,8 @@
 //!         * `fn read_{field}(&self) -> {field_type} { .. }`
 //!
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
+//! 
+//! > Enums will generate a separate "Checked" structure set for each variant.
 //!
 //! * `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array
 //! that has the exact `Bitfield::BYTE_SIZE`.
@@ -195,8 +199,6 @@
 //!     ) -> Result<Self, bondrewd::BitfieldLengthError> { .. }
 //! }
 //! ```
-//! ### `part_eq_enums`
-//! Implements [`PartialEq`] for the type which fits the bits of the a [`Bitfields`] enum's id on the enum.
 //! ### `hex_fns`
 //! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd `STRUCT_SIZE`. Hex encoding and decoding is based off the
@@ -787,12 +789,12 @@
 //! ```
 extern crate proc_macro;
 // mods
-mod enums;
+mod old_enums;
 mod gen;
-mod structs;
+mod parse;
 // uses
-use enums::parse::EnumInfo;
-use structs::common::ObjectInfo;
+use old_enums::parse::EnumInfo;
+use parse::common::ObjectInfo;
 
 use proc_macro::TokenStream;
 use quote::quote;
@@ -2418,15 +2420,15 @@ pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    let into = match enums::into_bytes::generate_enum_into_bytes_fn(&enum_info) {
+    let into = match old_enums::into_bytes::generate_enum_into_bytes_fn(&enum_info) {
         Ok(i) => i,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
-    let from = match enums::from_bytes::generate_enum_from_bytes_fn(&enum_info) {
+    let from = match old_enums::from_bytes::generate_enum_from_bytes_fn(&enum_info) {
         Ok(f) => f,
         Err(err) => return TokenStream::from(err.to_compile_error()),
     };
-    let partial_eq = enums::partial_eq::generate_partial_eq_fn(&enum_info);
+    let partial_eq = old_enums::partial_eq::generate_partial_eq_fn(&enum_info);
     let enum_name = enum_info.name;
     let primitive = enum_info.primitive;
     TokenStream::from(quote! {

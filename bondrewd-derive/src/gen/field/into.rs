@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use crate::structs::common::{
+use crate::parse::common::{
     get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
     StructInfo,
 };
@@ -22,7 +22,7 @@ impl FieldInfo {
         gen_write_fn: fn(
             &FieldInfo,
             &QuoteInfo,
-            TokenStream,
+            &TokenStream,
         ) -> syn::Result<(TokenStream, TokenStream)>,
         with_self: bool,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -111,12 +111,12 @@ impl FieldInfo {
             }
         };
         let quote_info: QuoteInfo = (self, struct_info).try_into()?;
-        gen_write_fn(self, &quote_info, field_access)
+        gen_write_fn(self, &quote_info, &field_access)
     }
     pub(crate) fn get_write_le_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
@@ -146,7 +146,7 @@ impl FieldInfo {
     pub(crate) fn get_write_le_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -199,7 +199,7 @@ impl FieldInfo {
         | FieldDataType::Boolean => {
             quote!{(#field_access_quote as u8)}
         }
-        FieldDataType::Enum(_, _, _) => field_access_quote,
+        FieldDataType::Enum(_, _, _) => field_access_quote.clone(),
         FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
         FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
@@ -224,7 +224,7 @@ impl FieldInfo {
     pub(crate) fn get_write_le_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let (right_shift, first_bit_mask, last_bit_mask): (i8, u8, u8) = {
             let thing: LittleQuoteInfo = quote_info.into();
@@ -378,7 +378,7 @@ impl FieldInfo {
     pub(crate) fn get_write_ne_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // how many times to shift the number right.
@@ -400,7 +400,7 @@ impl FieldInfo {
     pub(crate) fn get_write_ne_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -468,7 +468,7 @@ impl FieldInfo {
     pub(crate) fn get_write_ne_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let right_shift: i8 = {
             let thing: NoneQuoteInfo = quote_info.into();
@@ -602,7 +602,7 @@ impl FieldInfo {
     pub(crate) fn get_write_be_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
@@ -622,7 +622,7 @@ impl FieldInfo {
     pub(crate) fn get_write_be_single_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
@@ -674,7 +674,7 @@ impl FieldInfo {
             | FieldDataType::Boolean => {
                 quote!{(#field_access_quote as u8)}
             }
-            FieldDataType::Enum(_, _, _) => field_access_quote,
+            FieldDataType::Enum(_, _, _) => field_access_quote.clone(),
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
             FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
@@ -692,7 +692,7 @@ impl FieldInfo {
     pub(crate) fn get_write_be_multi_byte_quote(
         &self,
         quote_info: &QuoteInfo,
-        field_access_quote: TokenStream,
+        field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
             let thing: BigQuoteInfo = quote_info.into();

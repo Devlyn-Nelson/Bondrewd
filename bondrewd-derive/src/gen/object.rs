@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use crate::structs::common::{EnumInfo, FieldInfo, ObjectInfo, StructInfo};
+use crate::parse::common::{EnumInfo, FieldInfo, ObjectInfo, StructInfo};
 #[cfg(feature = "setters")]
-use crate::structs::struct_fns;
+use crate::parse::struct_fns;
 use convert_case::{Case, Casing};
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
@@ -76,14 +76,14 @@ impl GeneratedFunctions {
             };
         }
     }
-    fn append_bitfield_trait_impl_fns(&mut self, quote: TokenStream) {
+    fn append_bitfield_trait_impl_fns(&mut self, quote: &TokenStream) {
         let old = &self.bitfield_trait_impl_fns;
         self.bitfield_trait_impl_fns = quote! {
             #old
             #quote
         };
     }
-    fn append_impl_fns(&mut self, quote: TokenStream) {
+    fn append_impl_fns(&mut self, quote: &TokenStream) {
         let old = &self.impl_fns;
         self.impl_fns = quote! {
             #old
@@ -437,7 +437,7 @@ impl StructInfo {
             #[cfg(feature = "dyn_fns")]
             &mut checked_struct_impl_fns,
         );
-        gen.append_impl_fns(impl_fns);
+        gen.append_impl_fns(&impl_fns);
         #[cfg(feature = "dyn_fns")]
         gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
 
@@ -471,7 +471,7 @@ impl StructInfo {
                     quote! { let #field_name = Default::default(); }
                 }
             };
-            gen.append_bitfield_trait_impl_fns(peek_call);
+            gen.append_bitfield_trait_impl_fns(&peek_call);
             #[cfg(feature = "dyn_fns")]
             gen.append_bitfield_dyn_trait_impl_fns(quote! {
                 let #field_name = #field_extractor;
@@ -527,11 +527,11 @@ impl StructInfo {
         if field.attrs.reserve.write_field() {
             if variant_name.is_some() {
                 let fn_name = format_ident!("write_{prefixed_name}");
-                gen.append_bitfield_trait_impl_fns(quote! {
+                gen.append_bitfield_trait_impl_fns(&quote! {
                     Self::#fn_name(&mut output_byte_buffer, #field_name);
                 });
             } else {
-                gen.append_bitfield_trait_impl_fns(quote! {
+                gen.append_bitfield_trait_impl_fns(&quote! {
                     let #field_name = self.#field_name;
                     #field_setter
                 });
@@ -551,7 +551,7 @@ impl StructInfo {
             &mut checked_struct_impl_fns,
         );
 
-        gen.append_impl_fns(impl_fns);
+        gen.append_impl_fns(&impl_fns);
         #[cfg(feature = "dyn_fns")]
         gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
     }
@@ -729,9 +729,9 @@ impl EnumInfo {
                 gen.append_checked_struct_impl_fns(thing.read_fns.checked_struct_impl_fns);
                 gen.append_checked_struct_impl_fns(thing.write_fns.checked_struct_impl_fns);
             }
-            gen.append_impl_fns(thing.read_fns.impl_fns);
-            gen.append_impl_fns(thing.write_fns.impl_fns);
-            gen.append_impl_fns(quote! {
+            gen.append_impl_fns(&thing.read_fns.impl_fns);
+            gen.append_impl_fns(&thing.write_fns.impl_fns);
+            gen.append_impl_fns(&quote! {
                 pub const #v_byte_const_name: usize = #v_byte_size;
                 pub const #v_bit_const_name: usize = #v_bit_size;
             });
@@ -926,7 +926,7 @@ impl EnumInfo {
                 "Returns a checked structure which allows you to read any field for a `{}` from provided slice.",
                 &self.name
             );
-            gen.append_impl_fns(quote! {
+            gen.append_impl_fns(&quote! {
                 #[doc = #comment]
                 pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
                     let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -939,7 +939,7 @@ impl EnumInfo {
                 "Returns a checked mutable structure which allows you to read/write any field for a `{}` from provided mut slice.",
                 &self.name
             );
-            gen.append_impl_fns(quote! {
+            gen.append_impl_fns(&quote! {
                 #[doc = #comment]
                 pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
                     let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -974,7 +974,7 @@ impl EnumInfo {
         };
         // Finish Variant Id function.
         let id_ident = self.id_type_ident()?;
-        gen.append_impl_fns(quote! {
+        gen.append_impl_fns(&quote! {
             pub fn id(&self) -> #id_ident {
                 match self {
                     #id_fn

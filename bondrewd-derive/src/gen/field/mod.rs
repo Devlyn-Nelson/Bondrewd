@@ -4,7 +4,7 @@ mod into;
 use proc_macro2::{Ident, TokenStream};
 use quote::format_ident;
 
-use crate::structs::common::{
+use crate::parse::common::{
     get_left_and_mask, get_right_and_mask, Endianness, FieldInfo, StructInfo,
 };
 pub struct FieldQuotes {

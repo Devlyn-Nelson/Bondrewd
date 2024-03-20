@@ -1,4 +1,4 @@
-use crate::structs::parse::{
+use crate::parse::{
     FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
 };
 use proc_macro2::{Span, TokenStream};
@@ -911,7 +911,7 @@ impl FieldInfo {
 
     pub fn from_syn_field(
         field: &syn::Field,
-        fields: &Vec<FieldInfo>,
+        fields: &[FieldInfo],
         attrs: &AttrInfo,
     ) -> syn::Result<Self> {
         let ident: FieldIdent = if let Some(ref name) = field.ident {

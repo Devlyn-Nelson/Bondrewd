@@ -1,36 +1,36 @@
-use crate::enums::parse::{EnumInfo, EnumVariantType};
+use crate::old_enums::parse::{EnumInfo, EnumVariantType};
 use quote::quote;
 
-pub fn generate_enum_into_bytes_fn(enum_info: &EnumInfo) -> syn::Result<proc_macro2::TokenStream> {
+pub fn generate_enum_from_bytes_fn(enum_info: &EnumInfo) -> syn::Result<proc_macro2::TokenStream> {
     let mut arms = quote! {};
     for var in &enum_info.variants {
         let name = &var.name;
         let arm = match var.value {
             EnumVariantType::UnsignedValue(ref value) => {
                 quote! {
-                    Self::#name => #value,
+                    #value => Self::#name,
                 }
             }
-            EnumVariantType::CatchAll(ref output_id) => {
+            EnumVariantType::CatchAll(_) => {
                 quote! {
-                    Self::#name => #output_id,
+                    _ => Self::#name,
                 }
             }
             EnumVariantType::CatchPrimitive(ref field_name) => {
-                if let Some(field_name) = field_name {
+                if let Some(ref field_name) = field_name {
                     quote! {
-                        Self::#name { #field_name } => #field_name,
+                        _ => Self::#name { #field_name = input },
                     }
                 } else {
                     quote! {
-                        Self::#name(value) => value,
+                        _ => Self::#name(input),
                     }
                 }
             }
             EnumVariantType::Skip(_) => {
                 return Err(syn::Error::new(
                     var.name.span(),
-                    "skip got into into bytes, please open issue.",
+                    "skip got into from bytes, please open issue.",
                 ))
             }
         };
@@ -40,11 +40,12 @@ pub fn generate_enum_into_bytes_fn(enum_info: &EnumInfo) -> syn::Result<proc_mac
         };
     }
     let struct_name = &enum_info.name;
-    let comment = format!("Returns a `u8` representing a Variant of `{struct_name}`.");
+    let comment =
+        format!("Returns `{struct_name}` Variant that was represented by the provided `u8`.");
     Ok(quote! {
         #[doc = #comment]
-        fn into_primitive(self) -> u8 {
-            match self {
+        fn from_primitive(input: u8) -> Self {
+            match input {
                 #arms
             }
         }

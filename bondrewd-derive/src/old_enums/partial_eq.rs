@@ -1,4 +1,4 @@
-use crate::enums::parse::{EnumInfo, EnumVariantType};
+use crate::old_enums::parse::{EnumInfo, EnumVariantType};
 use quote::quote;
 
 /// Generates a `PartialEq` implementation for the given `enum_info`.

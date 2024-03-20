@@ -1,3 +1,8 @@
+pub mod common;
+#[cfg(feature = "setters")]
+pub mod struct_fns;
+
+
 use proc_macro2::Span;
 use quote::format_ident;
 use std::ops::Range;
@@ -5,9 +10,9 @@ use syn::parse::Error;
 use syn::punctuated::Punctuated;
 use syn::{Expr, Ident, Lit, Meta, Token};
 
-use crate::structs::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
+use crate::parse::common::{Endianness, FieldAttrs, FieldInfo, ReserveFieldOption};
 
-use super::common::OverlapOptions;
+use common::OverlapOptions;
 
 pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
