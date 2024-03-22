@@ -175,6 +175,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
+#[allow(clippy::struct_excessive_bools)]
 struct SimpleDuplicateData {
     one: bool,
     two: bool,
@@ -190,7 +191,7 @@ struct SimpleDuplicateData {
 }
 
 #[test]
-fn be_duplicate_data() -> anyhow::Result<()> {
+fn be_duplicate_data() {
     let data = SimpleDuplicateData {
         one: false,
         two: false,
@@ -219,6 +220,4 @@ fn be_duplicate_data() -> anyhow::Result<()> {
     assert!(!new_data.eight);
     assert_eq!(new_data.dup, 0);
     assert_eq!(new_data.nine, u8::MAX);
-
-    Ok(())
 }

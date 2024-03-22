@@ -91,12 +91,12 @@ fn slice_fn_check_slice() {
                 packet_data_length: 0,
             };
             checked.write_packet_version_number(packet.packet_version_number.clone());
-            checked.write_packet_type(packet.packet_type.clone());
-            checked.write_sec_hdr_flag(packet.sec_hdr_flag.clone());
-            checked.write_app_process_id(packet.app_process_id.clone());
+            checked.write_packet_type(packet.packet_type);
+            checked.write_sec_hdr_flag(packet.sec_hdr_flag);
+            checked.write_app_process_id(packet.app_process_id);
             checked.write_sequence_flags(packet.sequence_flags.clone());
-            checked.write_packet_seq_count(packet.packet_seq_count.clone());
-            checked.write_packet_data_length(packet.packet_data_length.clone());
+            checked.write_packet_seq_count(packet.packet_seq_count);
+            checked.write_packet_data_length(packet.packet_data_length);
             assert_eq!(
                 checked.read_packet_version_number(),
                 packet.packet_version_number
@@ -166,15 +166,12 @@ fn slice_fns_inner() -> Result<(), bondrewd::BitfieldLengthError> {
         &mut bytes,
         packet.packet_version_number.clone(),
     )?;
-    SpacePacketHeader::write_slice_packet_type(&mut bytes, packet.packet_type.clone())?;
-    SpacePacketHeader::write_slice_sec_hdr_flag(&mut bytes, packet.sec_hdr_flag.clone())?;
-    SpacePacketHeader::write_slice_app_process_id(&mut bytes, packet.app_process_id.clone())?;
+    SpacePacketHeader::write_slice_packet_type(&mut bytes, packet.packet_type)?;
+    SpacePacketHeader::write_slice_sec_hdr_flag(&mut bytes, packet.sec_hdr_flag)?;
+    SpacePacketHeader::write_slice_app_process_id(&mut bytes, packet.app_process_id)?;
     SpacePacketHeader::write_slice_sequence_flags(&mut bytes, packet.sequence_flags.clone())?;
-    SpacePacketHeader::write_slice_packet_seq_count(&mut bytes, packet.packet_seq_count.clone())?;
-    SpacePacketHeader::write_slice_packet_data_length(
-        &mut bytes,
-        packet.packet_data_length.clone(),
-    )?;
+    SpacePacketHeader::write_slice_packet_seq_count(&mut bytes, packet.packet_seq_count)?;
+    SpacePacketHeader::write_slice_packet_data_length(&mut bytes, packet.packet_data_length)?;
     assert_eq!(
         SpacePacketHeader::read_slice_packet_version_number(&bytes)?,
         packet.packet_version_number

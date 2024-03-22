@@ -29,7 +29,7 @@ mod hex_tests {
     #[test]
     fn hex_test() {
         let og = Magnetometer {
-            timestamp: 063_482_412_850,
+            timestamp: 63_482_412_850,
             status: StatusMagnetometer {
                 int_mtm1: true,
                 int_mtm2: false,
@@ -55,21 +55,15 @@ mod hex_tests {
         let from_bytes_obj = Magnetometer::from_bytes(bytes);
         assert_eq!(from_bytes_obj, og);
         let mut hex_vec = hex.to_vec();
-        let from_hex_obj = if let Ok(m) = Magnetometer::from_hex(hex) {
-            m
-        } else {
+        let Ok(from_hex_obj) = Magnetometer::from_hex(hex) else {
             panic!("Bad decode")
         };
         #[cfg(feature = "dyn_fns")]
-        let from_slice_hex_obj = if let Ok(m) = Magnetometer::from_hex_slice(&hex_vec) {
-            m
-        } else {
+        let Ok(from_slice_hex_obj) = Magnetometer::from_hex_slice(&hex_vec) else {
             panic!("Bad decode")
         };
         #[cfg(feature = "dyn_fns")]
-        let from_vec_hex_obj = if let Ok(m) = Magnetometer::from_hex_vec(&mut hex_vec) {
-            m
-        } else {
+        let Ok(from_vec_hex_obj) = Magnetometer::from_hex_vec(&mut hex_vec) else {
             panic!("Bad decode")
         };
         assert_eq!(from_hex_obj, og);

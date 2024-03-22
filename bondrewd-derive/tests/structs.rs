@@ -130,7 +130,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     assert_eq!(simple, new_simple);
     Ok(())
 }
-
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SmallStruct {

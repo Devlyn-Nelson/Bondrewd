@@ -127,9 +127,10 @@ struct SimpleWithFloats {
     one: f32,
     #[bondrewd(bit_length = 64)]
     two: f64,
+
     three: f32,
 }
-
+#[allow(clippy::float_cmp)]
 #[test]
 fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     let simple = SimpleWithFloats {

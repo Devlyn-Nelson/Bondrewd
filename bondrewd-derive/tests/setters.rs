@@ -142,6 +142,7 @@ mod getter_setter_tests {
                 b_one: false,
             },
         };
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
         let c = match char::from_u32(data[1].f_one as u32) {
             Some(c) => c,
             None => {

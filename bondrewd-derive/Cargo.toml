@@ -23,6 +23,7 @@ syn = { version = "2.0", features = ["parsing", "derive"] }
 dyn_fns = []
 hex_fns = []
 setters = []
+dump_gen = []
 
 [dev-dependencies]
 rand = "0.8"

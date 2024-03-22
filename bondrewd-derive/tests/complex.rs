@@ -35,6 +35,7 @@ enum SimpleEnum {
     Invalid,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleExample {
@@ -67,6 +68,7 @@ struct SimpleExample {
     other_enum_field: SimpleEnum,
 }
 
+#[allow(clippy::float_cmp)]
 #[test]
 fn complex_stuff() {
     // this is to test capturing the id in the invalid.

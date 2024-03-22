@@ -6,9 +6,9 @@ struct SimpleExample {
     one: bool,
     two: f32,
     #[bondrewd(bit_length = 14)]
-    three: i16,
+    three: u16,
     #[bondrewd(bit_length = 6)]
-    four: u8,
+    four: i8,
 }
 
 fn main() {

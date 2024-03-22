@@ -91,7 +91,7 @@ impl GeneratedFunctions {
         };
     }
     #[cfg(feature = "dyn_fns")]
-    fn append_checked_struct_impl_fns(&mut self, quote: TokenStream) {
+    fn append_checked_struct_impl_fns(&mut self, quote: &TokenStream) {
         let old = &self.checked_struct_impl_fns;
         self.checked_struct_impl_fns = quote! {
             #old
@@ -99,7 +99,7 @@ impl GeneratedFunctions {
         };
     }
     #[cfg(feature = "dyn_fns")]
-    fn append_bitfield_dyn_trait_impl_fns(&mut self, quote: TokenStream) {
+    fn append_bitfield_dyn_trait_impl_fns(&mut self, quote: &TokenStream) {
         let old = &self.bitfield_dyn_trait_impl_fns;
         self.bitfield_dyn_trait_impl_fns = quote! {
             #old
@@ -109,6 +109,12 @@ impl GeneratedFunctions {
 }
 
 impl ObjectInfo {
+    pub fn dump(&self) -> bool {
+        match self {
+            ObjectInfo::Struct(s) => s.dump(),
+            ObjectInfo::Enum(e) => e.dump(),
+        }
+    }
     pub fn generate(&self) -> syn::Result<TokenStream> {
         let gen = match self {
             ObjectInfo::Struct(s) => Ok(s.generate_bitfield_functions()?.finish()),
@@ -132,7 +138,7 @@ impl ObjectInfo {
                 // TODO get setter for arrays working.
                 // get the setters, functions that set a field disallowing numbers
                 // outside of the range the Bitfield.
-                let setters_quote = match struct_fns::create_setters_quotes(&struct_info) {
+                let setters_quote = match struct_fns::create_setters_quotes(struct_info) {
                     Ok(parsed_struct) => parsed_struct,
                     Err(err) => {
                         return Err(err);
@@ -190,6 +196,11 @@ impl ObjectInfo {
                     #from_vec_quote
                 }
             }
+        }
+        if self.dump() {
+            let name = self.name().to_string().to_case(Case::Snake);
+            let file_name = format!("{name}_code_gen.rs");
+            let _ = std::fs::write(file_name, output.to_string());
         }
         Ok(output)
     }
@@ -324,7 +335,9 @@ impl StructInfo {
         }
         // Do checked struct of this type
         #[cfg(feature = "dyn_fns")]
-        let checked = if !fields.is_empty() {
+        let checked = if fields.is_empty() {
+            None
+        } else {
             let struct_name = if let Some(e_name) = enum_name {
                 quote::format_ident!("{e_name}{}", &self.name)
             } else {
@@ -397,8 +410,6 @@ impl StructInfo {
                 check_slice_struct_name: checked_ident,
                 check_mut_slice_struct_name: checked_mut_ident,
             })
-        } else {
-            None
         };
         Ok(FieldQuotes {
             read_fns: gen_read,
@@ -439,7 +450,7 @@ impl StructInfo {
         );
         gen.append_impl_fns(&impl_fns);
         #[cfg(feature = "dyn_fns")]
-        gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
+        gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
 
         // fake fields do not exist in the actual structure and should only have functions
         // that read or write values into byte arrays.
@@ -473,7 +484,7 @@ impl StructInfo {
             };
             gen.append_bitfield_trait_impl_fns(&peek_call);
             #[cfg(feature = "dyn_fns")]
-            gen.append_bitfield_dyn_trait_impl_fns(quote! {
+            gen.append_bitfield_dyn_trait_impl_fns(&quote! {
                 let #field_name = #field_extractor;
             });
         }
@@ -553,7 +564,7 @@ impl StructInfo {
 
         gen.append_impl_fns(&impl_fns);
         #[cfg(feature = "dyn_fns")]
-        gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
+        gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
     }
     fn make_write_fns_inner(
         &self,
@@ -726,8 +737,8 @@ impl EnumInfo {
             let thing = variant.create_field_quotes(enum_name)?;
             #[cfg(feature = "dyn_fns")]
             {
-                gen.append_checked_struct_impl_fns(thing.read_fns.checked_struct_impl_fns);
-                gen.append_checked_struct_impl_fns(thing.write_fns.checked_struct_impl_fns);
+                gen.append_checked_struct_impl_fns(&thing.read_fns.checked_struct_impl_fns);
+                gen.append_checked_struct_impl_fns(&thing.write_fns.checked_struct_impl_fns);
             }
             gen.append_impl_fns(&thing.read_fns.impl_fns);
             gen.append_impl_fns(&thing.write_fns.impl_fns);
@@ -953,7 +964,7 @@ impl EnumInfo {
             } else {
                 quote! {}
             };
-            gen.append_checked_struct_impl_fns(quote! {
+            gen.append_checked_struct_impl_fns(&quote! {
                 pub enum #checked_ident #lifetime {
                     #checked_slice_enum
                 }

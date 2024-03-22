@@ -52,7 +52,7 @@ pub struct AosFrameHeaderBe {
 }
 
 #[test]
-fn cycle_header_be() -> anyhow::Result<()> {
+fn cycle_header_be() {
     let mut header = AosFrameHeaderBe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -80,11 +80,9 @@ fn cycle_header_be() -> anyhow::Result<()> {
             AosFrameHeaderBe::read_virtual_channel_frame_count(&bytes)
         );
     }
-
-    Ok(())
 }
 #[test]
-fn cycle_header_be_slice() -> anyhow::Result<()> {
+fn cycle_header_be_slice() {
     let mut header = AosFrameHeaderBe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -112,8 +110,6 @@ fn cycle_header_be_slice() -> anyhow::Result<()> {
             AosFrameHeaderBe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
         );
     }
-
-    Ok(())
 }
 
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
@@ -154,7 +150,7 @@ pub struct AosFrameHeaderLe {
 }
 
 #[test]
-fn cycle_header_le() -> anyhow::Result<()> {
+fn cycle_header_le() {
     let mut header = AosFrameHeaderLe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -182,12 +178,10 @@ fn cycle_header_le() -> anyhow::Result<()> {
             AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes)
         );
     }
-
-    Ok(())
 }
 
 #[test]
-fn cycle_header_le_slice() -> anyhow::Result<()> {
+fn cycle_header_le_slice() {
     let mut header = AosFrameHeaderLe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -215,6 +209,4 @@ fn cycle_header_le_slice() -> anyhow::Result<()> {
             AosFrameHeaderLe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
         );
     }
-
-    Ok(())
 }

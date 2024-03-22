@@ -12,7 +12,7 @@ struct SimpleWithReserve {
     #[bondrewd(element_byte_length = 1)]
     test: [char; 17],
 }
-
+#[allow(clippy::cast_possible_truncation)]
 fn main() {
     let mut test = ['a'; 17];
     for (i, c) in test.iter_mut().enumerate() {

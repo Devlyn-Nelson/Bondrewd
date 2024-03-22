@@ -32,6 +32,7 @@ enum SimpleEnum {
     Invalid,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleExample {
@@ -64,6 +65,7 @@ struct SimpleExample {
     other_enum_field: SimpleEnum,
 }
 
+#[allow(clippy::float_cmp)]
 fn main() {
     // this is to test capturing the id in the invalid.
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();

@@ -1,6 +1,4 @@
-use crate::parse::{
-    FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
-};
+use crate::parse::{FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::ops::Range;
@@ -909,6 +907,7 @@ impl FieldInfo {
         }
     }
 
+    /// `fields` should be all previous fields that have been parsed already.
     pub fn from_syn_field(
         field: &syn::Field,
         fields: &[FieldInfo],
@@ -935,10 +934,7 @@ impl FieldInfo {
             &attrs.default_endianess,
         )?;
 
-        let attr_result: std::result::Result<FieldAttrs, TryFromAttrBuilderError> =
-            attrs_builder.try_into();
-
-        let attrs = match attr_result {
+        let attrs: FieldAttrs = match attrs_builder.try_into() {
             Ok(attr) => attr,
             Err(fix_me) => {
                 let mut start = 0;
@@ -999,6 +995,7 @@ pub struct AttrInfo {
     // Enum only
     pub id: Option<u128>,
     pub invalid: bool,
+    pub dump: bool,
 }
 
 impl Default for AttrInfo {
@@ -1011,6 +1008,7 @@ impl Default for AttrInfo {
             fill_bits: None,
             id: None,
             invalid: false,
+            dump: false,
         }
     }
 }
@@ -1025,6 +1023,9 @@ pub struct StructInfo {
 }
 
 impl StructInfo {
+    pub fn dump(&self) -> bool {
+        self.attrs.dump
+    }
     #[cfg(feature = "dyn_fns")]
     pub fn vis(&self) -> &syn::Visibility {
         &self.vis
@@ -1088,6 +1089,9 @@ impl EnumInfo {
     // pub fn vis(&self) -> &syn::Visibility {
     //     &self.vis
     // }
+    pub fn dump(&self) -> bool {
+        self.attrs.attrs.dump
+    }
     pub fn total_bits(&self) -> usize {
         let mut total = self.variants[0].total_bits();
         for variant in self.variants.iter().skip(1) {
@@ -1876,6 +1880,9 @@ impl ObjectInfo {
                     match ident_str.as_str() {
                         "reverse" => {
                             info.flip = true;
+                        }
+                        "dump" => {
+                            info.dump = true;
                         }
                         "enforce_full_bytes" | "enforce-full-bytes" => {
                             info.enforcement = StructEnforcement::EnforceFullBytes;

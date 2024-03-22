@@ -160,15 +160,12 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 };
                 let mut max: char = '0';
                 while {
-                    match char::from_u32(2_u32.pow(bl) - 1) {
-                        Some(m) => {
-                            max = m;
-                            false
-                        }
-                        None => {
-                            bl -= 1;
-                            true
-                        }
+                    if let Some(m) = char::from_u32(2_u32.pow(bl) - 1) {
+                        max = m;
+                        false
+                    } else {
+                        bl -= 1;
+                        true
                     }
                 } {}
                 full_quote = quote! {
