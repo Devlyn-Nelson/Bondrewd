@@ -788,12 +788,13 @@
 //! ```
 extern crate proc_macro;
 // mods
+mod common;
 mod gen;
 mod old_enums;
 mod parse;
 // uses
+use common::object::ObjectInfo;
 use old_enums::parse::EnumInfo;
-use parse::common::ObjectInfo;
 
 use proc_macro::TokenStream;
 use quote::quote;

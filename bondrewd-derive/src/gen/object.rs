@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use crate::parse::common::{EnumInfo, FieldInfo, ObjectInfo, StructInfo};
+use crate::common::{field::FieldInfo, object::ObjectInfo, r#enum::EnumInfo, r#struct::StructInfo};
 #[cfg(feature = "setters")]
 use crate::parse::struct_fns;
 use convert_case::{Case, Casing};

@@ -4,10 +4,13 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use super::{BigQuoteInfo, LittleQuoteInfo, NoneQuoteInfo, QuoteInfo};
-use crate::parse::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, Endianness, FieldDataType,
-    FieldInfo, NumberSignage, StructInfo,
+use super::{
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BigQuoteInfo, LittleQuoteInfo,
+    NoneQuoteInfo, QuoteInfo,
+};
+use crate::common::{
+    field::{Endianness, FieldDataType, FieldInfo, NumberSignage},
+    r#struct::StructInfo,
 };
 struct BuildNumberQuotePackage<'a> {
     amount_of_bits: usize,

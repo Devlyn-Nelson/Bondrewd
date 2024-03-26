@@ -1,6 +1,10 @@
-use crate::parse::common::{FieldDataType, FieldInfo, NumberSignage, StructInfo};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+
+use crate::common::{
+    field::{FieldDataType, FieldInfo, NumberSignage},
+    r#struct::StructInfo,
+};
 
 pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
     // all of the fields set functions that disallow numbers that are too large to fit into bit length.

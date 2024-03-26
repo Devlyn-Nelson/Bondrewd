@@ -4,12 +4,15 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
-use crate::parse::common::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, FieldDataType, FieldInfo,
-    StructInfo,
+use crate::common::{
+    field::{FieldDataType, FieldInfo},
+    r#struct::StructInfo,
 };
 
-use super::{BigQuoteInfo, LittleQuoteInfo, NoneQuoteInfo, QuoteInfo};
+use super::{
+    get_be_starting_index, get_left_and_mask, get_right_and_mask, BigQuoteInfo, LittleQuoteInfo,
+    NoneQuoteInfo, QuoteInfo,
+};
 
 impl FieldInfo {
     /// This function is kind of funny. it is essentially a function that gets called by either

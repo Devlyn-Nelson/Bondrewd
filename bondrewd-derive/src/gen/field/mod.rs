@@ -4,9 +4,74 @@ mod into;
 use proc_macro2::{Ident, TokenStream};
 use quote::format_ident;
 
-use crate::parse::common::{
-    get_left_and_mask, get_right_and_mask, Endianness, FieldInfo, StructInfo,
+use crate::common::{
+    field::{Endianness, FieldInfo},
+    r#struct::StructInfo,
 };
+
+/// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
+pub fn get_left_and_mask(num: usize) -> u8 {
+    match num {
+        8 => 0b1111_1111,
+        7 => 0b1111_1110,
+        6 => 0b1111_1100,
+        5 => 0b1111_1000,
+        4 => 0b1111_0000,
+        3 => 0b1110_0000,
+        2 => 0b1100_0000,
+        1 => 0b1000_0000,
+        _ => 0b0000_0000,
+    }
+}
+
+/// Returns a u8 mask with provided `num` amount of 1's on the right side (least significant bit)
+pub fn get_right_and_mask(num: usize) -> u8 {
+    match num {
+        8 => 0b1111_1111,
+        7 => 0b0111_1111,
+        6 => 0b0011_1111,
+        5 => 0b0001_1111,
+        4 => 0b0000_1111,
+        3 => 0b0000_0111,
+        2 => 0b0000_0011,
+        1 => 0b0000_0001,
+        _ => 0b0000_0000,
+    }
+}
+
+/// calculate the starting bit index for a field.
+///
+/// Returns the index of the byte the first bits of the field
+///
+/// # Arguments
+/// * `amount_of_bits` - amount of bits the field will be after `into_bytes`.
+/// * `right_rotation` - amount of bit Rotations to preform on the field. Note if rotation is not needed
+///                         to retain all used bits then a shift could be used.
+/// * `last_index` - total struct bytes size minus 1.
+#[inline]
+#[allow(
+    clippy::cast_lossless,
+    clippy::cast_precision_loss,
+    clippy::cast_sign_loss,
+    clippy::cast_possible_truncation
+)]
+pub fn get_be_starting_index(
+    amount_of_bits: usize,
+    right_rotation: i8,
+    last_index: usize,
+) -> Result<usize, String> {
+    // println!(
+    //     "be_start_index = [last;{}] - ([aob;{}] - [rs;{}]) / 8",
+    //     last_index, amount_of_bits, right_rotation
+    // );
+    let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
+    if last_index < first {
+        Err("Failed getting the starting index for big endianness, field's type doesn't fix the bit size".to_string())
+    } else {
+        Ok(last_index - first)
+    }
+}
+
 pub struct FieldQuotes {
     read: proc_macro2::TokenStream,
     write: proc_macro2::TokenStream,
