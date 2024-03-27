@@ -512,10 +512,7 @@ impl AttrBuilder {
         }
     }
 
-    pub fn parse(
-        field: &syn::Field,
-        last_field: Option<&FieldInfo>,
-    ) -> syn::Result<AttrBuilder> {
+    pub fn parse(field: &syn::Field, last_field: Option<&FieldInfo>) -> syn::Result<AttrBuilder> {
         let mut builder = AttrBuilder::new();
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
