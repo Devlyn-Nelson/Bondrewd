@@ -9,7 +9,7 @@ use syn::{token::Pub, Ident};
 use super::field::{generate_read_slice_field_fn, generate_write_slice_field_fn};
 use super::{
     field::{generate_read_field_fn, generate_write_field_fn},
-    object::GeneratedFunctions,
+    GeneratedFunctions,
 };
 use crate::common::{
     field::{
