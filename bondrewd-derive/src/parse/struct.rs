@@ -1,7 +1,7 @@
 use syn::{spanned::Spanned, Error, Meta};
 
 use crate::common::{
-    field::Endianness, r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo,
+    field::EndiannessInfo, r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo,
     FieldGrabDirection, StructEnforcement,
 };
 
@@ -76,13 +76,13 @@ impl StructInfo {
                             )?;
                             match val.value().as_str() {
                                 "le" | "lsb" | "little" | "lil" => {
-                                    info.default_endianess = Endianness::Little;
+                                    info.default_endianess = EndiannessInfo::little();
                                 }
                                 "be" | "msb" | "big" => {
-                                    info.default_endianess = Endianness::Big;
+                                    info.default_endianess = EndiannessInfo::big();
                                 }
                                 "ne" | "native" => {
-                                    info.default_endianess = Endianness::None;
+                                    info.default_endianess = EndiannessInfo::none();
                                 }
                                 _ => {
                                     return Err(syn::Error::new(

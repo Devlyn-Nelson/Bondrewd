@@ -289,7 +289,7 @@ impl FieldInfo {
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<GeneratedQuotes> {
-        match *self.attrs.endianness {
+        match self.attrs.endianness.endianess() {
             Endianness::Little => self.get_le_quotes(struct_info),
             Endianness::Big => self.get_be_quotes(struct_info),
             Endianness::None => self.get_ne_quotes(struct_info),

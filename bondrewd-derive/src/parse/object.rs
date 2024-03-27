@@ -1,5 +1,5 @@
 use crate::common::field::{
-    Attributes, DataType, Endianness, Info as FieldInfo, NumberSignage, OverlapOptions,
+    Attributes, DataType, EndiannessInfo, Info as FieldInfo, NumberSignage, OverlapOptions,
     ReserveFieldOption, SubInfo as SubFieldInfo,
 };
 use crate::common::object::Info as ObjectInfo;
@@ -138,7 +138,7 @@ impl ObjectInfo {
                         // id field to the first field read from the starting point of reading.
                         // TODO make sure this gets corrected if the id size is unknown.
                         bit_range: 0..id_bits,
-                        reserve: ReserveFieldOption::FakeReserveField,
+                        reserve: ReserveFieldOption::FakeField,
                         overlap: OverlapOptions::None,
                         capture_id: false,
                     },
@@ -367,8 +367,8 @@ impl ObjectInfo {
                             ident: Box::new(ident.into()),
                             attrs: Attributes {
                                 bit_range: first_bit..largest,
-                                endianness: Box::new(Endianness::Big),
-                                reserve: ReserveFieldOption::FakeReserveField,
+                                endianness: Box::new(EndiannessInfo::big()),
+                                reserve: ReserveFieldOption::FakeField,
                                 overlap: OverlapOptions::None,
                                 capture_id: false,
                             },
@@ -510,8 +510,8 @@ impl ObjectInfo {
                 ident: Box::new(ident.into()),
                 attrs: Attributes {
                     bit_range: first_bit..fill_bits,
-                    endianness: Box::new(Endianness::Big),
-                    reserve: ReserveFieldOption::FakeReserveField,
+                    endianness: Box::new(EndiannessInfo::big()),
+                    reserve: ReserveFieldOption::FakeField,
                     overlap: OverlapOptions::None,
                     capture_id: false,
                 },

@@ -13,7 +13,7 @@ use super::{
 };
 use crate::common::{
     field::{
-        Attributes, DataType, Endianness, Info as FieldInfo, NumberSignage, OverlapOptions,
+        Attributes, DataType, EndiannessInfo, Info as FieldInfo, NumberSignage, OverlapOptions,
         ReserveFieldOption,
     },
     r#enum::Info as EnumInfo,
@@ -22,9 +22,10 @@ use crate::common::{
 
 impl EnumInfo {
     pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
-        let e = match &self.attrs.attrs.default_endianess {
-            Endianness::None | Endianness::Little => Endianness::Little,
-            Endianness::Big => Endianness::Big,
+        let e = if self.attrs.attrs.default_endianess.is_big() {
+            EndiannessInfo::big()
+        } else {
+            EndiannessInfo::little()
         };
         Ok(FieldInfo {
             ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),

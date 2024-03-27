@@ -1,4 +1,4 @@
-use self::field::Endianness;
+use self::field::EndiannessInfo;
 
 pub mod r#enum;
 pub mod field;
@@ -22,7 +22,7 @@ pub struct AttrInfo {
     pub flip: bool,
     pub dump: bool,
     pub enforcement: StructEnforcement,
-    pub default_endianess: Endianness,
+    pub default_endianess: EndiannessInfo,
     pub fill_bits: Option<usize>,
     // Enum only
     pub id: Option<u128>,
@@ -36,7 +36,7 @@ impl Default for AttrInfo {
             lsb_zero: FieldGrabDirection::Msb,
             flip: false,
             enforcement: StructEnforcement::NoRules,
-            default_endianess: Endianness::None,
+            default_endianess: EndiannessInfo::none(),
             fill_bits: None,
             id: None,
             invalid: false,

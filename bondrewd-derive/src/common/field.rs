@@ -3,25 +3,35 @@ use quote::quote;
 use std::ops::Range;
 use syn::Ident;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum Endianness {
     Little,
     Big,
     None,
 }
 
-impl Endianness {
+#[derive(Clone, Debug)]
+pub struct EndiannessInfo {
+    inner: Endianness,
+    aligned: bool,
+}
+
+impl EndiannessInfo {
+    /// Are the bytes aligned to the bytes start and end, otherwise they are packed.
+    pub fn is_aligned(&self) -> bool {
+        self.aligned
+    }
     pub fn has_endianness(&self) -> bool {
-        !matches!(self, Self::None)
+        !matches!(self.inner, Endianness::None)
     }
     // If the size provided is 1 or less bytes and endianess is not defined, the endianess will be
     // automatically become big endian which houses common 1 byte logic. if after that the endianess is none
     // `false` will be returned, if big or little endianess `true` will be returned.
     pub fn perhaps_endianness(&mut self, size: usize) -> bool {
-        if let Self::None = self {
+        if let Endianness::None = self.inner {
             if size == 1 {
-                let mut swap = Self::Big;
-                std::mem::swap(&mut swap, self);
+                let mut swap = Endianness::Big;
+                std::mem::swap(&mut swap, &mut self.inner);
                 true
             } else {
                 false
@@ -30,15 +40,39 @@ impl Endianness {
             true
         }
     }
+    pub fn endianess(&self) -> Endianness {
+        self.inner
+    }
+    pub fn is_big(&self) -> bool {
+        matches!(self.inner, Endianness::Big)
+    }
     // pub fn is_little(&self) -> bool {
-    //     matches!(self, Self::Little)
-    // }
-    // pub fn is_big(&self) -> bool {
-    //     matches!(self, Self::Big)
+    //     matches!(self.inner, Endianness::Little)
     // }
     // pub fn is_none(&self) -> bool {
-    //     matches!(self, Self::None)
+    //     matches!(self.inner, Endianness::None)
     // }
+    pub fn big() -> Self {
+        Self {
+            inner: Endianness::Big,
+            aligned: false,
+        }
+    }
+    pub fn little() -> Self {
+        Self {
+            inner: Endianness::Little,
+            aligned: false,
+        }
+    }
+    pub fn none() -> Self {
+        Self {
+            inner: Endianness::None,
+            aligned: false,
+        }
+    }
+    pub fn set_aligned(&mut self, align: bool) {
+        self.aligned = align;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -119,30 +153,36 @@ impl DataType {
 
 #[derive(Clone, Debug)]
 pub enum ReserveFieldOption {
+    /// Do not suppress in `from_bytes` or `into_bytes`.
     NotReserve,
+    /// User defined, meaning that the field shall not be written-to or read-from on `into_bytes` or
+    /// `from_bytes` calls.
     ReserveField,
-    FakeReserveField,
+    /// used with imaginary fields that bondrewd creates, such as fill_bytes or variant_ids.
+    /// these typically do not get any standard generated functions.
+    FakeField,
+    /// User defined, meaning that the field shall not be written to on `into_bytes` calls.
     ReadOnly,
 }
 
 impl ReserveFieldOption {
-    pub fn write_field(&self) -> bool {
+    pub fn wants_write_fns(&self) -> bool {
         match self {
-            Self::ReadOnly | Self::FakeReserveField | Self::ReserveField => false,
+            Self::ReadOnly | Self::FakeField | Self::ReserveField => false,
             Self::NotReserve => true,
         }
     }
 
-    pub fn read_field(&self) -> bool {
+    pub fn wants_read_fns(&self) -> bool {
         match self {
-            Self::FakeReserveField | Self::ReserveField => false,
+            Self::FakeField | Self::ReserveField => false,
             Self::NotReserve | Self::ReadOnly => true,
         }
     }
 
     pub fn is_fake_field(&self) -> bool {
         match self {
-            Self::FakeReserveField => true,
+            Self::FakeField => true,
             Self::ReserveField | Self::NotReserve | Self::ReadOnly => false,
         }
     }
@@ -166,7 +206,7 @@ impl OverlapOptions {
 
 #[derive(Clone, Debug)]
 pub struct Attributes {
-    pub endianness: Box<Endianness>,
+    pub endianness: Box<EndiannessInfo>,
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
@@ -187,7 +227,7 @@ pub struct SubInfo {
 
 pub struct ElementSubFieldIter {
     pub outer_ident: Box<DynamicIdent>,
-    pub endianness: Box<Endianness>,
+    pub endianness: Box<EndiannessInfo>,
     // this range is elements in the array, not bit range
     pub range: Range<usize>,
     pub starting_bit_index: usize,
@@ -226,7 +266,7 @@ impl Iterator for ElementSubFieldIter {
 #[derive(Debug)]
 pub struct BlockSubFieldIter {
     pub outer_ident: Box<DynamicIdent>,
-    pub endianness: Box<Endianness>,
+    pub endianness: Box<EndiannessInfo>,
     //array length
     pub length: usize,
     pub starting_bit_index: usize,

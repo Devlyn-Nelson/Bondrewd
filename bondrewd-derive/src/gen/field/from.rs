@@ -221,7 +221,7 @@ fn add_sign_fix_quote(
     if let DataType::Number(ref size, ref sign, _) = field.ty {
         if amount_of_bits != size * 8 {
             if let NumberSignage::Signed = sign {
-                let (bit_to_isolate, sign_index) = match field.attrs.endianness.as_ref() {
+                let (bit_to_isolate, sign_index) = match field.attrs.endianness.endianess() {
                     Endianness::Big => (
                         field.attrs.bit_range.start % 8,
                         field.attrs.bit_range.start / 8,
@@ -252,7 +252,7 @@ fn add_sign_fix_quote(
                     }
                 }
                 let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
-                match field.attrs.endianness.as_ref() {
+                match field.attrs.endianness.endianess() {
                     Endianness::Big => {
                         buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),

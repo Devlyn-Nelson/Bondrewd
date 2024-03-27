@@ -373,7 +373,7 @@ impl StructInfo {
             *field_name_list = quote! {#field_name_list #field_name,};
             let peek_call = if field.attrs.capture_id {
                 // put the field extraction in the actual from bytes.
-                if field.attrs.reserve.read_field() {
+                if field.attrs.reserve.wants_read_fns() {
                     let id_name = format_ident!("{}", EnumInfo::VARIANT_ID_NAME);
                     quote! {
                         let #field_name = #id_name;
@@ -386,7 +386,7 @@ impl StructInfo {
                 }
             } else {
                 // put the field extraction in the actual from bytes.
-                if field.attrs.reserve.read_field() {
+                if field.attrs.reserve.wants_read_fns() {
                     let fn_field_name = format_ident!("read_{prefixed_name}");
                     quote! {
                         let #field_name = Self::#fn_field_name(&input_byte_buffer);
@@ -448,7 +448,7 @@ impl StructInfo {
             return;
         }
         let (field_setter, clear_quote) = (field_access.write(), field_access.zero());
-        if field.attrs.reserve.write_field() {
+        if field.attrs.reserve.wants_write_fns() {
             if variant_name.is_some() {
                 let fn_name = format_ident!("write_{prefixed_name}");
                 gen.append_bitfield_trait_impl_fns(&quote! {

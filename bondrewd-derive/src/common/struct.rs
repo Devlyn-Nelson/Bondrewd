@@ -8,10 +8,15 @@ use super::{field::Info as FieldInfo, AttrInfo};
 
 #[derive(Clone)]
 pub struct Info {
+    /// Name of the variant or struct
     pub name: Ident,
+    /// ATtributes describing the bit layout
     pub attrs: AttrInfo,
+    /// All fields in the struct/variant
     pub fields: Vec<FieldInfo>,
+    /// The viability of the struct/enum
     pub vis: syn::Visibility,
+    /// Is it a tuple struct/variant
     pub tuple: bool,
 }
 
