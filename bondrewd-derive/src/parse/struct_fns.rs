@@ -25,7 +25,11 @@ pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Erro
 fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
     let field_name = field.ident().ident();
     Ok(match field.ty {
-        DataType::Number(ref size, ref sign, ref type_ident) => {
+        DataType::Number {
+            ref size,
+            ref sign,
+            type_quote: ref type_ident,
+        } => {
             let mut full_quote = quote! {
                 self.#field_name = value.clone();
                 value
@@ -79,7 +83,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        DataType::Float(ref size, ref type_ident) => {
+        DataType::Float {
+            ref size,
+            type_quote: ref type_ident,
+        } => {
             let mut full_quote = quote! {
                 self.#field_name = value;
                 value
@@ -130,7 +137,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        DataType::Enum(_, _, ref type_ident) => {
+        DataType::Enum {
+            type_quote: ref type_ident,
+            ..
+        } => {
             let field_fn_name = format_ident!("set_{}", field_name);
             quote! {
                 pub fn #field_fn_name(&mut self, value: #type_ident) {
@@ -141,7 +151,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        DataType::Struct(_, ref type_ident) => {
+        DataType::Struct {
+            type_quote: ref type_ident,
+            ..
+        } => {
             let field_fn_name = format_ident!("{}_mut", field_name);
             quote! {
                 pub fn #field_fn_name(&mut self) -> &mut #type_ident {
@@ -152,7 +165,10 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        DataType::Char(ref size, ref type_ident) => {
+        DataType::Char {
+            ref size,
+            type_quote: ref type_ident,
+        } => {
             let mut full_quote = quote! {
                 self.#field_name = value.clone();
                 value
@@ -191,8 +207,14 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        DataType::ElementArray(_, _, ref type_ident)
-        | DataType::BlockArray(_, _, ref type_ident) => {
+        DataType::ElementArray {
+            type_quote: ref type_ident,
+            ..
+        }
+        | DataType::BlockArray {
+            type_quote: ref type_ident,
+            ..
+        } => {
             // TODO write getters/setters for arrays
             // let field_fn_name = format_ident!("set_{}", field_name);
             quote! {

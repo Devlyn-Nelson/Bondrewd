@@ -29,11 +29,11 @@ impl EnumInfo {
         };
         Ok(FieldInfo {
             ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
-            ty: DataType::Number(
-                self.attrs.id_bits.div_ceil(8),
-                NumberSignage::Unsigned,
-                self.id_type_ident()?,
-            ),
+            ty: DataType::Number {
+                size: self.attrs.id_bits.div_ceil(8),
+                sign: NumberSignage::Unsigned,
+                type_quote: self.id_type_quote()?,
+            },
             attrs: Attributes {
                 endianness: Box::new(e),
                 bit_range: 0..self.attrs.id_bits,
@@ -433,7 +433,7 @@ impl EnumInfo {
             }
         };
         // Finish Variant Id function.
-        let id_ident = self.id_type_ident()?;
+        let id_ident = self.id_type_quote()?;
         gen.append_impl_fns(&quote! {
             pub fn id(&self) -> #id_ident {
                 match self {

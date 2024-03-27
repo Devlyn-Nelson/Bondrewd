@@ -40,7 +40,7 @@ impl Info {
     pub fn total_bytes(&self) -> usize {
         self.total_bits().div_ceil(8)
     }
-    pub fn id_type_ident(&self) -> syn::Result<TokenStream> {
+    pub fn id_type_quote(&self) -> syn::Result<TokenStream> {
         match self.attrs.id_bits {
             0..=8 => Ok(quote! {u8}),
             9..=16 => Ok(quote! {u16}),

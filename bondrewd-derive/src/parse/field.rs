@@ -38,12 +38,7 @@ impl FieldInfo {
             .last();
         let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
         // check the field for supported types.
-        let data_type = DataType::parse(
-            &field.ty,
-            &mut attrs_builder,
-            ident.span(),
-            &attrs.default_endianess,
-        )?;
+        let data_type = DataType::parse(&field.ty, &mut attrs_builder, &attrs.default_endianess)?;
 
         let attrs: Attributes = match attrs_builder.try_into() {
             Ok(attr) => attr,
@@ -81,31 +76,30 @@ impl DataType {
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut AttrBuilder,
-        span: Span,
         default_endianess: &EndiannessInfo,
     ) -> syn::Result<DataType> {
         let data_type = match ty {
             Type::Path(ref path) => match attrs.ty {
-                AttrBuilderType::Struct(ref size) => DataType::Struct(
-                    *size,
-                    if let Some(last_segment) = path.path.segments.last() {
+                AttrBuilderType::Struct(size) => DataType::Struct {
+                    size,
+                    type_quote: if let Some(last_segment) = path.path.segments.last() {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(span, "field has no Type?"));
+                        return Err(syn::Error::new(ty.span(), "field has no Type?"));
                     },
-                ),
-                AttrBuilderType::Enum(ref size, ref prim) => DataType::Enum(
-                    quote! {#prim},
-                    *size,
-                    if let Some(last_segment) = path.path.segments.last() {
+                },
+                AttrBuilderType::Enum(size, ref prim) => DataType::Enum {
+                    type_quote: quote! {#prim},
+                    size,
+                    name_quote: if let Some(last_segment) = path.path.segments.last() {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(span, "field has no Type?"));
+                        return Err(syn::Error::new(ty.span(), "field has no Type?"));
                     },
-                ),
-                _ => Self::parse_path(&path.path, attrs, span)?,
+                },
+                _ => Self::parse_path(&path.path, attrs)?,
             },
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
@@ -118,7 +112,7 @@ impl DataType {
                                         BuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    span,
+                                                    ty.span(),
                                                     "range end is less than range start",
                                                 ));
                                             }
@@ -127,7 +121,7 @@ impl DataType {
                                             {
                                                 return Err(
                                                     syn::Error::new(
-                                                        span,
+                                                        ty.span(),
                                                         "Element arrays bit range didn't match (element bit size * array length)"
                                                     )
                                                 );
@@ -140,7 +134,7 @@ impl DataType {
                                         ),
                                         BuilderRange::None => {
                                             return Err(syn::Error::new(
-                                                span,
+                                                ty.span(),
                                                 "failed getting Range for element array",
                                             ));
                                         }
@@ -155,16 +149,15 @@ impl DataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        span,
                                         default_endianess,
                                     )?;
 
                                     let type_ident = &sub_ty.type_quote();
-                                    DataType::ElementArray(
-                                        Box::new(SubFieldInfo { ty: sub_ty }),
-                                        array_length,
-                                        quote! {[#type_ident;#array_length]},
-                                    )
+                                    DataType::ElementArray {
+                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                        length: array_length,
+                                        type_quote: quote! {[#type_ident;#array_length]},
+                                    }
                                 }
                                 AttrBuilderType::BlockArray(_) => {
                                     let mut sub_attrs = attrs.clone();
@@ -176,16 +169,15 @@ impl DataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
                                     let type_ident = &sub_ty.type_quote();
-                                    DataType::BlockArray(
-                                        Box::new(SubFieldInfo { ty: sub_ty }),
-                                        array_length,
-                                        quote! {[#type_ident;#array_length]},
-                                    )
+                                    DataType::BlockArray {
+                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                        length: array_length,
+                                        type_quote: quote! {[#type_ident;#array_length]},
+                                    }
                                 }
                                 AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
                                     let mut sub_attrs = attrs.clone();
@@ -197,16 +189,15 @@ impl DataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
                                     let type_ident = &sub_ty.type_quote();
-                                    DataType::BlockArray(
-                                        Box::new(SubFieldInfo { ty: sub_ty }),
-                                        array_length,
-                                        quote! {[#type_ident;#array_length]},
-                                    )
+                                    DataType::BlockArray {
+                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                        length: array_length,
+                                        type_quote: quote! {[#type_ident;#array_length]},
+                                    }
                                 }
                                 AttrBuilderType::None => {
                                     let mut sub_attrs = attrs.clone();
@@ -217,21 +208,20 @@ impl DataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
                                         BuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    span,
+                                                    ty.span(),
                                                     "range end is less than range start",
                                                 ));
                                             }
                                             if range.end - range.start % array_length != 0 {
                                                 return Err(
                                                     syn::Error::new(
-                                                        span,
+                                                        ty.span(),
                                                         "Array Inference failed because given total bit_length does not split up evenly between elements"
                                                     )
                                                 );
@@ -249,17 +239,17 @@ impl DataType {
                                         }
                                         BuilderRange::None => {
                                             return Err(syn::Error::new(
-                                                span,
+                                                ty.span(),
                                                 "failed getting Range for element array",
                                             ));
                                         }
                                     };
                                     let type_ident = &sub_ty.type_quote();
-                                    DataType::ElementArray(
-                                        Box::new(SubFieldInfo { ty: sub_ty }),
-                                        array_length,
-                                        quote! {[#type_ident;#array_length]},
-                                    )
+                                    DataType::ElementArray {
+                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                        length: array_length,
+                                        type_quote: quote! {[#type_ident;#array_length]},
+                                    }
                                 }
                             }
                         } else {
@@ -279,7 +269,7 @@ impl DataType {
                 }
             }
             _ => {
-                return Err(Error::new(span, "Unsupported field type"));
+                return Err(Error::new(ty.span(), "Unsupported field type"));
             }
         };
         // if the type is a number and its endianess is None (numbers should have endianess) then we
@@ -300,11 +290,7 @@ impl DataType {
         Ok(data_type)
     }
     #[allow(clippy::too_many_lines)]
-    fn parse_path(
-        path: &syn::Path,
-        attrs: &mut AttrBuilder,
-        field_span: Span,
-    ) -> syn::Result<DataType> {
+    fn parse_path(path: &syn::Path, attrs: &mut AttrBuilder) -> syn::Result<DataType> {
         match attrs.ty {
             AttrBuilderType::None => {
                 if let Some(last_segment) = path.segments.last() {
@@ -319,118 +305,128 @@ impl DataType {
                             }
                             _ => Ok(DataType::Boolean),
                         },
-                        "u8" => Ok(DataType::Number(
-                            1,
-                            NumberSignage::Unsigned,
-                            quote! {#type_quote},
-                        )),
-                        "i8" => Ok(DataType::Number(
-                            1,
-                            NumberSignage::Signed,
-                            quote! {#type_quote},
-                        )),
-                        "u16" => Ok(DataType::Number(
-                            2,
-                            NumberSignage::Unsigned,
-                            quote! {#type_quote},
-                        )),
-                        "i16" => Ok(DataType::Number(
-                            2,
-                            NumberSignage::Signed,
-                            quote! {#type_quote},
-                        )),
+                        "u8" => Ok(DataType::Number {
+                            size: 1,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "i8" => Ok(DataType::Number {
+                            size: 1,
+                            sign: NumberSignage::Signed,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "u16" => Ok(DataType::Number {
+                            size: 2,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "i16" => Ok(DataType::Number {
+                            size: 2,
+                            sign: NumberSignage::Signed,
+                            type_quote: quote! {#type_quote},
+                        }),
                         "f32" => {
                             if let BuilderRange::Range(ref span) = attrs.bit_range {
                                 if 32 != span.end - span.start {
-                                    return Err(syn::Error::new(field_span, format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
+                                    return Err(syn::Error::new(path.span(), format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
-                            Ok(DataType::Float(4, quote! {#type_quote}))
+                            Ok(DataType::Float {
+                                size: 4,
+                                type_quote: quote! {#type_quote},
+                            })
                         }
-                        "u32" => Ok(DataType::Number(
-                            4,
-                            NumberSignage::Unsigned,
-                            quote! {#type_quote},
-                        )),
-                        "i32" => Ok(DataType::Number(
-                            4,
-                            NumberSignage::Signed,
-                            quote! {#type_quote},
-                        )),
-                        "char" => Ok(DataType::Char(4, quote! {#type_quote})),
+                        "u32" => Ok(DataType::Number {
+                            size: 4,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "i32" => Ok(DataType::Number {
+                            size: 4,
+                            sign: NumberSignage::Signed,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "char" => Ok(DataType::Char {
+                            size: 4,
+                            type_quote: quote! {#type_quote},
+                        }),
                         "f64" => {
                             if let BuilderRange::Range(ref span) = attrs.bit_range {
                                 if 64 != span.end - span.start {
-                                    return Err(syn::Error::new(field_span, format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
+                                    return Err(syn::Error::new(path.span(), format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
-                            Ok(DataType::Float(8, quote! {#type_quote}))
+                            Ok(DataType::Float {
+                                size: 8,
+                                type_quote: quote! {#type_quote},
+                            })
                         }
-                        "u64" => Ok(DataType::Number(
-                            8,
-                            NumberSignage::Unsigned,
-                            quote! {#type_quote},
-                        )),
-                        "i64" => Ok(DataType::Number(
-                            8,
-                            NumberSignage::Signed,
-                            quote! {#type_quote},
-                        )),
-                        "u128" => Ok(DataType::Number(
-                            16,
-                            NumberSignage::Unsigned,
-                            quote! {#type_quote},
-                        )),
-                        "i128" => Ok(DataType::Number(
-                            16,
-                            NumberSignage::Signed,
-                            quote! {#type_quote},
-                        )),
+                        "u64" => Ok(DataType::Number {
+                            size: 8,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "i64" => Ok(DataType::Number {
+                            size: 8,
+                            sign: NumberSignage::Signed,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "u128" => Ok(DataType::Number {
+                            size: 16,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {#type_quote},
+                        }),
+                        "i128" => Ok(DataType::Number {
+                            size: 16,
+                            sign: NumberSignage::Signed,
+                            type_quote: quote! {#type_quote},
+                        }),
                         "usize" | "isize" => Err(Error::new(
-                            field_span,
+                            path.span(),
                             "usize and isize are not supported due to ambiguous sizing".to_string(),
                         )),
-                        _ => {
-                            Ok(DataType::Struct(
-                                match attrs.bit_range {
-                                    BuilderRange::Range(ref range) => {
-                                        (range.end - range.start).div_ceil(8)
-                                    }
-                                    BuilderRange::LastEnd(_) | BuilderRange::None => {
-                                        return Err(Error::new(
-                                            field_span,
+                        _ => Ok(DataType::Struct {
+                            size: match attrs.bit_range {
+                                BuilderRange::Range(ref range) => {
+                                    (range.end - range.start).div_ceil(8)
+                                }
+                                BuilderRange::LastEnd(_) | BuilderRange::None => {
+                                    return Err(Error::new(
+                                            path.span(),
                                             format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
                                         ));
-                                    }
-                                },
-                                quote! {#type_quote},
-                            ))
-                            // Err(Error::new(
-                            //     field_span,
-                            //     format!("unknown primitive type [{}]", field_type_name),
-                            // ))
-                        }
+                                }
+                            },
+                            type_quote: quote! {#type_quote},
+                        }),
                     }
                 } else {
-                    Err(syn::Error::new(field_span, "field has no Type?"))
+                    Err(syn::Error::new(path.span(), "field has no Type?"))
                 }
             }
             AttrBuilderType::Struct(size) => {
                 if let Some(ident) = path.get_ident() {
-                    Ok(DataType::Struct(size, quote! {#ident}))
+                    Ok(DataType::Struct {
+                        size,
+                        type_quote: quote! {#ident},
+                    })
                 } else {
-                    Err(syn::Error::new(field_span, "field has no Type?"))
+                    Err(syn::Error::new(path.span(), "field has no Type?"))
                 }
             }
             AttrBuilderType::Enum(size, ref type_ident) => {
                 if let Some(ident) = path.get_ident() {
-                    Ok(DataType::Enum(quote! {#type_ident}, size, quote! {#ident}))
+                    Ok(DataType::Enum {
+                        type_quote: quote! {#type_ident},
+                        size,
+                        name_quote: quote! {#ident},
+                    })
                 } else {
-                    Err(syn::Error::new(field_span, "field has no Type?"))
+                    Err(syn::Error::new(path.span(), "field has no Type?"))
                 }
             }
             _ => Err(syn::Error::new(
-                field_span,
+                path.span(),
                 "Array did not get detected properly, found Path",
             )),
         }
@@ -965,7 +961,7 @@ impl AttrBuilder {
                         }
                         "capture_id" => {
                             if let Some(lf) = last_field {
-                                if lf.ident().name().to_string() == EnumInfo::VARIANT_ID_NAME {
+                                if lf.ident().name() == EnumInfo::VARIANT_ID_NAME {
                                     builder.capture_id = true;
                                 } else {
                                     return Err(syn::Error::new(ident.span(), "capture_id shall only be used on the first field of a enum variant."));

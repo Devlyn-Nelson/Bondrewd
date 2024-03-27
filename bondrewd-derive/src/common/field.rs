@@ -84,68 +84,116 @@ pub enum NumberSignage {
 #[derive(Clone, Debug)]
 pub enum DataType {
     Boolean,
-    /// first field is byte size for number
-    Number(usize, NumberSignage, proc_macro2::TokenStream),
-    Float(usize, proc_macro2::TokenStream),
-    /// first value is primitive type byte size of enum value in bytes.
-    Enum(proc_macro2::TokenStream, usize, proc_macro2::TokenStream),
-    /// first field is size in BYTES of the entire struct
-    Struct(usize, proc_macro2::TokenStream),
-    Char(usize, proc_macro2::TokenStream),
-    // array types are Subfield info, array length, ident
-    ElementArray(Box<SubInfo>, usize, proc_macro2::TokenStream),
-    BlockArray(Box<SubInfo>, usize, proc_macro2::TokenStream),
+    Number {
+        /// The fields rust-type size in bytes.
+        size: usize,
+        sign: NumberSignage,
+        /// Quote containing the original type name.
+        type_quote: proc_macro2::TokenStream,
+    },
+    Float {
+        /// The fields rust-type size in bytes.
+        size: usize,
+        /// Quote containing the original type name.
+        type_quote: proc_macro2::TokenStream,
+    },
+    Enum {
+        /// Quote containing the original type name.
+        type_quote: proc_macro2::TokenStream,
+        /// The fields rust-type size in bytes.
+        size: usize,
+        /// quote containing the name or ident of the field.
+        name_quote: proc_macro2::TokenStream,
+    },
+    Struct {
+        /// The fields rust-type size in bytes.
+        size: usize,
+        /// quote containing the name or ident of the field.
+        type_quote: proc_macro2::TokenStream,
+    },
+    Char {
+        /// The fields rust-type size in bytes.
+        size: usize,
+        /// Quote containing the original type name.
+        type_quote: proc_macro2::TokenStream,
+    },
+    ElementArray {
+        /// Type information for the type contained in the array.
+        sub_type: Box<SubInfo>,
+        /// Amount of items in the array.
+        length: usize,
+        /// quote containing the array type and length.
+        type_quote: proc_macro2::TokenStream,
+    },
+    BlockArray {
+        /// Type information for the type contained in the array.
+        sub_type: Box<SubInfo>,
+        /// Amount of items in the array.
+        length: usize,
+        /// quote containing the array type and length.
+        type_quote: proc_macro2::TokenStream,
+    },
 }
 
 impl DataType {
-    /// byte size of actual rust type .
+    /// returns the byte size of actual rust type .
     pub fn size(&self) -> usize {
         match self {
-            Self::Number(size, _, _)
-            | Self::Float(size, _)
-            | Self::Enum(_, size, _)
-            | Self::Struct(size, _)
-            | Self::Char(size, _) => *size,
-            Self::ElementArray(ref fields, size, _) | Self::BlockArray(ref fields, size, _) => {
-                fields.ty.size() * size
+            Self::Number { size, .. }
+            | Self::Float { size, .. }
+            | Self::Enum { size, .. }
+            | Self::Struct { size, .. }
+            | Self::Char { size, .. } => *size,
+            Self::ElementArray {
+                ref sub_type,
+                length,
+                ..
             }
+            | Self::BlockArray {
+                ref sub_type,
+                length,
+                ..
+            } => sub_type.ty.size() * length,
             Self::Boolean => 1,
         }
     }
-
+    /// a quote of the field's rust type
     pub fn type_quote(&self) -> proc_macro2::TokenStream {
         match self {
-            Self::Number(_, _, ref ident)
-            | Self::Float(_, ref ident)
-            | Self::Enum(_, _, ref ident)
-            | Self::Struct(_, ref ident)
-            | Self::Char(_, ref ident)
-            | Self::ElementArray(_, _, ref ident)
-            | Self::BlockArray(_, _, ref ident) => ident.clone(),
+            Self::Number { type_quote, .. }
+            | Self::Float { type_quote, .. }
+            | Self::Enum { type_quote, .. }
+            | Self::Struct { type_quote, .. }
+            | Self::Char { type_quote, .. }
+            | Self::ElementArray { type_quote, .. }
+            | Self::BlockArray { type_quote, .. } => type_quote.clone(),
             Self::Boolean => quote! {bool},
         }
     }
+    /// Returns `true` if `self` a rust primitive number (u32, f64, etc.. ), a `char` or an array that
+    /// has a base type of those.
     pub fn is_number(&self) -> bool {
         match self {
-            Self::Enum(_, _, _) | Self::Number(_, _, _) | Self::Float(_, _) | Self::Char(_, _) => {
+            Self::Enum { .. } | Self::Number { .. } | Self::Float { .. } | Self::Char { .. } => {
                 true
             }
-            Self::Boolean | Self::Struct(_, _) => false,
-            Self::ElementArray(ref ty, _, _) | Self::BlockArray(ref ty, _, _) => {
-                ty.as_ref().ty.is_number()
+            Self::Boolean | Self::Struct { .. } => false,
+            Self::ElementArray { sub_type, .. } | Self::BlockArray { sub_type, .. } => {
+                sub_type.as_ref().ty.is_number()
             }
         }
     }
+    /// returns the bit size, or in the case of arrays the inner most type's bit size.
     pub fn get_element_bit_length(&self) -> usize {
         match self {
             Self::Boolean => 1,
-            Self::Char(_, _) => 32,
-            Self::Number(ref size, _, _)
-            | Self::Enum(_, ref size, _)
-            | Self::Float(ref size, _)
-            | Self::Struct(ref size, _) => size * 8,
-            Self::BlockArray(sub, _, _) | Self::ElementArray(sub, _, _) => {
-                sub.as_ref().ty.get_element_bit_length()
+            Self::Char { .. } => 32,
+            Self::Number { size, .. }
+            | Self::Enum { size, .. }
+            | Self::Float { size, .. }
+            | Self::Struct { size, .. } => size * 8,
+            Self::BlockArray { sub_type, .. } | Self::ElementArray { sub_type, .. } => {
+                sub_type.as_ref().ty.get_element_bit_length()
             }
         }
     }
@@ -215,11 +263,14 @@ pub struct Attributes {
 }
 
 impl Attributes {
+    /// Returns the amount of bits the field should occupy in byte form.
     pub fn bit_length(&self) -> usize {
         self.bit_range.end - self.bit_range.start
     }
 }
 
+/// This type exists for the express purpose of stopping rust from complaining about
+/// putting an enum type as one of its own fields. This is needed for arrays so...
 #[derive(Clone, Debug)]
 pub struct SubInfo {
     pub ty: DataType,
@@ -311,14 +362,17 @@ impl Iterator for BlockSubFieldIter {
     }
 }
 
+/// Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
 pub enum DynamicIdent {
+    /// Named Field
     Ident {
         /// name of the field given by the user.
         ident: Ident,
         /// name of the value given by bondrewd.
         name: Ident,
     },
+    /// Tuple Struct Field
     Index {
         /// Index of the field in the tuple struct/enum-variant
         index: usize,
@@ -377,8 +431,10 @@ impl From<(Ident, Ident)> for DynamicIdent {
     }
 }
 
+/// Stores information about a field and how it shall be represented in byte form.
 #[derive(Clone, Debug)]
 pub struct Info {
+    /// The name of the field.
     pub ident: Box<DynamicIdent>,
     pub ty: DataType,
     pub attrs: Attributes,
@@ -470,12 +526,17 @@ impl Info {
     }
 
     #[inline]
-    pub fn struct_byte_size(&self) -> usize {
+    pub fn byte_size(&self) -> usize {
         self.ty.size()
     }
 
     pub fn get_element_iter(&self) -> Result<ElementSubFieldIter, syn::Error> {
-        if let DataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
+        if let DataType::ElementArray {
+            sub_type: ref sub_field,
+            length: ref array_length,
+            ..
+        } = self.ty
+        {
             Ok(ElementSubFieldIter {
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
@@ -490,13 +551,18 @@ impl Info {
         } else {
             Err(syn::Error::new(
                 self.ident.span(),
-                "This field was trying to get used like an array",
+                "This field was trying to get used like an element array",
             ))
         }
     }
 
     pub fn get_block_iter(&self) -> Result<BlockSubFieldIter, syn::Error> {
-        if let DataType::BlockArray(ref sub_field, ref array_length, _) = self.ty {
+        if let DataType::BlockArray {
+            sub_type: ref sub_field,
+            length: ref array_length,
+            ..
+        } = self.ty
+        {
             let bit_length = self.attrs.bit_range.end - self.attrs.bit_range.start;
             Ok(BlockSubFieldIter {
                 outer_ident: self.ident.clone(),
@@ -512,7 +578,7 @@ impl Info {
         } else {
             Err(syn::Error::new(
                 self.ident.span(),
-                "This field was trying to get used like an array",
+                "This field was trying to get used like a block array",
             ))
         }
     }

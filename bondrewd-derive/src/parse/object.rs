@@ -121,11 +121,11 @@ impl ObjectInfo {
                         ));
                     };
                     (
-                        DataType::Number(
-                            id_bits.div_ceil(8),
-                            NumberSignage::Unsigned,
-                            get_id_type(id_bits, name.span())?,
-                        ),
+                        DataType::Number {
+                            size: id_bits.div_ceil(8),
+                            sign: NumberSignage::Unsigned,
+                            type_quote: get_id_type(id_bits, name.span())?,
+                        },
                         id_bits,
                     )
                 };
@@ -372,13 +372,17 @@ impl ObjectInfo {
                                 overlap: OverlapOptions::None,
                                 capture_id: false,
                             },
-                            ty: DataType::BlockArray(
-                                Box::new(SubFieldInfo {
-                                    ty: DataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                            ty: DataType::BlockArray {
+                                sub_type: Box::new(SubFieldInfo {
+                                    ty: DataType::Number {
+                                        size: 1,
+                                        sign: NumberSignage::Unsigned,
+                                        type_quote: quote! {u8},
+                                    },
                                 }),
-                                fill_bytes_size,
-                                quote! {[u8;#fill_bytes_size]},
-                            ),
+                                length: fill_bytes_size,
+                                type_quote: quote! {[u8;#fill_bytes_size]},
+                            },
                         });
                     }
                 }
@@ -439,7 +443,7 @@ impl ObjectInfo {
                     if is_enum {
                         if i == 0 {
                             match (&parsed_fields[0].ty, &mut parsed_field.ty) {
-                                (DataType::Number(_, ref bon_sign, ref bon_ty), DataType::Number(_, ref user_sign, ref user_ty)) => {
+                                (DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..}, DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}) => {
                                     if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
                                         parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
                                     }
@@ -453,7 +457,7 @@ impl ObjectInfo {
                                         parsed_field.ident = old_id.ident;
                                     }
                                 }
-                                (DataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
+                                (DataType::Number{ type_quote: bon_ty, ..}, _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
                                 _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
                             }
                         } else {
@@ -515,13 +519,17 @@ impl ObjectInfo {
                     overlap: OverlapOptions::None,
                     capture_id: false,
                 },
-                ty: DataType::BlockArray(
-                    Box::new(SubFieldInfo {
-                        ty: DataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                ty: DataType::BlockArray {
+                    sub_type: Box::new(SubFieldInfo {
+                        ty: DataType::Number {
+                            size: 1,
+                            sign: NumberSignage::Unsigned,
+                            type_quote: quote! {u8},
+                        },
                     }),
-                    fill_bytes_size,
-                    quote! {[u8;#fill_bytes_size]},
-                ),
+                    length: fill_bytes_size,
+                    type_quote: quote! {[u8;#fill_bytes_size]},
+                },
             });
         }
 
