@@ -2,11 +2,11 @@ use bondrewd::Bitfields;
 #[derive(Bitfields, Clone, Debug, PartialEq)]
 #[bondrewd(default_endianness = "le")]
 struct Packed {
-    #[bondrewd(bit_length = a)]
+    #[bondrewd(bit_length = 4)]
     one: u16,
     #[bondrewd(bit_length = 10)]
     two: u16,
-    #[bondrewd(bit_length = 2)]
+    #[bondrewd(bit_length = 2, bondrewd)]
     three: u16,
 }
 

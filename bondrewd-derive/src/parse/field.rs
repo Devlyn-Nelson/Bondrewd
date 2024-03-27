@@ -33,7 +33,7 @@ impl FieldInfo {
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
-        let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field, ident.span())?;
+        let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
         // check the field for supported types.
         let data_type = DataType::parse(
             &field.ty,
@@ -490,7 +490,6 @@ impl Default for BuilderRange {
 #[derive(Clone, Debug)]
 pub struct AttrBuilder {
     /// name is just so we can give better errors
-    span: Span,
     pub endianness: Endianness,
     pub bit_range: BuilderRange,
     pub ty: AttrBuilderType,
@@ -502,9 +501,8 @@ pub struct AttrBuilder {
 }
 
 impl AttrBuilder {
-    fn new(span: Span) -> Self {
+    fn new() -> Self {
         Self {
-            span,
             endianness: Endianness::None,
             bit_range: BuilderRange::None,
             ty: AttrBuilderType::None,
@@ -514,16 +512,11 @@ impl AttrBuilder {
         }
     }
 
-    fn span(&self) -> Span {
-        self.span
-    }
-
     pub fn parse(
         field: &syn::Field,
         last_field: Option<&FieldInfo>,
-        span: Span,
     ) -> syn::Result<AttrBuilder> {
-        let mut builder = AttrBuilder::new(span);
+        let mut builder = AttrBuilder::new();
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
         // filled in using the end of the previous field as the start, add the length in bits you get the
@@ -777,14 +770,14 @@ impl AttrBuilder {
                                         BuilderRange::Range(range)
                                     }
                                     BuilderRange::LastEnd(_) => return Err(Error::new(
-                                        builder.span(),
+                                        ident.span(),
                                         "found Field bit range no_end while element_bit_length attribute which should never happen",
                                     )),
                                 };
                                 }
                                 Err(err) => {
                                     return Err(Error::new(
-                                    builder.span(),
+                                    ident.span(),
                                     format!("bit_length must be a number that can be parsed as a usize [{err}]"),
                                 ));
                                 }
@@ -821,14 +814,14 @@ impl AttrBuilder {
                                             BuilderRange::Range(range)
                                         }
                                         BuilderRange::LastEnd(_) => return Err(Error::new(
-                                            builder.span(),
+                                            ident.span(),
                                             "found Field bit range no_end while element_byte_length attribute which should never happen",
                                         )),
                                     };
                                 }
                                 Err(err) => {
                                     return Err(Error::new(
-                                        builder.span(),
+                                        ident.span(),
                                         format!("byte_length must be a number that can be parsed as a usize [{err}]"),
                                     ));
                                 }
@@ -866,20 +859,20 @@ impl AttrBuilder {
                                                 BuilderRange::Range(range)
                                                 }else{
                                                     return Err(Error::new(
-                                                        builder.span(),
+                                                        ident.span(),
                                                         "size of bit_range provided by (bits, bit_length, or byte_length) does not match array_bit_length",
                                                     ));
                                                 }
                                             }
                                             BuilderRange::LastEnd(_) => return Err(Error::new(
-                                                    builder.span(),
+                                                    ident.span(),
                                                     "found Field bit range no-end while array_bit_length attribute which should never happen",
                                                 )),
                                         };
                                 }
                                 Err(err) => {
                                     return Err(Error::new(
-                                            builder.span(),
+                                            ident.span(),
                                             format!("array_bit_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                 }
@@ -917,20 +910,20 @@ impl AttrBuilder {
                                                 BuilderRange::Range(range)
                                                 }else{
                                                     return Err(Error::new(
-                                                        builder.span(),
+                                                        ident.span(),
                                                         "size of bit_range provided by (bits, bit_length, or byte_length) does not match array_byte_length",
                                                     ));
                                                 }
                                             }
                                             BuilderRange::LastEnd(_) => return Err(Error::new(
-                                                builder.span(),
+                                                ident.span(),
                                                 "found Field bit range no-end while array_byte_length attribute which should never happen",
                                             )),
                                         };
                                 }
                                 Err(err) => {
                                     return Err(Error::new(
-                                            builder.span(),
+                                            ident.span(),
                                             format!("array_byte_length must be a number that can be parsed as a usize [{err}]"),
                                         ));
                                 }
@@ -943,7 +936,7 @@ impl AttrBuilder {
                                 Ok(bits) => builder.overlap = OverlapOptions::Allow(bits),
                                 Err(err) => {
                                     return Err(Error::new(
-                                            builder.span(),
+                                            ident.span(),
                                             format!("overlapping_bits must provided a number that can be parsed as a usize [{err}]"),
                                         ));
                                 }
@@ -952,7 +945,7 @@ impl AttrBuilder {
                         _ => {
                             if ident_as_str.as_str() != "doc" {
                                 return Err(Error::new(
-                                    builder.span(),
+                                    ident.span(),
                                     format!("\"{ident_as_str}\" is not a valid attribute"),
                                 ));
                             }
@@ -980,7 +973,7 @@ impl AttrBuilder {
                         _ => {
                             if ident_str.as_str() != "doc" {
                                 return Err(Error::new(
-                                    builder.span(),
+                                    ident.span(),
                                     format!("\"{ident_str}\" is not a valid attribute"),
                                 ));
                             }
