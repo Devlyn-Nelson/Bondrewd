@@ -23,13 +23,13 @@ pub(crate) fn get_lit_str<'a>(
         } else {
             Err(syn::Error::new(
                 ident.span(),
-                format!("{ident} requires a integer literal. {example}"),
+                format!("{ident} requires a string literal. {example}"),
             ))
         }
     } else {
         Err(syn::Error::new(
             ident.span(),
-            format!("{ident} requires a integer literal. {example}"),
+            format!("{ident} requires a string literal. {example}"),
         ))
     }
 }
@@ -50,13 +50,13 @@ pub(crate) fn get_lit_int<'a>(
         } else {
             Err(syn::Error::new(
                 ident.span(),
-                format!("{ident} requires a string literal. {example}"),
+                format!("{ident} requires a integer literal. {example}"),
             ))
         }
     } else {
         Err(syn::Error::new(
             ident.span(),
-            format!("{ident} requires a string literal. {example}"),
+            format!("{ident} requires a integer literal. {example}"),
         ))
     }
 }
