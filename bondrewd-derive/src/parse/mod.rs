@@ -1,6 +1,7 @@
 pub mod r#enum;
 pub mod field;
 pub mod object;
+pub mod r#struct;
 #[cfg(feature = "setters")]
 pub mod struct_fns;
 

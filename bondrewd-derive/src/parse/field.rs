@@ -6,11 +6,14 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Ident, Meta, Token, Type};
 
-use crate::common::field::{
-    Attributes, DataType, DynamicIdent, Endianness, Info as FieldInfo, NumberSignage,
-    OverlapOptions, ReserveFieldOption, SubInfo as SubFieldInfo,
-};
 use crate::common::AttrInfo;
+use crate::common::{
+    field::{
+        Attributes, DataType, DynamicIdent, Endianness, Info as FieldInfo, NumberSignage,
+        OverlapOptions, ReserveFieldOption, SubInfo as SubFieldInfo,
+    },
+    r#enum::Info as EnumInfo,
+};
 
 use super::{get_lit_int, get_lit_range, get_lit_str};
 
@@ -580,7 +583,7 @@ impl AttrBuilder {
                                     Err(err) => {
                                         return Err(Error::new(
                                             ident.span(),
-                                            format!("bit_length must be a number that can be parsed as a usize. [{err}]"),
+                                            format!("bit_length must provide a number that can be parsed as a usize. [{err}]"),
                                         ));
                                     }
                                 }
@@ -607,7 +610,7 @@ impl AttrBuilder {
                                     Err(err) => {
                                         return Err(Error::new(
                                             ident.span(),
-                                            format!("byte_length must be a number that can be parsed as a usize. [{err}]"),
+                                            format!("byte_length must provide a number that can be parsed as a usize. [{err}]"),
                                         ));
                                     }
                                 }
@@ -644,7 +647,7 @@ impl AttrBuilder {
                                         _ => {
                                             return Err(syn::Error::new(
                                                 ident.span(),
-                                                "enum_primitive must be an unsigned integer rust primitive.  example `enum_primitive = \"u8\"`",
+                                                "enum_primitive must provide an unsigned integer rust primitive.  example `enum_primitive = \"u8\"`",
                                             ))
                                         }
                                     });
@@ -775,7 +778,7 @@ impl AttrBuilder {
                                 Err(err) => {
                                     return Err(Error::new(
                                     ident.span(),
-                                    format!("bit_length must be a number that can be parsed as a usize [{err}]"),
+                                    format!("bit_length must provide a number that can be parsed as a usize [{err}]"),
                                 ));
                                 }
                             }
@@ -819,7 +822,7 @@ impl AttrBuilder {
                                 Err(err) => {
                                     return Err(Error::new(
                                         ident.span(),
-                                        format!("byte_length must be a number that can be parsed as a usize [{err}]"),
+                                        format!("byte_length must provide a number that can be parsed as a usize [{err}]"),
                                     ));
                                 }
                             }
@@ -870,7 +873,7 @@ impl AttrBuilder {
                                 Err(err) => {
                                     return Err(Error::new(
                                             ident.span(),
-                                            format!("array_bit_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("array_bit_length must provide a number that can be parsed as a usize [{err}]"),
                                         ));
                                 }
                             }
@@ -921,7 +924,7 @@ impl AttrBuilder {
                                 Err(err) => {
                                     return Err(Error::new(
                                             ident.span(),
-                                            format!("array_byte_length must be a number that can be parsed as a usize [{err}]"),
+                                            format!("array_byte_length must provide a number that can be parsed as a usize [{err}]"),
                                         ));
                                 }
                             }
@@ -961,7 +964,15 @@ impl AttrBuilder {
                             builder.reserve = ReserveFieldOption::ReadOnly;
                         }
                         "capture_id" => {
-                            builder.capture_id = true;
+                            if let Some(lf) = last_field {
+                                if lf.ident().name().to_string() == EnumInfo::VARIANT_ID_NAME {
+                                    builder.capture_id = true;
+                                } else {
+                                    return Err(syn::Error::new(ident.span(), "capture_id shall only be used on the first field of a enum variant."));
+                                }
+                            } else {
+                                return Err(syn::Error::new(ident.span(), "capture_id shall only be used on the first field of a enum variant."));
+                            }
                         }
                         "redundant" => {
                             builder.overlap = OverlapOptions::Redundant;
