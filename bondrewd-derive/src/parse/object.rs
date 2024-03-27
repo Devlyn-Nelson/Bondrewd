@@ -52,12 +52,11 @@ impl ObjectInfo {
         enum_attrs_info: &mut AttrInfoBuilder,
     ) -> syn::Result<()> {
         for attr in attrs {
-            let span = attr.pound_token.span();
             if attr.path().is_ident("bondrewd") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
                 for meta in &nested {
-                    Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, meta)?;
+                    Self::parse_enum_attrs_meta(attrs_info, enum_attrs_info, meta)?;
                 }
             }
             // let meta = attr.parse_meta()?;
@@ -389,7 +388,6 @@ impl ObjectInfo {
         }
     }
     fn parse_enum_attrs_meta(
-        span: Span,
         info: &mut AttrInfo,
         enum_info: &mut AttrInfoBuilder,
         meta: &Meta,
@@ -406,7 +404,7 @@ impl ObjectInfo {
                                 Ok(value) => {
                                     if value > 128 {
                                         return Err(syn::Error::new(
-                                            span,
+                                            ident.span(),
                                             "Maximum id bits is 128.",
                                         ));
                                     }
@@ -414,7 +412,7 @@ impl ObjectInfo {
                                 }
                                 Err(err) => {
                                     return Err(syn::Error::new(
-                                        span,
+                                        ident.span(),
                                         format!("failed parsing id-bits value [{err}]"),
                                     ))
                                 }
@@ -427,7 +425,7 @@ impl ObjectInfo {
                                 Ok(value) => {
                                     if value > 16 {
                                         return Err(syn::Error::new(
-                                            span,
+                                            ident.span(),
                                             "Maximum id bytes is 16.",
                                         ));
                                     }
@@ -435,7 +433,7 @@ impl ObjectInfo {
                                 }
                                 Err(err) => {
                                     return Err(syn::Error::new(
-                                        span,
+                                        ident.span(),
                                         format!("failed parsing id-bytes value [{err}]"),
                                     ))
                                 }
@@ -453,7 +451,7 @@ impl ObjectInfo {
                                 }
                                 Err(err) => {
                                     return Err(syn::Error::new(
-                                        span,
+                                        ident.span(),
                                         format!("failed parsing payload-bits value [{err}]"),
                                     ))
                                 }
@@ -471,7 +469,7 @@ impl ObjectInfo {
                                 }
                                 Err(err) => {
                                     return Err(syn::Error::new(
-                                        span,
+                                        ident.span(),
                                         format!("failed parsing payload-bytes value [{err}]"),
                                     ))
                                 }
