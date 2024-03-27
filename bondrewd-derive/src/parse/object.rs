@@ -35,12 +35,11 @@ impl ObjectInfo {
         is_variant: bool,
     ) -> syn::Result<()> {
         for attr in attrs {
-            let span = attr.pound_token.span();
             if attr.path().is_ident("bondrewd") {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
                 for meta in &nested {
-                    Self::parse_struct_attrs_meta(span, attrs_info, meta, is_variant)?;
+                    Self::parse_struct_attrs_meta(attrs_info, meta, is_variant)?;
                 }
             }
         }
@@ -498,7 +497,7 @@ impl ObjectInfo {
             }
             Meta::List(_meta_list) => {}
         }
-        Self::parse_struct_attrs_meta(span, info, meta, false)?;
+        Self::parse_struct_attrs_meta(info, meta, false)?;
         if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
             enum_info.total_bit_size = Some(bits);
             info.enforcement = StructEnforcement::NoRules;
@@ -507,7 +506,6 @@ impl ObjectInfo {
     }
     #[allow(clippy::too_many_lines)]
     fn parse_struct_attrs_meta(
-        span: Span,
         info: &mut AttrInfo,
         meta: &Meta,
         is_variant: bool,
@@ -527,21 +525,21 @@ impl ObjectInfo {
                                                     info.id = Some(value);
                                                 } else {
                                                     return Err(syn::Error::new(
-                                                        span,
+                                                        ident.span(),
                                                         "must not have 2 ids defined.",
                                                     ));
                                                 }
                                             }
                                             Err(err) => {
                                                 return Err(syn::Error::new(
-                                                    span,
+                                                    ident.span(),
                                                     format!("failed parsing id value [{err}]"),
                                                 ))
                                             }
                                         }
                                     } else {
                                         return Err(syn::Error::new(
-                                            span,
+                                            ident.span(),
                                             format!(
                                                 "improper usage of {}, must use literal integer ex. `{} = 0`",
                                                 EnumInfo::VARIANT_ID_NAME,
@@ -573,7 +571,7 @@ impl ObjectInfo {
                                 }
                                 } else {
                                     return Err(syn::Error::new(
-                                    span,
+                                    ident.span(),
                                     "improper usage of bit_traversal, must use string ex. `bit_traversal = \"lsb\"`",
                                 ));
                                 }
@@ -581,7 +579,7 @@ impl ObjectInfo {
                         }
                         "read_from" => {
                             return Err(syn::Error::new(
-                                span,
+                                ident.span(),
                                 "`read_from` has been deprecated, please use `bit_traversal`",
                             ));
                         }
@@ -602,7 +600,7 @@ impl ObjectInfo {
                                     }
                                 } else {
                                     return Err(syn::Error::new(
-                                    span,
+                                    ident.span(),
                                     "improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`",
                                 ));
                                 }
@@ -618,7 +616,7 @@ impl ObjectInfo {
                                         }
                                         Err(err) => {
                                             return Err(syn::Error::new(
-                                                span,
+                                                ident.span(),
                                                 format!(
                                                     "failed parsing enforce_bytes value [{err}]"
                                                 ),
@@ -627,7 +625,7 @@ impl ObjectInfo {
                                     }
                                 } else {
                                     return Err(syn::Error::new(
-                                    span,
+                                    ident.span(),
                                     "improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`",
                                 ));
                                 }
@@ -643,7 +641,7 @@ impl ObjectInfo {
                                         }
                                         Err(err) => {
                                             return Err(syn::Error::new(
-                                                span,
+                                                ident.span(),
                                                 format!(
                                                     "failed parsing enforce_bits value [{err}]"
                                                 ),
@@ -652,7 +650,7 @@ impl ObjectInfo {
                                     }
                                 } else {
                                     return Err(syn::Error::new(
-                                    span,
+                                    ident.span(),
                                     "improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`",
                                 ));
                                 }
@@ -667,27 +665,27 @@ impl ObjectInfo {
                                                 info.fill_bits = Some(value * 8);
                                             } else {
                                                 return Err(syn::Error::new(
-                                                    span,
+                                                    ident.span(),
                                                     "multiple fill_bits values".to_string(),
                                                 ));
                                             }
                                         }
                                         Err(err) => {
                                             return Err(syn::Error::new(
-                                                span,
+                                                ident.span(),
                                                 format!("failed parsing fill_bits value [{err}]"),
                                             ))
                                         }
                                     }
                                 } else {
                                     return Err(syn::Error::new(
-                                    span,
+                                    ident.span(),
                                     "improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`",
                                 ));
                                 }
                             }
                         }
-                        _ => {}
+                        _ => {},
                     }
                 }
             }
@@ -711,17 +709,11 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::List(ref _meta_list) => {
-                // if meta_list.path.is_ident("bondrewd") {
-                //     for nested_meta in meta_list.nested.iter() {
-                //         match nested_meta {
-                //             NestedMeta::Meta(ref meta) => {
-                //                 Self::parse_struct_attrs_meta(span, info, meta, is_variant)?;
-                //             }
-                //             NestedMeta::Lit(_) => {}
-                //         }
-                //     }
-                // }
+            Meta::List(ref meta_list) => {
+                return Err(syn::Error::new(
+                    meta_list.span(),
+                    "bondrewd does not offer any list attribute for fields",
+                ))
             }
         }
         Ok(())

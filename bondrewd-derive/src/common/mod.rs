@@ -20,14 +20,14 @@ pub struct AttrInfo {
     /// flip all the bytes, like .reverse() for vecs or arrays. but we do that here because we can do
     /// it with no runtime cost.
     pub flip: bool,
-    /// When this is used with an Enum, Invalid means
-    pub invalid: bool,
     pub dump: bool,
     pub enforcement: StructEnforcement,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
     // Enum only
     pub id: Option<u128>,
+    /// When this is used with an Enum, Invalid means
+    pub invalid: bool,
 }
 
 impl Default for AttrInfo {
