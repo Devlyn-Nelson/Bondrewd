@@ -21,16 +21,16 @@ pub(crate) fn get_lit_str<'a>(
         if let Lit::Str(ref val) = lit.lit {
             Ok(val)
         } else {
-            return Err(syn::Error::new(
+            Err(syn::Error::new(
                 ident.span(),
                 format!("{ident} requires a integer literal. {example}"),
-            ));
+            ))
         }
     } else {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             ident.span(),
             format!("{ident} requires a integer literal. {example}"),
-        ));
+        ))
     }
 }
 
@@ -48,23 +48,20 @@ pub(crate) fn get_lit_int<'a>(
         if let Lit::Int(ref val) = lit.lit {
             Ok(val)
         } else {
-            return Err(syn::Error::new(
+            Err(syn::Error::new(
                 ident.span(),
                 format!("{ident} requires a string literal. {example}"),
-            ));
+            ))
         }
     } else {
-        return Err(syn::Error::new(
+        Err(syn::Error::new(
             ident.span(),
             format!("{ident} requires a string literal. {example}"),
-        ));
+        ))
     }
 }
 
-pub(crate) fn get_lit_range<'a>(
-    expr: &'a Expr,
-    ident: &Ident,
-) -> syn::Result<Option<Range<usize>>> {
+pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Range<usize>>> {
     if let Expr::Range(ref lit) = expr {
         let start = if let Some(ref v) = lit.start {
             if let Expr::Lit(ref el) = v.as_ref() {
@@ -73,13 +70,13 @@ pub(crate) fn get_lit_range<'a>(
                 } else {
                     return Err(syn::Error::new(
                         ident.span(),
-                        format!("start of range must be an integer."),
+                        "start of range must be an integer.",
                     ));
                 }
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
-                    format!("start of range must be an integer literal."),
+                    "start of range must be an integer literal.",
                 ));
             }
         } else {
@@ -95,13 +92,13 @@ pub(crate) fn get_lit_range<'a>(
                 } else {
                     return Err(syn::Error::new(
                         ident.span(),
-                        format!("end of range must be an integer."),
+                        "end of range must be an integer.",
                     ));
                 }
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
-                    format!("end of range must be an integer literal."),
+                    "end of range must be an integer literal.",
                 ));
             }
         } else {
@@ -112,7 +109,12 @@ pub(crate) fn get_lit_range<'a>(
         };
         Ok(Some(match lit.limits {
             syn::RangeLimits::HalfOpen(_) => start..end,
-            syn::RangeLimits::Closed(_) => start..end + 1,
+            #[allow(clippy::range_plus_one)]
+            syn::RangeLimits::Closed(_) => {
+                // ALLOW we use a plus one here so we keep the same typing of [`Range`], while not creating more
+                // code for something so trivial.
+                start..end + 1
+            }
         }))
     } else {
         Ok(None)

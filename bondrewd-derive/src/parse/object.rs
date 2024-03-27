@@ -1,11 +1,11 @@
 use crate::common::field::{
-    Endianness, FieldAttrs, FieldDataType, FieldInfo, NumberSignage, OverlapOptions,
-    ReserveFieldOption, SubFieldInfo,
+    Attributes, DataType, Endianness, Info as FieldInfo, NumberSignage, OverlapOptions,
+    ReserveFieldOption, SubInfo as SubFieldInfo,
 };
-use crate::common::object::ObjectInfo;
-use crate::common::r#enum::{EnumAttrInfo, EnumInfo, IdPosition};
-use crate::common::r#struct::StructInfo;
-use crate::common::{AttrInfo, StructEnforcement};
+use crate::common::object::Info as ObjectInfo;
+use crate::common::r#enum::{AttrInfo as EnumAttrInfo, IdPosition, Info as EnumInfo};
+use crate::common::r#struct::Info as StructInfo;
+use crate::common::{AttrInfo, FieldGrabDirection, StructEnforcement};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::Error;
@@ -13,7 +13,8 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, Token};
 
-use super::r#enum::EnumAttrInfoBuilder;
+use super::get_lit_int;
+use super::r#enum::AttrInfoBuilder;
 
 /// `id_bits` is the amount of bits the enum's id takes.
 fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
@@ -49,7 +50,7 @@ impl ObjectInfo {
     fn parse_enum_attrs(
         attrs: &[Attribute],
         attrs_info: &mut AttrInfo,
-        enum_attrs_info: &mut EnumAttrInfoBuilder,
+        enum_attrs_info: &mut AttrInfoBuilder,
     ) -> syn::Result<()> {
         for attr in attrs {
             let span = attr.pound_token.span();
@@ -100,7 +101,7 @@ impl ObjectInfo {
                 }))
             }
             syn::Data::Enum(ref data) => {
-                let mut enum_attrs = EnumAttrInfoBuilder::default();
+                let mut enum_attrs = AttrInfoBuilder::default();
                 Self::parse_enum_attrs(&input.attrs, &mut attrs, &mut enum_attrs)?;
                 let mut variants: Vec<StructInfo> = Vec::default();
                 let (id_field_type, id_bits) = {
@@ -117,7 +118,7 @@ impl ObjectInfo {
                         ));
                     };
                     (
-                        FieldDataType::Number(
+                        DataType::Number(
                             id_bits.div_ceil(8),
                             NumberSignage::Unsigned,
                             get_id_type(id_bits, name.span())?,
@@ -128,7 +129,7 @@ impl ObjectInfo {
                 let id_field = FieldInfo {
                     ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
                     ty: id_field_type,
-                    attrs: FieldAttrs {
+                    attrs: Attributes {
                         endianness: Box::new(attrs.default_endianess.clone()),
                         // this need to accommodate tailing ids, currently this locks the
                         // id field to the first field read from the starting point of reading.
@@ -361,20 +362,16 @@ impl ObjectInfo {
                         let ident = quote::format_ident!("fill_bits");
                         v.fields.push(FieldInfo {
                             ident: Box::new(ident.into()),
-                            attrs: FieldAttrs {
+                            attrs: Attributes {
                                 bit_range: first_bit..largest,
                                 endianness: Box::new(Endianness::Big),
                                 reserve: ReserveFieldOption::FakeReserveField,
                                 overlap: OverlapOptions::None,
                                 capture_id: false,
                             },
-                            ty: FieldDataType::BlockArray(
+                            ty: DataType::BlockArray(
                                 Box::new(SubFieldInfo {
-                                    ty: FieldDataType::Number(
-                                        1,
-                                        NumberSignage::Unsigned,
-                                        quote! {u8},
-                                    ),
+                                    ty: DataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
                                 }),
                                 fill_bytes_size,
                                 quote! {[u8;#fill_bytes_size]},
@@ -395,83 +392,89 @@ impl ObjectInfo {
     fn parse_enum_attrs_meta(
         span: Span,
         info: &mut AttrInfo,
-        enum_info: &mut EnumAttrInfoBuilder,
+        enum_info: &mut AttrInfoBuilder,
         meta: &Meta,
     ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(value) => {
-                if let (Some(ident), Expr::Lit(lit)) = (value.path.get_ident(), &value.value) {
+                if let Some(ident) = value.path.get_ident() {
                     let ident_str = ident.to_string();
                     match ident_str.as_str() {
-                        "id_bit_length" | "id-bit-length" => {
-                            if let Lit::Int(ref val) = lit.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(value) => {
-                                        if value > 128 {
-                                            return Err(syn::Error::new(
-                                                span,
-                                                "Maximum id bits is 128.",
-                                            ));
-                                        }
-                                        enum_info.id_bits = Some(value);
-                                    }
-                                    Err(err) => {
+                        "id_bit_length" => {
+                            let val =
+                                get_lit_int(&value.value, ident, Some("id_bit_length = \"2\""))?;
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    if value > 128 {
                                         return Err(syn::Error::new(
                                             span,
-                                            format!("failed parsing id-bits value [{err}]"),
-                                        ))
+                                            "Maximum id bits is 128.",
+                                        ));
                                     }
+                                    enum_info.id_bits = Some(value);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing id-bits value [{err}]"),
+                                    ))
                                 }
                             }
                         }
-                        "id_byte_length" | "id-byte-length" => {
-                            if let Lit::Int(ref val) = lit.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(value) => {
-                                        if value > 16 {
-                                            return Err(syn::Error::new(
-                                                span,
-                                                "Maximum id bytes is 16.",
-                                            ));
-                                        }
-                                        enum_info.id_bits = Some(value * 8);
-                                    }
-                                    Err(err) => {
+                        "id_byte_length" => {
+                            let val =
+                                get_lit_int(&value.value, ident, Some("id_byte_length = \"2\""))?;
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    if value > 16 {
                                         return Err(syn::Error::new(
                                             span,
-                                            format!("failed parsing id-bytes value [{err}]"),
-                                        ))
+                                            "Maximum id bytes is 16.",
+                                        ));
                                     }
+                                    enum_info.id_bits = Some(value * 8);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing id-bytes value [{err}]"),
+                                    ))
                                 }
                             }
                         }
-                        "payload_bit_length" | "payload-bit-length" => {
-                            if let Lit::Int(ref val) = lit.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(value) => {
-                                        enum_info.payload_bit_size = Some(value);
-                                    }
-                                    Err(err) => {
-                                        return Err(syn::Error::new(
-                                            span,
-                                            format!("failed parsing payload-bits value [{err}]"),
-                                        ))
-                                    }
+                        "payload_bit_length" => {
+                            let val = get_lit_int(
+                                &value.value,
+                                ident,
+                                Some("payload_bit_length = \"6\""),
+                            )?;
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    enum_info.payload_bit_size = Some(value);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing payload-bits value [{err}]"),
+                                    ))
                                 }
                             }
                         }
-                        "payload_byte_length" | "payload-byte-length" => {
-                            if let Lit::Int(ref val) = lit.lit {
-                                match val.base10_parse::<usize>() {
-                                    Ok(value) => {
-                                        enum_info.payload_bit_size = Some(value * 8);
-                                    }
-                                    Err(err) => {
-                                        return Err(syn::Error::new(
-                                            span,
-                                            format!("failed parsing payload-bytes value [{err}]"),
-                                        ))
-                                    }
+                        "payload_byte_length" => {
+                            let val = get_lit_int(
+                                &value.value,
+                                ident,
+                                Some("payload_byte_length = \"6\""),
+                            )?;
+                            match val.base10_parse::<usize>() {
+                                Ok(value) => {
+                                    enum_info.payload_bit_size = Some(value * 8);
+                                }
+                                Err(err) => {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("failed parsing payload-bytes value [{err}]"),
+                                    ))
                                 }
                             }
                         }
@@ -483,10 +486,10 @@ impl ObjectInfo {
                 if let Some(ident) = value.get_ident() {
                     let ident_str = ident.to_string();
                     match ident_str.as_str() {
-                        "id_tail" | "id-tail" => {
+                        "id_tail" => {
                             enum_info.id_position = IdPosition::Trailing;
                         }
-                        "id_head" | "id-head" => {
+                        "id_head" => {
                             enum_info.id_position = IdPosition::Leading;
                         }
                         _ => {}
@@ -557,12 +560,12 @@ impl ObjectInfo {
                                 ));
                             }
                         }
-                        "bit_traversal" | "bit-traversal" => {
+                        "bit_traversal" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Str(ref val) = lit.lit {
                                     match val.value().as_str() {
-                                    "lsb" | "lsb0" => info.lsb_zero = true,
-                                    "msb" | "msb0" => info.lsb_zero = false,
+                                    "lsb" | "lsb0" => info.lsb_zero = FieldGrabDirection::Lsb,
+                                    "msb" | "msb0" => info.lsb_zero = FieldGrabDirection::Msb,
                                     _ => return Err(Error::new(
                                         val.span(),
                                         "Expected literal str \"lsb\" or \"msb\" for bit_traversal attribute.",
@@ -576,13 +579,13 @@ impl ObjectInfo {
                                 }
                             }
                         }
-                        "read_from" | "read-from" => {
+                        "read_from" => {
                             return Err(syn::Error::new(
                                 span,
                                 "`read_from` has been deprecated, please use `bit_traversal`",
                             ));
                         }
-                        "default_endianness" | "default-endianness" => {
+                        "default_endianness" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Str(ref val) = lit.lit {
                                     match val.value().as_str() {
@@ -605,7 +608,7 @@ impl ObjectInfo {
                                 }
                             }
                         }
-                        "enforce_bytes" | "enforce-bytes" => {
+                        "enforce_bytes" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -630,7 +633,7 @@ impl ObjectInfo {
                                 }
                             }
                         }
-                        "enforce_bits" | "enforce-bits" => {
+                        "enforce_bits" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -655,7 +658,7 @@ impl ObjectInfo {
                                 }
                             }
                         }
-                        "fill_bytes" | "fill-bytes" => {
+                        "fill_bytes" => {
                             if let Expr::Lit(ref lit) = value.value {
                                 if let Lit::Int(ref val) = lit.lit {
                                     match val.base10_parse::<usize>() {
@@ -698,7 +701,7 @@ impl ObjectInfo {
                         "dump" => {
                             info.dump = true;
                         }
-                        "enforce_full_bytes" | "enforce-full-bytes" => {
+                        "enforce_full_bytes" => {
                             info.enforcement = StructEnforcement::EnforceFullBytes;
                         }
                         "invalid" => {
@@ -770,7 +773,7 @@ impl ObjectInfo {
                     if is_enum {
                         if i == 0 {
                             match (&parsed_fields[0].ty, &mut parsed_field.ty) {
-                                (FieldDataType::Number(_, ref bon_sign, ref bon_ty), FieldDataType::Number(_, ref user_sign, ref user_ty)) => {
+                                (DataType::Number(_, ref bon_sign, ref bon_ty), DataType::Number(_, ref user_sign, ref user_ty)) => {
                                     if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
                                         parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
                                     }
@@ -784,7 +787,7 @@ impl ObjectInfo {
                                         parsed_field.ident = old_id.ident;
                                     }
                                 }
-                                (FieldDataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
+                                (DataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
                                 _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
                             }
                         } else {
@@ -839,16 +842,16 @@ impl ObjectInfo {
             let ident = quote::format_ident!("bondrewd_fill_bits");
             parsed_fields.push(FieldInfo {
                 ident: Box::new(ident.into()),
-                attrs: FieldAttrs {
+                attrs: Attributes {
                     bit_range: first_bit..fill_bits,
                     endianness: Box::new(Endianness::Big),
                     reserve: ReserveFieldOption::FakeReserveField,
                     overlap: OverlapOptions::None,
                     capture_id: false,
                 },
-                ty: FieldDataType::BlockArray(
+                ty: DataType::BlockArray(
                     Box::new(SubFieldInfo {
-                        ty: FieldDataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
+                        ty: DataType::Number(1, NumberSignage::Unsigned, quote! {u8}),
                     }),
                     fill_bytes_size,
                     quote! {[u8;#fill_bytes_size]},
@@ -856,7 +859,7 @@ impl ObjectInfo {
             });
         }
 
-        if attrs.lsb_zero {
+        if matches!(attrs.lsb_zero, FieldGrabDirection::Lsb) {
             for ref mut field in &mut parsed_fields {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);

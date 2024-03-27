@@ -2,8 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
 use crate::common::{
-    field::{FieldDataType, FieldInfo, NumberSignage},
-    r#struct::StructInfo,
+    field::{DataType, Info as FieldInfo, NumberSignage},
+    r#struct::Info as StructInfo,
 };
 
 pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
@@ -25,7 +25,7 @@ pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Erro
 fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
     let field_name = field.ident().ident();
     Ok(match field.ty {
-        FieldDataType::Number(ref size, ref sign, ref type_ident) => {
+        DataType::Number(ref size, ref sign, ref type_ident) => {
             let mut full_quote = quote! {
                 self.#field_name = value.clone();
                 value
@@ -79,7 +79,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Float(ref size, ref type_ident) => {
+        DataType::Float(ref size, ref type_ident) => {
             let mut full_quote = quote! {
                 self.#field_name = value;
                 value
@@ -130,7 +130,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Enum(_, _, ref type_ident) => {
+        DataType::Enum(_, _, ref type_ident) => {
             let field_fn_name = format_ident!("set_{}", field_name);
             quote! {
                 pub fn #field_fn_name(&mut self, value: #type_ident) {
@@ -141,7 +141,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Struct(_, ref type_ident) => {
+        DataType::Struct(_, ref type_ident) => {
             let field_fn_name = format_ident!("{}_mut", field_name);
             quote! {
                 pub fn #field_fn_name(&mut self) -> &mut #type_ident {
@@ -152,7 +152,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Char(ref size, ref type_ident) => {
+        DataType::Char(ref size, ref type_ident) => {
             let mut full_quote = quote! {
                 self.#field_name = value.clone();
                 value
@@ -191,8 +191,8 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::ElementArray(_, _, ref type_ident)
-        | FieldDataType::BlockArray(_, _, ref type_ident) => {
+        DataType::ElementArray(_, _, ref type_ident)
+        | DataType::BlockArray(_, _, ref type_ident) => {
             // TODO write getters/setters for arrays
             // let field_fn_name = format_ident!("set_{}", field_name);
             quote! {
@@ -201,7 +201,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::Boolean => {
+        DataType::Boolean => {
             let field_fn_name = format_ident!("set_{}", field_name);
             quote! {
                 pub fn #field_fn_name(&mut self, value: bool) {

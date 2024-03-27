@@ -1,24 +1,24 @@
 use syn::Ident;
 
-use super::{r#enum::EnumInfo, r#struct::StructInfo};
+use super::{r#enum::Info as EnumInfo, r#struct::Info as StructInfo};
 
-pub enum ObjectInfo {
+pub enum Info {
     Struct(StructInfo),
     Enum(EnumInfo),
 }
 
-impl ObjectInfo {
+impl Info {
     // #[cfg(feature = "dyn_fns")]
     // pub fn vis(&self) -> &syn::Visibility {
     //     match self {
-    //         ObjectInfo::Struct(s) => &s.vis,
-    //         ObjectInfo::Enum(e) => &e.vis,
+    //         Info::Struct(s) => &s.vis,
+    //         Info::Enum(e) => &e.vis,
     //     }
     // }
     pub fn name(&self) -> Ident {
         match self {
-            ObjectInfo::Struct(s) => s.name.clone(),
-            ObjectInfo::Enum(e) => e.name.clone(),
+            Info::Struct(s) => s.name.clone(),
+            Info::Enum(e) => e.name.clone(),
         }
     }
     pub fn total_bits(&self) -> usize {

@@ -20,7 +20,6 @@ quote = "1.0"
 syn = { version = "2.0", features = ["full"] }
 
 [features]
-default = ["setters"]
 dyn_fns = []
 hex_fns = []
 setters = []

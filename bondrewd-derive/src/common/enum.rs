@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-use super::{r#struct::StructInfo, AttrInfo};
+use super::{r#struct::Info as StructInfo, AttrInfo as StructAttrInfo};
 
 #[derive(Clone)]
 pub enum IdPosition {
@@ -10,14 +10,14 @@ pub enum IdPosition {
     Trailing,
 }
 
-pub struct EnumInfo {
+pub struct Info {
     pub name: Ident,
     pub variants: Vec<StructInfo>,
-    pub attrs: EnumAttrInfo,
+    pub attrs: AttrInfo,
     pub vis: syn::Visibility,
 }
 
-impl EnumInfo {
+impl Info {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     // #[cfg(feature = "dyn_fns")]
@@ -56,7 +56,7 @@ impl EnumInfo {
 }
 
 #[derive(Clone)]
-pub struct EnumAttrInfo {
+pub struct AttrInfo {
     pub id_bits: usize,
     pub id_position: IdPosition,
     // TODO we should add an option of where to but the fill bytes. currently the generative code will always
@@ -66,5 +66,5 @@ pub struct EnumAttrInfo {
     /// of bytes. `payload_bit_size` is simply the largest variant's size and
     /// therefore the total bytes used by the enum regardless of differing sized variants.
     pub payload_bit_size: usize,
-    pub attrs: AttrInfo,
+    pub attrs: StructAttrInfo,
 }

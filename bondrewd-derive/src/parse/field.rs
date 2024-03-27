@@ -7,23 +7,83 @@ use syn::spanned::Spanned;
 use syn::{Ident, Meta, Token, Type};
 
 use crate::common::field::{
-    Endianness, FieldAttrs, FieldDataType, FieldInfo, NumberSignage, OverlapOptions,
-    ReserveFieldOption, SubFieldInfo,
+    Attributes, DataType, DynamicIdent, Endianness, Info as FieldInfo, NumberSignage,
+    OverlapOptions, ReserveFieldOption, SubInfo as SubFieldInfo,
 };
+use crate::common::AttrInfo;
 
 use super::{get_lit_int, get_lit_range, get_lit_str};
 
-impl FieldDataType {
+impl FieldInfo {
+    /// `fields` should be all previous fields that have been parsed already.
+    pub fn from_syn_field(
+        field: &syn::Field,
+        fields: &[FieldInfo],
+        attrs: &AttrInfo,
+    ) -> syn::Result<Self> {
+        let ident: DynamicIdent = if let Some(ref name) = field.ident {
+            name.clone().into()
+        } else {
+            (fields.len(), field.span()).into()
+            // return Err(Error::new(Span::call_site(), "all fields must be named"));
+        };
+        // parse all attrs. which will also give us the bit locations
+        // NOTE read only attribute assumes that the value should not effect the placement of the rest og
+        let last_relevant_field = fields
+            .iter()
+            .filter(|x| !x.attrs.overlap.is_redundant())
+            .last();
+        let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field, ident.span())?;
+        // check the field for supported types.
+        let data_type = DataType::parse(
+            &field.ty,
+            &mut attrs_builder,
+            ident.span(),
+            &attrs.default_endianess,
+        )?;
+
+        let attrs: Attributes = match attrs_builder.try_into() {
+            Ok(attr) => attr,
+            Err(fix_me) => {
+                let mut start = 0;
+                if let Some(last_value) = last_relevant_field {
+                    start = last_value.attrs.bit_range.end;
+                }
+                fix_me.fix(start..start + (data_type.size() * 8))
+            }
+        };
+
+        // construct the field we are parsed.
+        let new_field = FieldInfo {
+            ident: Box::new(ident),
+            ty: data_type,
+            attrs,
+        };
+        // check to verify there are no overlapping bit ranges from previously parsed fields.
+        for (i, parsed_field) in fields.iter().enumerate() {
+            if parsed_field.overlapping(&new_field) {
+                return Err(Error::new(
+                    Span::call_site(),
+                    format!("fields {} and {} overlap", i, fields.len()),
+                ));
+            }
+        }
+
+        Ok(new_field)
+    }
+}
+
+impl DataType {
     #[allow(clippy::too_many_lines)]
     pub fn parse(
         ty: &syn::Type,
-        attrs: &mut FieldAttrBuilder,
+        attrs: &mut AttrBuilder,
         span: Span,
         default_endianess: &Endianness,
-    ) -> syn::Result<FieldDataType> {
+    ) -> syn::Result<DataType> {
         let data_type = match ty {
             Type::Path(ref path) => match attrs.ty {
-                FieldAttrBuilderType::Struct(ref size) => FieldDataType::Struct(
+                AttrBuilderType::Struct(ref size) => DataType::Struct(
                     *size,
                     if let Some(last_segment) = path.path.segments.last() {
                         let asdf = &last_segment.ident;
@@ -32,7 +92,7 @@ impl FieldDataType {
                         return Err(syn::Error::new(span, "field has no Type?"));
                     },
                 ),
-                FieldAttrBuilderType::Enum(ref size, ref prim) => FieldDataType::Enum(
+                AttrBuilderType::Enum(ref size, ref prim) => DataType::Enum(
                     quote! {#prim},
                     *size,
                     if let Some(last_segment) = path.path.segments.last() {
@@ -50,12 +110,9 @@ impl FieldDataType {
                     if let syn::Lit::Int(ref lit_int) = lit_expr.lit {
                         if let Ok(array_length) = lit_int.base10_parse::<usize>() {
                             match attrs.ty {
-                                FieldAttrBuilderType::ElementArray(
-                                    ref element_bit_size,
-                                    ref sub,
-                                ) => {
+                                AttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        FieldBuilderRange::Range(ref range) => {
+                                        BuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
                                                     span,
@@ -72,15 +129,13 @@ impl FieldDataType {
                                                     )
                                                 );
                                             }
-                                            FieldBuilderRange::Range(range.clone())
+                                            BuilderRange::Range(range.clone())
                                         }
-                                        FieldBuilderRange::LastEnd(ref last_end) => {
-                                            FieldBuilderRange::Range(
-                                                *last_end
-                                                    ..last_end + (array_length * *element_bit_size),
-                                            )
-                                        }
-                                        FieldBuilderRange::None => {
+                                        BuilderRange::LastEnd(ref last_end) => BuilderRange::Range(
+                                            *last_end
+                                                ..last_end + (array_length * *element_bit_size),
+                                        ),
+                                        BuilderRange::None => {
                                             return Err(syn::Error::new(
                                                 span,
                                                 "failed getting Range for element array",
@@ -92,7 +147,7 @@ impl FieldDataType {
                                     } else if let Some(ref ty) = sub.as_ref() {
                                         sub_attrs.ty = ty.clone();
                                     } else {
-                                        sub_attrs.ty = FieldAttrBuilderType::None;
+                                        sub_attrs.ty = AttrBuilderType::None;
                                     }
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
@@ -102,17 +157,17 @@ impl FieldDataType {
                                     )?;
 
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::ElementArray(
+                                    DataType::ElementArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::BlockArray(_) => {
+                                AttrBuilderType::BlockArray(_) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
-                                        sub_attrs.ty = FieldAttrBuilderType::None;
+                                        sub_attrs.ty = AttrBuilderType::None;
                                     }
 
                                     let sub_ty = Self::parse(
@@ -123,14 +178,13 @@ impl FieldDataType {
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::BlockArray(
+                                    DataType::BlockArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::Enum(_, _)
-                                | FieldAttrBuilderType::Struct(_) => {
+                                AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
@@ -145,17 +199,17 @@ impl FieldDataType {
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::BlockArray(
+                                    DataType::BlockArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
                                     )
                                 }
-                                FieldAttrBuilderType::None => {
+                                AttrBuilderType::None => {
                                     let mut sub_attrs = attrs.clone();
                                     if let Type::Array(_) = array_path.elem.as_ref() {
                                     } else {
-                                        sub_attrs.ty = FieldAttrBuilderType::None;
+                                        sub_attrs.ty = AttrBuilderType::None;
                                     }
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
@@ -164,7 +218,7 @@ impl FieldDataType {
                                         default_endianess,
                                     )?;
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        FieldBuilderRange::Range(ref range) => {
+                                        BuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
                                                     span,
@@ -179,18 +233,18 @@ impl FieldDataType {
                                                     )
                                                 );
                                             }
-                                            FieldBuilderRange::Range(range.clone())
+                                            BuilderRange::Range(range.clone())
                                         }
-                                        FieldBuilderRange::LastEnd(ref last_end) => {
+                                        BuilderRange::LastEnd(ref last_end) => {
                                             let element_bit_length =
                                                 sub_ty.get_element_bit_length();
-                                            FieldBuilderRange::Range(
+                                            BuilderRange::Range(
                                                 *last_end
                                                     ..last_end
                                                         + (array_length * element_bit_length),
                                             )
                                         }
-                                        FieldBuilderRange::None => {
+                                        BuilderRange::None => {
                                             return Err(syn::Error::new(
                                                 span,
                                                 "failed getting Range for element array",
@@ -198,7 +252,7 @@ impl FieldDataType {
                                         }
                                     };
                                     let type_ident = &sub_ty.type_quote();
-                                    FieldDataType::ElementArray(
+                                    DataType::ElementArray(
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
@@ -245,86 +299,86 @@ impl FieldDataType {
     #[allow(clippy::too_many_lines)]
     fn parse_path(
         path: &syn::Path,
-        attrs: &mut FieldAttrBuilder,
+        attrs: &mut AttrBuilder,
         field_span: Span,
-    ) -> syn::Result<FieldDataType> {
+    ) -> syn::Result<DataType> {
         match attrs.ty {
-            FieldAttrBuilderType::None => {
+            AttrBuilderType::None => {
                 if let Some(last_segment) = path.segments.last() {
                     let type_quote = &last_segment.ident;
                     let field_type_name = last_segment.ident.to_string();
                     match field_type_name.as_str() {
                         "bool" => match attrs.bit_range {
                             #[allow(clippy::range_plus_one)]
-                            FieldBuilderRange::LastEnd(start) => {
-                                attrs.bit_range = FieldBuilderRange::Range(start..start + 1);
-                                Ok(FieldDataType::Boolean)
+                            BuilderRange::LastEnd(start) => {
+                                attrs.bit_range = BuilderRange::Range(start..start + 1);
+                                Ok(DataType::Boolean)
                             }
-                            _ => Ok(FieldDataType::Boolean),
+                            _ => Ok(DataType::Boolean),
                         },
-                        "u8" => Ok(FieldDataType::Number(
+                        "u8" => Ok(DataType::Number(
                             1,
                             NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
-                        "i8" => Ok(FieldDataType::Number(
+                        "i8" => Ok(DataType::Number(
                             1,
                             NumberSignage::Signed,
                             quote! {#type_quote},
                         )),
-                        "u16" => Ok(FieldDataType::Number(
+                        "u16" => Ok(DataType::Number(
                             2,
                             NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
-                        "i16" => Ok(FieldDataType::Number(
+                        "i16" => Ok(DataType::Number(
                             2,
                             NumberSignage::Signed,
                             quote! {#type_quote},
                         )),
                         "f32" => {
-                            if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
+                            if let BuilderRange::Range(ref span) = attrs.bit_range {
                                 if 32 != span.end - span.start {
                                     return Err(syn::Error::new(field_span, format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
-                            Ok(FieldDataType::Float(4, quote! {#type_quote}))
+                            Ok(DataType::Float(4, quote! {#type_quote}))
                         }
-                        "u32" => Ok(FieldDataType::Number(
+                        "u32" => Ok(DataType::Number(
                             4,
                             NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
-                        "i32" => Ok(FieldDataType::Number(
+                        "i32" => Ok(DataType::Number(
                             4,
                             NumberSignage::Signed,
                             quote! {#type_quote},
                         )),
-                        "char" => Ok(FieldDataType::Char(4, quote! {#type_quote})),
+                        "char" => Ok(DataType::Char(4, quote! {#type_quote})),
                         "f64" => {
-                            if let FieldBuilderRange::Range(ref span) = attrs.bit_range {
+                            if let BuilderRange::Range(ref span) = attrs.bit_range {
                                 if 64 != span.end - span.start {
                                     return Err(syn::Error::new(field_span, format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
                                 }
                             }
-                            Ok(FieldDataType::Float(8, quote! {#type_quote}))
+                            Ok(DataType::Float(8, quote! {#type_quote}))
                         }
-                        "u64" => Ok(FieldDataType::Number(
+                        "u64" => Ok(DataType::Number(
                             8,
                             NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
-                        "i64" => Ok(FieldDataType::Number(
+                        "i64" => Ok(DataType::Number(
                             8,
                             NumberSignage::Signed,
                             quote! {#type_quote},
                         )),
-                        "u128" => Ok(FieldDataType::Number(
+                        "u128" => Ok(DataType::Number(
                             16,
                             NumberSignage::Unsigned,
                             quote! {#type_quote},
                         )),
-                        "i128" => Ok(FieldDataType::Number(
+                        "i128" => Ok(DataType::Number(
                             16,
                             NumberSignage::Signed,
                             quote! {#type_quote},
@@ -334,12 +388,12 @@ impl FieldDataType {
                             "usize and isize are not supported due to ambiguous sizing".to_string(),
                         )),
                         _ => {
-                            Ok(FieldDataType::Struct(
+                            Ok(DataType::Struct(
                                 match attrs.bit_range {
-                                    FieldBuilderRange::Range(ref range) => {
+                                    BuilderRange::Range(ref range) => {
                                         (range.end - range.start).div_ceil(8)
                                     }
-                                    FieldBuilderRange::LastEnd(_) | FieldBuilderRange::None => {
+                                    BuilderRange::LastEnd(_) | BuilderRange::None => {
                                         return Err(Error::new(
                                             field_span,
                                             format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
@@ -358,20 +412,16 @@ impl FieldDataType {
                     Err(syn::Error::new(field_span, "field has no Type?"))
                 }
             }
-            FieldAttrBuilderType::Struct(size) => {
+            AttrBuilderType::Struct(size) => {
                 if let Some(ident) = path.get_ident() {
-                    Ok(FieldDataType::Struct(size, quote! {#ident}))
+                    Ok(DataType::Struct(size, quote! {#ident}))
                 } else {
                     Err(syn::Error::new(field_span, "field has no Type?"))
                 }
             }
-            FieldAttrBuilderType::Enum(size, ref type_ident) => {
+            AttrBuilderType::Enum(size, ref type_ident) => {
                 if let Some(ident) = path.get_ident() {
-                    Ok(FieldDataType::Enum(
-                        quote! {#type_ident},
-                        size,
-                        quote! {#ident},
-                    ))
+                    Ok(DataType::Enum(quote! {#type_ident}, size, quote! {#ident}))
                 } else {
                     Err(syn::Error::new(field_span, "field has no Type?"))
                 }
@@ -392,8 +442,8 @@ pub struct TryFromAttrBuilderError {
 }
 
 impl TryFromAttrBuilderError {
-    pub fn fix(self, bit_range: Range<usize>) -> FieldAttrs {
-        FieldAttrs {
+    pub fn fix(self, bit_range: Range<usize>) -> Attributes {
+        Attributes {
             endianness: self.endianness,
             bit_range,
             reserve: self.reserve,
@@ -413,17 +463,17 @@ impl std::fmt::Display for TryFromAttrBuilderError {
 }
 
 #[derive(Clone, Debug)]
-pub enum FieldAttrBuilderType {
+pub enum AttrBuilderType {
     None,
     Struct(usize),
     Enum(usize, Ident),
     // amount of bits for each element.
-    ElementArray(usize, Box<Option<FieldAttrBuilderType>>),
-    BlockArray(Box<Option<FieldAttrBuilderType>>),
+    ElementArray(usize, Box<Option<AttrBuilderType>>),
+    BlockArray(Box<Option<AttrBuilderType>>),
 }
 
 #[derive(Clone, Debug)]
-pub enum FieldBuilderRange {
+pub enum BuilderRange {
     // a range of bits to use.
     Range(std::ops::Range<usize>),
     // used to pass on the last starting location to another part to figure out.
@@ -431,19 +481,19 @@ pub enum FieldBuilderRange {
     None,
 }
 
-impl Default for FieldBuilderRange {
+impl Default for BuilderRange {
     fn default() -> Self {
         Self::None
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct FieldAttrBuilder {
+pub struct AttrBuilder {
     /// name is just so we can give better errors
     span: Span,
     pub endianness: Endianness,
-    pub bit_range: FieldBuilderRange,
-    pub ty: FieldAttrBuilderType,
+    pub bit_range: BuilderRange,
+    pub ty: AttrBuilderType,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
     /// This should only ever be true when it the first field in a variant
@@ -451,13 +501,13 @@ pub struct FieldAttrBuilder {
     pub capture_id: bool,
 }
 
-impl FieldAttrBuilder {
+impl AttrBuilder {
     fn new(span: Span) -> Self {
         Self {
             span,
             endianness: Endianness::None,
-            bit_range: FieldBuilderRange::None,
-            ty: FieldAttrBuilderType::None,
+            bit_range: BuilderRange::None,
+            ty: AttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
             capture_id: false,
@@ -472,8 +522,8 @@ impl FieldAttrBuilder {
         field: &syn::Field,
         last_field: Option<&FieldInfo>,
         span: Span,
-    ) -> syn::Result<FieldAttrBuilder> {
-        let mut builder = FieldAttrBuilder::new(span);
+    ) -> syn::Result<AttrBuilder> {
+        let mut builder = AttrBuilder::new(span);
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
         // filled in using the end of the previous field as the start, add the length in bits you get the
@@ -490,8 +540,8 @@ impl FieldAttrBuilder {
                 }
             }
         }
-        if let FieldBuilderRange::None = builder.bit_range {
-            builder.bit_range = FieldBuilderRange::LastEnd(if let Some(last_value) = last_field {
+        if let BuilderRange::None = builder.bit_range {
+            builder.bit_range = BuilderRange::LastEnd(if let Some(last_value) = last_field {
                 last_value.attrs.bit_range.end
             } else {
                 0
@@ -512,7 +562,7 @@ impl FieldAttrBuilder {
                     match ident_as_str.as_str() {
                         "endianness" => {
                             let val =
-                                get_lit_str(&value.value, &ident, Some("endianness = \"big\""))?;
+                                get_lit_str(&value.value, ident, Some("endianness = \"big\""))?;
                             builder.endianness = match val.value().to_lowercase().as_str() {
                                 "le" | "lsb" | "little" | "lil" => Endianness::Little,
                                 "be" | "msb" | "big" => Endianness::Big,
@@ -526,9 +576,8 @@ impl FieldAttrBuilder {
                             };
                         }
                         "bit_length" => {
-                            if let FieldBuilderRange::None = builder.bit_range {
-                                let val =
-                                    get_lit_int(&value.value, &ident, Some("bit_length = 8"))?;
+                            if let BuilderRange::None = builder.bit_range {
+                                let val = get_lit_int(&value.value, ident, Some("bit_length = 8"))?;
                                 match val.base10_parse::<usize>() {
                                     Ok(bit_length) => {
                                         let mut start = 0;
@@ -536,7 +585,7 @@ impl FieldAttrBuilder {
                                             start = last_value.attrs.bit_range.end;
                                         }
                                         builder.bit_range =
-                                            FieldBuilderRange::Range(start..start + (bit_length));
+                                            BuilderRange::Range(start..start + (bit_length));
                                     }
                                     Err(err) => {
                                         return Err(Error::new(
@@ -553,18 +602,17 @@ impl FieldAttrBuilder {
                             }
                         }
                         "byte_length" => {
-                            if let FieldBuilderRange::None = builder.bit_range {
+                            if let BuilderRange::None = builder.bit_range {
                                 let val =
-                                    get_lit_int(&value.value, &ident, Some("byte_length = 4"))?;
+                                    get_lit_int(&value.value, ident, Some("byte_length = 4"))?;
                                 match val.base10_parse::<usize>() {
                                     Ok(byte_length) => {
                                         let mut start = 0;
                                         if let Some(last_value) = last_field {
                                             start = last_value.attrs.bit_range.end;
                                         }
-                                        builder.bit_range = FieldBuilderRange::Range(
-                                            start..start + (byte_length * 8),
-                                        );
+                                        builder.bit_range =
+                                            BuilderRange::Range(start..start + (byte_length * 8));
                                     }
                                     Err(err) => {
                                         return Err(Error::new(
@@ -581,27 +629,27 @@ impl FieldAttrBuilder {
                             }
                         }
                         "enum_primitive" => {
-                            if !matches!(builder.ty, FieldAttrBuilderType::None) {
+                            if !matches!(builder.ty, AttrBuilderType::None) {
                                 return Err(syn::Error::new(
                                     ident.span(),
                                     "the type of this field is being assigned to twice.",
                                 ));
                             }
                             let val =
-                                get_lit_str(&value.value, &ident, Some("enum_primitive = \"u8\""))?;
+                                get_lit_str(&value.value, ident, Some("enum_primitive = \"u8\""))?;
                             let mut ty = Some(match val.value().to_lowercase().as_str() {
-                                        "u8" => FieldAttrBuilderType::Enum(1, format_ident!("u8")),
+                                        "u8" => AttrBuilderType::Enum(1, format_ident!("u8")),
                                         "u16" => {
-                                            FieldAttrBuilderType::Enum(2, format_ident!("u16"))
+                                            AttrBuilderType::Enum(2, format_ident!("u16"))
                                         }
                                         "u32" => {
-                                            FieldAttrBuilderType::Enum(4, format_ident!("u32"))
+                                            AttrBuilderType::Enum(4, format_ident!("u32"))
                                         }
                                         "u64" => {
-                                            FieldAttrBuilderType::Enum(8, format_ident!("u64"))
+                                            AttrBuilderType::Enum(8, format_ident!("u64"))
                                         }
                                         "u128" => {
-                                            FieldAttrBuilderType::Enum(16, format_ident!("u128"))
+                                            AttrBuilderType::Enum(16, format_ident!("u128"))
                                         }
                                         _ => {
                                             return Err(syn::Error::new(
@@ -611,8 +659,8 @@ impl FieldAttrBuilder {
                                         }
                                     });
                             match builder.ty {
-                                FieldAttrBuilderType::BlockArray(ref mut sub_ty)
-                                | FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                AttrBuilderType::BlockArray(ref mut sub_ty)
+                                | AttrBuilderType::ElementArray(_, ref mut sub_ty) => {
                                     std::mem::swap(&mut ty, sub_ty);
                                 }
                                 _ => {
@@ -621,15 +669,15 @@ impl FieldAttrBuilder {
                             }
                         }
                         "struct_size" => {
-                            if !matches!(builder.ty, FieldAttrBuilderType::None) {
+                            if !matches!(builder.ty, AttrBuilderType::None) {
                                 return Err(syn::Error::new(
                                     ident.span(),
                                     "the type of this field is being assigned to twice.",
                                 ));
                             }
-                            let val = get_lit_int(&value.value, &ident, Some("struct_size = 4"))?;
+                            let val = get_lit_int(&value.value, ident, Some("struct_size = 4"))?;
                             let mut ty = Some(match val.base10_parse::<usize>() {
-                                Ok(byte_length) => FieldAttrBuilderType::Struct(byte_length),
+                                Ok(byte_length) => AttrBuilderType::Struct(byte_length),
                                 Err(err) => {
                                     return Err(Error::new(
                                         ident.span(),
@@ -638,8 +686,8 @@ impl FieldAttrBuilder {
                                 }
                             });
                             match builder.ty {
-                                FieldAttrBuilderType::BlockArray(ref mut sub_ty)
-                                | FieldAttrBuilderType::ElementArray(_, ref mut sub_ty) => {
+                                AttrBuilderType::BlockArray(ref mut sub_ty)
+                                | AttrBuilderType::ElementArray(_, ref mut sub_ty) => {
                                     std::mem::swap(&mut ty, sub_ty.as_mut());
                                 }
                                 _ => {
@@ -648,22 +696,21 @@ impl FieldAttrBuilder {
                             }
                         }
                         "bits" => {
-                            if !matches!(builder.bit_range, FieldBuilderRange::None) {
+                            if !matches!(builder.bit_range, BuilderRange::None) {
                                 return Err(Error::new(
                                     ident.span(),
                                     "bit_range for field was defined twice",
                                 ));
                             }
-                            if let Some(val) = get_lit_range(&value.value, &ident)? {
-                                builder.bit_range = FieldBuilderRange::Range(val);
-                            } else if let Ok(val) = get_lit_str(&value.value, &ident, None) {
+                            if let Some(val) = get_lit_range(&value.value, ident)? {
+                                builder.bit_range = BuilderRange::Range(val);
+                            } else if let Ok(val) = get_lit_str(&value.value, ident, None) {
                                 let val_string = val.value();
                                 let split = val_string.split("..").collect::<Vec<&str>>();
                                 if split.len() == 2 {
                                     match (split[0].parse::<usize>(), split[1].parse::<usize>()) {
                                         (Ok(start), Ok(end)) => {
-                                            builder.bit_range =
-                                                FieldBuilderRange::Range(start..end);
+                                            builder.bit_range = BuilderRange::Range(start..end);
                                         }
                                         (Ok(_), Err(_)) => {
                                             if split[1].contains('=') {
@@ -700,36 +747,36 @@ impl FieldAttrBuilder {
                         }
                         "element_bit_length" => {
                             let val =
-                                get_lit_int(&value.value, &ident, Some("element_bit_length = 10"))?;
+                                get_lit_int(&value.value, ident, Some("element_bit_length = 10"))?;
 
                             match val.base10_parse::<usize>() {
                                 Ok(bit_length) => {
                                     builder.bit_range = match std::mem::take(&mut builder.bit_range) {
-                                    FieldBuilderRange::None => {
+                                    BuilderRange::None => {
                                         builder.ty = match builder.ty {
-                                            FieldAttrBuilderType::Struct(_) |
-                                            FieldAttrBuilderType::Enum(_, _) => {
-                                                FieldAttrBuilderType::ElementArray(bit_length, Box::new(Some(builder.ty.clone())))
+                                            AttrBuilderType::Struct(_) |
+                                            AttrBuilderType::Enum(_, _) => {
+                                                AttrBuilderType::ElementArray(bit_length, Box::new(Some(builder.ty.clone())))
                                             }
-                                            _ => FieldAttrBuilderType::ElementArray(bit_length, Box::new(None)),
+                                            _ => AttrBuilderType::ElementArray(bit_length, Box::new(None)),
                                         };
                                         if let Some(last_value) = last_field {
-                                            FieldBuilderRange::LastEnd(last_value.attrs.bit_range.end)
+                                            BuilderRange::LastEnd(last_value.attrs.bit_range.end)
                                         }else{
-                                            FieldBuilderRange::LastEnd(0)
+                                            BuilderRange::LastEnd(0)
                                         }
                                     }
-                                    FieldBuilderRange::Range(range) => {
+                                    BuilderRange::Range(range) => {
                                         builder.ty = match builder.ty {
-                                            FieldAttrBuilderType::Struct(_) |
-                                            FieldAttrBuilderType::Enum(_, _) => {
-                                                FieldAttrBuilderType::ElementArray(bit_length, Box::new(Some(builder.ty.clone())))
+                                            AttrBuilderType::Struct(_) |
+                                            AttrBuilderType::Enum(_, _) => {
+                                                AttrBuilderType::ElementArray(bit_length, Box::new(Some(builder.ty.clone())))
                                             }
-                                            _ => FieldAttrBuilderType::ElementArray(bit_length, Box::new(None)),
+                                            _ => AttrBuilderType::ElementArray(bit_length, Box::new(None)),
                                         };
-                                        FieldBuilderRange::Range(range)
+                                        BuilderRange::Range(range)
                                     }
-                                    FieldBuilderRange::LastEnd(_) => return Err(Error::new(
+                                    BuilderRange::LastEnd(_) => return Err(Error::new(
                                         builder.span(),
                                         "found Field bit range no_end while element_bit_length attribute which should never happen",
                                     )),
@@ -745,35 +792,35 @@ impl FieldAttrBuilder {
                         }
                         "element_byte_length" => {
                             let val =
-                                get_lit_int(&value.value, &ident, Some("element_byte_length = 2"))?;
+                                get_lit_int(&value.value, ident, Some("element_byte_length = 2"))?;
                             match val.base10_parse::<usize>() {
                                 Ok(byte_length) => {
                                     builder.bit_range = match std::mem::take(&mut builder.bit_range) {
-                                        FieldBuilderRange::None => {
+                                        BuilderRange::None => {
                                             builder.ty = match builder.ty {
-                                                FieldAttrBuilderType::Struct(_) |
-                                                FieldAttrBuilderType::Enum(_, _) => {
-                                                    FieldAttrBuilderType::ElementArray(byte_length * 8, Box::new(Some(builder.ty.clone())))
+                                                AttrBuilderType::Struct(_) |
+                                                AttrBuilderType::Enum(_, _) => {
+                                                    AttrBuilderType::ElementArray(byte_length * 8, Box::new(Some(builder.ty.clone())))
                                                 }
-                                                _ => FieldAttrBuilderType::ElementArray(byte_length * 8, Box::new(None)),
+                                                _ => AttrBuilderType::ElementArray(byte_length * 8, Box::new(None)),
                                             };
                                             if let Some(last_value) = last_field {
-                                                FieldBuilderRange::LastEnd(last_value.attrs.bit_range.end)
+                                                BuilderRange::LastEnd(last_value.attrs.bit_range.end)
                                             }else{
-                                                FieldBuilderRange::LastEnd(0)
+                                                BuilderRange::LastEnd(0)
                                             }
                                         }
-                                        FieldBuilderRange::Range(range) => {
+                                        BuilderRange::Range(range) => {
                                             builder.ty = match builder.ty {
-                                                FieldAttrBuilderType::Struct(_) |
-                                                FieldAttrBuilderType::Enum(_, _) => {
-                                                    FieldAttrBuilderType::ElementArray(byte_length * 8, Box::new(Some(builder.ty.clone())))
+                                                AttrBuilderType::Struct(_) |
+                                                AttrBuilderType::Enum(_, _) => {
+                                                    AttrBuilderType::ElementArray(byte_length * 8, Box::new(Some(builder.ty.clone())))
                                                 }
-                                                _ => FieldAttrBuilderType::ElementArray(byte_length * 8, Box::new(None)),
+                                                _ => AttrBuilderType::ElementArray(byte_length * 8, Box::new(None)),
                                             };
-                                            FieldBuilderRange::Range(range)
+                                            BuilderRange::Range(range)
                                         }
-                                        FieldBuilderRange::LastEnd(_) => return Err(Error::new(
+                                        BuilderRange::LastEnd(_) => return Err(Error::new(
                                             builder.span(),
                                             "found Field bit range no_end while element_byte_length attribute which should never happen",
                                         )),
@@ -789,34 +836,34 @@ impl FieldAttrBuilder {
                         }
                         "block_bit_length" => {
                             let val =
-                                get_lit_int(&value.value, &ident, Some("block_bit_length = 14"))?;
+                                get_lit_int(&value.value, ident, Some("block_bit_length = 14"))?;
                             match val.base10_parse::<usize>() {
                                 Ok(bit_length) => {
                                     builder.bit_range = match std::mem::take(&mut builder.bit_range) {
-                                            FieldBuilderRange::None => {
+                                            BuilderRange::None => {
                                                 builder.ty = match builder.ty {
-                                                    FieldAttrBuilderType::Struct(_) |
-                                                    FieldAttrBuilderType::Enum(_, _) => {
-                                                        FieldAttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
+                                                    AttrBuilderType::Struct(_) |
+                                                    AttrBuilderType::Enum(_, _) => {
+                                                        AttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
                                                     }
-                                                    _ => FieldAttrBuilderType::BlockArray(Box::new(None)),
+                                                    _ => AttrBuilderType::BlockArray(Box::new(None)),
                                                 };
                                                 if let Some(last_value) = last_field {
-                                                    FieldBuilderRange::Range(last_value.attrs.bit_range.end..last_value.attrs.bit_range.end + (bit_length))
+                                                    BuilderRange::Range(last_value.attrs.bit_range.end..last_value.attrs.bit_range.end + (bit_length))
                                                 }else{
-                                                    FieldBuilderRange::Range(0..bit_length)
+                                                    BuilderRange::Range(0..bit_length)
                                                 }
                                             }
-                                            FieldBuilderRange::Range(range) => {
+                                            BuilderRange::Range(range) => {
                                                 builder.ty = match builder.ty {
-                                                    FieldAttrBuilderType::Struct(_) |
-                                                    FieldAttrBuilderType::Enum(_, _) => {
-                                                        FieldAttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
+                                                    AttrBuilderType::Struct(_) |
+                                                    AttrBuilderType::Enum(_, _) => {
+                                                        AttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
                                                     }
-                                                    _ => FieldAttrBuilderType::BlockArray(Box::new(None)),
+                                                    _ => AttrBuilderType::BlockArray(Box::new(None)),
                                                 };
                                                 if range.end - range.start == bit_length{
-                                                FieldBuilderRange::Range(range)
+                                                BuilderRange::Range(range)
                                                 }else{
                                                     return Err(Error::new(
                                                         builder.span(),
@@ -824,7 +871,7 @@ impl FieldAttrBuilder {
                                                     ));
                                                 }
                                             }
-                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
+                                            BuilderRange::LastEnd(_) => return Err(Error::new(
                                                     builder.span(),
                                                     "found Field bit range no-end while array_bit_length attribute which should never happen",
                                                 )),
@@ -840,34 +887,34 @@ impl FieldAttrBuilder {
                         }
                         "block_byte_length" => {
                             let val =
-                                get_lit_int(&value.value, &ident, Some("block_bit_length = 14"))?;
+                                get_lit_int(&value.value, ident, Some("block_bit_length = 14"))?;
                             match val.base10_parse::<usize>() {
                                 Ok(byte_length) => {
                                     builder.bit_range = match std::mem::take(&mut builder.bit_range) {
-                                            FieldBuilderRange::None => {
+                                            BuilderRange::None => {
                                                 builder.ty = match builder.ty {
-                                                    FieldAttrBuilderType::Struct(_) |
-                                                    FieldAttrBuilderType::Enum(_, _) => {
-                                                        FieldAttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
+                                                    AttrBuilderType::Struct(_) |
+                                                    AttrBuilderType::Enum(_, _) => {
+                                                        AttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
                                                     }
-                                                    _ => FieldAttrBuilderType::BlockArray(Box::new(None)),
+                                                    _ => AttrBuilderType::BlockArray(Box::new(None)),
                                                 };
                                                 if let Some(last_value) = last_field {
-                                                    FieldBuilderRange::Range(last_value.attrs.bit_range.end..last_value.attrs.bit_range.end + (byte_length * 8))
+                                                    BuilderRange::Range(last_value.attrs.bit_range.end..last_value.attrs.bit_range.end + (byte_length * 8))
                                                 }else{
-                                                    FieldBuilderRange::Range(0..byte_length*8)
+                                                    BuilderRange::Range(0..byte_length*8)
                                                 }
                                             }
-                                            FieldBuilderRange::Range(range) => {
+                                            BuilderRange::Range(range) => {
                                                 builder.ty = match builder.ty {
-                                                    FieldAttrBuilderType::Struct(_) |
-                                                    FieldAttrBuilderType::Enum(_, _) => {
-                                                        FieldAttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
+                                                    AttrBuilderType::Struct(_) |
+                                                    AttrBuilderType::Enum(_, _) => {
+                                                        AttrBuilderType::BlockArray(Box::new(Some(builder.ty.clone())))
                                                     }
-                                                    _ => FieldAttrBuilderType::BlockArray(Box::new(None)),
+                                                    _ => AttrBuilderType::BlockArray(Box::new(None)),
                                                 };
                                                 if range.end - range.start == byte_length * 8{
-                                                FieldBuilderRange::Range(range)
+                                                BuilderRange::Range(range)
                                                 }else{
                                                     return Err(Error::new(
                                                         builder.span(),
@@ -875,7 +922,7 @@ impl FieldAttrBuilder {
                                                     ));
                                                 }
                                             }
-                                            FieldBuilderRange::LastEnd(_) => return Err(Error::new(
+                                            BuilderRange::LastEnd(_) => return Err(Error::new(
                                                 builder.span(),
                                                 "found Field bit range no-end while array_byte_length attribute which should never happen",
                                             )),
@@ -891,7 +938,7 @@ impl FieldAttrBuilder {
                         }
                         "overlapping_bits" => {
                             let val =
-                                get_lit_int(&value.value, &ident, Some("block_bit_length = 14"))?;
+                                get_lit_int(&value.value, ident, Some("block_bit_length = 14"))?;
                             match val.base10_parse::<usize>() {
                                 Ok(bits) => builder.overlap = OverlapOptions::Allow(bits),
                                 Err(err) => {
@@ -944,7 +991,7 @@ impl FieldAttrBuilder {
             Meta::List(meta_list) => {
                 return Err(syn::Error::new(
                     meta_list.span(),
-                    format!("bondrewd does not offer any list attribute for fields"),
+                    "bondrewd does not offer any list attribute for fields",
                 ))
             }
         }
@@ -952,11 +999,11 @@ impl FieldAttrBuilder {
     }
 }
 
-impl TryInto<FieldAttrs> for FieldAttrBuilder {
+impl TryInto<Attributes> for AttrBuilder {
     type Error = TryFromAttrBuilderError;
-    fn try_into(self) -> std::result::Result<FieldAttrs, Self::Error> {
-        if let FieldBuilderRange::Range(bit_range) = self.bit_range {
-            Ok(FieldAttrs {
+    fn try_into(self) -> std::result::Result<Attributes, Self::Error> {
+        if let BuilderRange::Range(bit_range) = self.bit_range {
+            Ok(Attributes {
                 endianness: Box::new(self.endianness),
                 bit_range,
                 reserve: self.reserve,

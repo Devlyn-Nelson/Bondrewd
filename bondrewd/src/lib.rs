@@ -1,4 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
+#![allow(clippy::module_name_repetitions)]
 //! Defined Traits for bondrewd-derive.
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 

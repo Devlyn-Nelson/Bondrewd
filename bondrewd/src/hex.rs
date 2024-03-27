@@ -11,9 +11,12 @@ where
     ///
     /// Returns Self with the fields containing the extracted values from provided hex encoded fixed size
     /// array of bytes.
+    ///
+    /// # Errors
+    /// see [`BitfieldHexError`].
     fn from_hex(hex: [u8; HEX_SIZE]) -> Result<Self, crate::BitfieldHexError> {
         let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
-        for i in 0usize..BYTE_SIZE {
+        for (i, assign_to_me) in bytes.iter_mut().enumerate() {
             let index = i * 2;
             let index2 = index + 1;
             let decode_nibble = |c, c_i| match c {
@@ -22,7 +25,7 @@ where
                 b'0'..=b'9' => Ok(c - b'0'),
                 _ => Err(crate::BitfieldHexError(c as char, c_i)),
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
+            *assign_to_me = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
@@ -57,12 +60,16 @@ where
 
 #[cfg(feature = "dyn_fns")]
 pub trait BitfieldHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
-    crate::Bitfields<BYTE_SIZE>
+    crate::Bitfields<BYTE_SIZE> + BitfieldHex<HEX_SIZE, BYTE_SIZE>
 where
     Self: Sized,
 {
-    const UPPERS: &'static [u8; 16] = b"0123456789ABCDEF";
-    const LOWERS: &'static [u8; 16] = b"0123456789abcdef";
+    /// Extracts the values of the Bitfields in this structure from a hex encoded `Vec<u8>`.
+    ///
+    /// Returns Self with the fields containing the extracted values from provided hex encoded bytes.
+    ///
+    /// # Errors
+    /// see [`BitfieldHexDynError`].
     fn from_hex_vec(hex: &mut Vec<u8>) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(
@@ -70,7 +77,7 @@ where
             ));
         }
         let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
-        for i in 0usize..BYTE_SIZE {
+        for (i, assign_to_me) in bytes.iter_mut().enumerate() {
             let index = i * 2;
             let index2 = index + 1;
             let decode_nibble = |c, c_i| match c {
@@ -81,11 +88,18 @@ where
                     c as char, c_i,
                 ))),
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
+            *assign_to_me = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))
     }
+    /// Extracts the values of the Bitfields in this structure from a hex encoded byte array
+    /// slice.
+    ///
+    /// Returns Self with the fields containing the extracted values from provided hex encoded bytes.
+    ///
+    /// # Errors
+    /// see [`BitfieldHexDynError`].
     fn from_hex_slice(hex: &[u8]) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(
@@ -93,7 +107,7 @@ where
             ));
         }
         let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
-        for i in 0usize..BYTE_SIZE {
+        for (i, assign_to_me) in bytes.iter_mut().enumerate() {
             let index = i * 2;
             let index2 = index + 1;
             let decode_nibble = |c, c_i| match c {
@@ -104,7 +118,7 @@ where
                     c as char, c_i,
                 ))),
             };
-            bytes[i] = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
+            *assign_to_me = ((decode_nibble(hex[index], index)? & 0b0000_1111) << 4)
                 | decode_nibble(hex[index2], index2)?;
         }
         Ok(Self::from_bytes(bytes))

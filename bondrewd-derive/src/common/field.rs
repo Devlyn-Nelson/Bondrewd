@@ -1,12 +1,7 @@
-use crate::parse::field::FieldAttrBuilder;
 use proc_macro2::Span;
 use quote::quote;
 use std::ops::Range;
-use syn::parse::Error;
-use syn::spanned::Spanned;
 use syn::Ident;
-
-use super::AttrInfo;
 
 #[derive(Clone, Debug)]
 pub enum Endianness {
@@ -53,7 +48,7 @@ pub enum NumberSignage {
 }
 
 #[derive(Clone, Debug)]
-pub enum FieldDataType {
+pub enum DataType {
     Boolean,
     /// first field is byte size for number
     Number(usize, NumberSignage, proc_macro2::TokenStream),
@@ -64,11 +59,11 @@ pub enum FieldDataType {
     Struct(usize, proc_macro2::TokenStream),
     Char(usize, proc_macro2::TokenStream),
     // array types are Subfield info, array length, ident
-    ElementArray(Box<SubFieldInfo>, usize, proc_macro2::TokenStream),
-    BlockArray(Box<SubFieldInfo>, usize, proc_macro2::TokenStream),
+    ElementArray(Box<SubInfo>, usize, proc_macro2::TokenStream),
+    BlockArray(Box<SubInfo>, usize, proc_macro2::TokenStream),
 }
 
-impl FieldDataType {
+impl DataType {
     /// byte size of actual rust type .
     pub fn size(&self) -> usize {
         match self {
@@ -170,7 +165,7 @@ impl OverlapOptions {
 }
 
 #[derive(Clone, Debug)]
-pub struct FieldAttrs {
+pub struct Attributes {
     pub endianness: Box<Endianness>,
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
@@ -179,35 +174,35 @@ pub struct FieldAttrs {
     pub capture_id: bool,
 }
 
-impl FieldAttrs {
+impl Attributes {
     pub fn bit_length(&self) -> usize {
         self.bit_range.end - self.bit_range.start
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct SubFieldInfo {
-    pub ty: FieldDataType,
+pub struct SubInfo {
+    pub ty: DataType,
 }
 
 pub struct ElementSubFieldIter {
-    pub outer_ident: Box<FieldIdent>,
+    pub outer_ident: Box<DynamicIdent>,
     pub endianness: Box<Endianness>,
     // this range is elements in the array, not bit range
     pub range: Range<usize>,
     pub starting_bit_index: usize,
-    pub ty: FieldDataType,
+    pub ty: DataType,
     pub element_bit_size: usize,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
 }
 
 impl Iterator for ElementSubFieldIter {
-    type Item = FieldInfo;
+    type Item = Info;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.range.next() {
             let start = self.starting_bit_index + (index * self.element_bit_size);
-            let attrs = FieldAttrs {
+            let attrs = Attributes {
                 bit_range: start..start + self.element_bit_size,
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
@@ -217,7 +212,7 @@ impl Iterator for ElementSubFieldIter {
             let outer_ident = self.outer_ident.ident().clone();
             let name = quote::format_ident!("{}_{}", outer_ident, index);
             let ident = Box::new((outer_ident, name).into());
-            Some(FieldInfo {
+            Some(Info {
                 ident,
                 attrs,
                 ty: self.ty.clone(),
@@ -230,12 +225,12 @@ impl Iterator for ElementSubFieldIter {
 
 #[derive(Debug)]
 pub struct BlockSubFieldIter {
-    pub outer_ident: Box<FieldIdent>,
+    pub outer_ident: Box<DynamicIdent>,
     pub endianness: Box<Endianness>,
     //array length
     pub length: usize,
     pub starting_bit_index: usize,
-    pub ty: FieldDataType,
+    pub ty: DataType,
     pub bit_length: usize,
     pub total_bytes: usize,
     pub reserve: ReserveFieldOption,
@@ -243,7 +238,7 @@ pub struct BlockSubFieldIter {
 }
 
 impl Iterator for BlockSubFieldIter {
-    type Item = FieldInfo;
+    type Item = Info;
     fn next(&mut self) -> Option<Self::Item> {
         if self.length != 0 {
             let mut ty_size = self.ty.size() * 8;
@@ -252,7 +247,7 @@ impl Iterator for BlockSubFieldIter {
             }
             let start = self.starting_bit_index;
             self.starting_bit_index = start + ty_size;
-            let attrs = FieldAttrs {
+            let attrs = Attributes {
                 bit_range: start..(start + ty_size),
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
@@ -265,7 +260,7 @@ impl Iterator for BlockSubFieldIter {
             let name = quote::format_ident!("{}_{}", outer_ident, index);
             let ident = Box::new((outer_ident, name).into());
             self.length -= 1;
-            Some(FieldInfo {
+            Some(Info {
                 ident,
                 attrs,
                 ty: self.ty.clone(),
@@ -277,7 +272,7 @@ impl Iterator for BlockSubFieldIter {
 }
 
 #[derive(Clone, Debug)]
-pub enum FieldIdent {
+pub enum DynamicIdent {
     Ident {
         /// name of the field given by the user.
         ident: Ident,
@@ -292,29 +287,31 @@ pub enum FieldIdent {
     },
 }
 
-impl FieldIdent {
+impl DynamicIdent {
     pub fn ident(&self) -> Ident {
         match self {
-            FieldIdent::Ident { ident, name: _ } => ident.clone(),
-            FieldIdent::Index { index, name } => Ident::new(&format!("field_{index}"), name.span()),
+            DynamicIdent::Ident { ident, name: _ } => ident.clone(),
+            DynamicIdent::Index { index, name } => {
+                Ident::new(&format!("field_{index}"), name.span())
+            }
         }
     }
     pub fn name(&self) -> Ident {
         match self {
-            FieldIdent::Ident { ident: _, name } | FieldIdent::Index { index: _, name } => {
+            DynamicIdent::Ident { ident: _, name } | DynamicIdent::Index { index: _, name } => {
                 name.clone()
             }
         }
     }
     pub fn span(&self) -> Span {
         match self {
-            FieldIdent::Ident { ident, name: _ } => ident.span(),
-            FieldIdent::Index { index: _, name } => name.span(),
+            DynamicIdent::Ident { ident, name: _ } => ident.span(),
+            DynamicIdent::Index { index: _, name } => name.span(),
         }
     }
 }
 
-impl From<(usize, Span)> for FieldIdent {
+impl From<(usize, Span)> for DynamicIdent {
     fn from((value, span): (usize, Span)) -> Self {
         Self::Index {
             index: value,
@@ -323,7 +320,7 @@ impl From<(usize, Span)> for FieldIdent {
     }
 }
 
-impl From<Ident> for FieldIdent {
+impl From<Ident> for DynamicIdent {
     fn from(value: Ident) -> Self {
         Self::Ident {
             ident: value.clone(),
@@ -331,7 +328,7 @@ impl From<Ident> for FieldIdent {
         }
     }
 }
-impl From<(Ident, Ident)> for FieldIdent {
+impl From<(Ident, Ident)> for DynamicIdent {
     fn from((value, value2): (Ident, Ident)) -> Self {
         Self::Ident {
             ident: value,
@@ -341,13 +338,13 @@ impl From<(Ident, Ident)> for FieldIdent {
 }
 
 #[derive(Clone, Debug)]
-pub struct FieldInfo {
-    pub ident: Box<FieldIdent>,
-    pub ty: FieldDataType,
-    pub attrs: FieldAttrs,
+pub struct Info {
+    pub ident: Box<DynamicIdent>,
+    pub ty: DataType,
+    pub attrs: Attributes,
 }
 
-impl FieldInfo {
+impl Info {
     // pub fn right_shift(&self, math: &BitMath) -> i8 {
     //     match *self.attrs.endianness {
     //         Endianness::Little => {
@@ -378,13 +375,14 @@ impl FieldInfo {
     //         Endianness::None => 8_i8 - ((math.available_bits_in_first_byte % 8) as i8),
     //     }
     // }
-    pub fn ident(&self) -> &FieldIdent {
+    pub fn ident(&self) -> &DynamicIdent {
         &self.ident
     }
     pub fn span(&self) -> Span {
         self.ident.span()
     }
-    fn overlapping(&self, other: &Self) -> bool {
+    /// Returns `true` if `self` contains bits that overlap with `other`'s bits.
+    pub fn overlapping(&self, other: &Self) -> bool {
         if self.attrs.overlap.enabled() || other.attrs.overlap.enabled() {
             return false;
         }
@@ -437,7 +435,7 @@ impl FieldInfo {
     }
 
     pub fn get_element_iter(&self) -> Result<ElementSubFieldIter, syn::Error> {
-        if let FieldDataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
+        if let DataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
             Ok(ElementSubFieldIter {
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
@@ -458,7 +456,7 @@ impl FieldInfo {
     }
 
     pub fn get_block_iter(&self) -> Result<BlockSubFieldIter, syn::Error> {
-        if let FieldDataType::BlockArray(ref sub_field, ref array_length, _) = self.ty {
+        if let DataType::BlockArray(ref sub_field, ref array_length, _) = self.ty {
             let bit_length = self.attrs.bit_range.end - self.attrs.bit_range.start;
             Ok(BlockSubFieldIter {
                 outer_ident: self.ident.clone(),
@@ -477,62 +475,5 @@ impl FieldInfo {
                 "This field was trying to get used like an array",
             ))
         }
-    }
-
-    /// `fields` should be all previous fields that have been parsed already.
-    pub fn from_syn_field(
-        field: &syn::Field,
-        fields: &[FieldInfo],
-        attrs: &AttrInfo,
-    ) -> syn::Result<Self> {
-        let ident: FieldIdent = if let Some(ref name) = field.ident {
-            name.clone().into()
-        } else {
-            (fields.len(), field.span()).into()
-            // return Err(Error::new(Span::call_site(), "all fields must be named"));
-        };
-        // parse all attrs. which will also give us the bit locations
-        // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = fields
-            .iter()
-            .filter(|x| !x.attrs.overlap.is_redundant())
-            .last();
-        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.span())?;
-        // check the field for supported types.
-        let data_type = FieldDataType::parse(
-            &field.ty,
-            &mut attrs_builder,
-            ident.span(),
-            &attrs.default_endianess,
-        )?;
-
-        let attrs: FieldAttrs = match attrs_builder.try_into() {
-            Ok(attr) => attr,
-            Err(fix_me) => {
-                let mut start = 0;
-                if let Some(last_value) = last_relevant_field {
-                    start = last_value.attrs.bit_range.end;
-                }
-                fix_me.fix(start..start + (data_type.size() * 8))
-            }
-        };
-
-        // construct the field we are parsed.
-        let new_field = FieldInfo {
-            ident: Box::new(ident),
-            ty: data_type,
-            attrs,
-        };
-        // check to verify there are no overlapping bit ranges from previously parsed fields.
-        for (i, parsed_field) in fields.iter().enumerate() {
-            if parsed_field.overlapping(&new_field) {
-                return Err(Error::new(
-                    Span::call_site(),
-                    format!("fields {} and {} overlap", i, fields.len()),
-                ));
-            }
-        }
-
-        Ok(new_field)
     }
 }

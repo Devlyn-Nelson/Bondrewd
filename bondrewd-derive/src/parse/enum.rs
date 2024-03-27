@@ -1,14 +1,14 @@
 use crate::common::r#enum::IdPosition;
 
 #[derive(Clone)]
-pub struct EnumAttrInfoBuilder {
+pub struct AttrInfoBuilder {
     pub id_bits: Option<usize>,
     pub id_position: IdPosition,
     pub total_bit_size: Option<usize>,
     pub payload_bit_size: Option<usize>,
 }
 
-impl Default for EnumAttrInfoBuilder {
+impl Default for AttrInfoBuilder {
     fn default() -> Self {
         Self {
             id_bits: None,

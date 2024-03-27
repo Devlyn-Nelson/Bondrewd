@@ -9,8 +9,8 @@ use super::{
     NoneQuoteInfo, QuoteInfo,
 };
 use crate::common::{
-    field::{Endianness, FieldDataType, FieldInfo, NumberSignage},
-    r#struct::StructInfo,
+    field::{DataType, Endianness, Info as FieldInfo, NumberSignage},
+    r#struct::Info as StructInfo,
 };
 struct BuildNumberQuotePackage<'a> {
     amount_of_bits: usize,
@@ -218,7 +218,7 @@ fn add_sign_fix_quote(
     amount_of_bits: usize,
     right_shift: i8,
 ) -> syn::Result<Option<TokenStream>> {
-    if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
+    if let DataType::Number(ref size, ref sign, _) = field.ty {
         if amount_of_bits != size * 8 {
             if let NumberSignage::Signed = sign {
                 let (bit_to_isolate, sign_index) = match field.attrs.endianness.as_ref() {
@@ -311,7 +311,7 @@ fn add_sign_fix_quote_single_bit(
     amount_of_bits: usize,
     byte_index: usize,
 ) -> TokenStream {
-    if let FieldDataType::Number(ref size, ref sign, _) = field.ty {
+    if let DataType::Number(ref size, ref sign, _) = field.ty {
         if amount_of_bits != *size * 8 {
             if let NumberSignage::Signed = sign {
                 let bit_to_isolate = field.attrs.bit_range.start % 8;
@@ -337,7 +337,7 @@ impl FieldInfo {
         gen_read_fn: fn(&FieldInfo, &QuoteInfo) -> syn::Result<TokenStream>,
     ) -> syn::Result<TokenStream> {
         let value_retrieval = match self.ty {
-            FieldDataType::ElementArray(_, _, _) => {
+            DataType::ElementArray(_, _, _) => {
                 let mut buffer = quote! {};
                 let sub = self.get_element_iter()?;
                 for sub_field in sub {
@@ -351,7 +351,7 @@ impl FieldInfo {
                 let buffer = quote! { [#buffer] };
                 buffer
             }
-            FieldDataType::BlockArray(_, _, _) => {
+            DataType::BlockArray(_, _, _) => {
                 let mut buffer = quote! {};
                 let sub = self.get_block_iter()?;
                 for sub_field in sub {
@@ -372,10 +372,10 @@ impl FieldInfo {
         };
 
         let output = match self.ty {
-            FieldDataType::Float(_, ref ident) => {
+            DataType::Float(_, ref ident) => {
                 quote! {#ident::from_bits(#value_retrieval)}
             }
-            FieldDataType::Char(_, _) => {
+            DataType::Char(_, _) => {
                 quote! {
                     if let Some(c) = char::from_u32({
                         #value_retrieval
@@ -386,10 +386,10 @@ impl FieldInfo {
                     }
                 }
             }
-            FieldDataType::Enum(_, _, ref ident) => {
+            DataType::Enum(_, _, ref ident) => {
                 quote! {#ident::from_primitive(#value_retrieval)}
             }
-            FieldDataType::Struct(_, ref ident) => {
+            DataType::Struct(_, ref ident) => {
                 quote! {#ident::from_bytes({#value_retrieval})}
             }
             _ => {
@@ -475,7 +475,7 @@ impl FieldInfo {
         let starting_inject_byte = quote_info.starting_inject_byte();
         let field_buffer_name = quote_info.field_buffer_name();
         let output_quote = match self.ty {
-            FieldDataType::Number(_, ref sign, ref ident) => {
+            DataType::Number(_, ref sign, ref ident) => {
                 let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
                     field_value = add_sign_fix_quote_single_bit(field_value, self, quote_info.amount_of_bits(), starting_inject_byte);
@@ -495,14 +495,14 @@ impl FieldInfo {
                     }
                 }
             }
-            FieldDataType::Boolean => {
+            DataType::Boolean => {
                 quote!{(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
             }
-            FieldDataType::Char(_, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32},
-            FieldDataType::Enum(ref ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #ident},
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
+            DataType::Char(_, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32},
+            DataType::Enum(ref ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #ident},
+            DataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            DataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
         Ok(output_quote)
     }
@@ -634,8 +634,8 @@ impl FieldInfo {
         };
         // generate code to transform buffer into rust type.
         let output = match self.ty {
-            FieldDataType::Number(_, _, ref type_quote) |
-            FieldDataType::Enum(ref type_quote, _, _) => {
+            DataType::Number(_, _, ref type_quote) |
+            DataType::Enum(ref type_quote, _, _) => {
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_le_bytes({
                         #full_quote
@@ -643,7 +643,7 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Float(_, _) => {
+            DataType::Float(_, _) => {
                 let alt_type_quote = if rust_type_size == 4 {
                     quote!{u32}
                 }else if rust_type_size == 8 {
@@ -658,7 +658,7 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Char(_, _) => {
+            DataType::Char(_, _) => {
                 let apply_field_to_buffer = quote! {
                     u32::from_le_bytes({
                         #full_quote
@@ -666,9 +666,9 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
+            DataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            DataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
 
         Ok(output)
@@ -725,18 +725,18 @@ impl FieldInfo {
         }
         let starting_inject_byte = quote_info.starting_inject_byte();
         let output = match self.ty {
-            FieldDataType::Number(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
-            FieldDataType::Boolean => {
+            DataType::Number(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
+            DataType::Boolean => {
                 quote!{(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
             }
-            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char not supported for single byte insert logic")),
-            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::Struct(_, _) => {
+            DataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char not supported for single byte insert logic")),
+            DataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was given Endianness which should be described by the struct implementing Bitfield")),
+            DataType::Struct(_, _) => {
                 let used_bits_in_byte = 8 - quote_info.available_bits_in_first_byte();
                 quote!{([((input_byte_buffer[#starting_inject_byte] & #mask)) << #used_bits_in_byte])}
             }
-            FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+            DataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
         Ok(output)
     }
@@ -761,12 +761,12 @@ impl FieldInfo {
         };
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let full_quote = match self.ty {
-            FieldDataType::Number(_, _,_ ) |
-            FieldDataType::Float(_, _) |
-            FieldDataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char was not given Endianness, please report this.")),
-            FieldDataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was not given Endianness, please report this.")),
-            FieldDataType::Struct(ref size, _) => {
+            DataType::Number(_, _,_ ) |
+            DataType::Float(_, _) |
+            DataType::Char(_, _) => return Err(syn::Error::new(self.ident.span(), "Char was not given Endianness, please report this.")),
+            DataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            DataType::Enum(_, _, _) => return Err(syn::Error::new(self.ident.span(), "Enum was not given Endianness, please report this.")),
+            DataType::Struct(ref size, _) => {
                 let buffer_ident = format_ident!("{}_buffer", self.ident().ident());
                 let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
                 match right_shift.cmp(&0) {
@@ -858,7 +858,7 @@ impl FieldInfo {
                 };
                 quote_builder
             }
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
 
         Ok(full_quote)
@@ -931,7 +931,7 @@ impl FieldInfo {
         let field_buffer_name = quote_info.field_buffer_name();
         let starting_inject_byte = quote_info.starting_inject_byte();
         let output_quote = match self.ty {
-            FieldDataType::Number(_, ref sign,ref ident) => {
+            DataType::Number(_, ref sign,ref ident) => {
                 let mut field_value = quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                 if let NumberSignage::Signed = sign {
                     field_value = add_sign_fix_quote_single_bit(field_value, self, quote_info.amount_of_bits(), quote_info.starting_inject_byte());
@@ -951,14 +951,14 @@ impl FieldInfo {
                     }
                 }
             }
-            FieldDataType::Boolean => {
+            DataType::Boolean => {
                 quote!{(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
             }
-            FieldDataType::Char(_, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32},
-            FieldDataType::Enum(ref ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #ident},
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
+            DataType::Char(_, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32},
+            DataType::Enum(ref ident, _, _) => quote!{((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as #ident},
+            DataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            DataType::Float(_, _) => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
         Ok(output_quote)
     }
@@ -1033,8 +1033,8 @@ impl FieldInfo {
         };
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let output = match self.ty {
-            FieldDataType::Number(size, _, ref type_quote) |
-            FieldDataType::Enum(ref type_quote, size, _) => {
+            DataType::Number(size, _, ref type_quote) |
+            DataType::Enum(ref type_quote, size, _) => {
                 let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                 let full_quote = build_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
@@ -1044,7 +1044,7 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Float(size, _) => {
+            DataType::Float(size, _) => {
                 let alt_type_quote = if size == 4 {
                     quote!{u32}
                 }else if size == 8 {
@@ -1061,7 +1061,7 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Char(size, _) => {
+            DataType::Char(size, _) => {
                 let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                 let full_quote = build_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
@@ -1071,9 +1071,9 @@ impl FieldInfo {
                 };
                 apply_field_to_buffer
             }
-            FieldDataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            FieldDataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
+            DataType::Boolean => return Err(syn::Error::new(self.ident.span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+            DataType::Struct(_, _) => return Err(syn::Error::new(self.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            DataType::ElementArray(_, _, _) | DataType::BlockArray(_, _, _) => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
 
         Ok(output)

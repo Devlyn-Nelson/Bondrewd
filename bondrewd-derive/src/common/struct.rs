@@ -4,10 +4,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-use super::{field::FieldInfo, AttrInfo};
+use super::{field::Info as FieldInfo, AttrInfo};
 
 #[derive(Clone)]
-pub struct StructInfo {
+pub struct Info {
     pub name: Ident,
     pub attrs: AttrInfo,
     pub fields: Vec<FieldInfo>,
@@ -15,7 +15,7 @@ pub struct StructInfo {
     pub tuple: bool,
 }
 
-impl StructInfo {
+impl Info {
     pub fn dump(&self) -> bool {
         self.attrs.dump
     }
