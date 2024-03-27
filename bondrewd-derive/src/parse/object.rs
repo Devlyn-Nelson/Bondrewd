@@ -38,7 +38,15 @@ impl ObjectInfo {
                 let nested =
                     attr.parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)?;
                 for meta in &nested {
-                    StructInfo::parse_attrs_meta(attrs_info, meta, is_variant)?;
+                    if !StructInfo::parse_attrs_meta(attrs_info, meta, is_variant)? {
+                        return Err(syn::Error::new(
+                            meta.span(),
+                            format!(
+                                "invalid {} attribute",
+                                if is_variant { "variant" } else { "struct" }
+                            ),
+                        ));
+                    }
                 }
             }
         }

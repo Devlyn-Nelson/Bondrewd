@@ -6,6 +6,7 @@ use bondrewd::Bitfields;
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
+    #[bondrewd(variant_id = 0)]
     One {
         test: u32,
     },

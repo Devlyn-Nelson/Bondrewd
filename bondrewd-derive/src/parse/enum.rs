@@ -1,4 +1,4 @@
-use syn::Meta;
+use syn::{spanned::Spanned, Meta};
 
 use crate::common::{
     r#enum::{IdPosition, Info as EnumInfo},
@@ -33,6 +33,24 @@ impl EnumInfo {
         enum_info: &mut AttrInfoBuilder,
         meta: &Meta,
     ) -> Result<(), syn::Error> {
+        let enum_result = Self::parse_attrs_meta_enum(enum_info, meta)?;
+        let struct_result = StructInfo::parse_attrs_meta(info, meta, false)?;
+        if !(enum_result || struct_result) {
+            return Err(syn::Error::new(meta.span(), "invalid enum attribute"));
+        }
+        if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
+            enum_info.total_bit_size = Some(bits);
+            info.enforcement = StructEnforcement::NoRules;
+        }
+        Ok(())
+    }
+    /// a return of `Ok(false)` means that no attribute was found. but due to enums
+    /// using struct and enum attribute we can't throw an error unless neither have
+    /// an error.
+    fn parse_attrs_meta_enum(
+        enum_info: &mut AttrInfoBuilder,
+        meta: &Meta,
+    ) -> Result<bool, syn::Error> {
         match meta {
             Meta::NameValue(value) => {
                 if let Some(ident) = value.path.get_ident() {
@@ -55,7 +73,7 @@ impl EnumInfo {
                                     return Err(syn::Error::new(
                                         ident.span(),
                                         format!("failed parsing id-bits value [{err}]"),
-                                    ))
+                                    ));
                                 }
                             }
                         }
@@ -76,7 +94,7 @@ impl EnumInfo {
                                     return Err(syn::Error::new(
                                         ident.span(),
                                         format!("failed parsing id-bytes value [{err}]"),
-                                    ))
+                                    ));
                                 }
                             }
                         }
@@ -94,7 +112,7 @@ impl EnumInfo {
                                     return Err(syn::Error::new(
                                         ident.span(),
                                         format!("failed parsing payload-bits value [{err}]"),
-                                    ))
+                                    ));
                                 }
                             }
                         }
@@ -112,11 +130,13 @@ impl EnumInfo {
                                     return Err(syn::Error::new(
                                         ident.span(),
                                         format!("failed parsing payload-bytes value [{err}]"),
-                                    ))
+                                    ));
                                 }
                             }
                         }
-                        _ => {}
+                        _ => {
+                            return Ok(false);
+                        }
                     }
                 }
             }
@@ -130,18 +150,19 @@ impl EnumInfo {
                         "id_head" => {
                             enum_info.id_position = IdPosition::Leading;
                         }
-                        _ => {}
+                        _ => {
+                            return Ok(false);
+                        }
                     }
                 }
             }
-            Meta::List(_meta_list) => {}
+            Meta::List(ref meta_list) => {
+                return Err(syn::Error::new(
+                    meta_list.span(),
+                    "bondrewd does not offer any list attribute for fields",
+                ))
+            }
         }
-        StructInfo::parse_attrs_meta(info, meta, false)?;
-        // TODO merge struct and enum attrs here.
-        if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
-            enum_info.total_bit_size = Some(bits);
-            info.enforcement = StructEnforcement::NoRules;
-        }
-        Ok(())
+        Ok(true)
     }
 }

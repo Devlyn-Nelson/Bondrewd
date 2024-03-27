@@ -13,7 +13,7 @@ impl StructInfo {
         info: &mut AttrInfo,
         meta: &Meta,
         is_variant: bool,
-    ) -> Result<(), syn::Error> {
+    ) -> Result<bool, syn::Error> {
         match meta {
             Meta::NameValue(ref value) => {
                 if let Some(ident) = value.path.get_ident() {
@@ -147,7 +147,9 @@ impl StructInfo {
                                         }
                                     }
                         }
-                        _ => {}
+                        _ => {
+                            return Ok(false);
+                        }
                     }
                 }
             }
@@ -167,7 +169,9 @@ impl StructInfo {
                         "invalid" => {
                             info.invalid = true;
                         }
-                        _ => {}
+                        _ => {
+                            return Ok(false);
+                        }
                     }
                 }
             }
@@ -178,6 +182,6 @@ impl StructInfo {
                 ))
             }
         }
-        Ok(())
+        Ok(true)
     }
 }

@@ -1,7 +1,7 @@
 use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields, Debug, Clone, PartialEq, Eq)]
-#[bondrewd(default_endianess = "msb", bit_traversal = "lsb0", enforce_bytes = 1)]
+#[bondrewd(default_endianness = "msb", bit_traversal = "lsb0", enforce_bytes = 1)]
 pub struct StatusMagnetometer {
     mtm1: bool,
     mtm2: bool,
@@ -65,10 +65,6 @@ fn main() {
     for hex_char in bytes {
         hex_from_bytes.push(hex_char as char);
     }
-    /*assert_eq!(
-        "000000000002918407FE63FDA30156039EFE4EFA4AFFF20235004D",
-        hex_from_bytes
-    );*/
     match Magnetometers::from_hex(bytes) {
         Ok(mag) => {
             assert_eq!(mag, og);
