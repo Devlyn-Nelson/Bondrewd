@@ -14,10 +14,10 @@ struct Simple {
 #[derive(Bitfields)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithStruct {
-    #[bondrewd(struct_size = 7)]
+    #[bondrewd(byte_length = 7)]
     one: Simple,
     // structs can also be used in arrays.
-    #[bondrewd(struct_size = 7)]
+    #[bondrewd(element_byte_length = 7)]
     two: [Simple; 2],
 }
 

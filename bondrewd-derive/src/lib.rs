@@ -442,8 +442,6 @@ use syn::{parse_macro_input, DeriveInput};
 /// type). [example](#bitfield-array-examples)
 /// - `enum_primitive = "u8"` Defines the size of the enum. the `BitfieldEnum` currently only supports u8.
 /// [example](#enum-examples)
-/// - `struct_size = {SIZE}` Defines the field as a struct which implements the Bitfield trait and the
-/// `BYTE_SIZE` const defined in said trait. [example](#bitfield-struct-as-field-examples)
 /// - `reserve` Defines that this field should be ignored in from and into bytes functions.
 /// [example](#reserve-examples)
 ///     - Reserve requires the fields type to impl [`Default`](https://doc.rust-lang.org/std/default/trait.Default.html).
@@ -711,9 +709,9 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000, 0b10000000]);
 /// ```
 /// # Bitfield Struct as Field Examples
-/// Inner structs must implement the
+/// Nested structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
-/// `struct_size = {BYTE_SIZE}`, the `BYTE_SIZE` being the number of bytes in the outputs byte array or
+/// `byte_length = {BYTE_SIZE}`, the `BYTE_SIZE` being the number of bytes in the outputs byte array or
 /// value in the traits const `BYTE_SIZE`.
 /// ```
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
@@ -733,10 +731,10 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithStruct {
-///     #[bondrewd(struct_size = 7)]
+///     #[bondrewd(byte_length = 7)]
 ///     one: Simple,
 ///     // structs can also be used in arrays.
-///     #[bondrewd(struct_size = 7)]
+///     #[bondrewd(element_byte_length = 7)]
 ///     two: [Simple; 2],
 /// }
 /// ```
@@ -759,9 +757,9 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct SimpleWithStruct {
-///     #[bondrewd(struct_size = 1, bit_length = 4)]
+///     #[bondrewd(bit_length = 4)]
 ///     one: Simple,
-///     #[bondrewd(struct_size = 1, bit_length = 4)]
+///     #[bondrewd(bit_length = 4)]
 ///     two: Simple,
 /// }
 ///
@@ -872,7 +870,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // element bit length = 52. this will make the total size of
 ///     // the 2 structs in compressed/byte form 104 bits instead of
 ///     // 112.
-///     #[bondrewd(struct_size = 7, element_bit_length = 52)]
+///     #[bondrewd(element_bit_length = 52)]
 ///     compressed_structures: [SimpleStruct; 2],
 /// }
 /// ```

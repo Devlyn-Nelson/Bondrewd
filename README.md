@@ -174,7 +174,8 @@ fn main() {
 # Why Bondrewd
 
 Historically, the main reason for the crate was to share complex data structures for Space communication protocols (e.g. CCSDS/AOS/TC/TM...) between different software services and dependencies, without performance penalties for decoding/encoding whole `struct`s from bytes.
-Originally, we wrote code for these formats using crates like [modular_bitfield](https://docs.rs/modular-bitfield/latest/modular_bitfield/) and [packed_struct](https://docs.rs/packed_struct/latest/packed_struct/) and shared a common crate across all software services.
+Originally, we wrote code for these formats using both [modular_bitfield](https://docs.rs/modular-bitfield/latest/modular_bitfield/) and [packed_struct](https://docs.rs/packed_struct/latest/packed_struct/) but eventually were unsatisfied with the results.
+
 For our software, we were severely constrained by compute while transferring large amounts of data, spending lots of time decoding/encoding data structures.
 We found that for certain parts of the communications services that we didn't need to decode the whole structure from bytes in order to process the communications packets.
 In addition, we found many times we'd just set a single field in the structure and pass the packet to the next stage.
@@ -189,7 +190,7 @@ However, this crate looks to fill the following from these two crates:
 * Enum Field support that can catch invalid numbers without panics. 
   * N.B. PackedStruct offers this feature, but you are required to use a built-in EnumType Wrapper. ModularBitfields exhibits panic behavior.
 * Reverse Byte Order with no runtime cost.
-* Bit 0 positioning. Msb0 or Lsb0
+* Bit 0 positioning. `front` or `back`. This doesn't truly change bit order, but simply defined which direction in which the indexs of bits should be read. (please read aligned example)
   * PackedStruct offers this.
 * Bit Size Enforcement with non-power of 2 bit lengths.
 

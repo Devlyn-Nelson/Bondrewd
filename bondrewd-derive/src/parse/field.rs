@@ -37,8 +37,10 @@ impl FieldInfo {
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
         let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
+        // println!("--\n{attrs_builder:?}\n");
         // check the field for supported types.
         let data_type = DataType::parse(&field.ty, &mut attrs_builder, &attrs.default_endianess)?;
+        // println!("{attrs_builder:?}\n--\n");
 
         let attrs: Attributes = match attrs_builder.try_into() {
             Ok(attr) => attr,
@@ -103,168 +105,150 @@ impl DataType {
             },
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
-                if let syn::Expr::Lit(ref lit_expr) = array_path.len {
-                    if let syn::Lit::Int(ref lit_int) = lit_expr.lit {
-                        if let Ok(array_length) = lit_int.base10_parse::<usize>() {
-                            match attrs.ty {
-                                AttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
-                                    attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        BuilderRange::Range(ref range) => {
-                                            if range.end < range.start {
-                                                return Err(syn::Error::new(
-                                                    ty.span(),
-                                                    "range end is less than range start",
-                                                ));
-                                            }
-                                            if range.end - range.start
-                                                != *element_bit_size * array_length
-                                            {
-                                                return Err(
+                let lit_int = get_lit_int(
+                    &array_path.len,
+                    &Ident::new("array_length", ty.span()),
+                    None,
+                )?;
+                if let Ok(array_length) = lit_int.base10_parse::<usize>() {
+                    match attrs.ty {
+                        AttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
+                            attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
+                                BuilderRange::Range(ref range) => {
+                                    if range.end < range.start {
+                                        return Err(syn::Error::new(
+                                            ty.span(),
+                                            "range end is less than range start",
+                                        ));
+                                    }
+                                    if range.end - range.start != *element_bit_size * array_length {
+                                        return Err(
                                                     syn::Error::new(
                                                         ty.span(),
                                                         "Element arrays bit range didn't match (element bit size * array length)"
                                                     )
                                                 );
-                                            }
-                                            BuilderRange::Range(range.clone())
-                                        }
-                                        BuilderRange::LastEnd(ref last_end) => BuilderRange::Range(
-                                            *last_end
-                                                ..last_end + (array_length * *element_bit_size),
-                                        ),
-                                        BuilderRange::None => {
-                                            return Err(syn::Error::new(
-                                                ty.span(),
-                                                "failed getting Range for element array",
-                                            ));
-                                        }
-                                    };
-                                    let mut sub_attrs = attrs.clone();
-                                    if let Type::Array(_) = array_path.elem.as_ref() {
-                                    } else if let Some(ref ty) = sub.as_ref() {
-                                        sub_attrs.ty = ty.clone();
-                                    } else {
-                                        sub_attrs.ty = AttrBuilderType::None;
                                     }
-                                    let sub_ty = Self::parse(
-                                        &array_path.elem,
-                                        &mut sub_attrs,
-                                        default_endianess,
-                                    )?;
-
-                                    let type_ident = &sub_ty.type_quote();
-                                    DataType::ElementArray {
-                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                                        length: array_length,
-                                        type_quote: quote! {[#type_ident;#array_length]},
-                                    }
+                                    BuilderRange::Range(range.clone())
                                 }
-                                AttrBuilderType::BlockArray(_) => {
-                                    let mut sub_attrs = attrs.clone();
-                                    if let Type::Array(_) = array_path.elem.as_ref() {
-                                    } else {
-                                        sub_attrs.ty = AttrBuilderType::None;
-                                    }
-
-                                    let sub_ty = Self::parse(
-                                        &array_path.elem,
-                                        &mut sub_attrs,
-                                        default_endianess,
-                                    )?;
-                                    attrs.endianness = sub_attrs.endianness;
-                                    let type_ident = &sub_ty.type_quote();
-                                    DataType::BlockArray {
-                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                                        length: array_length,
-                                        type_quote: quote! {[#type_ident;#array_length]},
-                                    }
+                                BuilderRange::LastEnd(ref last_end) => BuilderRange::Range(
+                                    *last_end..last_end + (array_length * *element_bit_size),
+                                ),
+                                BuilderRange::None => {
+                                    return Err(syn::Error::new(
+                                        ty.span(),
+                                        "failed getting Range for element array",
+                                    ));
                                 }
-                                AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
-                                    let mut sub_attrs = attrs.clone();
-                                    if let Type::Array(_) = array_path.elem.as_ref() {
-                                    } else {
-                                        sub_attrs.ty = attrs.ty.clone();
-                                    }
+                            };
+                            let mut sub_attrs = attrs.clone();
+                            if let Type::Array(_) = array_path.elem.as_ref() {
+                            } else if let Some(ref ty) = sub.as_ref() {
+                                sub_attrs.ty = ty.clone();
+                            } else {
+                                sub_attrs.ty = AttrBuilderType::None;
+                            }
+                            let mut sub_ty =
+                                Self::parse(&array_path.elem, &mut sub_attrs, default_endianess)?;
 
-                                    let sub_ty = Self::parse(
-                                        &array_path.elem,
-                                        &mut sub_attrs,
-                                        default_endianess,
-                                    )?;
-                                    attrs.endianness = sub_attrs.endianness;
-                                    let type_ident = &sub_ty.type_quote();
-                                    DataType::BlockArray {
-                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                                        length: array_length,
-                                        type_quote: quote! {[#type_ident;#array_length]},
+                            match sub_ty {
+                                DataType::Enum { ref mut size, .. } |
+                                DataType::Struct { ref mut size, .. } => *size = size.div_ceil(array_length),
+                                _ => {}
+                            }
+
+                            let type_ident = &sub_ty.type_quote();
+                            DataType::ElementArray {
+                                sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                length: array_length,
+                                type_quote: quote! {[#type_ident;#array_length]},
+                            }
+                        }
+                        AttrBuilderType::BlockArray(_) => {
+                            let mut sub_attrs = attrs.clone();
+                            if let Type::Array(_) = array_path.elem.as_ref() {
+                            } else {
+                                sub_attrs.ty = AttrBuilderType::None;
+                            }
+
+                            let sub_ty =
+                                Self::parse(&array_path.elem, &mut sub_attrs, default_endianess)?;
+                            attrs.endianness = sub_attrs.endianness;
+                            let type_ident = &sub_ty.type_quote();
+                            DataType::BlockArray {
+                                sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                length: array_length,
+                                type_quote: quote! {[#type_ident;#array_length]},
+                            }
+                        }
+                        AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
+                            let mut sub_attrs = attrs.clone();
+                            if let Type::Array(_) = array_path.elem.as_ref() {
+                            } else {
+                                sub_attrs.ty = attrs.ty.clone();
+                            }
+
+                            let sub_ty =
+                                Self::parse(&array_path.elem, &mut sub_attrs, default_endianess)?;
+                            attrs.endianness = sub_attrs.endianness;
+                            let type_ident = &sub_ty.type_quote();
+                            DataType::BlockArray {
+                                sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                length: array_length,
+                                type_quote: quote! {[#type_ident;#array_length]},
+                            }
+                        }
+                        AttrBuilderType::None => {
+                            let mut sub_attrs = attrs.clone();
+                            if let Type::Array(_) = array_path.elem.as_ref() {
+                            } else {
+                                sub_attrs.ty = AttrBuilderType::None;
+                            }
+                            let sub_ty =
+                                Self::parse(&array_path.elem, &mut sub_attrs, default_endianess)?;
+                            attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
+                                BuilderRange::Range(ref range) => {
+                                    if range.end < range.start {
+                                        return Err(syn::Error::new(
+                                            ty.span(),
+                                            "range end is less than range start",
+                                        ));
                                     }
-                                }
-                                AttrBuilderType::None => {
-                                    let mut sub_attrs = attrs.clone();
-                                    if let Type::Array(_) = array_path.elem.as_ref() {
-                                    } else {
-                                        sub_attrs.ty = AttrBuilderType::None;
-                                    }
-                                    let sub_ty = Self::parse(
-                                        &array_path.elem,
-                                        &mut sub_attrs,
-                                        default_endianess,
-                                    )?;
-                                    attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                                        BuilderRange::Range(ref range) => {
-                                            if range.end < range.start {
-                                                return Err(syn::Error::new(
-                                                    ty.span(),
-                                                    "range end is less than range start",
-                                                ));
-                                            }
-                                            if range.end - range.start % array_length != 0 {
-                                                return Err(
+                                    if range.end - range.start % array_length != 0 {
+                                        return Err(
                                                     syn::Error::new(
                                                         ty.span(),
-                                                        "Array Inference failed because given total bit_length does not split up evenly between elements"
+                                                        "Array Inference failed because given total bit_length does not split up evenly between elements, perhaps try using `element_bit_length` attribute"
                                                     )
                                                 );
-                                            }
-                                            BuilderRange::Range(range.clone())
-                                        }
-                                        BuilderRange::LastEnd(ref last_end) => {
-                                            let element_bit_length =
-                                                sub_ty.get_element_bit_length();
-                                            BuilderRange::Range(
-                                                *last_end
-                                                    ..last_end
-                                                        + (array_length * element_bit_length),
-                                            )
-                                        }
-                                        BuilderRange::None => {
-                                            return Err(syn::Error::new(
-                                                ty.span(),
-                                                "failed getting Range for element array",
-                                            ));
-                                        }
-                                    };
-                                    let type_ident = &sub_ty.type_quote();
-                                    DataType::ElementArray {
-                                        sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                                        length: array_length,
-                                        type_quote: quote! {[#type_ident;#array_length]},
                                     }
+                                    BuilderRange::Range(range.clone())
                                 }
+                                BuilderRange::LastEnd(ref last_end) => {
+                                    let element_bit_length = sub_ty.get_element_bit_length();
+                                    BuilderRange::Range(
+                                        *last_end..last_end + (array_length * element_bit_length),
+                                    )
+                                }
+                                BuilderRange::None => {
+                                    return Err(syn::Error::new(
+                                        ty.span(),
+                                        "failed getting Range for element array",
+                                    ));
+                                }
+                            };
+                            let type_ident = &sub_ty.type_quote();
+                            DataType::ElementArray {
+                                sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                                length: array_length,
+                                type_quote: quote! {[#type_ident;#array_length]},
                             }
-                        } else {
-                            return Err(Error::new(
-                                array_path.bracket_token.span.span(),
-                                "failed parsing array length as literal integer",
-                            ));
                         }
-                    } else {
-                        return Err(Error::new(array_path.bracket_token.span.span(), "Couldn't determine Array length, literal array lengths must be an integer"));
                     }
                 } else {
                     return Err(Error::new(
                         array_path.bracket_token.span.span(),
-                        "Couldn't determine Array length, must be literal",
+                        "failed parsing array length as literal integer",
                     ));
                 }
             }
