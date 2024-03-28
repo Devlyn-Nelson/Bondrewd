@@ -37,10 +37,8 @@ impl FieldInfo {
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
         let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
-        // println!("--\n{attrs_builder:?}\n");
         // check the field for supported types.
         let data_type = DataType::parse(&field.ty, &mut attrs_builder, &attrs.default_endianess)?;
-        // println!("{attrs_builder:?}\n--\n");
 
         let attrs: Attributes = match attrs_builder.try_into() {
             Ok(attr) => attr,
