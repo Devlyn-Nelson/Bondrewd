@@ -23,8 +23,9 @@ syn = { version = "2.0", features = ["full"] }
 dyn_fns = []
 hex_fns = []
 setters = []
+std = []
 
 [dev-dependencies]
 rand = "0.8"
 anyhow = "1.0.51"
-bondrewd = { path = "../bondrewd", features = ["derive", "dyn_fns", "hex_fns"] }
+bondrewd = { path = "../bondrewd", features = ["derive", "std", "dyn_fns", "hex_fns"] }

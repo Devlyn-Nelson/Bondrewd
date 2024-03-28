@@ -15,7 +15,6 @@ repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 bondrewd-derive = { path = "../bondrewd-derive", optional = true }
 
 [features]
-default = ["std"]
 derive = ["bondrewd-derive"]
 dyn_fns = ["bondrewd-derive/dyn_fns"]
 hex_fns = ["bondrewd-derive/hex_fns"]

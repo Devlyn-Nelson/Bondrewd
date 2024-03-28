@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::module_name_repetitions)]
 //! Defined Traits for bondrewd-derive.
+//!
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 
 mod error;
@@ -36,6 +37,7 @@ where
     ///
     /// # Errors
     /// If there is not enough bytes to create the object from `input_byte_buffer`.
+    #[cfg(feature = "std")]
     fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, BitfieldLengthError>;
     /// If `Ok(bitfield_struct)` is returned, the required bytes to create the object will be copied from
     /// `input_byte_buffer`.

@@ -70,6 +70,7 @@ where
     ///
     /// # Errors
     /// see [`BitfieldHexDynError`].
+    #[cfg(feature = "std")]
     fn from_hex_vec(hex: &mut Vec<u8>) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(

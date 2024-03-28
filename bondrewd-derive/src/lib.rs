@@ -102,6 +102,10 @@
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
 //!
+//! > as of `bondrewd = 0.2` the `std` feature is no longer on by default, meaning `BondrewdSliceError`
+//! does NOT implement [`std::error::Error`] by default. If you want standard error, use the [`std`] feature
+//! in bondrewd.
+//!
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
 //! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
@@ -1551,12 +1555,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///     }
 ///     impl Thing {
 ///     #[inline]
-///     Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
+///     /// Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
 ///     pub fn read_id(input_byte_buffer: &[u8; 3usize]) -> u8 {
 ///         ((input_byte_buffer[0usize] & 192u8) >> 6usize) as u8
 ///     }
 ///     #[inline]
-///     Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
+///     /// Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
 ///     pub fn read_one_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
 ///         u16::from_be_bytes({
 ///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
@@ -1568,12 +1572,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///             .rotate_left(2u32)
 ///     }
 ///     #[inline]
-///     Reads bits 18 through 23 within `input_byte_buffer`, getting the `one_fill_bits` field of a `One` in bitfield form.
+///     /// Reads bits 18 through 23 within `input_byte_buffer`, getting the `one_fill_bits` field of a `One` in bitfield form.
 ///     pub fn read_one_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 1usize] {
 ///         [{ ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8 }]
 ///     }
 ///     #[inline]
-///     Reads bits 2 through 17 within `input_byte_buffer`, getting the `two_a` field of a `Two` in bitfield form.
+///     /// Reads bits 2 through 17 within `input_byte_buffer`, getting the `two_a` field of a `Two` in bitfield form.
 ///     pub fn read_two_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
 ///         u16::from_be_bytes({
 ///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
@@ -1585,12 +1589,12 @@ use syn::{parse_macro_input, DeriveInput};
 ///             .rotate_left(2u32)
 ///     }
 ///     #[inline]
-///     Reads bits 18 through 23 within `input_byte_buffer`, getting the `two_b` field of a `Two` in bitfield form.
+///     /// Reads bits 18 through 23 within `input_byte_buffer`, getting the `two_b` field of a `Two` in bitfield form.
 ///     pub fn read_two_b(input_byte_buffer: &[u8; 3usize]) -> u8 {
 ///         ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8
 ///     }
 ///     #[inline]
-///     Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
+///     /// Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
 ///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
 ///         u8::from_be_bytes({
 ///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
@@ -1601,7 +1605,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///             .rotate_left(1u32)
 ///     }
 ///     #[inline]
-///     Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
+///     /// Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
 ///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
 ///         u16::from_be_bytes({
 ///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
@@ -1611,7 +1615,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///         })
 ///     }
 ///     #[inline]
-///     Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
+///     /// Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
 ///     pub fn read_idk_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 3usize] {
 ///         [
 ///             { ((input_byte_buffer[0usize] & 63u8) >> 0usize) as u8 },
@@ -1620,13 +1624,13 @@ use syn::{parse_macro_input, DeriveInput};
 ///         ]
 ///     }
 ///     #[inline]
-///     Writes to bits 0 through 1 within `output_byte_buffer`, setting the `id` field of a `Thing` in bitfield form.
+///     /// Writes to bits 0 through 1 within `output_byte_buffer`, setting the `id` field of a `Thing` in bitfield form.
 ///     pub fn write_id(output_byte_buffer: &mut [u8; 3usize], mut id: u8) {
 ///         output_byte_buffer[0usize] &= 63u8;
 ///         output_byte_buffer[0usize] |= ((id as u8) << 6usize) & 192u8;
 ///     }
 ///     #[inline]
-///     Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
+///     /// Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
 ///     pub fn write_one_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
 ///         output_byte_buffer[0usize] &= 192u8;
 ///         output_byte_buffer[1usize] &= 0u8;
@@ -1637,7 +1641,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
 ///     }
 ///     #[inline]
-///     Writes to bits 2 through 17 within `output_byte_buffer`, setting the `two_a` field of a `Two` in bitfield form.
+///     /// Writes to bits 2 through 17 within `output_byte_buffer`, setting the `two_a` field of a `Two` in bitfield form.
 ///     pub fn write_two_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
 ///         output_byte_buffer[0usize] &= 192u8;
 ///         output_byte_buffer[1usize] &= 0u8;
@@ -1648,13 +1652,13 @@ use syn::{parse_macro_input, DeriveInput};
 ///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
 ///     }
 ///     #[inline]
-///     Writes to bits 18 through 23 within `output_byte_buffer`, setting the `two_b` field of a `Two` in bitfield form.
+///     /// Writes to bits 18 through 23 within `output_byte_buffer`, setting the `two_b` field of a `Two` in bitfield form.
 ///     pub fn write_two_b(output_byte_buffer: &mut [u8; 3usize], mut b: u8) {
 ///         output_byte_buffer[2usize] &= 192u8;
 ///         output_byte_buffer[2usize] |= ((b as u8) << 0usize) & 63u8;
 ///     }
 ///     #[inline]
-///     Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
+///     /// Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
 ///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
 ///         output_byte_buffer[0usize] &= 192u8;
 ///         output_byte_buffer[1usize] &= 127u8;
@@ -1663,7 +1667,7 @@ use syn::{parse_macro_input, DeriveInput};
 ///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
 ///     }
 ///     #[inline]
-///     Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
+///     /// Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
 ///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
 ///         output_byte_buffer[1usize] &= 128u8;
 ///         output_byte_buffer[2usize] &= 0u8;
