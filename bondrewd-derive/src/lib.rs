@@ -403,7 +403,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 /// byte index). [example](#reverse-example)
 /// - `dump` Dumps the bondrewd code generation output to a file. I got tried of adding and removing this
-/// feature for development, so i just didn't remove it. 
+/// feature for development, so i just didn't remove it.
 ///
 /// #### Struct and Variant Attributes
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
