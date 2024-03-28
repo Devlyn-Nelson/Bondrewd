@@ -1,2 +1,0 @@
-- need to detect or assign the value to use for each variant. i think this will be limited to unsigned integers and in the generative code we can just use a u128 and reduce it down to the smallest unsigned integer that can be used.
-- paring needs to know how to write/read the variant into the bitfield. my current thoughts are putting a single parsed field in the EnumInfo which describes the variants type which gets processed first then get a slice of the byte to write/read from that the generative code would use.

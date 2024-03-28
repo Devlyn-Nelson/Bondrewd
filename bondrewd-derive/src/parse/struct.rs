@@ -52,10 +52,20 @@ impl StructInfo {
                         }
                         "bit_traversal" => {
                             let val =
-                                get_lit_str(&value.value, ident, Some("bit_traversal = \"msb\""))?;
-                            match val.value().as_str() {
-                                "lsb" | "lsb0" => info.lsb_zero = FieldGrabDirection::Lsb,
-                                "msb" | "msb0" => info.lsb_zero = FieldGrabDirection::Msb,
+                                get_lit_str(&value.value, ident, Some("bit_traversal = \"msb\""))?
+                                    .value();
+                            let thing = val.trim();
+                            match thing {
+                                "lsb" | "lsb0" => return Err(syn::Error::new(
+                                    ident.span(),
+                                    format!("Please replace `bit_traversal = \"{thing}\"` with `bit_traversal = \"back\"`"),
+                                )),
+                                "msb" | "msb0" => return Err(syn::Error::new(
+                                    ident.span(),
+                                    format!("Please replace `bit_traversal = \"{thing}\"` with `bit_traversal = \"front\"`"),
+                                )),
+                                "back" => info.lsb_zero = FieldGrabDirection::Lsb,
+                                "front" => info.lsb_zero = FieldGrabDirection::Msb,
                                 _ => return Err(Error::new(
                                     val.span(),
                                     "Expected literal str \"lsb\" or \"msb\" for bit_traversal attribute.",
@@ -63,9 +73,18 @@ impl StructInfo {
                             }
                         }
                         "read_from" => {
+                            let val =
+                                get_lit_str(&value.value, ident, Some("bit_traversal = \"msb\""))?
+                                    .value();
+                            let thing = val.trim();
+                            let replacement = match thing {
+                                "lsb" | "lsb0" => "`bit_traversal = \"back\"`",
+                                "msb" | "msb0" => "`bit_traversal = \"front\"`",
+                                _ => "`bit_traversal = \"<TRAVERSAL_DIRECTION>\"`",
+                            };
                             return Err(syn::Error::new(
                                 ident.span(),
-                                "`read_from` has been deprecated, please use `bit_traversal`",
+                                format!("`read_from` has been deprecated, please replace `read_from = {thing}` with {replacement}",),
                             ));
                         }
                         "default_endianness" => {
