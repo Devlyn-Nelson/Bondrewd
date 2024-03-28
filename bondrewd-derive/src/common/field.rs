@@ -13,14 +13,10 @@ pub enum Endianness {
 #[derive(Clone, Debug)]
 pub struct EndiannessInfo {
     inner: Endianness,
-    aligned: bool,
 }
 
 impl EndiannessInfo {
     /// Are the bytes aligned to the bytes start and end, otherwise they are packed.
-    pub fn is_aligned(&self) -> bool {
-        self.aligned
-    }
     pub fn has_endianness(&self) -> bool {
         !matches!(self.inner, Endianness::None)
     }
@@ -55,23 +51,17 @@ impl EndiannessInfo {
     pub fn big() -> Self {
         Self {
             inner: Endianness::Big,
-            aligned: false,
         }
     }
     pub fn little() -> Self {
         Self {
             inner: Endianness::Little,
-            aligned: false,
         }
     }
     pub fn none() -> Self {
         Self {
             inner: Endianness::None,
-            aligned: false,
         }
-    }
-    pub fn set_aligned(&mut self, align: bool) {
-        self.aligned = align;
     }
 }
 

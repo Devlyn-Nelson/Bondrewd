@@ -1,7 +1,7 @@
 use bondrewd::{BitfieldHex, Bitfields};
 
 #[derive(Bitfields, Debug, Clone, PartialEq, Eq)]
-#[bondrewd(default_endianness = "msb", bit_traversal = "lsb0", enforce_bytes = 1)]
+#[bondrewd(default_endianness = "msb", bit_traversal = "back", enforce_bytes = 1)]
 pub struct StatusMagnetometer {
     mtm1: bool,
     mtm2: bool,

@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", bit_traversal = "msb0")]
+#[bondrewd(default_endianness = "be", bit_traversal = "front")]
 struct SimpleWithReserve {
     #[bondrewd(bit_length = 9)]
     one: u16,

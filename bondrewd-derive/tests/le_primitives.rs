@@ -82,7 +82,7 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "le", bit_traversal = "lsb0")]
+#[bondrewd(default_endianness = "le", bit_traversal = "back")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bondrewd(bit_length = 10)]

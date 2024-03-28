@@ -4,7 +4,7 @@ mod hex_tests {
     use bondrewd::BitfieldHexDyn;
     use bondrewd::{BitfieldHex, Bitfields};
     #[derive(Bitfields, Clone, Debug, PartialEq)]
-    #[bondrewd(bit_traversal = "lsb0", enforce_bits = 3)]
+    #[bondrewd(bit_traversal = "back", enforce_bits = 3)]
     pub struct StatusMagnetometer {
         int_mtm1: bool,
         int_mtm2: bool,

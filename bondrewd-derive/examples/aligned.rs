@@ -6,6 +6,7 @@ struct Packed {
     #[bondrewd(bit_length = 9)]
     number: u16,
     #[bondrewd(bit_length = 7, reserve)]
+    #[allow(dead_code)]
     reserve: u16,
 }
 
@@ -15,13 +16,13 @@ struct Aligned {
     #[bondrewd(bit_length = 9)]
     number: u16,
     #[bondrewd(bit_length = 7, reserve)]
+    #[allow(dead_code)]
     reserve: u16,
 }
 
 impl From<Packed> for Aligned {
     fn from(value: Packed) -> Self {
         Self {
-            // one: value.one,
             number: value.number,
             reserve: value.reserve,
         }
@@ -33,7 +34,6 @@ fn main() {
     assert_eq!(Packed::BIT_SIZE, 16);
     assert_eq!(Packed::BYTE_SIZE, 2);
     let ex = Packed {
-        // one: 0,
         number: u16::MAX,
         reserve: 0,
     };
