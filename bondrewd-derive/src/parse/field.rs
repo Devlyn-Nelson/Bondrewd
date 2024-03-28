@@ -152,8 +152,10 @@ impl DataType {
                                 Self::parse(&array_path.elem, &mut sub_attrs, default_endianess)?;
 
                             match sub_ty {
-                                DataType::Enum { ref mut size, .. } |
-                                DataType::Struct { ref mut size, .. } => *size = size.div_ceil(array_length),
+                                DataType::Enum { ref mut size, .. }
+                                | DataType::Struct { ref mut size, .. } => {
+                                    *size = size.div_ceil(array_length)
+                                }
                                 _ => {}
                             }
 
