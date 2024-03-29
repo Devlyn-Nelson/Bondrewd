@@ -25,7 +25,7 @@ struct PersonParts {
 }
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(default_endianness = "be", reverse)]
+#[bondrewd(default_endianness = "be")]
 struct Person {
     // Name is english only?
     #[bondrewd(element_byte_length = 2)]
@@ -44,7 +44,14 @@ struct Person {
     blinks: u64,
 }
 
-fn main() {
+#[derive(Debug, thiserror::Error)]
+#[cfg(all(feature = "std", feature = "dyn_fns"))]
+enum MyError {
+    #[error(transparent)]
+    LengthError(#[from] bondrewd::BitfieldLengthError),
+}
+
+fn main() -> anyhow::Result<()> {
     let person = Person {
         name: ['a'; 32],
         age: 27,
@@ -81,24 +88,53 @@ fn main() {
     // Get `person` as bytes again, which has different values than out target.
     let mut bytes = person.into_bytes();
 
-    // Change output.
-    Person::write_name(&mut bytes, target_changes.name);
-    Person::write_age(&mut bytes, target_changes.age);
-    Person::write_eye_color(&mut bytes, target_changes.eye_color.clone());
-    Person::write_parts(&mut bytes, target_changes.parts.clone());
-    Person::write_blinks(&mut bytes, target_changes.blinks);
+    #[cfg(not(feature = "dyn_fns"))]
+    {
+        // Change output.
+        Person::write_name(&mut bytes, target_changes.name);
+        Person::write_age(&mut bytes, target_changes.age);
+        Person::write_eye_color(&mut bytes, target_changes.eye_color.clone());
+        Person::write_parts(&mut bytes, target_changes.parts.clone());
+        Person::write_blinks(&mut bytes, target_changes.blinks);
 
-    // Verify.
-    assert_eq!(Person::read_name(&bytes), target_changes.name);
-    assert_eq!(Person::read_age(&bytes), target_changes.age);
-    assert_eq!(
-        Person::read_eye_color(&bytes),
-        target_changes.eye_color.clone()
-    );
-    assert_eq!(Person::read_parts(&bytes), target_changes.parts.clone());
-    assert_eq!(Person::read_blinks(&bytes), target_changes.blinks);
+        // Verify.
+        assert_eq!(Person::read_name(&bytes), target_changes.name);
+        assert_eq!(Person::read_age(&bytes), target_changes.age);
+        assert_eq!(
+            Person::read_eye_color(&bytes),
+            target_changes.eye_color.clone()
+        );
+        assert_eq!(Person::read_parts(&bytes), target_changes.parts.clone());
+        assert_eq!(Person::read_blinks(&bytes), target_changes.blinks);
+    }
+
+    #[cfg(feature = "dyn_fns")]
+    {
+        // Change some of the output via individual write_slice function.
+        Person::write_slice_name(&mut bytes[..64], target_changes.name)?;
+        Person::write_slice_age(&mut bytes[..71], target_changes.age)?;
+
+        // Verify. (notice i only provided the required amount of bytes to read the field i want)
+        assert_eq!(Person::read_slice_name(&bytes[..64])?, target_changes.name);
+        assert_eq!(Person::read_slice_age(&bytes[..71])?, target_changes.age);
+
+        // Change the rest of the output with the Checked structure.
+        let mut checked = Person::check_slice_mut(&mut bytes)?;
+        checked.write_eye_color(target_changes.eye_color.clone());
+        checked.write_parts(target_changes.parts.clone());
+        checked.write_blinks(target_changes.blinks);
+
+        // Verify more.
+        assert_eq!(
+            Person::read_eye_color(&bytes),
+            target_changes.eye_color.clone()
+        );
+        assert_eq!(Person::read_parts(&bytes), target_changes.parts.clone());
+        assert_eq!(Person::read_blinks(&bytes), target_changes.blinks);
+    }
 
     // Verify Harder.
     let new_person = Person::from_bytes(bytes);
     assert_eq!(new_person, target_changes);
+    Ok(())
 }
