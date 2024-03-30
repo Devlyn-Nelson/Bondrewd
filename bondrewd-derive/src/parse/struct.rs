@@ -1,8 +1,8 @@
 use syn::{spanned::Spanned, Error, Meta};
 
 use crate::common::{
-    field::EndiannessInfo, r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo,
-    FieldGrabDirection, StructEnforcement,
+    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, FieldOrder,
+    StructEnforcement,
 };
 
 use super::{get_lit_int, get_lit_str};
@@ -64,8 +64,8 @@ impl StructInfo {
                                     ident.span(),
                                     format!("Please replace `bit_traversal = \"{thing}\"` with `bit_traversal = \"front\"`"),
                                 )),
-                                "back" => info.lsb_zero = FieldGrabDirection::Lsb,
-                                "front" => info.lsb_zero = FieldGrabDirection::Msb,
+                                "back" => info.default_endianess.set_reverse_field_order(true),
+                                "front" => info.default_endianess.set_reverse_field_order(false),
                                 _ => return Err(Error::new(
                                     val.span(),
                                     "Expected literal str \"lsb\" or \"msb\" for bit_traversal attribute.",
@@ -94,14 +94,17 @@ impl StructInfo {
                                 Some("default_endianness = \"big\""),
                             )?;
                             match val.value().as_str() {
-                                "le" | "lsb" | "little" | "lil" => {
-                                    info.default_endianess = EndiannessInfo::little();
+                                "le" | "lsb" | "little" | "lil" | "ple" => {
+                                    info.default_endianess = Endianness::little_packed();
+                                }
+                                "ale" => {
+                                    info.default_endianess = Endianness::little_aligned();
                                 }
                                 "be" | "msb" | "big" => {
-                                    info.default_endianess = EndiannessInfo::big();
+                                    info.default_endianess = Endianness::big();
                                 }
                                 "ne" | "native" => {
-                                    info.default_endianess = EndiannessInfo::none();
+                                    info.default_endianess = Endianness::nested();
                                 }
                                 _ => {
                                     return Err(syn::Error::new(
@@ -145,6 +148,27 @@ impl StructInfo {
                                         }
                                     }
                         }
+                        "fill_bits" => {
+                            let val = get_lit_int(&value.value, ident, Some("fill_bits = 7"))?;
+                            match val.base10_parse::<usize>() {
+                                        Ok(value) => {
+                                            if info.fill_bits.is_none() {
+                                                info.fill_bits = Some(value);
+                                            } else {
+                                                return Err(syn::Error::new(
+                                                    ident.span(),
+                                                    "fill_bits defined multiple times",
+                                                ));
+                                            }
+                                        }
+                                        Err(err) => {
+                                            return Err(syn::Error::new(
+                                                ident.span(),
+                                                format!("fill_bits must provide a number that can be parsed as a usize [{err}]"),
+                                            ))
+                                        }
+                                    }
+                        }
                         "fill_bytes" => {
                             let val = get_lit_int(&value.value, ident, Some("fill_bytes = 8"))?;
                             match val.base10_parse::<usize>() {
@@ -154,7 +178,7 @@ impl StructInfo {
                                             } else {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
-                                                    "fill_bits defined multiple times",
+                                                    "fill_bytes defined multiple times",
                                                 ));
                                             }
                                         }
@@ -177,7 +201,7 @@ impl StructInfo {
                     let ident_str = ident.to_string();
                     match ident_str.as_str() {
                         "reverse" => {
-                            info.flip = true;
+                            info.default_endianess.reverse_byte_order();
                         }
                         "dump" => {
                             info.dump = true;

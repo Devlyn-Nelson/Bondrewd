@@ -2,6 +2,7 @@ use syn::Ident;
 
 use super::{r#enum::Info as EnumInfo, r#struct::Info as StructInfo};
 
+#[derive(Debug)]
 pub enum Info {
     Struct(StructInfo),
     Enum(EnumInfo),

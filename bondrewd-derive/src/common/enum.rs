@@ -4,17 +4,18 @@ use syn::Ident;
 
 use super::{r#struct::Info as StructInfo, AttrInfo as StructAttrInfo};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum IdPosition {
     Leading,
     Trailing,
 }
 
+#[derive(Debug)]
 pub struct Info {
     pub name: Ident,
     pub variants: Vec<StructInfo>,
     pub attrs: AttrInfo,
-    pub vis: syn::Visibility,
+    pub vis: super::Visibility,
 }
 
 impl Info {
@@ -55,7 +56,7 @@ impl Info {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AttrInfo {
     pub id_bits: usize,
     pub id_position: IdPosition,

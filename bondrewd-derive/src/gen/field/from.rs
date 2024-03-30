@@ -9,8 +9,9 @@ use super::{
     NoneQuoteInfo, QuoteInfo,
 };
 use crate::common::{
-    field::{DataType, Endianness, Info as FieldInfo, NumberSignage},
+    field::{DataType, Info as FieldInfo, NumberSignage},
     r#struct::Info as StructInfo,
+    EndiannessMode,
 };
 struct BuildNumberQuotePackage<'a> {
     amount_of_bits: usize,
@@ -224,18 +225,18 @@ fn add_sign_fix_quote(
     {
         if amount_of_bits != size * 8 {
             if let NumberSignage::Signed = sign {
-                let (bit_to_isolate, sign_index) = match field.attrs.endianness.endianess() {
-                    Endianness::Big => (
+                let (bit_to_isolate, sign_index) = match field.attrs.endianness.mode() {
+                    EndiannessMode::Standard => (
                         field.attrs.bit_range.start % 8,
                         field.attrs.bit_range.start / 8,
                     ),
-                    Endianness::Little => {
+                    EndiannessMode::Alternative => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
                         let sign_bit_index = field.attrs.bit_range.start + skip_bytes;
                         // TODO fix bit isolators to fix signed numbers.
                         (sign_bit_index % 8, sign_bit_index / 8)
                     }
-                    Endianness::None => return Ok(None),
+                    EndiannessMode::Nested => return Ok(None),
                 };
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let sign_bit = quote! {
@@ -255,8 +256,8 @@ fn add_sign_fix_quote(
                     }
                 }
                 let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
-                match field.attrs.endianness.endianess() {
-                    Endianness::Big => {
+                match field.attrs.endianness.mode() {
+                    EndiannessMode::Standard => {
                         buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),
                             right_shift,
@@ -271,7 +272,7 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    Endianness::Little => {
+                    EndiannessMode::Alternative => {
                         match right_shift.cmp(&0) {
                             Ordering::Greater => {
                                 buffer = buffer
@@ -297,7 +298,7 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    Endianness::None => return Ok(None),
+                    EndiannessMode::Nested => return Ok(None),
                 }
                 return Ok(Some(quote! {
                     if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]}
@@ -731,7 +732,7 @@ impl FieldInfo {
         }
         let starting_inject_byte = quote_info.starting_inject_byte();
         let output = match self.ty {
-            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
+            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), format!("Number was not given Endianness, please report this. [{self:?}]"))),
             DataType::Boolean => {
                 quote!{(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
             }

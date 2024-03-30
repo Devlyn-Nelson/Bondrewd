@@ -453,7 +453,7 @@ impl FieldInfo {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let finished_quote = match self.ty {
-            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), "Number was not given Endianness, please report this")),
+            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), format!("Number was not given Endianness, please report this. [{self:?}]"))),
             DataType::Boolean => {
                 quote!{output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
             }

@@ -4,10 +4,7 @@ mod into;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 
-use crate::common::{
-    field::{Endianness, Info as FieldInfo},
-    r#struct::Info as StructInfo,
-};
+use crate::common::{field::Info as FieldInfo, r#struct::Info as StructInfo, EndiannessMode};
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -285,10 +282,10 @@ impl FieldInfo {
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
     pub fn get_quotes(&self, struct_info: &StructInfo) -> syn::Result<GeneratedQuotes> {
-        match self.attrs.endianness.endianess() {
-            Endianness::Little => self.get_le_quotes(struct_info),
-            Endianness::Big => self.get_be_quotes(struct_info),
-            Endianness::None => self.get_ne_quotes(struct_info),
+        match self.attrs.endianness.mode() {
+            EndiannessMode::Alternative => self.get_le_quotes(struct_info),
+            EndiannessMode::Standard => self.get_be_quotes(struct_info),
+            EndiannessMode::Nested => self.get_ne_quotes(struct_info),
         }
     }
     fn get_le_quotes(&self, struct_info: &StructInfo) -> Result<GeneratedQuotes, syn::Error> {
@@ -500,7 +497,7 @@ pub(crate) fn generate_read_slice_field_fn(
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    let min_length = if info.attrs.flip {
+    let min_length = if info.attrs.default_endianess.is_byte_order_reversed() {
         (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
     } else {
         // TODO check this is correct in generated code.
@@ -602,7 +599,7 @@ pub(crate) fn generate_write_slice_field_fn(
     let bit_range = &field.attrs.bit_range;
     let type_ident = field.ty.type_quote();
     let struct_name = &info.name;
-    let min_length = if info.attrs.flip {
+    let min_length = if info.attrs.default_endianess.is_byte_order_reversed() {
         (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
     } else {
         field.attrs.bit_range.end.div_ceil(8)

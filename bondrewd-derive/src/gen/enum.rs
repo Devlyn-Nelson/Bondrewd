@@ -13,19 +13,19 @@ use super::{
 };
 use crate::common::{
     field::{
-        Attributes, DataType, EndiannessInfo, Info as FieldInfo, NumberSignage, OverlapOptions,
-        ReserveFieldOption,
+        Attributes, DataType, Info as FieldInfo, NumberSignage, OverlapOptions, ReserveFieldOption,
     },
     r#enum::Info as EnumInfo,
     r#struct::Info as StructInfo,
+    ByteOrder, Endianness,
 };
 
 impl EnumInfo {
     pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
-        let e = if self.attrs.attrs.default_endianess.is_big() {
-            EndiannessInfo::big()
+        let e = if self.attrs.attrs.default_endianess.is_standard() {
+            Endianness::big()
         } else {
-            EndiannessInfo::little()
+            Endianness::little_packed()
         };
         Ok(FieldInfo {
             ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
@@ -51,14 +51,14 @@ impl EnumInfo {
                 let field = self.generate_id_field()?;
                 let mut attrs = self.attrs.attrs.clone();
                 // TODO Still don't know if flipping should be ignored.
-                attrs.flip = false;
+                attrs.default_endianess.set_byte_order(ByteOrder::default());
                 let mut fields = vec![field.clone()];
                 fields[0].attrs.bit_range = 0..self.total_bits();
                 let temp_struct_info = StructInfo {
                     name: self.name.clone(),
                     attrs,
                     fields,
-                    vis: syn::Visibility::Public(Pub::default()),
+                    vis: crate::common::Visibility(syn::Visibility::Public(Pub::default())),
                     tuple: false,
                 };
                 let field_name = &field.ident().ident();

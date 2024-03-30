@@ -1,69 +1,8 @@
+use super::Endianness;
 use proc_macro2::Span;
 use quote::quote;
 use std::ops::Range;
 use syn::Ident;
-
-#[derive(Clone, Debug, Copy)]
-pub enum Endianness {
-    Little,
-    Big,
-    None,
-}
-
-#[derive(Clone, Debug)]
-pub struct EndiannessInfo {
-    inner: Endianness,
-}
-
-impl EndiannessInfo {
-    /// Are the bytes aligned to the bytes start and end, otherwise they are packed.
-    pub fn has_endianness(&self) -> bool {
-        !matches!(self.inner, Endianness::None)
-    }
-    // If the size provided is 1 or less bytes and endianess is not defined, the endianess will be
-    // automatically become big endian which houses common 1 byte logic. if after that the endianess is none
-    // `false` will be returned, if big or little endianess `true` will be returned.
-    pub fn perhaps_endianness(&mut self, size: usize) -> bool {
-        if let Endianness::None = self.inner {
-            if size == 1 {
-                let mut swap = Endianness::Big;
-                std::mem::swap(&mut swap, &mut self.inner);
-                true
-            } else {
-                false
-            }
-        } else {
-            true
-        }
-    }
-    pub fn endianess(&self) -> Endianness {
-        self.inner
-    }
-    pub fn is_big(&self) -> bool {
-        matches!(self.inner, Endianness::Big)
-    }
-    // pub fn is_little(&self) -> bool {
-    //     matches!(self.inner, Endianness::Little)
-    // }
-    // pub fn is_none(&self) -> bool {
-    //     matches!(self.inner, Endianness::None)
-    // }
-    pub fn big() -> Self {
-        Self {
-            inner: Endianness::Big,
-        }
-    }
-    pub fn little() -> Self {
-        Self {
-            inner: Endianness::Little,
-        }
-    }
-    pub fn none() -> Self {
-        Self {
-            inner: Endianness::None,
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NumberSignage {
@@ -199,6 +138,8 @@ pub enum ReserveFieldOption {
     /// used with imaginary fields that bondrewd creates, such as fill_bytes or variant_ids.
     /// these typically do not get any standard generated functions.
     FakeField,
+    /// used for enum variant id field
+    EnumId,
     /// User defined, meaning that the field shall not be written to on `into_bytes` calls.
     ReadOnly,
 }
@@ -206,21 +147,28 @@ pub enum ReserveFieldOption {
 impl ReserveFieldOption {
     pub fn wants_write_fns(&self) -> bool {
         match self {
-            Self::ReadOnly | Self::FakeField | Self::ReserveField => false,
+            Self::EnumId | Self::ReadOnly | Self::FakeField | Self::ReserveField => false,
             Self::NotReserve => true,
         }
     }
 
     pub fn wants_read_fns(&self) -> bool {
         match self {
-            Self::FakeField | Self::ReserveField => false,
+            Self::EnumId | Self::FakeField | Self::ReserveField => false,
             Self::NotReserve | Self::ReadOnly => true,
+        }
+    }
+
+    pub fn count_bits(&self) -> bool {
+        match self {
+            Self::FakeField => false,
+            Self::EnumId | Self::ReserveField | Self::NotReserve | Self::ReadOnly => true,
         }
     }
 
     pub fn is_fake_field(&self) -> bool {
         match self {
-            Self::FakeField => true,
+            Self::EnumId | Self::FakeField => true,
             Self::ReserveField | Self::NotReserve | Self::ReadOnly => false,
         }
     }
@@ -244,7 +192,7 @@ impl OverlapOptions {
 
 #[derive(Clone, Debug)]
 pub struct Attributes {
-    pub endianness: Box<EndiannessInfo>,
+    pub endianness: Box<Endianness>,
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
@@ -268,7 +216,7 @@ pub struct SubInfo {
 
 pub struct ElementSubFieldIter {
     pub outer_ident: Box<DynamicIdent>,
-    pub endianness: Box<EndiannessInfo>,
+    pub endianness: Box<Endianness>,
     // this range is elements in the array, not bit range
     pub range: Range<usize>,
     pub starting_bit_index: usize,
@@ -307,7 +255,7 @@ impl Iterator for ElementSubFieldIter {
 #[derive(Debug)]
 pub struct BlockSubFieldIter {
     pub outer_ident: Box<DynamicIdent>,
-    pub endianness: Box<EndiannessInfo>,
+    pub endianness: Box<Endianness>,
     //array length
     pub length: usize,
     pub starting_bit_index: usize,
@@ -389,7 +337,7 @@ impl DynamicIdent {
     }
     pub fn span(&self) -> Span {
         match self {
-            DynamicIdent::Ident { ident, name: _ } => ident.span(),
+            DynamicIdent::Ident { ident: _, name } => name.span(),
             DynamicIdent::Index { index: _, name } => name.span(),
         }
     }

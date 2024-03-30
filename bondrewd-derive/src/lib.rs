@@ -1838,7 +1838,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-
+    // println!("{struct_info:?}");
     match struct_info.generate() {
         Ok(gen) => gen.into(),
         Err(err) => TokenStream::from(err.to_compile_error()),

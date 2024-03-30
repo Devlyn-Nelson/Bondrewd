@@ -4,9 +4,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-use super::{field::Info as FieldInfo, AttrInfo};
+use super::{field::Info as FieldInfo, AttrInfo, Visibility};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Info {
     /// Name of the variant or struct
     pub name: Ident,
@@ -15,7 +15,7 @@ pub struct Info {
     /// All fields in the struct/variant
     pub fields: Vec<FieldInfo>,
     /// The viability of the struct/enum
-    pub vis: syn::Visibility,
+    pub vis: Visibility,
     /// Is it a tuple struct/variant
     pub tuple: bool,
 }
@@ -26,10 +26,11 @@ impl Info {
     }
     #[cfg(feature = "dyn_fns")]
     pub fn vis(&self) -> &syn::Visibility {
-        &self.vis
+        &*self.vis
     }
+    // TODO move the check to field attrs making this return usize.
     pub fn get_flip(&self) -> Option<usize> {
-        if self.attrs.flip {
+        if self.attrs.default_endianess.is_byte_order_reversed() {
             Some(self.total_bytes() - 1)
         } else {
             None

@@ -23,6 +23,7 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
+    println!("{:08b}", bytes[0]);
     assert_eq!(bytes[0], 0b010_00000);
     assert_eq!(bytes[1], 0b0000_0000);
     assert_eq!(bytes[2], 0b0110_0011);
@@ -146,6 +147,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     let bytes: [u8; 2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
+    println!("{:08b}, {:08b}", bytes[0], bytes[1]);
     assert_eq!(bytes[0], 0b1010_1010);
     assert_eq!(bytes[1], 0b1000_1111);
     #[cfg(feature = "dyn_fns")]

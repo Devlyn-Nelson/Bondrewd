@@ -30,7 +30,7 @@ enum SimpleInner {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(enforce_bytes = 104)]
+#[bondrewd(enforce_bytes = 104, default_endianness = "le")]
 struct SimpleEnforced {
     header: [u8; 3],
     #[bondrewd(byte_length = 101)]

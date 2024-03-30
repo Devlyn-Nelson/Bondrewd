@@ -9,10 +9,11 @@ use syn::{Ident, Meta, Token, Type};
 use crate::common::AttrInfo;
 use crate::common::{
     field::{
-        Attributes, DataType, DynamicIdent, EndiannessInfo, Info as FieldInfo, NumberSignage,
-        OverlapOptions, ReserveFieldOption, SubInfo as SubFieldInfo,
+        Attributes, DataType, DynamicIdent, Info as FieldInfo, NumberSignage, OverlapOptions,
+        ReserveFieldOption, SubInfo as SubFieldInfo,
     },
     r#enum::Info as EnumInfo,
+    Endianness,
 };
 
 use super::{get_lit_int, get_lit_range, get_lit_str};
@@ -76,7 +77,7 @@ impl DataType {
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut AttrBuilder,
-        default_endianess: &EndiannessInfo,
+        default_endianess: &Endianness,
     ) -> syn::Result<DataType> {
         let data_type = match ty {
             Type::Path(ref path) => match attrs.ty {
@@ -262,10 +263,10 @@ impl DataType {
             if default_endianess.has_endianness() {
                 attrs.endianness = default_endianess.clone();
             } else if data_type.size() == 1 {
-                let mut big = EndiannessInfo::big();
+                let mut big = Endianness::big();
                 std::mem::swap(&mut attrs.endianness, &mut big);
             } else {
-                let mut little = EndiannessInfo::little();
+                let mut little = Endianness::little_packed();
                 std::mem::swap(&mut attrs.endianness, &mut little);
                 // return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
             }
@@ -418,7 +419,7 @@ impl DataType {
 }
 
 pub struct TryFromAttrBuilderError {
-    pub endianness: Box<EndiannessInfo>,
+    pub endianness: Box<Endianness>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
     pub capture_id: bool,
@@ -473,7 +474,7 @@ impl Default for BuilderRange {
 #[derive(Clone, Debug)]
 pub struct AttrBuilder {
     /// name is just so we can give better errors
-    pub endianness: EndiannessInfo,
+    pub endianness: Endianness,
     pub bit_range: BuilderRange,
     pub ty: AttrBuilderType,
     pub reserve: ReserveFieldOption,
@@ -486,7 +487,7 @@ pub struct AttrBuilder {
 impl AttrBuilder {
     fn new() -> Self {
         Self {
-            endianness: EndiannessInfo::none(),
+            endianness: Endianness::nested(),
             bit_range: BuilderRange::None,
             ty: AttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
@@ -537,9 +538,9 @@ impl AttrBuilder {
                             let val =
                                 get_lit_str(&value.value, ident, Some("endianness = \"big\""))?;
                             builder.endianness = match val.value().to_lowercase().as_str() {
-                                "le" | "lsb" | "little" | "lil" => EndiannessInfo::little(),
-                                "be" | "msb" | "big" => EndiannessInfo::big(),
-                                "ne" | "native" | "none" => EndiannessInfo::none(),
+                                "le" | "lsb" | "little" | "lil" => Endianness::little_packed(),
+                                "be" | "msb" | "big" => Endianness::big(),
+                                "ne" | "native" | "none" => Endianness::nested(),
                                 _ => {
                                     return Err(syn::Error::new(
                                         ident.span(),

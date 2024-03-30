@@ -1,11 +1,14 @@
-use crate::common::field::{
-    Attributes, DataType, EndiannessInfo, Info as FieldInfo, NumberSignage, OverlapOptions,
-    ReserveFieldOption, SubInfo as SubFieldInfo,
-};
 use crate::common::object::Info as ObjectInfo;
 use crate::common::r#enum::{AttrInfo as EnumAttrInfo, Info as EnumInfo};
 use crate::common::r#struct::Info as StructInfo;
-use crate::common::{AttrInfo, FieldGrabDirection, StructEnforcement};
+use crate::common::{
+    field::{
+        Attributes, DataType, Info as FieldInfo, NumberSignage, OverlapOptions, ReserveFieldOption,
+        SubInfo as SubFieldInfo,
+    },
+    Endianness,
+};
+use crate::common::{AttrInfo, StructEnforcement};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::parse::Error;
@@ -99,7 +102,7 @@ impl ObjectInfo {
                     name,
                     attrs,
                     fields,
-                    vis: input.vis.clone(),
+                    vis: crate::common::Visibility(input.vis.clone()),
                     tuple,
                 }))
             }
@@ -138,7 +141,7 @@ impl ObjectInfo {
                         // id field to the first field read from the starting point of reading.
                         // TODO make sure this gets corrected if the id size is unknown.
                         bit_range: 0..id_bits,
-                        reserve: ReserveFieldOption::FakeField,
+                        reserve: ReserveFieldOption::EnumId,
                         overlap: OverlapOptions::None,
                         capture_id: false,
                     },
@@ -165,7 +168,7 @@ impl ObjectInfo {
                         name: variant_name,
                         attrs,
                         fields,
-                        vis: input.vis.clone(),
+                        vis: crate::common::Visibility(input.vis.clone()),
                         tuple,
                     });
                 }
@@ -367,7 +370,7 @@ impl ObjectInfo {
                             ident: Box::new(ident.into()),
                             attrs: Attributes {
                                 bit_range: first_bit..largest,
-                                endianness: Box::new(EndiannessInfo::big()),
+                                endianness: Box::new(Endianness::big()),
                                 reserve: ReserveFieldOption::FakeField,
                                 overlap: OverlapOptions::None,
                                 capture_id: false,
@@ -390,7 +393,7 @@ impl ObjectInfo {
                     name,
                     variants,
                     attrs: enum_attrs,
-                    vis: input.vis.clone(),
+                    vis: crate::common::Visibility(input.vis.clone()),
                 }))
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
@@ -501,20 +504,33 @@ impl ObjectInfo {
             }
         }
 
+        let first_bit = if let Some(last_range) = parsed_fields.iter().last() {
+            last_range.attrs.bit_range.end
+        } else {
+            0_usize
+        };
+        let unused_bits = bit_size % 8;
+        let auto_fill = if !is_enum && unused_bits == 0 {
+            None
+        } else {
+            // Some(8-unused_bits)
+            None
+        };
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        if let Some(fill_bits) = attrs.fill_bits {
-            let first_bit = if let Some(last_range) = parsed_fields.iter().last() {
-                last_range.attrs.bit_range.end
-            } else {
-                0_usize
-            };
+        if let (Some(fill_bits), _) | (_, Some(fill_bits)) = (attrs.fill_bits, auto_fill) {
+            // let end_bit = first_bit + fill_bits;
+            // bit_size += fill_bits;
             let fill_bytes_size = (fill_bits - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
+            let mut endian = attrs.default_endianess.clone();
+            if endian.has_endianness() {
+                endian.set_mode(crate::common::EndiannessMode::Standard)
+            }
             parsed_fields.push(FieldInfo {
                 ident: Box::new(ident.into()),
                 attrs: Attributes {
                     bit_range: first_bit..fill_bits,
-                    endianness: Box::new(EndiannessInfo::big()),
+                    endianness: Box::new(endian),
                     reserve: ReserveFieldOption::FakeField,
                     overlap: OverlapOptions::None,
                     capture_id: false,
@@ -532,8 +548,10 @@ impl ObjectInfo {
                 },
             });
         }
-
-        if matches!(attrs.lsb_zero, FieldGrabDirection::Lsb) {
+        // println!("{name}");
+        // println!("{}-{}", attrs.default_endianess.is_byte_order_reversed(), attrs.default_endianess.is_field_order_reversed());
+        // println!("{:?}", attrs.default_endianess);
+        if attrs.default_endianess.is_field_order_reversed() {
             for ref mut field in &mut parsed_fields {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);

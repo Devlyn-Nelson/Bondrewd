@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
 #[derive(Bitfields, PartialEq)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 366)]
+#[bondrewd(default_endianness = "le", id_bit_length = 3, enforce_bits = 366)]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]

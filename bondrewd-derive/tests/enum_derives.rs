@@ -114,7 +114,7 @@ fn enum_centered_catch_primitive() {
 }
 
 #[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8)]
+#[bondrewd(id_bit_length = 8, default_endianness = "be")]
 enum TupleEnum {
     One(u8),
     Two(u8),
@@ -161,7 +161,7 @@ fn tuple_enum() {
 }
 
 #[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8)]
+#[bondrewd(id_bit_length = 8, default_endianness = "be")]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]
