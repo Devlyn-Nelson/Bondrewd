@@ -12,15 +12,12 @@ struct Packed {
 struct Aligned {
     #[bondrewd(bit_length = 9)]
     number: u16,
-    #[bondrewd(bit_length = 7, reserve)]
-    reserve: u8,
 }
 
 impl From<Packed> for Aligned {
     fn from(value: Packed) -> Self {
         Self {
             number: value.number,
-            reserve: 0,
         }
     }
 }

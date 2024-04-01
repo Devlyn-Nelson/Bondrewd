@@ -732,7 +732,7 @@ impl FieldInfo {
         }
         let starting_inject_byte = quote_info.starting_inject_byte();
         let output = match self.ty {
-            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), format!("Number was not given Endianness, please report this. [{self:?}]"))),
+            DataType::Number{..} => self.get_read_be_single_byte_quote(quote_info)?,
             DataType::Boolean => {
                 quote!{(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
             }

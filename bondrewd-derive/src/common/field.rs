@@ -464,6 +464,25 @@ impl Info {
     }
 
     #[inline]
+    // this returns how many bits of the fields pertain to total structure bits.
+    // where as attrs.bit_length() give you bits the fields actually needs.
+    pub fn bit_size_no_fill(&self) -> usize {
+        if !self.attrs.reserve.count_bits() {
+            return 0;
+        }
+        if self.attrs.overlap.is_redundant() {
+            0
+        } else {
+            let minus = if let OverlapOptions::Allow(skip) = self.attrs.overlap {
+                skip
+            } else {
+                0
+            };
+            (self.attrs.bit_range.end - self.attrs.bit_range.start) - minus
+        }
+    }
+
+    #[inline]
     pub fn byte_size(&self) -> usize {
         self.ty.size()
     }

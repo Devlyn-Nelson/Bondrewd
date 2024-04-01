@@ -38,6 +38,16 @@ impl Info {
         }
         total
     }
+    pub fn total_bits_no_fill(&self) -> usize {
+        let mut total = self.variants[0].total_bits_no_fill();
+        for variant in self.variants.iter().skip(1) {
+            let t = variant.total_bits_no_fill();
+            if t > total {
+                total = t;
+            }
+        }
+        total
+    }
     pub fn total_bytes(&self) -> usize {
         self.total_bits().div_ceil(8)
     }

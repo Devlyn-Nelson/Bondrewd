@@ -1,5 +1,4 @@
 - Add non-packed little endian
 - make field attributes applied to an enum apply the id_field
 - fix nested stuff, currently if you want Aligned Little Endian your nested struct must NOT reverse byte-order.
-- fix auto-fill bits for failing inline code example.
-    - this might require changing the output for `BIT_SIZE`.
+- zero shifts happen still.

@@ -146,7 +146,7 @@ impl EnumInfo {
             let v_bit_const_name = format_ident!("{upper_v_name}_BIT_SIZE");
             // constant values for variant bit and byte sizings.
             let v_byte_size = variant.total_bytes();
-            let v_bit_size = variant.total_bits();
+            let v_bit_size = variant.total_bits_no_fill();
             // TokenStream of v_name.
             let variant_name = quote! {#v_name};
             // #[cfg(feature = "dyn_fns")]

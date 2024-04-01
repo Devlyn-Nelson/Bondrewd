@@ -1,8 +1,7 @@
 use syn::{spanned::Spanned, Error, Meta};
 
 use crate::common::{
-    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, FieldOrder,
-    StructEnforcement,
+    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, StructEnforcement,
 };
 
 use super::{get_lit_int, get_lit_str};

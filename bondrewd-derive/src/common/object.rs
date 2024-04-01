@@ -28,6 +28,12 @@ impl Info {
             Self::Enum(info) => info.total_bits(),
         }
     }
+    pub fn total_bits_no_fill(&self) -> usize {
+        match self {
+            Self::Struct(s) => s.total_bits_no_fill(),
+            Self::Enum(info) => info.total_bits_no_fill(),
+        }
+    }
     pub fn total_bytes(&self) -> usize {
         self.total_bits().div_ceil(8)
     }

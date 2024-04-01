@@ -72,7 +72,6 @@ fn main() {
     let mut bytes = ComplexEnum::Invalid { id: 53 }.into_bytes();
     assert_eq!(6, ComplexEnum::BYTE_SIZE);
     assert_eq!(46, ComplexEnum::BIT_SIZE);
-    println!("{}, {:08b}, {}, {}", bytes[0], bytes[1], bytes[2], bytes[3]);
     assert_eq!([0b0000_0000, 0b0000_1100, 0, 0, 0, 0,], bytes);
     ComplexEnum::write_variant_id(&mut bytes, 35);
     assert_eq!([0b0000_0000, 0b1000_1100, 0, 0, 0, 0,], bytes);

@@ -71,7 +71,7 @@ impl ObjectInfo {
             }
         };
         // get the bit size of the entire set of fields to fill in trait requirement.
-        let bit_size = self.total_bits();
+        let bit_size = self.total_bits_no_fill();
         let trait_impl_fn = gen.bitfield_trait;
         output = quote! {
             #output
@@ -386,10 +386,11 @@ impl StructInfo {
                 }
             } else {
                 // put the field extraction in the actual from bytes.
+                let read_stuff = field_access.read();
                 if field.attrs.reserve.wants_read_fns() {
-                    let fn_field_name = format_ident!("read_{prefixed_name}");
+                    // let fn_field_name = format_ident!("read_{prefixed_name}");
                     quote! {
-                        let #field_name = Self::#fn_field_name(&input_byte_buffer);
+                        let #field_name = #read_stuff;
                     }
                 } else {
                     quote! { let #field_name = Default::default(); }

@@ -169,6 +169,7 @@ enum Thing {
         b: u8,
     } = 2,
     Idk {
+        // TODO make sure capture id automatically gets the correct bit size.
         #[bondrewd(capture_id)]
         id: u8,
         a: u16,

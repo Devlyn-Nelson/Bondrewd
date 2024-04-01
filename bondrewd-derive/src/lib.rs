@@ -483,8 +483,6 @@ use syn::{parse_macro_input, DeriveInput};
 /// BITS. [example](#enforce-bits-examples)
 /// - `enforce_full_bytes` Adds a check that requires total bits defined by fields to equal a multiple of 8.
 /// [example](#enforce-full-bytes-example)
-/// - `fill_bytes = {BYTES}` Will force the output/input byte array size to be the provided SIZE amount of
-/// bytes. [example](#fill-bytes-examples)
 ///
 /// #### Enum Attributes
 /// - `id_bit_length = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being stored.
@@ -984,7 +982,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
+/// #[bondrewd(default_endianness = "be")]
 /// struct ReserveExample {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1010,21 +1008,35 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(127,reconstructed.two);
 /// assert_eq!(0,reconstructed.reserve);
 /// ```
-/// # Fill Bytes Examples
-/// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
-/// present the total output byte size would be 2.
+/// # Fill Bits Examples
+/// Fill bits is used here to make the total output byte size 2 bytes. If fill bytes attribute was not
+/// present the total output byte size would be still be 2...
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3)]
+/// #[bondrewd(default_endianness = "be", fill_bits = 2)]
 /// struct FilledBytes {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
+/// assert_eq!(2, FilledBytes::BYTE_SIZE);
+/// assert_eq!(14, FilledBytes::BIT_SIZE);
+/// ```
+/// # Fill Bytes Examples
+/// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
+/// present the total output byte size would be 1.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 1)]
+/// struct FilledBytes {
+///     one: u8,
+///     two: u8,
+/// }
 /// assert_eq!(3, FilledBytes::BYTE_SIZE);
-/// assert_eq!(24, FilledBytes::BIT_SIZE);
+/// assert_eq!(16, FilledBytes::BIT_SIZE);
 /// ```
 /// Here im going to compare the example above to the closest alternative using a reserve field:
 /// - `FilledBytes` only has 2 field, so only 2 fields are required for instantiation, where as `ReservedBytes`
@@ -1037,12 +1049,10 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct ReservedBytes {
-///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
-///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
-///     #[bondrewd(bit_length = 10, reserve)]
-///     reserve: u16
+///     #[bondrewd(reserve)]
+///     reserve: u8
 /// }
 /// assert_eq!(3, ReservedBytes::BYTE_SIZE);
 /// assert_eq!(24, ReservedBytes::BIT_SIZE);
@@ -1108,28 +1118,26 @@ use syn::{parse_macro_input, DeriveInput};
 /// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works.
 /// `enforce_bytes` will check the total bit length before the bits are filled.
 ///   
-/// Here i am telling Bondrewd to make the total bit length 3 bytes using `fill_bytes`.
-/// This Example fails to build because only 14 bits are being defined by fields and `enforce_bytes`
-/// is telling Bondrewd to expect 24 bits to be used by defined fields.
+/// Here i am telling Bondrewd to make the total byte length 3 using `fill_bytes`.
+/// This Example fails to build because only 16 bits are being defined by fields and `enforce_bytes`
+/// is telling Bondrewd to expect 16 bits to be used by defined fields.
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bytes = 3)]
+/// #[bondrewd(default_endianness = "be", fill_bytes = 1, enforce_bytes = 3)]
 /// struct FilledBytesEnforced {
-///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
-///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
 /// ```
-/// To fix this we need to make sure our enforcement value is the amount fo bits defined by the fields NOT
+/// To fix this we need to make sure our enforcement value is the amount of bits defined by the fields NOT
 /// the expected `FilledBytesEnforced::BYTE_SIZE`.
 ///   
 /// Here is the Correct usage of these two attributes working together.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 3, enforce_bits = 14)]
+/// #[bondrewd(default_endianness = "be", fill_bits = 3, enforce_bits = 14)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1140,7 +1148,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// // we are enforcing 14 bits but fill_bytes is creating
 /// // an imaginary reserve field from bit index 14 to
 /// // index 23
-/// assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
+/// assert_eq!(14, FilledBytesEnforced::BIT_SIZE);
 /// ```
 /// # Enforce Full Bytes Example
 /// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
@@ -1838,7 +1846,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    // println!("{struct_info:?}");
     match struct_info.generate() {
         Ok(gen) => gen.into(),
         Err(err) => TokenStream::from(err.to_compile_error()),

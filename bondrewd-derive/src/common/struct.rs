@@ -65,6 +65,13 @@ impl Info {
         for field in &self.fields {
             total += field.bit_size();
         }
+        total
+    }
+    pub fn total_bits_no_fill(&self) -> usize {
+        let mut total: usize = 0;
+        for field in &self.fields {
+            total += field.bit_size_no_fill();
+        }
 
         total
     }

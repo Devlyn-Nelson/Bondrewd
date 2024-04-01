@@ -434,10 +434,6 @@ impl FieldInfo {
         }
         let shift_left = (8 - quote_info.amount_of_bits()) - (self.attrs.bit_range.start % 8);
         let starting_inject_byte = quote_info.starting_inject_byte();
-        let not_mask = !mask;
-        let clear_quote = quote! {
-            output_byte_buffer[#starting_inject_byte] &= #not_mask;
-        };
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -453,7 +449,7 @@ impl FieldInfo {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let finished_quote = match self.ty {
-            DataType::Number{..} => return Err(syn::Error::new(self.ident.span(), format!("Number was not given Endianness, please report this. [{self:?}]"))),
+            DataType::Number{..} => return self.get_write_be_single_byte_quote(quote_info, field_access_quote),
             DataType::Boolean => {
                 quote!{output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
             }
@@ -465,6 +461,10 @@ impl FieldInfo {
             }
             DataType::Float{..} => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
             DataType::ElementArray{..} | DataType::BlockArray{..} => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+        };
+        let not_mask = !mask;
+        let clear_quote = quote! {
+            output_byte_buffer[#starting_inject_byte] &= #not_mask;
         };
         Ok((finished_quote, clear_quote))
     }

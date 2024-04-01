@@ -200,7 +200,7 @@ impl ObjectInfo {
                         }
                     }
                     // verify the size doesn't go over set size.
-                    let size = variant.total_bits();
+                    let size = variant.total_bits_no_fill();
                     if largest < size {
                         largest = size;
                     }
@@ -510,17 +510,17 @@ impl ObjectInfo {
             0_usize
         };
         let unused_bits = bit_size % 8;
-        let auto_fill = if !is_enum && unused_bits == 0 {
+        let auto_fill = if unused_bits == 0 {
             None
         } else {
-            // Some(8-unused_bits)
-            None
+            Some(8 - unused_bits)
+            // None
         };
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
         if let (Some(fill_bits), _) | (_, Some(fill_bits)) = (attrs.fill_bits, auto_fill) {
-            // let end_bit = first_bit + fill_bits;
-            // bit_size += fill_bits;
-            let fill_bytes_size = (fill_bits - first_bit).div_ceil(8);
+            let end_bit = first_bit + fill_bits;
+            bit_size += fill_bits;
+            let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
             let mut endian = attrs.default_endianess.clone();
             if endian.has_endianness() {
@@ -529,7 +529,7 @@ impl ObjectInfo {
             parsed_fields.push(FieldInfo {
                 ident: Box::new(ident.into()),
                 attrs: Attributes {
-                    bit_range: first_bit..fill_bits,
+                    bit_range: first_bit..end_bit,
                     endianness: Box::new(endian),
                     reserve: ReserveFieldOption::FakeField,
                     overlap: OverlapOptions::None,
@@ -548,9 +548,6 @@ impl ObjectInfo {
                 },
             });
         }
-        // println!("{name}");
-        // println!("{}-{}", attrs.default_endianess.is_byte_order_reversed(), attrs.default_endianess.is_field_order_reversed());
-        // println!("{:?}", attrs.default_endianess);
         if attrs.default_endianess.is_field_order_reversed() {
             for ref mut field in &mut parsed_fields {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
@@ -558,7 +555,6 @@ impl ObjectInfo {
             }
             parsed_fields.reverse();
         }
-
         Ok(parsed_fields)
     }
 }

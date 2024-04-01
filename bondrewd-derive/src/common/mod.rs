@@ -155,8 +155,7 @@ impl Endianness {
         self.byte_order = new;
     }
     pub fn is_byte_order_reversed(&self) -> bool {
-        self.is_alternative()
-            ^ (self.reverse_byte_order ^ matches!(self.byte_order, ByteOrder::LastToFirst))
+        self.is_alternative() ^ (self.reverse_byte_order ^ self.byte_order.is_reversed())
     }
     pub fn reverse_byte_order(&mut self) {
         self.reverse_byte_order = !self.reverse_byte_order;
