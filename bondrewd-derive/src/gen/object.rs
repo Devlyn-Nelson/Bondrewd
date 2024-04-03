@@ -236,11 +236,7 @@ impl StructInfo {
         let mut gen_write = GeneratedFunctions::default();
         // If we are building code for an enum variant that does not capture the id
         // then we should skip the id field to avoid creating an get_id function for each variant.
-        let fields = if enum_name.is_some() && !self.fields[0].attrs.capture_id {
-            &self.fields[1..]
-        } else {
-            &self.fields[..]
-        };
+        let fields = self.get_fields_for_gen()?;
         let mut field_name_list = quote! {};
         for field in fields {
             let field_access = field.get_quotes(self)?;
@@ -377,7 +373,11 @@ impl StructInfo {
         if !field.attrs.reserve.is_fake_field() {
             // put the name of the field into the list of fields that are needed to create
             // the struct.
-            *field_name_list = quote! {#field_name_list #field_name,};
+            if self.attrs.default_endianess.is_field_order_reversed() {
+                *field_name_list = quote! {#field_name, #field_name_list}
+            } else {
+                *field_name_list = quote! {#field_name_list #field_name,}
+            };
             let peek_call = if field.attrs.capture_id {
                 // put the field extraction in the actual from bytes.
                 if field.attrs.reserve.wants_read_fns() {

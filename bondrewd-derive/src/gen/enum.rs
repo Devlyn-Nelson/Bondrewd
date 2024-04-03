@@ -22,11 +22,7 @@ use crate::common::{
 
 impl EnumInfo {
     pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
-        let e = if self.attrs.attrs.default_endianess.is_standard() {
-            Endianness::big()
-        } else {
-            Endianness::little_packed()
-        };
+        let e = self.attrs.attrs.default_endianess.clone();
         Ok(FieldInfo {
             ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
             ty: DataType::Number {
@@ -50,9 +46,27 @@ impl EnumInfo {
             non_trait: {
                 let field = self.generate_id_field()?;
                 let mut attrs = self.attrs.attrs.clone();
-                // TODO Still don't know if flipping should be ignored.
-                attrs.default_endianess.set_byte_order(ByteOrder::default());
+                // TODO START_HERE i think the id field is being used wrong.
                 let mut fields = vec![field.clone()];
+                // let bit_size = field.bit_size();
+                // if bit_size % 8 != 0 {
+                //     let to_fill = 8 - (bit_size % 8);
+                //     let ident = quote::format_ident!("bondrewd_fill_bits");
+                //     let fill = FieldInfo {
+                //         ident: Box::new(ident.into()),
+                //         attrs: Attributes {
+                //             bit_range: bit_size..bit_size+to_fill,
+                //             endianness: field.attrs.endianness.clone(),
+                //             reserve: ReserveFieldOption::FakeField,
+                //             overlap: OverlapOptions::None,
+                //             capture_id: false,
+                //         },
+                //         ty: DataType::Number { size: 1, sign: NumberSignage::Unsigned, type_quote: quote!{u8} },
+                //     };
+                //     fields.insert(0, fill);
+                // }
+                //
+                // line below is important for some reason, needs docs.
                 fields[0].attrs.bit_range = 0..self.total_bits();
                 let temp_struct_info = StructInfo {
                     name: self.name.clone(),
@@ -316,13 +330,21 @@ impl EnumInfo {
                 }
             };
             // Variant Id fn
-            if !variant.fields.is_empty() && variant.fields[0].attrs.capture_id {
-                let id_field_name = &variant.fields[0].ident().name();
+            let id_field = if let Some(id_field) = variant.get_id_field()? {
+                id_field
+            } else {
+                return Err(syn::Error::new(
+                    variant.name.span(),
+                    "variant didn't return its id field. (this is a bondrewd issue. please report)",
+                ));
+            };
+            if id_field.attrs.capture_id {
+                let id_field_name = id_field.ident().name();
                 variant_value = quote! {#id_field_name};
             }
 
-            let mut ignore_fields = if variant.fields[0].attrs.capture_id {
-                let id_field_name = &variant.fields[0].ident().name();
+            let mut ignore_fields = if id_field.attrs.capture_id {
+                let id_field_name = variant_value.clone();
                 variant_value = quote! {*#variant_value};
                 quote! { #id_field_name, }
             } else {

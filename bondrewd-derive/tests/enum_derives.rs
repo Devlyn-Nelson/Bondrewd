@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
-#[bondrewd(id_bit_length = 4, dump)]
+#[bondrewd(id_bit_length = 4)]
 pub enum SecretFormat {
     Zero = 0x0,
     One = 0x1,

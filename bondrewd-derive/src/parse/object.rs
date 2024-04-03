@@ -199,28 +199,6 @@ impl ObjectInfo {
                             ));
                         }
                     }
-                    // verify the size doesn't go over set size.
-                    let size = variant.total_bits_no_fill();
-                    if largest < size {
-                        largest = size;
-                    }
-                    if let Some(bit_size) = enum_attrs.payload_bit_size {
-                        if bit_size < size - variant.fields[0].attrs.bit_length() {
-                            return Err(Error::new(
-                                variant.name.span(),
-                                format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant.fields[0].attrs.bit_length()),
-                            ));
-                        }
-                    } else if let (Some(bit_size), Some(id_size)) =
-                        (enum_attrs.total_bit_size, enum_attrs.id_bits)
-                    {
-                        if bit_size - id_size < size - variant.fields[0].attrs.bit_length() {
-                            return Err(Error::new(
-                                variant.name.span(),
-                                format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size),
-                            ));
-                        }
-                    }
                 }
                 if !unassigned_indices.is_empty() {
                     let mut current_guess: u128 = 0;
@@ -231,6 +209,38 @@ impl ObjectInfo {
                         variants[i].attrs.id = Some(current_guess);
                         used_ids.push(current_guess);
                         current_guess += 1;
+                    }
+                }
+                for variant in variants.iter() {
+                    // verify the size doesn't go over set size.
+                    let size = variant.total_bits_no_fill();
+                    if largest < size {
+                        largest = size;
+                    }
+                    let variant_id_field = {
+                        if let Some(id) = variant.get_id_field()? {
+                            id
+                        } else {
+                            return Err(syn::Error::new(variant.name.span(), "failed to get variant field for variant. (this is a bondrewd issue, please report issue)"));
+                        }
+                    };
+
+                    if let Some(bit_size) = enum_attrs.payload_bit_size {
+                        if bit_size < size - variant_id_field.bit_size() {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant_id_field.bit_size()),
+                            ));
+                        }
+                    } else if let (Some(bit_size), Some(id_size)) =
+                        (enum_attrs.total_bit_size, enum_attrs.id_bits)
+                    {
+                        if bit_size - id_size < size - variant_id_field.bit_size() {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size - variant_id_field.bit_size()),
+                            ));
+                        }
                     }
                 }
                 if let Some(ii) = invalid_index {

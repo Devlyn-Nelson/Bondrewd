@@ -36,6 +36,41 @@ impl Info {
             None
         }
     }
+    pub(crate) fn get_id_field(&self) -> syn::Result<Option<&FieldInfo>> {
+        if self.attrs.id.is_none() {
+            return Ok(None);
+        }
+        let thing = if self.attrs.default_endianess.is_field_order_reversed() {
+            self.fields.last()
+        } else {
+            self.fields.first()
+        };
+        if let Some(field) = thing {
+            Ok(Some(field))
+        } else {
+            Err(syn::Error::new(
+                self.name.span(),
+                format!(
+                    "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)"
+                ),
+            ))
+        }
+    }
+    pub(crate) fn get_fields_for_gen(&self) -> syn::Result<&[FieldInfo]> {
+        if if let Some(field) = self.get_id_field()? {
+            !field.attrs.capture_id
+        } else {
+            false
+        } {
+            if self.attrs.default_endianess.is_field_order_reversed() {
+                Ok(&self.fields[..self.fields.len() - 1])
+            } else {
+                Ok(&self.fields[1..])
+            }
+        } else {
+            Ok(&self.fields)
+        }
+    }
     pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
         for field in &self.fields {
             if field.attrs.capture_id {
@@ -56,7 +91,7 @@ impl Info {
         } else {
             Err(syn::Error::new(
                 self.name.span(),
-                "variant id was unknown at time of code generation",
+                "variant id was unknown at time of code generation (this is a bondrewd problem, please report issue)",
             ))
         }
     }
