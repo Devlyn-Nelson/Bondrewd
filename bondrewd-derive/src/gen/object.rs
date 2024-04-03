@@ -171,31 +171,17 @@ impl StructInfo {
         #[cfg(feature = "dyn_fns")]
         {
             // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
-            let from_bytes_dyn_quote = &quotes.read_fns.bitfield_dyn_trait;
+            let from_bytes_dyn_quote_inner = quotes.read_fns.bitfield_dyn_trait.clone();
             let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             quotes.read_fns.bitfield_dyn_trait = quote! {
-                #[doc = #comment_take]
-                fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
-                    if input_byte_buffer.len() < Self::BYTE_SIZE {
-                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
-                    }
-                    let out = {
-                        #from_bytes_dyn_quote
-                        Self {
-                            #fields_list
-                        }
-                    };
-                    let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
-                    Ok(out)
-                }
                 #[doc = #comment]
                 fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
                     if input_byte_buffer.len() < Self::BYTE_SIZE {
                         return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
                     }
                     let out = {
-                        #from_bytes_dyn_quote
+                        #from_bytes_dyn_quote_inner
                         Self {
                             #fields_list
                         }
@@ -203,6 +189,27 @@ impl StructInfo {
                     Ok(out)
                 }
             };
+            #[cfg(feature = "std")]
+            {
+                let from_bytes_dyn_quote = &quotes.read_fns.bitfield_dyn_trait;
+                quotes.read_fns.bitfield_dyn_trait = quote! {
+                    #from_bytes_dyn_quote
+                    #[doc = #comment_take]
+                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                        if input_byte_buffer.len() < Self::BYTE_SIZE {
+                            return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                        }
+                        let out = {
+                            #from_bytes_dyn_quote_inner
+                            Self {
+                                #fields_list
+                            }
+                        };
+                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                        Ok(out)
+                    }
+                };
+            }
         }
         let into_bytes_quote = &quotes.write_fns.bitfield_trait;
         quotes.write_fns.bitfield_trait = quote! {

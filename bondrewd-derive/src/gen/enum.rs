@@ -354,22 +354,10 @@ impl EnumInfo {
         };
         #[cfg(feature = "dyn_fns")]
         {
-            let from_vec_fn = &gen.bitfield_dyn_trait;
+            let from_vec_fn_inner = gen.bitfield_dyn_trait.clone();
             let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             gen.bitfield_dyn_trait = quote! {
-                #[doc = #comment_take]
-                fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
-                    if input_byte_buffer.len() < Self::BYTE_SIZE {
-                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
-                    }
-                    let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
-                    let out = match #v_id {
-                        #from_vec_fn
-                    };
-                    let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
-                    Ok(out)
-                }
                 #[doc = #comment]
                 fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
                     if input_byte_buffer.len() < Self::BYTE_SIZE {
@@ -377,11 +365,30 @@ impl EnumInfo {
                     }
                     let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
                     let out = match #v_id {
-                        #from_vec_fn
+                        #from_vec_fn_inner
                     };
                     Ok(out)
                 }
             };
+            #[cfg(feature = "std")]
+            {
+                let from_vec_fn = &gen.bitfield_dyn_trait;
+                gen.bitfield_dyn_trait = quote! {
+                    #from_vec_fn
+                    #[doc = #comment_take]
+                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                        if input_byte_buffer.len() < Self::BYTE_SIZE {
+                            return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                        }
+                        let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
+                        let out = match #v_id {
+                            #from_vec_fn_inner
+                        };
+                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                        Ok(out)
+                    }
+                };
+            }
             let comment = format!(
                 "Returns a checked structure which allows you to read any field for a `{}` from provided slice.",
                 &self.name

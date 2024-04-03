@@ -18,4 +18,4 @@ bondrewd-derive = { path = "../bondrewd-derive", optional = true }
 derive = ["bondrewd-derive"]
 dyn_fns = ["bondrewd-derive/dyn_fns"]
 hex_fns = ["bondrewd-derive/hex_fns"]
-std = []
+std = ["bondrewd-derive/std"]

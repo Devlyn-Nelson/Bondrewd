@@ -1,5 +1,31 @@
 use bondrewd::Bitfields;
 
+#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
+#[bondrewd(id_bit_length = 4, dump)]
+pub enum SecretFormat {
+    Zero = 0x0,
+    One = 0x1,
+    Two = 0x2,
+    Three = 0x3,
+    Invalid,
+}
+
+#[test]
+/// this must work for secret reasons.
+fn must_work() {
+    let zero = SecretFormat::Zero;
+    let one = SecretFormat::One;
+    let two = SecretFormat::Two;
+    let three = SecretFormat::Three;
+    let invalid = SecretFormat::Invalid;
+
+    assert_eq!(zero.clone().into_bytes(), [0x0]);
+    assert_eq!(one.clone().into_bytes(), [0b0001_0000]);
+    assert_eq!(two.clone().into_bytes(), [0b0010_0000]);
+    assert_eq!(three.clone().into_bytes(), [0b0011_0000]);
+    assert_eq!(invalid.clone().into_bytes(), [0b0100_0000]);
+}
+
 // for situation where all bits are accounted for, like if this enum was used as a 2bit field than
 // we can just let the last option be a valid catch all (in proc_macro code it is still marked as
 // an invalid catch all but that doesn't really matter)

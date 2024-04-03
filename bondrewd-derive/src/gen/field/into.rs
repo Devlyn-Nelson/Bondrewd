@@ -475,7 +475,7 @@ impl FieldInfo {
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let right_shift: i8 = {
             let thing: NoneQuoteInfo = quote_info.into();
-            thing.right_shift
+            thing.right_shift % 8
         };
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", self.ident().ident());

@@ -67,6 +67,7 @@ struct SimpleCustomContinuationEnumUsage {
 }
 
 #[test]
+#[allow(unused_mut)]
 fn enum_contiunation_tests() -> anyhow::Result<()> {
     let simple = SimpleCustomContinuationEnumUsage {
         one: 0x80,
@@ -100,19 +101,22 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let new_simple = SimpleCustomContinuationEnumUsage::from_bytes(bytes);
     assert_eq!(simple, new_simple);
 
-    // Setter too
-    SimpleCustomContinuationEnumUsage::write_slice_two(
-        &mut bytes,
-        TestCustomContinuationEnum::CustomZeroContinued,
-    )?;
-    let expected = SimpleCustomContinuationEnumUsage {
-        one: 0x80,
-        two: TestCustomContinuationEnum::CustomZeroContinued,
-        three: 0x08,
-    };
-    assert_eq!(
-        SimpleCustomContinuationEnumUsage::from_bytes(bytes),
-        expected
-    );
+    #[cfg(feature = "dyn_fns")]
+    {
+        // Setter too
+        SimpleCustomContinuationEnumUsage::write_slice_two(
+            &mut bytes,
+            TestCustomContinuationEnum::CustomZeroContinued,
+        )?;
+        let expected = SimpleCustomContinuationEnumUsage {
+            one: 0x80,
+            two: TestCustomContinuationEnum::CustomZeroContinued,
+            three: 0x08,
+        };
+        assert_eq!(
+            SimpleCustomContinuationEnumUsage::from_bytes(bytes),
+            expected
+        );
+    }
     Ok(())
 }
