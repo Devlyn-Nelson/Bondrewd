@@ -449,6 +449,7 @@ impl FieldInfo {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let finished_quote = match self.ty {
+            // TODO this should probably throw an error like it used to.
             DataType::Number{..} => return self.get_write_be_single_byte_quote(quote_info, field_access_quote),
             DataType::Boolean => {
                 quote!{output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
@@ -458,6 +459,8 @@ impl FieldInfo {
             DataType::Struct{..} => {
                 let used_bits_in_byte = 8 - quote_info.available_bits_in_first_byte();
                 quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
+                // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
+                // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}
             }
             DataType::Float{..} => return Err(syn::Error::new(self.ident.span(), "Float not supported for single byte insert logic")),
             DataType::ElementArray{..} | DataType::BlockArray{..} => return Err(syn::Error::new(self.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
