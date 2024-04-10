@@ -1021,7 +1021,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// # Fill Bits Examples
 /// > if you are using `fill_bits` on a nested structure please read [Using `fill_bits` of a nested structure](#using-fill_bits-of-a-nested-structure)
-/// 
+///
 /// Fill bits is used here to make the total output byte size 2 bytes. If `fill_bits` attribute was not
 /// present the total output byte size would be still be 2...
 /// ```
@@ -1054,8 +1054,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(14, FilledBits::BIT_SIZE);
 /// ```
 /// ## Using `fill_bits` of a nested structure
-/// As warning i highly recommend NOT using fill bits on nested structures, unless you need to. because
-/// bondrewd allows bit reversal with structures that do not have a bit count that divides evenly by 8,
+/// Because bondrewd allows bit reversal with structures that do not have a bit count that divides evenly by 8,
 /// the location of bits will change in cases such as `Aligned Little Endian`. because of the removal
 /// of `struct_size` attribute being required this can cause some unexpected results.
 /// ```
@@ -1081,7 +1080,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(2, UnfilledBits::BYTE_SIZE);
 /// assert_eq!(14, UnfilledBits::BIT_SIZE);
 /// assert_eq!(FilledBits {one: 127, two: 127}.into_bytes(), [0b11111111,0b00111111]);
-/// assert_eq!(UnfilledBits {one: 127, two: 127}.into_bytes(), [0b11111100,0b11111111,]);
+/// assert_eq!(UnfilledBits {one: 127, two: 127}.into_bytes(), [0b11111100,0b11111111]);
 /// ```
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "ale")]

@@ -44,21 +44,21 @@ fn super_hard_code() {
     let bytes_1 = thing_1.clone().into_bytes();
     let bytes_2 = thing_2.clone().into_bytes();
 
-    // print_bytes(&bytes_1);
+    print_bytes(&bytes_1);
 
     let test_bytes = thing_1.one.clone().into_bytes();
     let old: old::OneHalf = thing_1.one.clone().into();
     let old_bytes = bondrewd_1::Bitfields::into_bytes(old);
-    print_bytes(&test_bytes);
-    print_bytes(&old_bytes);
+    // print_bytes(&test_bytes);
+    // print_bytes(&old_bytes);
 
     // assert_eq!(bytes_1, [0b0000_1111, 0b1111_1111]);
 
     let new_1 = ReallyHardcore::from_bytes(bytes_1);
     let new_2 = ReallyHardcore::from_bytes(bytes_2);
 
-    // assert_eq!(thing_1, new_1);
-    // assert_eq!(thing_2, new_2);
+    assert_eq!(thing_1, new_1);
+    assert_eq!(thing_2, new_2);
 }
 
 fn print_bytes(bytes: &[u8]) {
