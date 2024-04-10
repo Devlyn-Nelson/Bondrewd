@@ -139,7 +139,7 @@ mod current {
     }
 
     #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(default_endianness = "be", bit_traversal = "back", reverse, dump)]
+    #[bondrewd(default_endianness = "be", bit_traversal = "back", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(bit_length = 4)]
         pub one: OneHalf,
