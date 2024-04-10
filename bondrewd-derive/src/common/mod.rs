@@ -129,7 +129,7 @@ impl ByteOrder {
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "ale")]
+/// #[bondrewd(default_endianness = "ale", fill_bits)]
 /// struct Aligned {
 ///     #[bondrewd(bit_length = 9)]
 ///     number: u16,
@@ -254,6 +254,22 @@ impl Default for Endianness {
 }
 
 #[derive(Clone, Debug)]
+pub enum FillBits {
+    /// Does not fill bytes.
+    None,
+    /// Fills a specific amount of bits.
+    Bits(usize),
+    /// Fills bits up until the total is a multiple of 8.
+    Auto,
+}
+
+impl FillBits {
+    pub fn is_none(&self) -> bool {
+        matches!(self,Self::None)
+    }
+}
+
+#[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AttrInfo {
     /// flip all the bytes, like .reverse() for vecs or arrays. but we do that here because we can do
@@ -261,7 +277,7 @@ pub struct AttrInfo {
     pub dump: bool,
     pub enforcement: StructEnforcement,
     pub default_endianess: Endianness,
-    pub fill_bits: Option<usize>,
+    pub fill_bits: FillBits,
     // Enum only
     pub id: Option<u128>,
     /// When this is used with an Enum, Invalid means
@@ -273,7 +289,7 @@ impl Default for AttrInfo {
         Self {
             enforcement: StructEnforcement::NoRules,
             default_endianess: Endianness::default(),
-            fill_bits: None,
+            fill_bits: FillBits::None,
             id: None,
             invalid: false,
             dump: false,

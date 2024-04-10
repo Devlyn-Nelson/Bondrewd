@@ -519,15 +519,22 @@ impl ObjectInfo {
         } else {
             0_usize
         };
-        let unused_bits = bit_size % 8;
-        let auto_fill = if unused_bits == 0 {
-            None
-        } else {
-            Some(8 - unused_bits)
-            // None
-        };
+        let auto_fill = match attrs.fill_bits {
+            crate::common::FillBits::None => None,
+            crate::common::FillBits::Bits(bits) => Some(bits),
+            crate::common::FillBits::Auto => {
+                let unused_bits = bit_size % 8;
+                if unused_bits == 0 {
+                    None
+                } else {
+                    Some(8 - unused_bits)
+                    // None
+                }
+            }
+        }
+        ;
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        if let (Some(fill_bits), _) | (_, Some(fill_bits)) = (attrs.fill_bits, auto_fill) {
+        if let Some(fill_bits) = auto_fill {
             let end_bit = first_bit + fill_bits;
             bit_size += fill_bits;
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);

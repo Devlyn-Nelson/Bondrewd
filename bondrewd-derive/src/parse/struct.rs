@@ -1,7 +1,7 @@
 use syn::{spanned::Spanned, Error, Meta};
 
 use crate::common::{
-    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, StructEnforcement,
+    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, FillBits, StructEnforcement
 };
 
 use super::{get_lit_int, get_lit_str};
@@ -152,7 +152,7 @@ impl StructInfo {
                             match val.base10_parse::<usize>() {
                                         Ok(value) => {
                                             if info.fill_bits.is_none() {
-                                                info.fill_bits = Some(value);
+                                                info.fill_bits = FillBits::Bits(value);
                                             } else {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
@@ -173,7 +173,7 @@ impl StructInfo {
                             match val.base10_parse::<usize>() {
                                         Ok(value) => {
                                             if info.fill_bits.is_none() {
-                                                info.fill_bits = Some(value * 8);
+                                                info.fill_bits = FillBits::Bits(value * 8);
                                             } else {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
@@ -200,6 +200,7 @@ impl StructInfo {
                     let ident_str = ident.to_string();
                     match ident_str.as_str() {
                         "reverse" => {
+                            // TODO we should try to stop users from defining this multiple times.
                             info.default_endianess.reverse_byte_order();
                         }
                         "dump" => {
@@ -209,7 +210,24 @@ impl StructInfo {
                             info.enforcement = StructEnforcement::EnforceFullBytes;
                         }
                         "invalid" => {
-                            info.invalid = true;
+                            if is_variant{
+                                info.invalid = true;
+                            }else{
+                                return Err(syn::Error::new(
+                                    ident.span(),
+                                    "invalid attribute can only be used on enum variants",
+                                ));
+                            }
+                        }
+                        "fill_bits" => {
+                            if info.fill_bits.is_none() {
+                                info.fill_bits = FillBits::Auto;
+                            } else {
+                                return Err(syn::Error::new(
+                                    ident.span(),
+                                    "fill_bits defined multiple times",
+                                ));
+                            }
                         }
                         _ => {
                             return Ok(false);
