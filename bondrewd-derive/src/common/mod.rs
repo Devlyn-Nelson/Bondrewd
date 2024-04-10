@@ -126,6 +126,7 @@ impl ByteOrder {
 /// ```
 /// ### Aligned
 /// bit are right aligned
+/// > Note that we are using fill_bits here otherwise only 9 bits will be considered when flipping the order.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
