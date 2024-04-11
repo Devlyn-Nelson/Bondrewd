@@ -1870,19 +1870,24 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// use bondrewd::*;
 ///
-/// #[derive(Bitfields)]
+/// #[derive(Bitfields, Debug, PartialEq, Eq)]
 /// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum Thing {
 ///     Zero, // value of 0
 ///     One, // value of 1
 ///     Invalid, // value of 2 or 3
 /// }
+///
+/// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
+/// assert_eq!(Thing::from_bytes([0b01000000]), Thing::One);
+/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Invalid);
+/// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
 ///
 /// > Note that when no id values are specified they will be assigned automatically starting at zero,
 /// incrementing 1 for each variant.r
 ///
-/// If for some reason the last variant should not be the catch all you can specify a specific variant.
+/// If for some reason the last variant should not be the catch all you can specify a variant.
 /// So for this next example:
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant
@@ -1890,13 +1895,19 @@ use syn::{parse_macro_input, DeriveInput};
 /// ```
 /// use bondrewd::*;
 ///
-/// #[derive(Bitfields)]
+/// #[derive(Bitfields, Debug, PartialEq, Eq)]
 /// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum Thing {
 ///     Zero, // value of 0
+///     #[bondrewd(invalid)]
 ///     Invalid, // value of 1 or 3
 ///     Two, // value of 2
 /// }
+///
+/// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
+/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
+/// assert_eq!(Thing::from_bytes([0b01000000]), Thing::Invalid);
+/// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 #[allow(clippy::too_many_lines)]

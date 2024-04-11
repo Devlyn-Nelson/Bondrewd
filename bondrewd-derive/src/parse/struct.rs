@@ -1,7 +1,8 @@
 use syn::{spanned::Spanned, Error, Meta};
 
 use crate::common::{
-    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, FillBits, StructEnforcement
+    r#enum::Info as EnumInfo, r#struct::Info as StructInfo, AttrInfo, Endianness, FillBits,
+    StructEnforcement,
 };
 
 use super::{get_lit_int, get_lit_str};
@@ -63,11 +64,19 @@ impl StructInfo {
                                     ident.span(),
                                     format!("Please replace `bit_traversal = \"{thing}\"` with `bit_traversal = \"front\"`"),
                                 )),
-                                "back" => info.default_endianess.set_reverse_field_order(true),
-                                "front" => info.default_endianess.set_reverse_field_order(false),
+                                "back" => {
+                                    if info.default_endianess.set_reverse_field_order(true).is_some() {
+                                        return Err(syn::Error::new(ident.span(), "bit_traversal is defined twice"))
+                                    }
+                                }
+                                "front" => {
+                                    if info.default_endianess.set_reverse_field_order(false).is_some() {
+                                        return Err(syn::Error::new(ident.span(), "bit_traversal is defined twice"))
+                                    }
+                                }
                                 _ => return Err(Error::new(
                                     val.span(),
-                                    "Expected literal str \"lsb\" or \"msb\" for bit_traversal attribute.",
+                                    "Expected literal str \"lsb\" or \"msb\" for `bit_traversal` attribute.",
                                 )),
                             }
                         }
@@ -108,7 +117,7 @@ impl StructInfo {
                                 _ => {
                                     return Err(syn::Error::new(
                                         ident.span(),
-                                        "invalid default_endianness, valid endianess are \"little\", \"big\", and in special cases \"none\"",
+                                        "invalid `default_endianness`, valid endianess are \"little\", \"big\", and in special cases \"none\"",
                                     ));
                                 }
                             }
@@ -124,7 +133,7 @@ impl StructInfo {
                                     return Err(syn::Error::new(
                                         ident.span(),
                                         format!(
-                                            "enforce_bytes must provide a number that can be parsed as a usize [{err}]"
+                                            "`enforce_bytes` must provide a number that can be parsed as a usize [{err}]"
                                         ),
                                     ))
                                 }
@@ -141,7 +150,7 @@ impl StructInfo {
                                             return Err(syn::Error::new(
                                                 ident.span(),
                                                 format!(
-                                                    "enforce_bits must provide a number that can be parsed as a usize [{err}]"
+                                                    "`enforce_bits` must provide a number that can be parsed as a usize [{err}]"
                                                 ),
                                             ))
                                         }
@@ -156,14 +165,14 @@ impl StructInfo {
                                             } else {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
-                                                    "fill_bits defined multiple times",
+                                                    "`fill_bits` defined multiple times",
                                                 ));
                                             }
                                         }
                                         Err(err) => {
                                             return Err(syn::Error::new(
                                                 ident.span(),
-                                                format!("fill_bits must provide a number that can be parsed as a usize [{err}]"),
+                                                format!("`fill_bits` must provide a number that can be parsed as a usize [{err}]"),
                                             ))
                                         }
                                     }
@@ -177,14 +186,14 @@ impl StructInfo {
                                             } else {
                                                 return Err(syn::Error::new(
                                                     ident.span(),
-                                                    "fill_bytes defined multiple times",
+                                                    "`fill_bytes` defined multiple times",
                                                 ));
                                             }
                                         }
                                         Err(err) => {
                                             return Err(syn::Error::new(
                                                 ident.span(),
-                                                format!("fill_bytes must provide a number that can be parsed as a usize [{err}]"),
+                                                format!("`fill_bytes` must provide a number that can be parsed as a usize [{err}]"),
                                             ))
                                         }
                                     }
@@ -200,8 +209,12 @@ impl StructInfo {
                     let ident_str = ident.to_string();
                     match ident_str.as_str() {
                         "reverse" => {
-                            // TODO we should try to stop users from defining this multiple times.
-                            info.default_endianess.reverse_byte_order();
+                            if info.default_endianess.reverse_byte_order().is_some() {
+                                return Err(syn::Error::new(
+                                    ident.span(),
+                                    "`reverse` defined multiple times",
+                                ));
+                            }
                         }
                         "dump" => {
                             info.dump = true;
@@ -210,12 +223,12 @@ impl StructInfo {
                             info.enforcement = StructEnforcement::EnforceFullBytes;
                         }
                         "invalid" => {
-                            if is_variant{
+                            if is_variant {
                                 info.invalid = true;
-                            }else{
+                            } else {
                                 return Err(syn::Error::new(
                                     ident.span(),
-                                    "invalid attribute can only be used on enum variants",
+                                    "`invalid` attribute can only be used on enum variants",
                                 ));
                             }
                         }
@@ -225,7 +238,7 @@ impl StructInfo {
                             } else {
                                 return Err(syn::Error::new(
                                     ident.span(),
-                                    "fill_bits defined multiple times",
+                                    "`fill_bits` defined multiple times",
                                 ));
                             }
                         }

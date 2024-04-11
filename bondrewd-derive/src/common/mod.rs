@@ -50,6 +50,35 @@ impl ByteOrder {
     }
 }
 
+#[derive(Clone, Debug)]
+enum UserDefinedReversal {
+    Set(bool),
+    Unset,
+}
+
+impl Default for UserDefinedReversal {
+    fn default() -> Self {
+        Self::Unset
+    }
+}
+
+impl UserDefinedReversal {
+    pub fn get(&self) -> bool {
+        match self {
+            UserDefinedReversal::Set(out) => *out,
+            UserDefinedReversal::Unset => false,
+        }
+    }
+    pub fn set(&mut self, reverse: bool) -> Option<bool> {
+        let new = Self::Set(reverse);
+        let old = std::mem::replace(self, new);
+        match old {
+            UserDefinedReversal::Set(out) => Some(out),
+            UserDefinedReversal::Unset => None,
+        }
+    }
+}
+
 /// This mess determines the endianness of a field.
 ///
 /// # Bit and Byte order
@@ -79,12 +108,13 @@ impl ByteOrder {
 /// is actually correct but offer both because I already needed them both to successfully
 /// do my job that i get paid for.
 ///
-/// One thing to consider is because modes where originally created to create big-endian and
-/// packed-little-endian functions which is why when Endianness was redefined internally in bondrewd
-/// the table in [Bit and Byte order](#bit-and-byte-order) are reversed for `Alternative`. `Standard` is a
-/// Big Endian processing strategy and `Alternative` is a Packed Little Endian processing strategy and due
-/// to weird bit math, "Standard" mode produces "Aligned Little Endian" when both `byte_order` and
-/// `field_order` are `true`, look at the truth table in [Bit and Byte order](#bit-and-byte-order).
+/// One thing to consider is because modes where originally created to accomplish big-endian and
+/// packed-little-endian functions which is why when Endianness was redefined internally
+/// the table in [Bit and Byte order](#bit-and-byte-order) is reversed for `Alternative` (to make
+/// non-reversed bit/byte order always mean big endian). `Standard` is a Big Endian processing strategy
+/// and `Alternative` is a Packed Little Endian processing strategy and due to weird bit math, "Standard"
+/// mode produces "Aligned Little Endian" when both `byte_order` and `field_order` are `true`, look at
+/// the truth table in [Bit and Byte order](#bit-and-byte-order).
 /// So because in "Alternate" is little endian we XOR `true` with the results of `byte_order` and
 /// `field_order`, see [`Endianness::is_byte_order_reversed`] and upcoming truth table for how logic
 /// gets resolved if you are confused.
@@ -103,30 +133,10 @@ impl ByteOrder {
 /// | (false, true)                                        | Idk                     | Idk                  |
 ///
 /// # Packed... Aligned... ???
-/// These are my made up names for them.
-/// ### Packed
-/// bit are left aligned
-/// ```
-/// use bondrewd::*;
-/// #[derive(Bitfields, Clone)]
-/// #[bondrewd(default_endianness = "ple")]
-/// struct Packed {
-///     #[bondrewd(bit_length = 9)]
-///     number: u16,
-/// }
-///
-/// fn main() {
-///     assert_eq!(Packed::BIT_SIZE, 9);
-///     assert_eq!(Packed::BYTE_SIZE, 2);
-///     let ex = Packed { number: u16::MAX };
-///
-///     let bytes = ex.clone().into_bytes();
-///     assert_eq!(bytes, [0b11111111, 0b10000000]);
-/// }
-/// ```
+/// These are my made up names for the two common "little endian" bit field strategies.
 /// ### Aligned
 /// bit are right aligned
-/// > Note that we are using fill_bits here otherwise only 9 bits will be considered when flipping the order.
+/// > Note that we are using `fill_bits` here otherwise only 9 bits will be considered when flipping the order.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -142,30 +152,55 @@ impl ByteOrder {
 /// let bytes = ex.into_bytes();
 /// assert_eq!(bytes, [0b11111111, 0b00000001]);
 /// ```
+/// ### Packed
+/// bits are left aligned
+/// > `fill_bits` does nothing to this structure but is included for comparison with Aligned example because
+/// > if you don't use `fill_bits` in the Aligned example you will actually get the same output as this
+/// > Packed example due to bondrewd handling structures that do not use a multiple of 8 bits.
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, Clone)]
+/// #[bondrewd(default_endianness = "ple", fill_bits)]
+/// struct Packed {
+///     #[bondrewd(bit_length = 9)]
+///     number: u16,
+/// }
+///
+/// fn main() {
+///     assert_eq!(Packed::BIT_SIZE, 9);
+///     assert_eq!(Packed::BYTE_SIZE, 2);
+///     let ex = Packed { number: u16::MAX };
+///
+///     let bytes = ex.clone().into_bytes();
+///     assert_eq!(bytes, [0b11111111, 0b10000000]);
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct Endianness {
     mode: EndiannessMode,
     byte_order: ByteOrder,
-    reverse_byte_order: bool,
+    reverse_byte_order: UserDefinedReversal,
     field_order: FieldOrder,
-    reverse_field_order: bool,
+    reverse_field_order: UserDefinedReversal,
 }
 
 impl Endianness {
-    pub fn set_byte_order(&mut self, new: ByteOrder) {
-        self.byte_order = new;
+    #[inline]
+    pub fn set_reverse_byte_order(&mut self, new: bool) -> Option<bool> {
+        self.reverse_byte_order.set(new)
     }
     pub fn is_byte_order_reversed(&self) -> bool {
-        self.is_alternative() ^ (self.reverse_byte_order ^ self.byte_order.is_reversed())
+        self.is_alternative() ^ (self.reverse_byte_order.get() ^ self.byte_order.is_reversed())
     }
-    pub fn reverse_byte_order(&mut self) {
-        self.reverse_byte_order = !self.reverse_byte_order;
+    pub fn reverse_byte_order(&mut self) -> Option<bool> {
+        self.set_reverse_byte_order(!self.reverse_byte_order.get())
     }
-    pub fn set_reverse_field_order(&mut self, new: bool) {
-        self.reverse_field_order = new;
+    pub fn set_reverse_field_order(&mut self, new: bool) -> Option<bool> {
+        self.reverse_field_order.set(new)
     }
     pub fn is_field_order_reversed(&self) -> bool {
-        let r = self.reverse_field_order ^ matches!(self.field_order, FieldOrder::LastToFirst);
+        let r =
+            self.reverse_field_order.get() ^ matches!(self.field_order, FieldOrder::LastToFirst);
         if self.is_alternative() {
             !r
         } else {
@@ -198,52 +233,43 @@ impl Endianness {
     pub fn set_mode(&mut self, mode: EndiannessMode) {
         self.mode = mode;
     }
-    pub fn is_standard(&self) -> bool {
-        matches!(self.mode, EndiannessMode::Standard)
-    }
     pub fn is_alternative(&self) -> bool {
         matches!(self.mode, EndiannessMode::Alternative)
     }
-    // pub fn is_little(&self) -> bool {
-    //     matches!(self.inner, Endianness::Little)
-    // }
-    // pub fn is_none(&self) -> bool {
-    //     matches!(self.inner, Endianness::None)
-    // }
     pub fn big() -> Self {
         Self {
             mode: EndiannessMode::Standard,
             byte_order: ByteOrder::FirstToLast,
-            reverse_byte_order: false,
+            reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::FirstToLast,
-            reverse_field_order: false,
+            reverse_field_order: UserDefinedReversal::default(),
         }
     }
     pub fn little_packed() -> Self {
         Self {
             mode: EndiannessMode::Alternative,
             byte_order: ByteOrder::LastToFirst,
-            reverse_byte_order: false,
+            reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::LastToFirst,
-            reverse_field_order: false,
+            reverse_field_order: UserDefinedReversal::default(),
         }
     }
     pub fn little_aligned() -> Self {
         Self {
             mode: EndiannessMode::Standard,
             byte_order: ByteOrder::LastToFirst,
-            reverse_byte_order: false,
+            reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::LastToFirst,
-            reverse_field_order: false,
+            reverse_field_order: UserDefinedReversal::default(),
         }
     }
     pub fn nested() -> Self {
         Self {
             mode: EndiannessMode::Nested,
             byte_order: ByteOrder::FirstToLast,
-            reverse_byte_order: false,
+            reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::FirstToLast,
-            reverse_field_order: false,
+            reverse_field_order: UserDefinedReversal::default(),
         }
     }
 }
@@ -266,7 +292,7 @@ pub enum FillBits {
 
 impl FillBits {
     pub fn is_none(&self) -> bool {
-        matches!(self,Self::None)
+        matches!(self, Self::None)
     }
 }
 

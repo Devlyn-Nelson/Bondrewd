@@ -531,8 +531,7 @@ impl ObjectInfo {
                     // None
                 }
             }
-        }
-        ;
+        };
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
         if let Some(fill_bits) = auto_fill {
             let end_bit = first_bit + fill_bits;

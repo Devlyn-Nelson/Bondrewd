@@ -17,7 +17,6 @@ use crate::common::{
     },
     r#enum::Info as EnumInfo,
     r#struct::Info as StructInfo,
-    ByteOrder, Endianness,
 };
 
 impl EnumInfo {
@@ -45,7 +44,7 @@ impl EnumInfo {
         let mut gen = GeneratedFunctions {
             non_trait: {
                 let field = self.generate_id_field()?;
-                let mut attrs = self.attrs.attrs.clone();
+                let attrs = self.attrs.attrs.clone();
                 // TODO START_HERE i think the id field is being used wrong.
                 let mut fields = vec![field.clone()];
                 // let bit_size = field.bit_size();
