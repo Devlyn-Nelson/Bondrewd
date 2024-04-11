@@ -56,6 +56,26 @@ impl Info {
             ))
         }
     }
+    pub(crate) fn get_id_field_mut(&mut self) -> syn::Result<Option<&mut FieldInfo>> {
+        if self.attrs.id.is_none() {
+            return Ok(None);
+        }
+        let thing = if self.attrs.default_endianess.is_field_order_reversed() {
+            self.fields.last_mut()
+        } else {
+            self.fields.first_mut()
+        };
+        if let Some(field) = thing {
+            Ok(Some(field))
+        } else {
+            Err(syn::Error::new(
+                self.name.span(),
+                format!(
+                    "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)"
+                ),
+            ))
+        }
+    }
     pub(crate) fn get_fields_for_gen(&self) -> syn::Result<&[FieldInfo]> {
         if if let Some(field) = self.get_id_field()? {
             !field.attrs.capture_id

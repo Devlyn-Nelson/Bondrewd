@@ -457,6 +457,7 @@ impl ObjectInfo {
                         if i == 0 {
                             match (&parsed_fields[0].ty, &mut parsed_field.ty) {
                                 (DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..}, DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}) => {
+                                    // TODO this if statements actions could cause confusing behavior
                                     if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
                                         parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
                                     }
@@ -476,13 +477,13 @@ impl ObjectInfo {
                         } else {
                             return Err(Error::new(
                                 field.span(),
-                                "capture_id attribute must be the first field.",
+                                "`capture_id` attribute must be the first field.",
                             ));
                         }
                     } else {
                         return Err(Error::new(
                             field.span(),
-                            "capture_id attribute is intended for enum variants only.",
+                            "`capture_id` attribute is intended for enum variants only.",
                         ));
                     }
                 } else {
@@ -539,7 +540,7 @@ impl ObjectInfo {
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
             let mut endian = attrs.default_endianess.clone();
-            if endian.has_endianness() {
+            if !endian.has_endianness() {
                 endian.set_mode(crate::common::EndiannessMode::Standard)
             }
             parsed_fields.push(FieldInfo {

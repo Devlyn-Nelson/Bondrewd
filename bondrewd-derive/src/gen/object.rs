@@ -1,3 +1,5 @@
+use std::env::current_dir;
+
 use crate::common::{
     field::Info as FieldInfo, object::Info as ObjectInfo, r#enum::Info as EnumInfo,
     r#struct::Info as StructInfo,
@@ -109,8 +111,16 @@ impl ObjectInfo {
         }
         if self.dump() {
             let name = self.name().to_string().to_case(Case::Snake);
-            let file_name = format!("{name}_code_gen.rs");
-            let _ = std::fs::write(file_name, output.to_string());
+            match current_dir() {
+                Ok(mut file_name) => {
+                    file_name.push("target");
+                    file_name.push(&format!("{name}_code_gen.rs"));
+                    let _ = std::fs::write(file_name, output.to_string());
+                }
+                Err(err) => {
+                    return Err(syn::Error::new(self.name().span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
+                }
+            }
         }
         Ok(output)
     }

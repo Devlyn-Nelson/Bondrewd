@@ -103,7 +103,7 @@ impl UserDefinedReversal {
 ///
 /// # Mode vs Endian
 /// Endianess is basically really confusing when being applied at the bit level.
-/// 
+///
 /// To clarify: Bit Endianess exists but standards for them are very obscure and don't have much structure.
 ///
 /// Multiple ways of processing little endian are used in industry. I don't know which
@@ -171,7 +171,7 @@ impl UserDefinedReversal {
 /// assert_eq!(Packed::BIT_SIZE, 9);
 /// assert_eq!(Packed::BYTE_SIZE, 2);
 /// let ex = Packed { number: u16::MAX };
-/// 
+///
 /// let bytes = ex.clone().into_bytes();
 /// assert_eq!(bytes, [0b11111111, 0b10000000]);
 /// ```

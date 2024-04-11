@@ -3,7 +3,7 @@ use std::str::FromStr;
 use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{token::Pub, Ident};
+use syn::Ident;
 
 #[cfg(feature = "dyn_fns")]
 use super::field::{generate_read_slice_field_fn, generate_write_slice_field_fn};
@@ -11,68 +11,47 @@ use super::{
     field::{generate_read_field_fn, generate_write_field_fn},
     GeneratedFunctions,
 };
-use crate::common::{
-    field::{
-        Attributes, DataType, Info as FieldInfo, NumberSignage, OverlapOptions, ReserveFieldOption,
-    },
-    r#enum::Info as EnumInfo,
-    r#struct::Info as StructInfo,
-};
+use crate::common::{r#enum::Info as EnumInfo, r#struct::Info as StructInfo};
 
 impl EnumInfo {
-    pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
-        let e = self.attrs.attrs.default_endianess.clone();
-        Ok(FieldInfo {
-            ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
-            ty: DataType::Number {
-                size: self.attrs.id_bits.div_ceil(8),
-                sign: NumberSignage::Unsigned,
-                type_quote: self.id_type_quote()?,
-            },
-            attrs: Attributes {
-                endianness: Box::new(e),
-                bit_range: 0..self.attrs.id_bits,
-                reserve: ReserveFieldOption::NotReserve,
-                overlap: OverlapOptions::None,
-                capture_id: false,
-            },
-        })
+    pub fn get_temp_struct_for_id_gen(&self) -> syn::Result<StructInfo> {
+        let invalids: Vec<&StructInfo> = self
+            .variants
+            .iter()
+            .filter(|variant| variant.attrs.invalid)
+            .collect();
+        let mut variant = match invalids.len().cmp(&1) {
+            std::cmp::Ordering::Less => {
+                let v = self.variants.first();
+                if let Some(variant) = v {
+                    variant.clone()
+                }else{
+                    return Err(syn::Error::new(self.name.span(), "No Variants, this is a bug of the Bondrewd crate because it was not detected until the code generation step, please report issue. try adding a variant to your structure or not deriving `Bitfields` until you have one."));
+                }
+            }
+            std::cmp::Ordering::Equal => {
+                invalids[0].clone()
+            }
+            std::cmp::Ordering::Greater => return Err(syn::Error::new(self.name.span(), "2 invalid variants exist, this is a bug of the Bondrewd crate because it was not detected until the code generation step, please report issue. if using `#[bondrewd(invalid)]` on a variant please remove it, if using 2 remove at least 1.")),
+        };
+        if let Some(id_field) = variant.get_id_field_mut()? {
+            id_field.ident = Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into());
+        } else {
+            return Err(syn::Error::new(self.name.span(), "First Variant had no fields, this is a bug of the Bondrewd crate please report issue. try adding a variant with an unsigned number that can contain the id_bit_length at the first field position with `#[bondrewd(capture_id)]`"));
+        }
+
+        Ok(variant)
     }
 
     pub fn generate_bitfield_functions(&self) -> syn::Result<GeneratedFunctions> {
         let enum_name: Option<&Ident> = Some(&self.name);
         let mut gen = GeneratedFunctions {
             non_trait: {
-                let field = self.generate_id_field()?;
-                let attrs = self.attrs.attrs.clone();
-                // TODO START_HERE i think the id field is being used wrong.
-                let mut fields = vec![field.clone()];
-                // let bit_size = field.bit_size();
-                // if bit_size % 8 != 0 {
-                //     let to_fill = 8 - (bit_size % 8);
-                //     let ident = quote::format_ident!("bondrewd_fill_bits");
-                //     let fill = FieldInfo {
-                //         ident: Box::new(ident.into()),
-                //         attrs: Attributes {
-                //             bit_range: bit_size..bit_size+to_fill,
-                //             endianness: field.attrs.endianness.clone(),
-                //             reserve: ReserveFieldOption::FakeField,
-                //             overlap: OverlapOptions::None,
-                //             capture_id: false,
-                //         },
-                //         ty: DataType::Number { size: 1, sign: NumberSignage::Unsigned, type_quote: quote!{u8} },
-                //     };
-                //     fields.insert(0, fill);
-                // }
-                //
-                // line below is important for some reason, needs docs.
-                fields[0].attrs.bit_range = 0..self.total_bits();
-                let temp_struct_info = StructInfo {
-                    name: self.name.clone(),
-                    attrs,
-                    fields,
-                    vis: crate::common::Visibility(syn::Visibility::Public(Pub::default())),
-                    tuple: false,
+                let temp_struct_info = self.get_temp_struct_for_id_gen()?;
+                let field = if let Some(id_field) = temp_struct_info.get_id_field()? {
+                    id_field.clone()
+                } else {
+                    return Err(syn::Error::new(self.name.span(), "fake Variant had id fields, this is a bug of the Bondrewd crate please report issue."));
                 };
                 let field_name = &field.ident().ident();
                 let access = field.get_quotes(&temp_struct_info)?;
