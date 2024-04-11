@@ -166,14 +166,12 @@ impl UserDefinedReversal {
 ///     number: u16,
 /// }
 ///
-/// fn main() {
-///     assert_eq!(Packed::BIT_SIZE, 9);
-///     assert_eq!(Packed::BYTE_SIZE, 2);
-///     let ex = Packed { number: u16::MAX };
-///
-///     let bytes = ex.clone().into_bytes();
-///     assert_eq!(bytes, [0b11111111, 0b10000000]);
-/// }
+/// assert_eq!(Packed::BIT_SIZE, 9);
+/// assert_eq!(Packed::BYTE_SIZE, 2);
+/// let ex = Packed { number: u16::MAX };
+/// 
+/// let bytes = ex.clone().into_bytes();
+/// assert_eq!(bytes, [0b11111111, 0b10000000]);
 /// ```
 #[derive(Clone, Debug)]
 pub struct Endianness {
