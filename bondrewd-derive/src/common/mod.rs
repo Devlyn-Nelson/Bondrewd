@@ -103,6 +103,8 @@ impl UserDefinedReversal {
 ///
 /// # Mode vs Endian
 /// Endianess is basically really confusing when being applied at the bit level.
+/// 
+/// To clarify: Bit Endianess exists but standards for them are very obscure and don't have much structure.
 ///
 /// Multiple ways of processing little endian are used in industry. I don't know which
 /// is actually correct but offer both because I already needed them both to successfully
