@@ -214,7 +214,7 @@ impl ObjectInfo {
                 }
                 for variant in variants.iter() {
                     // verify the size doesn't go over set size.
-                    let size = variant.total_bits_no_fill();
+                    let size = variant.total_bits();
                     if largest < size {
                         largest = size;
                     }
@@ -373,12 +373,13 @@ impl ObjectInfo {
                 // );
                 // add fill_bits if needed.
                 // TODO START_HERE fix fill byte getting inserted of wrong side sometimes.
+                // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
                 for v in &mut variants {
                     let first_bit = v.total_bits();
                     if first_bit < largest {
                         let fill_bytes_size = (largest - first_bit).div_ceil(8);
                         let ident = quote::format_ident!("fill_bits");
-                        v.fields.push(FieldInfo {
+                        let fill = FieldInfo {
                             ident: Box::new(ident.into()),
                             attrs: Attributes {
                                 bit_range: first_bit..largest,
@@ -398,7 +399,13 @@ impl ObjectInfo {
                                 length: fill_bytes_size,
                                 type_quote: quote! {[u8;#fill_bytes_size]},
                             },
-                        });
+                        };
+                        if v.attrs.default_endianess.is_byte_order_reversed() {
+                            v.fields.insert(0, fill);
+
+                        }else{
+                            v.fields.push(fill);
+                        }
                     }
                 }
                 let out = Self::Enum(EnumInfo {
