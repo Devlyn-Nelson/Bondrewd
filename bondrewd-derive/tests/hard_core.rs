@@ -24,25 +24,26 @@ fn super_hard_code() {
     // TODO add multi-byte nested structure.
     // make it a changing test like the HAL protocol tests do.
     let thing_1 = ReallyHardcore {
-        one: OneQuarter { one: true, two: 7 },
-        two: OtherQuarter::One(false, false),
-        three: OtherHalf::Invalid(7, 31),
+        one: One { one: true, two: 7 },
+        two: Two::One { one: false, two: 0 },
+        three: Three::Invalid { id: 3, other: 127 },
+        four: 0,
     };
     let thing_2 = ReallyHardcore {
-        one: OneQuarter { one: true, two: 7 },
-        two: OtherQuarter::Invalid { id: 3, other: 3 },
-        three: OtherHalf::One { one: false, two: 0 },
+        one: One { one: false, two: 0 },
+        two: Two::Invalid(7, 31),
+        three: Three::One(false, false),
+        four: 7,
     };
-    // let thing_1 = ReallyHardcore {
-    //     one: OneQuarter { one: true, two: 0 },
-    //     two: OtherQuarter::Two,
-    //     three: OtherHalf::One { one: false, two: 0 },
-    // };
+
+    let half_bytes_1 = thing_1.two.clone().into_bytes();
 
     let bytes_1 = thing_1.clone().into_bytes();
     let bytes_2 = thing_2.clone().into_bytes();
 
-    assert_eq!(bytes_1, [0b0000_1111, 0b1111_1111]);
+    let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
+    assert_eq!(bytes_1, correct_bytes_1);
+    assert_eq!(bytes_2, [!correct_bytes_1[0], !correct_bytes_1[1], !correct_bytes_1[2]]);
 
     let new_1 = ReallyHardcore::from_bytes(bytes_1);
     let new_2 = ReallyHardcore::from_bytes(bytes_2);
@@ -59,8 +60,8 @@ fn super_hard_code() {
 //     print!("]\n");
 // }
 
-impl From<OneQuarter> for old::OneQuarter {
-    fn from(value: OneQuarter) -> Self {
+impl From<One> for old::One {
+    fn from(value: One) -> Self {
         Self {
             one: value.one,
             two: value.two,
@@ -81,7 +82,7 @@ mod current {
 
     #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", bit_traversal = "back")]
-    pub struct OneQuarter {
+    pub struct One {
         pub one: bool,
         #[bondrewd(bit_length = 3)]
         pub two: u8,
@@ -91,28 +92,10 @@ mod current {
     #[bondrewd(
         default_endianness = "be",
         bit_traversal = "back",
-        id_bit_length = 2,
-        enforce_bits = 4
-    )]
-    pub enum OtherQuarter {
-        One(bool, bool),
-        Two,
-        Invalid {
-            #[bondrewd(capture_id)]
-            id: u8,
-            #[bondrewd(bit_length = 2)]
-            other: u8,
-        },
-    }
-
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(
-        default_endianness = "be",
-        bit_traversal = "back",
         id_bit_length = 3,
         enforce_bytes = 1
     )]
-    pub enum OtherHalf {
+    pub enum Two {
         One {
             one: bool,
             #[bondrewd(bit_length = 4)]
@@ -129,14 +112,34 @@ mod current {
     }
 
     #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[bondrewd(
+        default_endianness = "be",
+        bit_traversal = "back",
+        id_bit_length = 2,
+        enforce_bits = 9,
+    )]
+    pub enum Three {
+        One(bool, bool),
+        Two,
+        Invalid {
+            #[bondrewd(capture_id)]
+            id: u8,
+            #[bondrewd(bit_length = 7)]
+            other: u8,
+        },
+    }
+
+    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", bit_traversal = "back", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(bit_length = 4)]
-        pub one: OneQuarter,
-        #[bondrewd(bit_length = 4)]
-        pub two: OtherQuarter,
+        pub one: One,
         #[bondrewd(bit_length = 8)]
-        pub three: OtherHalf,
+        pub two: Two,
+        #[bondrewd(bit_length = 9)]
+        pub three: Three,
+        #[bondrewd(bit_length = 3)]
+        pub four: u8,
     }
 }
 mod old {
@@ -145,7 +148,7 @@ mod old {
 
     #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0")]
-    pub struct OneQuarter {
+    pub struct One {
         pub one: bool,
         #[bondrewd(bit_length = 3)]
         pub two: u8,
@@ -153,7 +156,7 @@ mod old {
 
     #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0", enforce_bits = 4)]
-    pub struct OtherQuarter {
+    pub struct Three {
         #[bondrewd(capture_id, bit_length = 2)]
         pub id: u8,
         #[bondrewd(bit_length = 2)]
@@ -162,7 +165,7 @@ mod old {
 
     #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0", enforce_bytes = 1)]
-    pub struct OtherHalf {
+    pub struct Two {
         pub one: bool,
         #[bondrewd(bit_length = 7)]
         pub two: u8,
@@ -172,10 +175,12 @@ mod old {
     #[bondrewd(default_endianness = "be", read_from = "lsb0", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(struct_size = 1, bit_length = 4)]
-        pub one: OneQuarter,
-        #[bondrewd(struct_size = 1, bit_length = 4)]
-        pub two: OtherQuarter,
+        pub one: One,
         #[bondrewd(struct_size = 1, bit_length = 8)]
-        pub three: OtherHalf,
+        pub two: Two,
+        #[bondrewd(struct_size = 1, bit_length = 9)]
+        pub three: Three,
+        #[bondrewd(bit_length = 3)]
+        pub four: u8,
     }
 }

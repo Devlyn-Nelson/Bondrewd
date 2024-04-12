@@ -48,6 +48,7 @@ impl EnumInfo {
         let mut gen = GeneratedFunctions {
             non_trait: {
                 let temp_struct_info = self.get_temp_struct_for_id_gen()?;
+                println!("enum - {temp_struct_info:?}");
                 let field = if let Some(id_field) = temp_struct_info.get_id_field()? {
                     id_field.clone()
                 } else {

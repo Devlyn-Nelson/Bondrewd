@@ -93,6 +93,7 @@ impl ObjectInfo {
         // get the struct, error out if not a struct
         let mut attrs = AttrInfo::default();
         let name = input.ident.clone();
+        println!("===={name}====");
         match input.data {
             syn::Data::Struct(ref data) => {
                 let tuple = matches!(data.fields, syn::Fields::Unnamed(_));
@@ -371,6 +372,7 @@ impl ObjectInfo {
                 //     get_id_type(enum_attrs.id_bits, name.span())?,
                 // );
                 // add fill_bits if needed.
+                // TODO START_HERE fix fill byte getting inserted of wrong side sometimes.
                 for v in &mut variants {
                     let first_bit = v.total_bits();
                     if first_bit < largest {
@@ -399,12 +401,14 @@ impl ObjectInfo {
                         });
                     }
                 }
-                Ok(Self::Enum(EnumInfo {
+                let out = Self::Enum(EnumInfo {
                     name,
                     variants,
                     attrs: enum_attrs,
                     vis: crate::common::Visibility(input.vis.clone()),
-                }))
+                });
+                println!("enum - {out:?}");
+                Ok(out)
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
