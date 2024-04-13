@@ -93,7 +93,7 @@ impl ObjectInfo {
         // get the struct, error out if not a struct
         let mut attrs = AttrInfo::default();
         let name = input.ident.clone();
-        println!("===={name}====");
+        // println!("===={name}====");
         match input.data {
             syn::Data::Struct(ref data) => {
                 let tuple = matches!(data.fields, syn::Fields::Unnamed(_));
@@ -372,7 +372,7 @@ impl ObjectInfo {
                 //     get_id_type(enum_attrs.id_bits, name.span())?,
                 // );
                 // add fill_bits if needed.
-                // TODO START_HERE fix fill byte getting inserted of wrong side sometimes.
+                // TODO fix fill byte getting inserted of wrong side sometimes.
                 // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
                 for v in &mut variants {
                     let first_bit = v.total_bits();
@@ -402,8 +402,7 @@ impl ObjectInfo {
                         };
                         if v.attrs.default_endianess.is_byte_order_reversed() {
                             v.fields.insert(0, fill);
-
-                        }else{
+                        } else {
                             v.fields.push(fill);
                         }
                     }
@@ -414,7 +413,7 @@ impl ObjectInfo {
                     attrs: enum_attrs,
                     vis: crate::common::Visibility(input.vis.clone()),
                 });
-                println!("enum - {out:?}");
+                // println!("enum - {out:?}");
                 Ok(out)
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),

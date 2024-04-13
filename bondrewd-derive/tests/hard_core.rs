@@ -43,7 +43,14 @@ fn super_hard_code() {
 
     let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
     assert_eq!(bytes_1, correct_bytes_1);
-    assert_eq!(bytes_2, [!correct_bytes_1[0], !correct_bytes_1[1], !correct_bytes_1[2]]);
+    assert_eq!(
+        bytes_2,
+        [
+            !correct_bytes_1[0],
+            !correct_bytes_1[1],
+            !correct_bytes_1[2]
+        ]
+    );
 
     let new_1 = ReallyHardcore::from_bytes(bytes_1);
     let new_2 = ReallyHardcore::from_bytes(bytes_2);
@@ -116,7 +123,7 @@ mod current {
         default_endianness = "be",
         bit_traversal = "back",
         id_bit_length = 2,
-        enforce_bits = 9,
+        enforce_bits = 9
     )]
     pub enum Three {
         One(bool, bool),
