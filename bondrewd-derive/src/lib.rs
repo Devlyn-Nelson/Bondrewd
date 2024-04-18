@@ -435,10 +435,11 @@
 //! ```
 extern crate proc_macro;
 // mods
-mod common;
-mod gen;
-mod old_enums;
-mod parse;
+pub(crate) mod built;
+pub(crate) mod common;
+pub(crate) mod gen;
+pub(crate) mod old_enums;
+pub(crate) mod parse;
 // uses
 use common::object::Info as ObjectInfo;
 use old_enums::parse::EnumInfo;
