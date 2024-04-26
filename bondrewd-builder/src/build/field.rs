@@ -1,5 +1,6 @@
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
+/// Defines how each element of an array should be treated.
 #[derive(Debug)]
 pub enum ArrayType {
     /// Each element of the array is considered its own value.
@@ -12,6 +13,7 @@ pub enum ArrayType {
     Block,
 }
 
+///
 #[derive(Debug)]
 struct ArrayInfo {
     ty: ArrayType,
@@ -57,6 +59,9 @@ pub struct DataBuilder {
 
 #[derive(Clone, Debug)]
 enum DataType {
+    /// This will result in an error if you try to solve.
+    None,
+    /// field is a number or primitive. if the endianess is `None`, it will not solve.
     Number(NumberType, Option<Endianness>),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
