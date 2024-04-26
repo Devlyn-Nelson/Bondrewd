@@ -36,7 +36,9 @@ struct ArrayInfo {
 }
 
 #[derive(Debug)]
-pub struct DataBuilder {
+pub struct DataBuilder<Id> {
+    /// The name or ident of the field.
+    name: Id,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     ty: Option<DataType>,
@@ -55,6 +57,28 @@ pub struct DataBuilder {
     reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
     overlap: OverlapOptions,
+}
+
+impl<Id> DataBuilder<Id> {
+    pub fn new(name: Id) -> Self {
+        Self {
+            name,
+            ty: None,
+            rust_size: 0,
+            array: None,
+            bit_range: BuilderRange::None,
+            reserve: ReserveFieldOption::NotReserve,
+            overlap: OverlapOptions::None,
+        }
+    }
+    pub fn with_data_type(mut self, new_ty: DataType) -> Self {
+        self.ty = Some(new_ty);
+        self
+    }
+    pub fn set_data_type(&mut self, new_ty: DataType) -> &mut Self {
+        self.ty = Some(new_ty);
+        self
+    }
 }
 
 #[derive(Clone, Debug)]

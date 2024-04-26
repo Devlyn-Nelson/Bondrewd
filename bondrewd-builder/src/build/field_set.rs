@@ -1,49 +1,125 @@
+use std::collections::HashMap;
+
+use syn::token::Pub;
+
 use super::{field::DataBuilder, Visibility};
 
-/// Builds a bitfield model.
-pub struct Builder {
+/// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
+/// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
+/// This is actually intended to be used by `bondrewd-derive`.
+pub struct GenericBuilder<FieldSetId, DataId> {
     /// Define if we are building a single field_set or variant type containing
     /// multiple field_sets switched by an id field.
-    pub ty: BuilderType,
+    pub ty: BuilderType<FieldSetId, DataId>,
+    // TODO this is only used in `derive`
     /// The viability of the struct/enum
     pub vis: Visibility,
+    // TODO this is only used in `derive`
     /// Is it a tuple struct/variant
     pub tuple: bool,
 }
+
+impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId> {
+    pub fn single_set<S: Into<FieldSetId>>(name: S) -> Self {
+        Self {
+            ty: BuilderType::Struct(name.into(), FieldSetBuilder::new()),
+            tuple: false,
+            vis: Visibility(syn::Visibility::Public(Pub::default())),
+        }
+    }
+    pub fn variant_set<S: Into<String>>(name: S) -> Self {
+        Self {
+            ty: BuilderType::Enum(EnumBuilder::new(name)),
+            tuple: false,
+            vis: Visibility(syn::Visibility::Public(Pub::default())),
+        }
+    }
+    pub fn get(&self) -> &BuilderType<FieldSetId, DataId> {
+        &self.ty
+    }
+    pub fn get_mut(&mut self) -> &mut BuilderType<FieldSetId, DataId> {
+        &mut self.ty
+    }
+}
 /// Distinguishes between enums and structs or a single field_set vs multiple
 /// field_sets that switch based on an id field.
-pub enum BuilderType {
+pub enum BuilderType<FieldSetId, DataId> {
     /// Multiple field_sets that switch based on an id field.
-    Enum {
-        /// Name or ident of the enum, really only matters for `bondrewd-derive`
-        name: String,
-        /// The id field with determines the field_set to use.
-        id: DataBuilder,
-        /// The default variant for situations where no other variant matches.
-        invalid: Option<VariantBuilder>,
-        /// The collection of variant field_sets.
-        variants: Vec<VariantBuilder>,
-    },
+    Enum(EnumBuilder<FieldSetId, DataId>),
     /// A single field_set.
-    Struct(FieldSetBuilder),
+    Struct(FieldSetId, FieldSetBuilder<DataId>),
+}
+
+impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
+    pub fn get_struct(&self) -> Option<&FieldSetBuilder<DataId>> {
+        if let Self::Struct(_, ref thing) = self {
+            Some(thing)
+        } else {
+            None
+        }
+    }
+    pub fn get_enum(&self) -> Option<&EnumBuilder<FieldSetId, DataId>> {
+        if let Self::Enum(ref thing) = self {
+            Some(thing)
+        } else {
+            None
+        }
+    }
+    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder<DataId>> {
+        if let Self::Struct(_, ref mut thing) = self {
+            Some(thing)
+        } else {
+            None
+        }
+    }
+    pub fn get_mut_enum(&mut self) -> Option<&mut EnumBuilder<FieldSetId, DataId>> {
+        if let Self::Enum(ref mut thing) = self {
+            Some(thing)
+        } else {
+            None
+        }
+    }
+}
+
+/// Builds an enum bitfield model.
+struct EnumBuilder<FieldSetId, DataId> {
+    // TODO this is only used in `derive`
+    /// Name or ident of the enum, really only matters for `bondrewd-derive`
+    name: String,
+    /// The id field with determines the field_set to use.
+    id: Option<DataBuilder<DataId>>,
+    /// The default variant for situations where no other variant matches.
+    invalid: Option<VariantBuilder<FieldSetId, DataId>>,
+    /// The collection of variant field_sets.
+    variants: Vec<VariantBuilder<FieldSetId, DataId>>,
+}
+
+impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId> {
+    pub fn new<S: Into<String>>(name: S) -> Self {
+        Self {
+            name: name.into(),
+            id: None,
+            invalid: None,
+            variants: Vec::default(),
+        }
+    }
 }
 /// Contains builder information for constructing variant style bitfield models.
-pub struct VariantBuilder {
+pub struct VariantBuilder<FieldSetId, DataId> {
+    name: FieldSetId,
     /// The id value that this variant shall be used for.
     id: Option<i64>,
     /// If the variant has a field that whats to capture the
     /// value read for the variant resolution the fields shall be placed here
     /// NOT in the field set, useful for invalid variant.
-    capture_field: Option<DataBuilder>,
+    capture_field: Option<DataBuilder<DataId>>,
     /// the field_set
-    field_set: FieldSetBuilder,
+    field_set: FieldSetBuilder<DataId>,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
-pub struct FieldSetBuilder {
-    /// Name or ident of the field_set
-    name: String,
+pub struct FieldSetBuilder<DataId> {
     /// the set of fields.
-    fields: Vec<DataBuilder>,
+    fields: Vec<DataBuilder<DataId>>,
     /// Imposes checks on the sizing of the field_set
     pub enforcement: StructEnforcement,
     /// PLEASE READ IF YOU ARE NOT USING [`StructEnforcement::EnforceFullBytes`]
@@ -58,6 +134,19 @@ pub struct FieldSetBuilder {
     /// Using Auto is useful because if the field_set doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
+}
+
+impl<DataId> FieldSetBuilder<DataId> {
+    pub fn new() -> Self {
+        Self {
+            fields: Vec::default(),
+            enforcement: StructEnforcement::default(),
+            fill_bits: FillBits::default(),
+        }
+    }
+    pub fn add_field(&mut self, new_data: DataBuilder<DataId>) {
+        self.fields.push(new_data);
+    }
 }
 
 /// A [`Builder`] option that can dynamically add reserve bits to the end of a [`FieldSetBuilder`].

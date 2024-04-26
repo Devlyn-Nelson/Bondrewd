@@ -24,3 +24,4 @@ derive = ["dep:proc-macro2", "dep:quote" , "dep:syn"]
 rand = "0.8"
 anyhow = "1"
 thiserror = "1"
+bondrewd_test = {package = "bondrewd", path = "../bondrewd", features = ["derive"]}
