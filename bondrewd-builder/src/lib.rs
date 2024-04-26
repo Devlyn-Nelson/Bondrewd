@@ -1,2 +1,2 @@
-pub mod solved;
 pub mod build;
+pub mod solved;

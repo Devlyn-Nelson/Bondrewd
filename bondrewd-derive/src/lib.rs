@@ -435,6 +435,7 @@
 //! ```
 extern crate proc_macro;
 // mods
+pub(crate) mod build;
 pub(crate) mod common;
 pub(crate) mod gen;
 pub(crate) mod old_enums;

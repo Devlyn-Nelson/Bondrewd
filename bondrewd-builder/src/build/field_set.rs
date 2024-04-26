@@ -5,9 +5,15 @@ enum BuilderType {
     Enum {
         name: String,
         id: DataBuilder,
-        variants: Vec<BuilderFieldSet>,
+        invalid: Option<VariantBuilder>,
+        variants: Vec<VariantBuilder>,
     },
     Struct(BuilderFieldSet),
+}
+struct VariantBuilder {
+    id: Option<i64>,
+    capture_field: Option<DataBuilder>,
+    field_set: BuilderFieldSet,
 }
 struct BuilderFieldSet {
     name: String,
