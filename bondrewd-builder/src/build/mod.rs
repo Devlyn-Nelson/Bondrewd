@@ -1,16 +1,21 @@
 pub mod field;
 pub mod field_set;
 
+#[cfg(feature = "derive")]
 use quote::ToTokens;
+#[cfg(feature = "derive")]
 use std::{
     fmt::Debug,
     ops::{Deref, Range},
 };
+#[cfg(feature = "derive")]
 use syn::{Expr, Ident, Lit, LitInt, LitStr};
 
 #[derive(Clone)]
+#[cfg(feature = "derive")]
 pub struct Visibility(pub syn::Visibility);
 
+#[cfg(feature = "derive")]
 impl Deref for Visibility {
     type Target = syn::Visibility;
 
@@ -19,6 +24,7 @@ impl Deref for Visibility {
     }
 }
 
+#[cfg(feature = "derive")]
 impl Debug for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.to_token_stream().to_string())
@@ -44,6 +50,7 @@ impl BuilderRange {
     /// Tries to extract a range from a `&Expr`. there is no need to check the type of expr.
     /// If the Result returns `Err` then a parsing error occurred and should be reported as an error to user.
     /// If `Ok(None)`, no error but `expr` was not valid for housing a range.
+    #[cfg(feature = "derive")]
     pub fn range_from_expr(expr: &Expr, ident: &Ident) -> syn::Result<Option<Self>> {
         if let Some(lit) = get_lit_range(expr, ident)? {
             Ok(Some(Self::Range(lit)))
@@ -297,7 +304,7 @@ impl Endianness {
     /// # Warning
     /// The default of this changes depending on the mode, and the docs for how field_order
     /// effect things in [`Endianness`] should be read before using this.
-    pub fn reverse_field_order(&mut self, new: bool) -> Option<bool> {
+    pub fn reverse_field_order(&mut self) -> Option<bool> {
         self.set_reverse_field_order(!self.reverse_field_order.get())
     }
     /// Returns the `mode`.
@@ -423,6 +430,7 @@ impl OverlapOptions {
     }
 }
 
+#[cfg(feature = "derive")]
 pub(crate) fn get_lit_str<'a>(
     expr: &'a Expr,
     ident: &Ident,
@@ -450,6 +458,7 @@ pub(crate) fn get_lit_str<'a>(
     }
 }
 
+#[cfg(feature = "derive")]
 pub(crate) fn get_lit_int<'a>(
     expr: &'a Expr,
     ident: &Ident,
@@ -477,6 +486,7 @@ pub(crate) fn get_lit_int<'a>(
     }
 }
 
+#[cfg(feature = "derive")]
 pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Range<usize>>> {
     if let Expr::Range(ref lit) = expr {
         let start = if let Some(ref v) = lit.start {

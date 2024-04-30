@@ -82,7 +82,7 @@ impl<Id> DataBuilder<Id> {
 }
 
 #[derive(Clone, Debug)]
-enum DataType {
+pub enum DataType {
     /// This will result in an error if you try to solve.
     None,
     /// field is a number or primitive. if the endianess is `None`, it will not solve.
@@ -93,7 +93,7 @@ enum DataType {
 }
 
 #[derive(Clone, Debug)]
-enum NumberType {
+pub enum NumberType {
     /// Floating point numbers
     ///
     /// # Valid

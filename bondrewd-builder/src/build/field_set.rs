@@ -1,8 +1,9 @@
-use std::collections::HashMap;
-
+#[cfg(feature = "derive")]
 use syn::token::Pub;
 
-use super::{field::DataBuilder, Visibility};
+use super::field::DataBuilder;
+#[cfg(feature = "derive")]
+use super::field::Visibility;
 
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
@@ -11,11 +12,11 @@ pub struct GenericBuilder<FieldSetId, DataId> {
     /// Define if we are building a single field_set or variant type containing
     /// multiple field_sets switched by an id field.
     pub ty: BuilderType<FieldSetId, DataId>,
-    // TODO this is only used in `derive`
     /// The viability of the struct/enum
+    #[cfg(feature = "derive")]
     pub vis: Visibility,
-    // TODO this is only used in `derive`
     /// Is it a tuple struct/variant
+    #[cfg(feature = "derive")]
     pub tuple: bool,
 }
 
@@ -23,14 +24,18 @@ impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId> {
     pub fn single_set<S: Into<FieldSetId>>(name: S) -> Self {
         Self {
             ty: BuilderType::Struct(name.into(), FieldSetBuilder::new()),
+            #[cfg(feature = "derive")]
             tuple: false,
+            #[cfg(feature = "derive")]
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
-    pub fn variant_set<S: Into<String>>(name: S) -> Self {
+    pub fn variant_set() -> Self {
         Self {
-            ty: BuilderType::Enum(EnumBuilder::new(name)),
+            ty: BuilderType::Enum(EnumBuilder::new()),
+            #[cfg(feature = "derive")]
             tuple: false,
+            #[cfg(feature = "derive")]
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
@@ -82,10 +87,10 @@ impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
 }
 
 /// Builds an enum bitfield model.
-struct EnumBuilder<FieldSetId, DataId> {
-    // TODO this is only used in `derive`
+pub struct EnumBuilder<FieldSetId, DataId> {
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
-    name: String,
+    #[cfg(feature = "derive")]
+    name: Option<Ident>,
     /// The id field with determines the field_set to use.
     id: Option<DataBuilder<DataId>>,
     /// The default variant for situations where no other variant matches.
@@ -95,9 +100,10 @@ struct EnumBuilder<FieldSetId, DataId> {
 }
 
 impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId> {
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new() -> Self {
         Self {
-            name: name.into(),
+            #[cfg(feature = "derive")]
+            name: None,
             id: None,
             invalid: None,
             variants: Vec::default(),
