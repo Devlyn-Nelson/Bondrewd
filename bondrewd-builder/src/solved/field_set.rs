@@ -8,6 +8,7 @@ pub struct Solved<FieldSetId, DataId> {
     /// DataSet's name.
     ///
     /// for derive this would be the Enum or Struct ident.
+    #[cfg(feature = "derive")]
     name: String,
     ty: SolvedType<FieldSetId, DataId>,
 }
@@ -47,14 +48,33 @@ impl<FieldSetId, DataId> From<GenericBuilder<FieldSetId, DataId>> for Solved<Fie
 
 impl<FieldSetId, DataId> From<EnumBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId> {
     fn from(value: EnumBuilder<FieldSetId, DataId>) -> Self {
-        //
-        todo!()
+        todo!("write conversion from Builder to Solved")
     }
 }
 
 impl<FieldSetId, DataId> From<FieldSetBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId> {
     fn from(value: FieldSetBuilder<FieldSetId, DataId>) -> Self {
-        //
-        todo!()
+        Self::from_field_set(value, None)
+    }
+}
+
+impl<FieldSetId, DataId> Solved<FieldSetId, DataId> {
+    fn from_field_set(
+        value: FieldSetBuilder<FieldSetId, DataId>,
+        id_field: Option<&SolvedData>,
+    ) -> Self {
+        let mut bit_size = if let Some(id_field) = id_field {
+            id_field.bit_length()
+        } else {
+            0
+        };
+        let fields: HashMap<DataId, SolvedData> = HashMap::default();
+        for field in fields {
+            todo!("convert built field into solved")
+        }
+        todo!("write conversion from Builder to Solved");
+        Self {
+            ty: SolvedType::Struct(SolvedFieldSet { fields }),
+        }
     }
 }

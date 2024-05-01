@@ -123,9 +123,9 @@ pub struct VariantBuilder<FieldSetId, DataId> {
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
 pub struct FieldSetBuilder<FieldSetId, DataId> {
-    name: FieldSetId,
+    pub(crate) name: FieldSetId,
     /// the set of fields.
-    fields: Vec<DataBuilder<DataId>>,
+    pub(crate) fields: Vec<DataBuilder<DataId>>,
     /// Imposes checks on the sizing of the field_set
     pub enforcement: StructEnforcement,
     /// PLEASE READ IF YOU ARE NOT USING [`StructEnforcement::EnforceFullBytes`]

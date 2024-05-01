@@ -18,8 +18,26 @@ pub enum DynamicIdent {
 }
 
 pub struct SolvedData {
-    pub name: DynamicIdent,
     pub resolver: Resolver,
+}
+
+impl SolvedData {
+    pub fn bit_length(&self) -> u8 {
+        self.resolver.bit_length()
+    }
+    pub fn generate_fn_quotes(&self) {
+        todo!("Solved should get all of the generation code, without needing the Info structures.");
+    }
+    pub fn read(&self) {
+        todo!(
+            "Solved should use generation information to perform runtime getting/setting of bits"
+        );
+    }
+    pub fn write(&self) {
+        todo!(
+            "Solved should use generation information to perform runtime getting/setting of bits"
+        );
+    }
 }
 
 pub enum Resolver {
@@ -43,25 +61,22 @@ pub enum Resolver {
     NestedMultiple(NestedMultiple),
 }
 
-impl SolvedData {
-    pub fn generate_fn_quotes(&self) {
-        todo!("Solved should get all of the generation code, without needing the Info structures.");
-    }
-    pub fn read(&self) {
-        todo!(
-            "Solved should use generation information to perform runtime getting/setting of bits"
-        );
-    }
-    pub fn write(&self) {
-        todo!(
-            "Solved should use generation information to perform runtime getting/setting of bits"
-        );
+impl Resolver {
+    pub fn bit_length(&self) -> u8 {
+        match self {
+            Resolver::StandardSingle(thing) => thing.amount_of_bits,
+            Resolver::StandardMultiple(thing) => thing.amount_of_bits,
+            Resolver::AlternateSingle(thing) => thing.amount_of_bits,
+            Resolver::AlternateMultiple(thing) => thing.amount_of_bits,
+            Resolver::NestedSingle(thing) => thing.amount_of_bits,
+            Resolver::NestedMultiple(thing) => thing.amount_of_bits,
+        }
     }
 }
 
 pub struct StandardSingle {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -75,7 +90,7 @@ pub struct StandardSingle {
 }
 pub struct StandardMultiple {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -90,7 +105,7 @@ pub struct StandardMultiple {
 
 pub struct AlternateSingle {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -104,7 +119,7 @@ pub struct AlternateSingle {
 }
 pub struct AlternateMultiple {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -119,7 +134,7 @@ pub struct AlternateMultiple {
 
 pub struct NestedSingle {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -133,7 +148,7 @@ pub struct NestedSingle {
 }
 pub struct NestedMultiple {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
+    pub amount_of_bits: u8,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.

@@ -36,10 +36,8 @@ pub enum BuilderRange {
     /// A range of bits to use. solve this is easy, but note that it is an exclusive range, meaning the
     /// end is NOT included.
     Range(std::ops::Range<usize>),
-    /// Used to pass on the last starting location to the next field that is added to a set. this when solved
-    /// will tell bondrewd this can be resolved by being the bits starting from the end of the previous field
-    /// to the last bit needed for the field.
-    LastEnd(usize),
+    /// Amount of bits to consume
+    Size(u8),
     /// Will not solve, must be another variant.
     None,
 }
