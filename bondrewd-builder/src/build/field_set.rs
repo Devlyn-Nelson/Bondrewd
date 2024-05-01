@@ -23,7 +23,7 @@ pub struct GenericBuilder<FieldSetId, DataId> {
 impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId> {
     pub fn single_set<S: Into<FieldSetId>>(name: S) -> Self {
         Self {
-            ty: BuilderType::Struct(name.into(), FieldSetBuilder::new()),
+            ty: BuilderType::Struct(FieldSetBuilder::new(name.into())),
             #[cfg(feature = "derive")]
             tuple: false,
             #[cfg(feature = "derive")]
@@ -52,12 +52,12 @@ pub enum BuilderType<FieldSetId, DataId> {
     /// Multiple field_sets that switch based on an id field.
     Enum(EnumBuilder<FieldSetId, DataId>),
     /// A single field_set.
-    Struct(FieldSetId, FieldSetBuilder<DataId>),
+    Struct(FieldSetBuilder<FieldSetId, DataId>),
 }
 
 impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
-    pub fn get_struct(&self) -> Option<&FieldSetBuilder<DataId>> {
-        if let Self::Struct(_, ref thing) = self {
+    pub fn get_struct(&self) -> Option<&FieldSetBuilder<FieldSetId, DataId>> {
+        if let Self::Struct(ref thing) = self {
             Some(thing)
         } else {
             None
@@ -70,8 +70,8 @@ impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
             None
         }
     }
-    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder<DataId>> {
-        if let Self::Struct(_, ref mut thing) = self {
+    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder<FieldSetId, DataId>> {
+        if let Self::Struct(ref mut thing) = self {
             Some(thing)
         } else {
             None
@@ -112,7 +112,6 @@ impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId> {
 }
 /// Contains builder information for constructing variant style bitfield models.
 pub struct VariantBuilder<FieldSetId, DataId> {
-    name: FieldSetId,
     /// The id value that this variant shall be used for.
     id: Option<i64>,
     /// If the variant has a field that whats to capture the
@@ -120,10 +119,11 @@ pub struct VariantBuilder<FieldSetId, DataId> {
     /// NOT in the field set, useful for invalid variant.
     capture_field: Option<DataBuilder<DataId>>,
     /// the field_set
-    field_set: FieldSetBuilder<DataId>,
+    field_set: FieldSetBuilder<FieldSetId, DataId>,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
-pub struct FieldSetBuilder<DataId> {
+pub struct FieldSetBuilder<FieldSetId, DataId> {
+    name: FieldSetId,
     /// the set of fields.
     fields: Vec<DataBuilder<DataId>>,
     /// Imposes checks on the sizing of the field_set
@@ -142,9 +142,10 @@ pub struct FieldSetBuilder<DataId> {
     pub fill_bits: FillBits,
 }
 
-impl<DataId> FieldSetBuilder<DataId> {
-    pub fn new() -> Self {
+impl<FieldSetId, DataId> FieldSetBuilder<FieldSetId, DataId> {
+    pub fn new(key: FieldSetId) -> Self {
         Self {
+            name: key,
             fields: Vec::default(),
             enforcement: StructEnforcement::default(),
             fill_bits: FillBits::default(),
