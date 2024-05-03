@@ -41,7 +41,7 @@ pub struct DataBuilder<Id> {
     pub(crate) id: Id,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
-    pub(crate) ty: Option<DataType>,
+    pub(crate) ty: DataType,
     /// Size of the rust native type in bytes (should never be zero)
     pub(crate) rust_size: u8,
     /// Defines if this field is an array or not.
@@ -63,7 +63,7 @@ impl<Id> DataBuilder<Id> {
     pub fn new(name: Id) -> Self {
         Self {
             id: name,
-            ty: None,
+            ty: DataType::None,
             rust_size: 0,
             array: None,
             bit_range: BuilderRange::None,
@@ -72,14 +72,14 @@ impl<Id> DataBuilder<Id> {
         }
     }
     pub fn with_data_type(mut self, new_ty: DataType) -> Self {
-        self.ty = Some(new_ty);
+        self.ty = new_ty;
         self
     }
     pub fn id(&self) -> &Id {
         &self.id
     }
     pub fn set_data_type(&mut self, new_ty: DataType) -> &mut Self {
-        self.ty = Some(new_ty);
+        self.ty = new_ty;
         self
     }
 }
@@ -92,6 +92,7 @@ pub enum DataType {
     Number(NumberType, Option<Endianness>),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
+    #[cfg(feature = "derive")]
     Nested(String),
 }
 

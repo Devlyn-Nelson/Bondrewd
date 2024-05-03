@@ -1,9 +1,9 @@
 #[cfg(feature = "derive")]
-use syn::token::Pub;
+use syn::{token::Pub, Ident};
 
 use super::field::DataBuilder;
 #[cfg(feature = "derive")]
-use super::field::Visibility;
+use super::Visibility;
 
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
