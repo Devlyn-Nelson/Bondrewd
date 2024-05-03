@@ -38,31 +38,31 @@ struct ArrayInfo {
 #[derive(Debug)]
 pub struct DataBuilder<Id> {
     /// The name or ident of the field.
-    name: Id,
+    pub(crate) id: Id,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
-    ty: Option<DataType>,
+    pub(crate) ty: Option<DataType>,
     /// Size of the rust native type in bytes (should never be zero)
-    rust_size: u8,
+    pub(crate) rust_size: u8,
     /// Defines if this field is an array or not.
     /// If `None` this data is not in an array and should just be treated as a single value.
     ///
     /// If `Some` than this is an array, NOT a single value. Also Note that the `ty` and `rust_size` only
     /// describe a true data type, which would be the innermost part of an array. The array info
     /// is marly keeping track of the order and magnitude of the array and its dimensions.
-    array: Option<ArrayInfo>,
+    pub(crate) array: Option<ArrayInfo>,
     /// The range of bits that this field will use.
-    bit_range: BuilderRange,
+    pub(crate) bit_range: BuilderRange,
     /// Describes when the field should be considered.
-    reserve: ReserveFieldOption,
+    pub(crate) reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
-    overlap: OverlapOptions,
+    pub(crate) overlap: OverlapOptions,
 }
 
 impl<Id> DataBuilder<Id> {
     pub fn new(name: Id) -> Self {
         Self {
-            name,
+            id: name,
             ty: None,
             rust_size: 0,
             array: None,
@@ -74,6 +74,9 @@ impl<Id> DataBuilder<Id> {
     pub fn with_data_type(mut self, new_ty: DataType) -> Self {
         self.ty = Some(new_ty);
         self
+    }
+    pub fn id(&self) -> &Id {
+        &self.id
     }
     pub fn set_data_type(&mut self, new_ty: DataType) -> &mut Self {
         self.ty = Some(new_ty);

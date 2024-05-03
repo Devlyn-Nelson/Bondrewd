@@ -1,6 +1,14 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    hash::Hash,
+};
 
-use crate::build::field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder};
+use thiserror::Error;
+
+use crate::{
+    build::field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
+    solved::field::Resolver,
+};
 
 use super::field::SolvedData;
 
@@ -37,44 +45,73 @@ struct SolvedFieldSet<DataId> {
     fields: HashMap<DataId, SolvedData>,
 }
 
-impl<FieldSetId, DataId> From<GenericBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId> {
-    fn from(value: GenericBuilder<FieldSetId, DataId>) -> Self {
+#[derive(Debug, Error)]
+pub enum SolvingError {
+    #[error("Fields overlap")]
+    Overlap,
+}
+
+impl<FieldSetId, DataId> TryFrom<GenericBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
+where
+DataId: Hash + PartialEq + Eq, {
+    type Error = SolvingError;
+
+    fn try_from(value: GenericBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
         match value.ty {
-            crate::build::field_set::BuilderType::Enum(e) => e.into(),
-            crate::build::field_set::BuilderType::Struct(s) => s.into(),
+            crate::build::field_set::BuilderType::Enum(e) => e.try_into(),
+            crate::build::field_set::BuilderType::Struct(s) => s.try_into(),
         }
     }
 }
 
-impl<FieldSetId, DataId> From<EnumBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId> {
-    fn from(value: EnumBuilder<FieldSetId, DataId>) -> Self {
-        todo!("write conversion from Builder to Solved")
+impl<FieldSetId, DataId> TryFrom<EnumBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
+where
+DataId: Hash + PartialEq + Eq, {
+    type Error = SolvingError;
+
+    fn try_from(value: EnumBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+        todo!("write conversion from EnumBuilder to Solved")
     }
 }
 
-impl<FieldSetId, DataId> From<FieldSetBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId> {
-    fn from(value: FieldSetBuilder<FieldSetId, DataId>) -> Self {
-        Self::from_field_set(value, None)
+impl<FieldSetId, DataId> TryFrom<FieldSetBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
+where
+DataId: Hash + PartialEq + Eq, {
+    type Error = SolvingError;
+
+    fn try_from(value: FieldSetBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+        Self::try_from_field_set(value, None)
     }
 }
 
-impl<FieldSetId, DataId> Solved<FieldSetId, DataId> {
-    fn from_field_set(
+impl<FieldSetId, DataId> Solved<FieldSetId, DataId>
+where
+    DataId: Hash + PartialEq + Eq,
+{
+    fn try_from_field_set(
         value: FieldSetBuilder<FieldSetId, DataId>,
         id_field: Option<&SolvedData>,
-    ) -> Self {
+    ) -> Result<Self, SolvingError> {
         let mut bit_size = if let Some(id_field) = id_field {
             id_field.bit_length()
         } else {
             0
         };
-        let fields: HashMap<DataId, SolvedData> = HashMap::default();
-        for field in fields {
-            todo!("convert built field into solved")
+        let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
+        let mut last_field: Option<DataId> = None;
+        for field in value.fields {
+            let id = field.id;
+
+            // TODO overlap protection
+            let new_field = SolvedData {
+                resolver: todo!("write resolver solving logic"),
+            };
+            fields.insert(id, new_field);
+            last_field = Some(id);
         }
         todo!("write conversion from Builder to Solved");
-        Self {
+        Ok(Self {
             ty: SolvedType::Struct(SolvedFieldSet { fields }),
-        }
+        })
     }
 }
