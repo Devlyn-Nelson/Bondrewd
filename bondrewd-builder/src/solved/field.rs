@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use crate::build::field::NumberType;
+
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
 pub enum DynamicIdent {
@@ -96,20 +98,48 @@ impl Resolver {
         )
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn single_standard(bit_range: &Range<usize>, field_name: &str) -> Option<Self> {
-        Self::new(bit_range, field_name, ResolverType::StandardSingle)
+    pub(crate) fn single_standard(
+        bit_range: &Range<usize>,
+        field_name: &str,
+        data_ty: NumberType,
+    ) -> Option<Self> {
+        Self::new(bit_range, field_name, ResolverType::StandardSingle(data_ty))
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn multi_standard(bit_range: &Range<usize>, field_name: &str) -> Option<Self> {
-        Self::new(bit_range, field_name, ResolverType::StandardMultiple)
+    pub(crate) fn multi_standard(
+        bit_range: &Range<usize>,
+        field_name: &str,
+        data_ty: NumberType,
+    ) -> Option<Self> {
+        Self::new(
+            bit_range,
+            field_name,
+            ResolverType::StandardMultiple(data_ty),
+        )
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn single_alt(bit_range: &Range<usize>, field_name: &str) -> Option<Self> {
-        Self::new(bit_range, field_name, ResolverType::AlternateSingle)
+    pub(crate) fn single_alt(
+        bit_range: &Range<usize>,
+        field_name: &str,
+        data_ty: NumberType,
+    ) -> Option<Self> {
+        Self::new(
+            bit_range,
+            field_name,
+            ResolverType::AlternateSingle(data_ty),
+        )
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn multi_alt(bit_range: &Range<usize>, field_name: &str) -> Option<Self> {
-        Self::new(bit_range, field_name, ResolverType::AlternateMultiple)
+    pub(crate) fn multi_alt(
+        bit_range: &Range<usize>,
+        field_name: &str,
+        data_ty: NumberType,
+    ) -> Option<Self> {
+        Self::new(
+            bit_range,
+            field_name,
+            ResolverType::AlternateMultiple(data_ty),
+        )
     }
     pub fn bit_length(&self) -> u8 {
         self.amount_of_bits
@@ -168,10 +198,10 @@ impl Resolver {
 }
 
 pub enum ResolverType {
-    StandardSingle,
-    StandardMultiple,
-    AlternateSingle,
-    AlternateMultiple,
+    StandardSingle(NumberType),
+    StandardMultiple(NumberType),
+    AlternateSingle(NumberType),
+    AlternateMultiple(NumberType),
     NestedSingle(String),
     NestedMultiple(String),
 }

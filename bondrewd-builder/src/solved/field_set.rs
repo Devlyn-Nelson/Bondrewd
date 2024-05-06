@@ -140,28 +140,25 @@ where
                 crate::build::field::DataType::None => {
                     return Err(SolvingError::NoTypeProvided(format!("{id}")))
                 }
-                crate::build::field::DataType::Number(ty, endianess) => {
-                    // TODO nothing is done with the type. it is still needed until mask calculations.
-                    match endianess {
-                        Some(e) => match e.mode() {
-                            crate::build::EndiannessMode::Alternative => {
-                                if spans_multiple_bytes {
-                                    Resolver::multi_alt(&bit_range, name.as_str())
-                                } else {
-                                    Resolver::single_alt(&bit_range, name.as_str())
-                                }
+                crate::build::field::DataType::Number(ty, endianess) => match endianess {
+                    Some(e) => match e.mode() {
+                        crate::build::EndiannessMode::Alternative => {
+                            if spans_multiple_bytes {
+                                Resolver::multi_alt(&bit_range, name.as_str(), ty)
+                            } else {
+                                Resolver::single_alt(&bit_range, name.as_str(), ty)
                             }
-                            crate::build::EndiannessMode::Standard => {
-                                if spans_multiple_bytes {
-                                    Resolver::multi_standard(&bit_range, name.as_str())
-                                } else {
-                                    Resolver::single_standard(&bit_range, name.as_str())
-                                }
+                        }
+                        crate::build::EndiannessMode::Standard => {
+                            if spans_multiple_bytes {
+                                Resolver::multi_standard(&bit_range, name.as_str(), ty)
+                            } else {
+                                Resolver::single_standard(&bit_range, name.as_str(), ty)
                             }
-                        },
-                        None => return Err(SolvingError::NoEndianness(format!("{id}"))),
-                    }
-                }
+                        }
+                    },
+                    None => return Err(SolvingError::NoEndianness(format!("{id}"))),
+                },
                 #[cfg(feature = "derive")]
                 crate::build::field::DataType::Nested(struct_name) => {
                     if spans_multiple_bytes {
