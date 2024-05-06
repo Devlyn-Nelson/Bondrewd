@@ -357,6 +357,16 @@ impl Endianness {
             reverse_field_order: UserDefinedReversal::default(),
         }
     }
+
+    /// Basically because of reverse_byte and reverse_field order things can get funny when applying 
+    /// multiple to the same strategy. we need to find out if we can just merge the endianess with
+    /// the outer most (struct/enum) default_endianness with the field endianness to simulate correct
+    /// behavior.
+    /// 
+    /// 
+    pub fn merge(outer: Self, inner: Self){
+        todo!("Endianness is stupid and we need to be able to merge endianness together to get proper behaviors")
+    }
 }
 
 /// Defines when a field is relevant, which could be never if it is a reserved set of bit for future use.

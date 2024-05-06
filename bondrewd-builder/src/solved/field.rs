@@ -1,6 +1,11 @@
-use std::ops::Range;
+use std::{fmt::Display, ops::Range};
 
-use crate::build::field::NumberType;
+use crate::build::{
+    field::{DataBuilder, NumberType},
+    Endianness,
+};
+
+use super::field_set::SolvingError;
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
@@ -44,6 +49,13 @@ impl SolvedData {
     }
 }
 
+pub struct NewResolverData<'a> {
+    pub bit_range: &'a Range<usize>,
+    pub name: &'a str,
+    pub ty: ResolverType,
+    pub byte_order_reversed: bool,
+}
+
 pub struct Resolver {
     /// Amount of bits the field uses in bit form.
     pub amount_of_bits: u8,
@@ -57,6 +69,7 @@ pub struct Resolver {
     // TODO because the nested ty has the value this is solved from, it may make sense to
     // store only that moving this field into the `ResolverType` variants that do not.
     pub field_buffer_name: String,
+    pub byte_order_reversed: bool,
     ty: ResolverType,
     // TODO START_HERE make a solved bondrewd field that is used for generation and future bondrewd-builder
     // Basically we need to removed all usages of `FieldInfo` in `gen` and allow `Info` to be an
@@ -73,73 +86,159 @@ pub struct Resolver {
 }
 
 impl Resolver {
+    pub(crate) fn get_resolver<Id: Clone + Copy + Display>(field: DataBuilder<Id>, last_end_bit_index: &mut Option<usize>) -> Result<Self, SolvingError> {
+        let bit_range = match &field.bit_range {
+            crate::build::BuilderRange::Range(range) => range.clone(),
+            crate::build::BuilderRange::Size(bit_length) => {
+                let start = if let Some(prev) = &last_end_bit_index {
+                    *prev
+                } else {
+                    0
+                };
+                start..(start + *bit_length as usize)
+            }
+            crate::build::BuilderRange::None => {
+                let start = if let Some(prev) = &last_end_bit_index {
+                    *prev
+                } else {
+                    0
+                };
+                start..(start + (field.rust_size as usize * 8))
+            }
+        };
+        if !field.overlap.is_redundant() {
+            *last_end_bit_index = Some(bit_range.end);
+        }
+        let bit_length = bit_range.end - bit_range.start;
+        let spans_multiple_bytes = (bit_range.start / 8) != (bit_range.end / 8);
+        let name = format!("{}", field.id);
+        let endianness = &field.endianness;
+        let resolver = match &field.ty {
+            crate::build::field::DataType::None => return Err(SolvingError::NoTypeProvided(name)),
+            crate::build::field::DataType::Number(ty) => 
+                match endianness {
+                    Some(e) => {
+                        match e.mode() {
+                            crate::build::EndiannessMode::Alternative => {
+                                if spans_multiple_bytes {
+                                    Resolver::multi_alt(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
+                                } else {
+                                    Resolver::single_alt(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
+                                }
+                            }
+                            crate::build::EndiannessMode::Standard => {
+                                if spans_multiple_bytes {
+                                    Resolver::multi_standard(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
+                                } else {
+                                    Resolver::single_standard(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
+                                }
+                            }
+                        }
+                    }
+                    None => return Err(SolvingError::NoEndianness(name)),
+                }
+            ,
+            #[cfg(feature = "derive")]
+            crate::build::field::DataType::Nested(struct_name) => {
+                let Some(e) = endianness else {
+                    return Err(SolvingError::NoEndianness(name))
+                };
+                if spans_multiple_bytes {
+                    Resolver::multi_nested(&bit_range, name.as_str(), e.is_byte_order_reversed(), struct_name)
+                } else {
+                    Resolver::single_nested(&bit_range, name.as_str(), e.is_byte_order_reversed(), struct_name)
+                }
+            }
+        };
+        if let Some(resolver) = resolver {
+            Ok(resolver)
+        } else {
+            Err(SolvingError::ResolverUnderflow(name))
+        }
+    }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn single_nested<S: Into<String>>(
+    fn single_nested<S: Into<String>>(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         set_name: S,
     ) -> Option<Self> {
-        Self::new(
+        Self::new(NewResolverData {
             bit_range,
-            field_name,
-            ResolverType::NestedSingle(set_name.into()),
-        )
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::NestedSingle(set_name.into()),
+        })
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn multi_nested<S: Into<String>>(
+    fn multi_nested<S: Into<String>>(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         set_name: S,
     ) -> Option<Self> {
-        Self::new(
+        Self::new(NewResolverData {
             bit_range,
-            field_name,
-            ResolverType::NestedMultiple(set_name.into()),
-        )
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::NestedMultiple(set_name.into()),
+        })
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn single_standard(
+    fn single_standard(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         data_ty: NumberType,
     ) -> Option<Self> {
-        Self::new(bit_range, field_name, ResolverType::StandardSingle(data_ty))
+        Self::new(NewResolverData {
+            bit_range,
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::StandardSingle(data_ty),
+        })
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn multi_standard(
+    fn multi_standard(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         data_ty: NumberType,
     ) -> Option<Self> {
-        Self::new(
+        Self::new(NewResolverData {
             bit_range,
-            field_name,
-            ResolverType::StandardMultiple(data_ty),
-        )
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::StandardMultiple(data_ty),
+        })
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn single_alt(
+    fn single_alt(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         data_ty: NumberType,
     ) -> Option<Self> {
-        Self::new(
+        Self::new(NewResolverData {
             bit_range,
-            field_name,
-            ResolverType::AlternateSingle(data_ty),
-        )
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::AlternateSingle(data_ty),
+        })
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    pub(crate) fn multi_alt(
+    fn multi_alt(
         bit_range: &Range<usize>,
         field_name: &str,
+        bytes_reversed: bool,
         data_ty: NumberType,
     ) -> Option<Self> {
-        Self::new(
+        Self::new(NewResolverData {
             bit_range,
-            field_name,
-            ResolverType::AlternateMultiple(data_ty),
-        )
+            name: field_name,
+            byte_order_reversed: bytes_reversed,
+            ty: ResolverType::AlternateMultiple(data_ty),
+        })
     }
     pub fn bit_length(&self) -> u8 {
         self.amount_of_bits
@@ -160,7 +259,11 @@ impl Resolver {
         (self.amount_of_bits as usize).div_ceil(8) - 1
     }
     /// If this returns `None` a zeros on left underflow was detected.
-    fn new(bit_range: &Range<usize>, name: &str, ty: ResolverType) -> Option<Self> {
+    fn new(data: NewResolverData) -> Option<Self> {
+        let bit_range = data.bit_range;
+        let name = data.name;
+        let ty = data.ty;
+        let byte_order_reversed = data.byte_order_reversed;
         // get the total number of bits the field uses.
         let amount_of_bits = (bit_range.end - bit_range.start) as u8;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
@@ -175,9 +278,8 @@ impl Resolver {
             let available_bits_in_first_byte = 8 - zeros_on_left;
             // calculate the starting byte index in the outgoing buffer
             let mut starting_inject_byte: usize = bit_range.start / 8;
-            // TODO this code needs to be done to the range before it enters this function.
-            // let flip = if let Some(flip) = flip {
-            //     starting_inject_byte = flip - starting_inject_byte;
+            // if let Some(flip) = byte_order_reversed {
+            //     starting_inject_byte = *flip - starting_inject_byte;
             //     Some(flip)
             // } else {
             //     None
@@ -191,6 +293,7 @@ impl Resolver {
                 available_bits_in_first_byte,
                 starting_inject_byte,
                 field_buffer_name,
+                byte_order_reversed,
                 ty,
             })
         }

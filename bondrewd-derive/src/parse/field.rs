@@ -539,6 +539,7 @@ impl AttrBuilder {
                                 get_lit_str(&value.value, ident, Some("endianness = \"big\""))?;
                             builder.endianness = match val.value().to_lowercase().as_str() {
                                 "le" | "lsb" | "little" | "lil" => Endianness::little_packed(),
+                                "ale" | "little-aliened" | "lilali" => Endianness::little_aligned(),
                                 "be" | "msb" | "big" => Endianness::big(),
                                 "ne" | "native" | "none" => Endianness::nested(),
                                 _ => {

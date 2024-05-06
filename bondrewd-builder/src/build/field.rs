@@ -36,12 +36,16 @@ struct ArrayInfo {
 }
 
 #[derive(Debug)]
-pub struct DataBuilder<Id> {
+pub struct DataBuilder<Id>
+where
+    Id: Clone + Copy,
+{
     /// The name or ident of the field.
     pub(crate) id: Id,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     pub(crate) ty: DataType,
+    pub(crate) endianness: Option<Endianness>,
     /// Size of the rust native type in bytes (should never be zero)
     pub(crate) rust_size: u8,
     /// Defines if this field is an array or not.
@@ -59,12 +63,16 @@ pub struct DataBuilder<Id> {
     pub(crate) overlap: OverlapOptions,
 }
 
-impl<Id> DataBuilder<Id> {
+impl<Id> DataBuilder<Id>
+where
+    Id: Clone + Copy,
+{
     pub fn new(name: Id) -> Self {
         Self {
             id: name,
             ty: DataType::None,
             rust_size: 0,
+            endianness: None,
             array: None,
             bit_range: BuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
@@ -89,7 +97,7 @@ pub enum DataType {
     /// This will result in an error if you try to solve.
     None,
     /// field is a number or primitive. if the endianess is `None`, it will not solve.
-    Number(NumberType, Option<Endianness>),
+    Number(NumberType),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
     #[cfg(feature = "derive")]

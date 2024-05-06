@@ -18,7 +18,7 @@ syn = { version = "2.0", features = ["full"], optional = true}
 thiserror = "1"
 
 [features]
-default = ["derive"]
+# default = ["derive"]
 derive = ["dep:proc-macro2", "dep:quote" , "dep:syn"]
 
 [dev-dependencies]

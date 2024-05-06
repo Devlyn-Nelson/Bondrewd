@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[cfg(feature = "derive")]
 use syn::{token::Pub, Ident};
 
@@ -8,7 +10,11 @@ use super::Visibility;
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
 /// This is actually intended to be used by `bondrewd-derive`.
-pub struct GenericBuilder<FieldSetId, DataId> {
+pub struct GenericBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     /// Define if we are building a single field_set or variant type containing
     /// multiple field_sets switched by an id field.
     pub ty: BuilderType<FieldSetId, DataId>,
@@ -20,7 +26,11 @@ pub struct GenericBuilder<FieldSetId, DataId> {
     pub tuple: bool,
 }
 
-impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId> {
+impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     pub fn single_set<S: Into<FieldSetId>>(name: S) -> Self {
         Self {
             ty: BuilderType::Struct(FieldSetBuilder::new(name.into())),
@@ -48,14 +58,22 @@ impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId> {
 }
 /// Distinguishes between enums and structs or a single field_set vs multiple
 /// field_sets that switch based on an id field.
-pub enum BuilderType<FieldSetId, DataId> {
+pub enum BuilderType<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     /// Multiple field_sets that switch based on an id field.
     Enum(EnumBuilder<FieldSetId, DataId>),
     /// A single field_set.
     Struct(FieldSetBuilder<FieldSetId, DataId>),
 }
 
-impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
+impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     pub fn get_struct(&self) -> Option<&FieldSetBuilder<FieldSetId, DataId>> {
         if let Self::Struct(ref thing) = self {
             Some(thing)
@@ -87,7 +105,11 @@ impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId> {
 }
 
 /// Builds an enum bitfield model.
-pub struct EnumBuilder<FieldSetId, DataId> {
+pub struct EnumBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
     #[cfg(feature = "derive")]
     name: Option<Ident>,
@@ -99,7 +121,11 @@ pub struct EnumBuilder<FieldSetId, DataId> {
     variants: Vec<VariantBuilder<FieldSetId, DataId>>,
 }
 
-impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId> {
+impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "derive")]
@@ -111,7 +137,11 @@ impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId> {
     }
 }
 /// Contains builder information for constructing variant style bitfield models.
-pub struct VariantBuilder<FieldSetId, DataId> {
+pub struct VariantBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     /// The id value that this variant shall be used for.
     id: Option<i64>,
     /// If the variant has a field that whats to capture the
@@ -122,7 +152,11 @@ pub struct VariantBuilder<FieldSetId, DataId> {
     field_set: FieldSetBuilder<FieldSetId, DataId>,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
-pub struct FieldSetBuilder<FieldSetId, DataId> {
+pub struct FieldSetBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy + Clone + Copy,
+    DataId: Clone + Copy,
+{
     pub(crate) name: FieldSetId,
     /// the set of fields.
     pub(crate) fields: Vec<DataBuilder<DataId>>,
@@ -142,7 +176,11 @@ pub struct FieldSetBuilder<FieldSetId, DataId> {
     pub fill_bits: FillBits,
 }
 
-impl<FieldSetId, DataId> FieldSetBuilder<FieldSetId, DataId> {
+impl<FieldSetId, DataId> FieldSetBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
     pub fn new(key: FieldSetId) -> Self {
         Self {
             name: key,

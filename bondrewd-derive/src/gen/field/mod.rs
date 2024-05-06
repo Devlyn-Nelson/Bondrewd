@@ -209,8 +209,8 @@ impl QuoteInfo {
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
         let mut starting_inject_byte: usize = field_info.attrs.bit_range.start / 8;
-        let flip = if let Some(flip) = flip {
-            starting_inject_byte = flip - starting_inject_byte;
+        if let Some(flip) = &flip {
+            starting_inject_byte = *flip - starting_inject_byte;
             Some(flip)
         } else {
             None
