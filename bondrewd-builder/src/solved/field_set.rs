@@ -145,8 +145,8 @@ where
         for field in value.fields.iter() {
             let name = format!("{}", field.id);
             let resolver = todo!();
-                let new_field = SolvedData { resolver };
-                fields.insert(field.id, new_field);
+            let new_field = SolvedData { resolver };
+            fields.insert(field.id, new_field);
         }
         // TODO solve for flip (reverse byte order)
         // TODO solve for field order reversal, might do it in loop after `last_end_bit_index` is set.

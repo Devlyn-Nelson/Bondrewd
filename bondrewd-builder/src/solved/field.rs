@@ -86,7 +86,10 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub(crate) fn get_resolver<Id: Clone + Copy + Display>(field: DataBuilder<Id>, last_end_bit_index: &mut Option<usize>) -> Result<Self, SolvingError> {
+    pub(crate) fn get_resolver<Id: Clone + Copy + Display>(
+        field: DataBuilder<Id>,
+        last_end_bit_index: &mut Option<usize>,
+    ) -> Result<Self, SolvingError> {
         let bit_range = match &field.bit_range {
             crate::build::BuilderRange::Range(range) => range.clone(),
             crate::build::BuilderRange::Size(bit_length) => {
@@ -115,38 +118,64 @@ impl Resolver {
         let endianness = &field.endianness;
         let resolver = match &field.ty {
             crate::build::field::DataType::None => return Err(SolvingError::NoTypeProvided(name)),
-            crate::build::field::DataType::Number(ty) => 
-                match endianness {
-                    Some(e) => {
-                        match e.mode() {
-                            crate::build::EndiannessMode::Alternative => {
-                                if spans_multiple_bytes {
-                                    Resolver::multi_alt(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
-                                } else {
-                                    Resolver::single_alt(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
-                                }
-                            }
-                            crate::build::EndiannessMode::Standard => {
-                                if spans_multiple_bytes {
-                                    Resolver::multi_standard(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
-                                } else {
-                                    Resolver::single_standard(&bit_range, name.as_str(), e.is_byte_order_reversed(), ty.clone())
-                                }
-                            }
+            crate::build::field::DataType::Number(ty) => match endianness {
+                Some(e) => match e.mode() {
+                    crate::build::EndiannessMode::Alternative => {
+                        if spans_multiple_bytes {
+                            Resolver::multi_alt(
+                                &bit_range,
+                                name.as_str(),
+                                e.is_byte_order_reversed(),
+                                ty.clone(),
+                            )
+                        } else {
+                            Resolver::single_alt(
+                                &bit_range,
+                                name.as_str(),
+                                e.is_byte_order_reversed(),
+                                ty.clone(),
+                            )
                         }
                     }
-                    None => return Err(SolvingError::NoEndianness(name)),
-                }
-            ,
+                    crate::build::EndiannessMode::Standard => {
+                        if spans_multiple_bytes {
+                            Resolver::multi_standard(
+                                &bit_range,
+                                name.as_str(),
+                                e.is_byte_order_reversed(),
+                                ty.clone(),
+                            )
+                        } else {
+                            Resolver::single_standard(
+                                &bit_range,
+                                name.as_str(),
+                                e.is_byte_order_reversed(),
+                                ty.clone(),
+                            )
+                        }
+                    }
+                },
+                None => return Err(SolvingError::NoEndianness(name)),
+            },
             #[cfg(feature = "derive")]
             crate::build::field::DataType::Nested(struct_name) => {
                 let Some(e) = endianness else {
-                    return Err(SolvingError::NoEndianness(name))
+                    return Err(SolvingError::NoEndianness(name));
                 };
                 if spans_multiple_bytes {
-                    Resolver::multi_nested(&bit_range, name.as_str(), e.is_byte_order_reversed(), struct_name)
+                    Resolver::multi_nested(
+                        &bit_range,
+                        name.as_str(),
+                        e.is_byte_order_reversed(),
+                        struct_name,
+                    )
                 } else {
-                    Resolver::single_nested(&bit_range, name.as_str(), e.is_byte_order_reversed(), struct_name)
+                    Resolver::single_nested(
+                        &bit_range,
+                        name.as_str(),
+                        e.is_byte_order_reversed(),
+                        struct_name,
+                    )
                 }
             }
         };
