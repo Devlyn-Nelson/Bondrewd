@@ -121,7 +121,7 @@ pub enum NumberType {
     /// - u64
     /// - u128
     Unsigned,
-    /// Unsigned numbers
+    /// Signed numbers
     ///
     /// # Valid
     /// - i8

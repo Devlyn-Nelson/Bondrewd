@@ -6,10 +6,7 @@ use std::{
 
 use thiserror::Error;
 
-use crate::{
-    build::field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
-    solved::field::Resolver,
-};
+use crate::build::field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder};
 
 use super::field::SolvedData;
 
@@ -135,14 +132,14 @@ where
         value: &FieldSetBuilder<FieldSetId, DataId>,
         id_field: Option<&SolvedData>,
     ) -> Result<Self, SolvingError> {
-        let mut bit_size = if let Some(id_field) = id_field {
+        let bit_size = if let Some(id_field) = id_field {
             id_field.bit_length()
         } else {
             0
         };
-        let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
-        let mut last_end_bit_index: Option<usize> = None;
-        for field in value.fields.iter() {
+        let fields: HashMap<DataId, SolvedData> = HashMap::default();
+        let last_end_bit_index: Option<usize> = None;
+        for field in &value.fields {
             let name = format!("{}", field.id);
             let resolver = todo!();
             let new_field = SolvedData { resolver };

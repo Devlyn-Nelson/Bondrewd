@@ -1,9 +1,6 @@
 use std::{fmt::Display, ops::Range};
 
-use crate::build::{
-    field::{DataBuilder, NumberType},
-    Endianness,
-};
+use crate::build::field::{DataBuilder, NumberType};
 
 use super::field_set::SolvingError;
 
@@ -31,6 +28,7 @@ pub struct SolvedData {
 }
 
 impl SolvedData {
+    #[must_use]
     pub fn bit_length(&self) -> u8 {
         self.resolver.bit_length()
     }
@@ -269,21 +267,27 @@ impl Resolver {
             ty: ResolverType::AlternateMultiple(data_ty),
         })
     }
+    #[must_use]
     pub fn bit_length(&self) -> u8 {
         self.amount_of_bits
     }
+    #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
         self.starting_inject_byte
     }
+    #[must_use]
     pub fn available_bits_in_first_byte(&self) -> usize {
         self.available_bits_in_first_byte
     }
+    #[must_use]
     pub fn zeros_on_left(&self) -> usize {
         self.zeros_on_left
     }
+    #[must_use]
     pub fn field_buffer_name(&self) -> &str {
         self.field_buffer_name.as_str()
     }
+    #[must_use]
     pub fn fields_last_bits_index(&self) -> usize {
         (self.amount_of_bits as usize).div_ceil(8) - 1
     }
@@ -306,7 +310,7 @@ impl Resolver {
         } else {
             let available_bits_in_first_byte = 8 - zeros_on_left;
             // calculate the starting byte index in the outgoing buffer
-            let mut starting_inject_byte: usize = bit_range.start / 8;
+            let starting_inject_byte: usize = bit_range.start / 8;
             // if let Some(flip) = byte_order_reversed {
             //     starting_inject_byte = *flip - starting_inject_byte;
             //     Some(flip)

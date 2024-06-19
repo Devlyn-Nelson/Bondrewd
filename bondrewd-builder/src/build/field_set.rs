@@ -10,13 +10,14 @@ use super::Visibility;
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
 /// This is actually intended to be used by `bondrewd-derive`.
+#[derive(Debug)]
 pub struct GenericBuilder<FieldSetId, DataId>
 where
     FieldSetId: Display + Clone + Copy,
     DataId: Clone + Copy,
 {
-    /// Define if we are building a single field_set or variant type containing
-    /// multiple field_sets switched by an id field.
+    /// Define if we are building a single `field_set` or variant type containing
+    /// multiple `field_sets` switched by an id field.
     pub ty: BuilderType<FieldSetId, DataId>,
     /// The viability of the struct/enum
     #[cfg(feature = "derive")]
@@ -40,6 +41,7 @@ where
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
+    #[must_use]
     pub fn variant_set() -> Self {
         Self {
             ty: BuilderType::Enum(EnumBuilder::new()),
@@ -56,16 +58,17 @@ where
         &mut self.ty
     }
 }
-/// Distinguishes between enums and structs or a single field_set vs multiple
-/// field_sets that switch based on an id field.
+/// Distinguishes between enums and structs or a single `field_set` vs multiple
+/// `field_sets` that switch based on an id field.
+#[derive(Debug)]
 pub enum BuilderType<FieldSetId, DataId>
 where
     FieldSetId: Display + Clone + Copy,
     DataId: Clone + Copy,
 {
-    /// Multiple field_sets that switch based on an id field.
+    /// Multiple `field_sets` that switch based on an id field.
     Enum(EnumBuilder<FieldSetId, DataId>),
-    /// A single field_set.
+    /// A single `field_set`.
     Struct(FieldSetBuilder<FieldSetId, DataId>),
 }
 
@@ -105,6 +108,7 @@ where
 }
 
 /// Builds an enum bitfield model.
+#[derive(Debug)]
 pub struct EnumBuilder<FieldSetId, DataId>
 where
     FieldSetId: Display + Clone + Copy,
@@ -113,12 +117,22 @@ where
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
     #[cfg(feature = "derive")]
     name: Option<Ident>,
-    /// The id field with determines the field_set to use.
+    /// The id field with determines the `field_set` to use.
     id: Option<DataBuilder<DataId>>,
     /// The default variant for situations where no other variant matches.
     invalid: Option<VariantBuilder<FieldSetId, DataId>>,
-    /// The collection of variant field_sets.
+    /// The collection of variant `field_sets`.
     variants: Vec<VariantBuilder<FieldSetId, DataId>>,
+}
+
+impl<FieldSetId, DataId> Default for EnumBuilder<FieldSetId, DataId>
+where
+    FieldSetId: Display + Clone + Copy,
+    DataId: Clone + Copy,
+{
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId>
@@ -126,6 +140,7 @@ where
     FieldSetId: Display + Clone + Copy,
     DataId: Clone + Copy,
 {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             #[cfg(feature = "derive")]
@@ -137,6 +152,7 @@ where
     }
 }
 /// Contains builder information for constructing variant style bitfield models.
+#[derive(Debug)]
 pub struct VariantBuilder<FieldSetId, DataId>
 where
     FieldSetId: Display + Clone + Copy,
@@ -148,10 +164,11 @@ where
     /// value read for the variant resolution the fields shall be placed here
     /// NOT in the field set, useful for invalid variant.
     capture_field: Option<DataBuilder<DataId>>,
-    /// the field_set
+    /// the `field_set`
     field_set: FieldSetBuilder<FieldSetId, DataId>,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
+#[derive(Debug)]
 pub struct FieldSetBuilder<FieldSetId, DataId>
 where
     FieldSetId: Display + Clone + Copy + Clone + Copy,
@@ -160,18 +177,18 @@ where
     pub(crate) name: FieldSetId,
     /// the set of fields.
     pub(crate) fields: Vec<DataBuilder<DataId>>,
-    /// Imposes checks on the sizing of the field_set
+    /// Imposes checks on the sizing of the `field_set`
     pub enforcement: StructEnforcement,
     /// PLEASE READ IF YOU ARE NOT USING [`StructEnforcement::EnforceFullBytes`]
     ///
-    /// If you define a field_sets with a total bit count that does not divide evenly by 8, funny behavior can
+    /// If you define a `field_sets` with a total bit count that does not divide evenly by 8, funny behavior can
     /// occur; Should be consistent but i don't what to try and predict how it would behave in all 6 of the
     /// resolvers. Anyway if you think you may run into this, i recommend using fill bits to define that you
     /// want the remaining bits to be reserved as a invisible field using [`FillBits::Auto`]. Otherwise i
     /// will not even try to predict how your bit-location-determination will be solved.
     ///
     /// Tells system to add bits to the end as a reserve field.
-    /// Using Auto is useful because if the field_set doesn't
+    /// Using Auto is useful because if the `field_set` doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
 }
@@ -208,18 +225,19 @@ pub enum FillBits {
 }
 
 impl FillBits {
+    #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
     }
 }
 
-/// Tells bondrewd to enforce specific rules about the amount of bits used by the entire field_set
+/// Tells bondrewd to enforce specific rules about the amount of bits used by the entire `field_set`
 #[derive(Debug, Clone, Default)]
 pub enum StructEnforcement {
-    /// No enforcement on the amount of bits used by the entire field_set
+    /// No enforcement on the amount of bits used by the entire `field_set`
     #[default]
     NoRules,
-    /// Enforce the BIT_SIZE equals BYTE_SIZE * 8
+    /// Enforce the `BIT_SIZE` equals `BYTE_SIZE` * 8
     EnforceFullBytes,
     /// Enforce the amount of bits that need to be used tot a specific value.
     EnforceBitAmount(u128),

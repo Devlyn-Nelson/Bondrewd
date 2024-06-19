@@ -86,6 +86,7 @@ pub enum ByteOrder {
 }
 
 impl ByteOrder {
+    #[must_use]
     pub fn is_reversed(&self) -> bool {
         matches!(self, Self::LastToFirst)
     }
@@ -259,21 +260,22 @@ impl Endianness {
     /// Defines if the the order that byte indices shall be assigned in the solving process shall be reversed.
     ///
     /// # Warning
-    /// The default of this changes depending on the mode, and the docs for how byte_order
+    /// The default of this changes depending on the mode, and the docs for how `byte_order`
     /// effect things in [`Endianness`] should be read before using this.
     #[inline]
     pub fn set_reverse_byte_order(&mut self, new: bool) -> Option<bool> {
         self.reverse_byte_order.set(new)
     }
     /// This gets called during the solving process to determine the
-    /// byte_order, and should be avoided by users. Just build it right without checking, you got this.
+    /// `byte_order`, and should be avoided by users. Just build it right without checking, you got this.
+    #[must_use]
     pub fn is_byte_order_reversed(&self) -> bool {
         self.is_alternative() ^ (self.reverse_byte_order.get() ^ self.byte_order.is_reversed())
     }
     /// Reverses the current order that byte indices shall be assigned in the solving process.
     ///
     /// # Warning
-    /// The default of this changes depending on the mode, and the docs for how byte_order
+    /// The default of this changes depending on the mode, and the docs for how `byte_order`
     /// effect things in [`Endianness`] should be read before using this.
     pub fn reverse_byte_order(&mut self) -> Option<bool> {
         self.set_reverse_byte_order(!self.reverse_byte_order.get())
@@ -281,13 +283,14 @@ impl Endianness {
     /// Defines if the order that fields will receive bit indices during the solving process shall be reversed.
     ///
     /// # Warning
-    /// The default of this changes depending on the mode, and the docs for how field_order
+    /// The default of this changes depending on the mode, and the docs for how `field_order`
     /// effect things in [`Endianness`] should be read before using this.
     pub fn set_reverse_field_order(&mut self, new: bool) -> Option<bool> {
         self.reverse_field_order.set(new)
     }
     /// This gets called during the solving process to determine the
-    /// field_order, and should be avoided by users. Just build it right without checking, you got this.
+    /// `field_order`, and should be avoided by users. Just build it right without checking, you got this.
+    #[must_use]
     pub fn is_field_order_reversed(&self) -> bool {
         let r =
             self.reverse_field_order.get() ^ matches!(self.field_order, FieldOrder::LastToFirst);
@@ -300,12 +303,13 @@ impl Endianness {
     /// Reverses the current order that fields will receive bit indices during the solving process.
     ///
     /// # Warning
-    /// The default of this changes depending on the mode, and the docs for how field_order
+    /// The default of this changes depending on the mode, and the docs for how `field_order`
     /// effect things in [`Endianness`] should be read before using this.
     pub fn reverse_field_order(&mut self) -> Option<bool> {
         self.set_reverse_field_order(!self.reverse_field_order.get())
     }
     /// Returns the `mode`.
+    #[must_use]
     pub fn mode(&self) -> EndiannessMode {
         self.mode
     }
@@ -314,10 +318,12 @@ impl Endianness {
         self.mode = mode;
     }
     /// Returns `true` if `mode` is [`EndiannessMode::Alternative`].
+    #[must_use]
     pub fn is_alternative(&self) -> bool {
         matches!(self.mode, EndiannessMode::Alternative)
     }
     /// Returns a new `Self` that is big endian.
+    #[must_use]
     pub fn big() -> Self {
         Self {
             mode: EndiannessMode::Standard,
@@ -333,6 +339,7 @@ impl Endianness {
     /// Fields will be assigned bits starting from the left or bit 7 (bit index order = 0b76543210).
     ///
     /// If this doesn't clear things up read [`Endianness`] main documentation.
+    #[must_use]
     pub fn little_packed() -> Self {
         Self {
             mode: EndiannessMode::Alternative,
@@ -348,6 +355,7 @@ impl Endianness {
     /// Fields will be assigned bits starting from the right or bit 0 (bit index order = 0b76543210).
     ///
     /// If this doesn't clear things up read [`Endianness`] main documentation.
+    #[must_use]
     pub fn little_aligned() -> Self {
         Self {
             mode: EndiannessMode::Standard,
@@ -358,9 +366,9 @@ impl Endianness {
         }
     }
 
-    /// Basically because of reverse_byte and reverse_field order things can get funny when applying
+    /// Basically because of `reverse_byte` and `reverse_field` order things can get funny when applying
     /// multiple to the same strategy. we need to find out if we can just merge the endianess with
-    /// the outer most (struct/enum) default_endianness with the field endianness to simulate correct
+    /// the outer most (struct/enum) `default_endianness` with the field endianness to simulate correct
     /// behavior.
     ///
     ///
@@ -377,7 +385,7 @@ pub enum ReserveFieldOption {
     /// User defined, meaning that the field shall not be written-to or read-from on `into_bytes` or
     /// `from_bytes` calls.
     ReserveField,
-    /// Used with imaginary fields that bondrewd creates, such as fill_bytes or variant_ids.
+    /// Used with imaginary fields that bondrewd creates, such as `fill_bytes` or `variant_ids`.
     /// these typically do not get any standard generated functions.
     FakeField,
     /// User defined, meaning that the field shall not be written to on `into_bytes` calls.
@@ -386,6 +394,7 @@ pub enum ReserveFieldOption {
 
 impl ReserveFieldOption {
     /// Tells `bondrewd-derive` that this field should have write functions generated.
+    #[must_use]
     pub fn wants_write_fns(&self) -> bool {
         match self {
             Self::ReadOnly | Self::FakeField | Self::ReserveField => false,
@@ -393,13 +402,15 @@ impl ReserveFieldOption {
         }
     }
     /// Tells `bondrewd-derive` that this field should have read functions generated.
+    #[must_use]
     pub fn wants_read_fns(&self) -> bool {
         match self {
             Self::FakeField | Self::ReserveField => false,
             Self::NotReserve | Self::ReadOnly => true,
         }
     }
-    /// Tells `bondrewd-derive` if these bits effect the bit total for the field_set
+    /// Tells `bondrewd-derive` if these bits effect the bit total for the `field_set`
+    #[must_use]
     pub fn count_bits(&self) -> bool {
         match self {
             Self::FakeField => false,
@@ -407,6 +418,7 @@ impl ReserveFieldOption {
         }
     }
     /// Tells `bondrewd-derive` that this field should be completely ignored.
+    #[must_use]
     pub fn is_fake_field(&self) -> bool {
         match self {
             Self::FakeField => true,
@@ -429,10 +441,12 @@ pub enum OverlapOptions {
 
 impl OverlapOptions {
     /// Returns `true` if any overlapping be done.
+    #[must_use]
     pub fn enabled(&self) -> bool {
         !matches!(self, Self::None)
     }
     /// Returns `true` if the entire fields bits can be overlapped.
+    #[must_use]
     pub fn is_redundant(&self) -> bool {
         matches!(self, Self::Redundant)
     }
