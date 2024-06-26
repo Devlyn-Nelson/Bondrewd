@@ -116,13 +116,13 @@ where
 {
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
     #[cfg(feature = "derive")]
-    name: Option<Ident>,
+    pub(crate) name: Option<Ident>,
     /// The id field with determines the `field_set` to use.
-    id: Option<DataBuilder<DataId>>,
+    pub(crate) id: Option<DataBuilder<DataId>>,
     /// The default variant for situations where no other variant matches.
-    invalid: Option<VariantBuilder<FieldSetId, DataId>>,
+    pub(crate) invalid: Option<VariantBuilder<FieldSetId, DataId>>,
     /// The collection of variant `field_sets`.
-    variants: Vec<VariantBuilder<FieldSetId, DataId>>,
+    pub(crate) variants: Vec<VariantBuilder<FieldSetId, DataId>>,
 }
 
 impl<FieldSetId, DataId> Default for EnumBuilder<FieldSetId, DataId>

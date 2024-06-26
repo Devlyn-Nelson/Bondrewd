@@ -37,8 +37,10 @@ fn main() {
     let ex: Aligned = ex.into();
 
     let bytes = ex.into_bytes();
-    assert!(bytes == [0b1111_1111, 0b0000_0001], 
-            "[{:#08b}, {:#08b}] != [0b11111111, 0b00000001]",
-            bytes[0], bytes[1]
-        );
+    assert!(
+        bytes == [0b1111_1111, 0b0000_0001],
+        "[{:#08b}, {:#08b}] != [0b11111111, 0b00000001]",
+        bytes[0],
+        bytes[1]
+    );
 }

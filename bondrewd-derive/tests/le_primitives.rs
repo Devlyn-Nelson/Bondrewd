@@ -66,10 +66,12 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert!(!(bytes[0] != 0b1110_0000 || bytes[1] != 0b0111_1111), 
-            "[{:08b}, {:08b}]!=[0b1110_0000, 0b0111_1111]",
-            bytes[0], bytes[1]
-        );
+    assert!(
+        !(bytes[0] != 0b1110_0000 || bytes[1] != 0b0111_1111),
+        "[{:08b}, {:08b}]!=[0b1110_0000, 0b0111_1111]",
+        bytes[0],
+        bytes[1]
+    );
     #[cfg(feature = "dyn_fns")]
     {
         //peeks
@@ -104,10 +106,12 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert!(!(bytes[0] != 0b0000_0111 || bytes[1] != 0b1111_1110), 
-            "[{:08b}, {:08b}]!=[0b0000_0111, 0b1111_1110]",
-            bytes[0], bytes[1]
-        );
+    assert!(
+        !(bytes[0] != 0b0000_0111 || bytes[1] != 0b1111_1110),
+        "[{:08b}, {:08b}]!=[0b0000_0111, 0b1111_1110]",
+        bytes[0],
+        bytes[1]
+    );
     #[cfg(feature = "dyn_fns")]
     {
         //peeks

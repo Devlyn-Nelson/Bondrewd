@@ -94,6 +94,11 @@ where
     type Error = SolvingError;
 
     fn try_from(value: EnumBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+        let id = value.id;
+        let variants = value.variants;
+        let invalid = value.invalid;
+        #[cfg(feature = "derive")]
+        let name = value.name;
         todo!("write conversion from EnumBuilder to Solved")
     }
 }
