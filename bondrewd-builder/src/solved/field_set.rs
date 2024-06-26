@@ -67,7 +67,7 @@ pub enum SolvingError {
     ///
     /// # Field
     /// the `String` provided should be the id or name of the field.
-    #[error("While ")]
+    #[error("Failed solving the `left_shift` due to underflow.")]
     ResolverUnderflow(String),
 }
 

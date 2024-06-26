@@ -3,11 +3,11 @@ use bondrewd::Bitfields;
 #[derive(Clone, Bitfields, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
 #[bondrewd(id_bit_length = 6, default_endianness = "be")]
 pub enum AosFrameVirtualChannelId {
-    /// Denotes that the AosFrame belongs to the Orbital or Non-Realtime Virtual Channel. value of 0.
+    /// Denotes that the `AosFrame` belongs to the Orbital or Non-Realtime Virtual Channel. value of 0.
     Orbital,
-    /// Denotes that the AosFrame belongs to Realtime Virtual Channel. value of 1.
+    /// Denotes that the `AosFrame` belongs to Realtime Virtual Channel. value of 1.
     Realtime,
-    /// Denotes that the AosFrame Virtual Channel is not within the Pumpkin Inc spec values.
+    /// Denotes that the `AosFrame` Virtual Channel is not within the Pumpkin Inc spec values.
     Invalid {
         #[bondrewd(capture_id)]
         id: u8,

@@ -10,7 +10,7 @@ use super::{field::Info as FieldInfo, AttrInfo, Visibility};
 pub struct Info {
     /// Name of the variant or struct
     pub name: Ident,
-    /// ATtributes describing the bit layout
+    /// Attributes describing the bit layout
     pub attrs: AttrInfo,
     /// All fields in the struct/variant
     pub fields: Vec<FieldInfo>,
@@ -26,7 +26,7 @@ impl Info {
     }
     #[cfg(feature = "dyn_fns")]
     pub fn vis(&self) -> &syn::Visibility {
-        &*self.vis
+        &self.vis
     }
     // TODO move the check to field attrs making this return usize.
     pub fn get_flip(&self) -> Option<usize> {
@@ -50,9 +50,7 @@ impl Info {
         } else {
             Err(syn::Error::new(
                 self.name.span(),
-                format!(
-                    "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)"
-                ),
+                "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)".to_string(),
             ))
         }
     }
@@ -70,9 +68,7 @@ impl Info {
         } else {
             Err(syn::Error::new(
                 self.name.span(),
-                format!(
-                    "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)"
-                ),
+                "`StructInfo` had variant id but no fields. (this is a bondrewd problem, please report issue)".to_string(),
             ))
         }
     }

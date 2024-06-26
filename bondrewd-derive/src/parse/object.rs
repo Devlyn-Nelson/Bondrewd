@@ -212,7 +212,7 @@ impl ObjectInfo {
                         current_guess += 1;
                     }
                 }
-                for variant in variants.iter() {
+                for variant in &variants {
                     // verify the size doesn't go over set size.
                     let size = variant.total_bits();
                     if largest < size {
@@ -551,7 +551,7 @@ impl ObjectInfo {
             let ident = quote::format_ident!("bondrewd_fill_bits");
             let mut endian = attrs.default_endianess.clone();
             if !endian.has_endianness() {
-                endian.set_mode(crate::common::EndiannessMode::Standard)
+                endian.set_mode(crate::common::EndiannessMode::Standard);
             }
             parsed_fields.push(FieldInfo {
                 ident: Box::new(ident.into()),

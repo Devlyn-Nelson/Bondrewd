@@ -29,7 +29,7 @@ fn main() {
     let ex = Packed { number: u16::MAX };
 
     let bytes = ex.clone().into_bytes();
-    assert_eq!(bytes, [0b11111111, 0b10000000]);
+    assert_eq!(bytes, [0b1111_1111, 0b1000_0000]);
 
     // Aligned
     assert_eq!(Aligned::BIT_SIZE, 16);
@@ -37,10 +37,8 @@ fn main() {
     let ex: Aligned = ex.into();
 
     let bytes = ex.into_bytes();
-    if bytes != [0b11111111, 0b00000001] {
-        panic!(
+    assert!(bytes == [0b1111_1111, 0b0000_0001], 
             "[{:#08b}, {:#08b}] != [0b11111111, 0b00000001]",
             bytes[0], bytes[1]
         );
-    }
 }

@@ -20,7 +20,7 @@ impl Deref for Visibility {
 
 impl Debug for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.to_token_stream().to_string())
+        write!(f, "{}", self.0.to_token_stream())
     }
 }
 
@@ -299,7 +299,7 @@ impl FillBits {
 #[derive(Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct AttrInfo {
-    /// flip all the bytes, like .reverse() for vecs or arrays. but we do that here because we can do
+    /// flip all the bytes, like `.reverse()` for vecs or arrays. but we do that here because we can do
     /// it with no runtime cost.
     pub dump: bool,
     pub enforcement: StructEnforcement,
@@ -328,7 +328,7 @@ impl Default for AttrInfo {
 pub enum StructEnforcement {
     /// there is no enforcement so if bits are unused then it will act like they are a reserve field
     NoRules,
-    /// enforce the BIT_SIZE equals BYTE_SIZE * 8
+    /// enforce the `BIT_SIZE` equals `BYTE_SIZE` * 8
     EnforceFullBytes,
     /// enforce an amount of bits total that need to be used.
     EnforceBitAmount(usize),

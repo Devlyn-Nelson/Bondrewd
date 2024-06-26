@@ -153,7 +153,7 @@ impl DataType {
                             match sub_ty {
                                 DataType::Enum { ref mut size, .. }
                                 | DataType::Struct { ref mut size, .. } => {
-                                    *size = size.div_ceil(array_length)
+                                    *size = size.div_ceil(array_length);
                                 }
                                 _ => {}
                             }
