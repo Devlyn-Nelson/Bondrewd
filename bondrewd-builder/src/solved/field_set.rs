@@ -153,6 +153,11 @@ where
         todo!("solve for flip (reverse byte order)");
         todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
         todo!("overlap protection for fields");
+        let keys: Vec<DataId> = fields.keys().cloned().collect();
+        for key in keys {
+            let field = fields.get(&key);
+            todo!("insure no fields overlap unless they are allowed to.");
+        }
         todo!("handle array solving");
         todo!("enforcements.");
         Ok(Self {
