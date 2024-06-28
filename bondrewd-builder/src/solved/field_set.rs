@@ -1,12 +1,16 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
-    hash::Hash,
+    hash::Hash, ops::Range,
 };
 
 use thiserror::Error;
 
-use crate::build::field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder};
+use crate::build::{
+    field::DataBuilder,
+    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
+    BuilderRange,
+};
 
 use super::field::SolvedData;
 
@@ -144,7 +148,41 @@ where
         };
         let fields: HashMap<DataId, SolvedData> = HashMap::default();
         let last_end_bit_index: Option<usize> = None;
-        for field in &value.fields {
+        let total_fields = value.fields.len();
+        for i in 0..total_fields {
+            // START_HERE i think i should make an in-between structure that holds "Solved" fields that have not
+            // undergone any checks or math to reduce it to an actual Solved struct.
+            let field = &value.fields[i];
+            let bit_range = get_range(field, last_end_bit_index.as_ref());
+            let mut others = value.fields.iter().skip(i);
+            for other in others {
+                if !field.overlap.enabled() && !other.overlap.enabled() {
+                    // check that self's start is not within other's range
+                    // if field.bit_range.start >= other.bit_range.start
+                    //     && (field.bit_range.start == other.bit_range.start
+                    //         || field.bit_range.start < other.bit_range.end)
+                    // {
+                    //     return true;
+                    // }
+                    // // check that other's start is not within self's range
+                    // if other.bit_range.start >= field.bit_range.start
+                    //     && (other.bit_range.start == field.bit_range.start
+                    //         || other.bit_range.start < field.bit_range.end)
+                    // {
+                    //     return true;
+                    // }
+                    // if field.bit_range.end > other.bit_range.start
+                    //     && field.bit_range.end <= other.bit_range.end
+                    // {
+                    //     return true;
+                    // }
+                    // if other.bit_range.end > field.bit_range.start
+                    //     && other.bit_range.end <= field.bit_range.end
+                    // {
+                    //     return true;
+                    // }
+                }
+            }
             let name = format!("{}", field.id);
             let resolver = todo!("write resolvers");
             let new_field = SolvedData { resolver };
@@ -165,5 +203,28 @@ where
             name: value.name,
             ty: SolvedType::Struct(SolvedFieldSet { fields }),
         })
+    }
+}
+/// This is going to house all of the information for a Field. This acts as the stage between Builder and
+/// Solved, the point being that this can not be created unless a valid BuilderData that can be solved is
+/// provided. Then we can do all of the calculation because everything has been determined as solvable.
+struct BuiltData {
+    bit_range: Range<usize>,
+}
+
+/// `field` should be the field we want to get a `bit_range` for.
+/// `last_field_end` should be the ending bit of the previous field processed.
+fn get_range<Id>(field: &DataBuilder<Id>, last_field_end: Option<&usize>) -> Range<usize>
+where
+    Id: Clone + Copy,
+{
+    match field.bit_range {
+        BuilderRange::Range(ref r) => r.clone(),
+        BuilderRange::Size(_bit_size) => {
+            todo!("use previous-fields-end and provided-bit-size to determine the bit-range");
+        }
+        BuilderRange::None => {
+            todo!("use previous-fields-end and the size-of-the-type to determine the bit-range");
+        }
     }
 }
