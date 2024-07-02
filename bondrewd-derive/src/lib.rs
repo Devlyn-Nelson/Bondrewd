@@ -1,3 +1,5 @@
+#![allow(unreachable_code, dead_code, unused_variables)]
+
 //! Fast and easy bitfield proc macro
 //!
 //! Provides a proc macro used on Structures or Enums which provides functions for:

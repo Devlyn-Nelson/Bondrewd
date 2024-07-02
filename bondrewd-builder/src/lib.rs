@@ -1,3 +1,5 @@
+#![allow(unreachable_code, dead_code, unused_variables)]
+
 pub mod build;
 pub mod solved;
 // TODO I think a further calculated model is possible beyond the current solved.

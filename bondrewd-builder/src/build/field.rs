@@ -1,7 +1,7 @@
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
 /// Defines how each element of an array should be treated.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ArrayType {
     /// Each element of the array is considered its own value.
     ///
@@ -14,8 +14,8 @@ pub enum ArrayType {
 }
 
 ///
-#[derive(Debug)]
-struct ArrayInfo {
+#[derive(Debug, Clone)]
+pub(crate) struct ArrayInfo {
     ty: ArrayType,
     /// Each element represents a dimension to the array with the value being the amount of elements
     /// for that dimension.
