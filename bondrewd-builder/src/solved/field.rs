@@ -2,7 +2,7 @@ use std::{fmt::Display, ops::Range};
 
 use crate::build::field::{DataBuilder, NumberType};
 
-use super::field_set::SolvingError;
+use super::field_set::{BuiltData, SolvingError};
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
@@ -85,52 +85,30 @@ pub struct Resolver {
 
 impl Resolver {
     pub(crate) fn get_resolver<Id: Clone + Copy + Display>(
-        field: DataBuilder<Id>,
-        last_end_bit_index: &mut Option<usize>,
+        field: BuiltData<Id>,
     ) -> Result<Self, SolvingError> {
-        let bit_range = match &field.bit_range {
-            crate::build::BuilderRange::Range(range) => range.clone(),
-            crate::build::BuilderRange::Size(bit_length) => {
-                let start = if let Some(prev) = &last_end_bit_index {
-                    *prev
-                } else {
-                    0
-                };
-                start..(start + *bit_length as usize)
-            }
-            crate::build::BuilderRange::None => {
-                let start = if let Some(prev) = &last_end_bit_index {
-                    *prev
-                } else {
-                    0
-                };
-                start..(start + (field.rust_size as usize * 8))
-            }
-        };
-        if !field.overlap.is_redundant() {
-            *last_end_bit_index = Some(bit_range.end);
-        }
+        let bit_range = &field.bit_range;
+        
         let bit_length = bit_range.end - bit_range.start;
         let spans_multiple_bytes = (bit_range.start / 8) != (bit_range.end / 8);
         let name = format!("{}", field.id);
         let endianness = &field.endianness;
         let resolver = match &field.ty {
             crate::build::field::DataType::None => return Err(SolvingError::NoTypeProvided(name)),
-            crate::build::field::DataType::Number(ty) => match endianness {
-                Some(e) => match e.mode() {
+            crate::build::field::DataType::Number(ty) => match endianness.mode() {
                     crate::build::EndiannessMode::Alternative => {
                         if spans_multiple_bytes {
                             Resolver::multi_alt(
                                 &bit_range,
                                 name.as_str(),
-                                e.is_byte_order_reversed(),
+                                endianness.is_byte_order_reversed(),
                                 ty.clone(),
                             )
                         } else {
                             Resolver::single_alt(
                                 &bit_range,
                                 name.as_str(),
-                                e.is_byte_order_reversed(),
+                                endianness.is_byte_order_reversed(),
                                 ty.clone(),
                             )
                         }
@@ -140,20 +118,18 @@ impl Resolver {
                             Resolver::multi_standard(
                                 &bit_range,
                                 name.as_str(),
-                                e.is_byte_order_reversed(),
+                                endianness.is_byte_order_reversed(),
                                 ty.clone(),
                             )
                         } else {
                             Resolver::single_standard(
                                 &bit_range,
                                 name.as_str(),
-                                e.is_byte_order_reversed(),
+                                endianness.is_byte_order_reversed(),
                                 ty.clone(),
                             )
                         }
                     }
-                },
-                None => return Err(SolvingError::NoEndianness(name)),
             },
             #[cfg(feature = "derive")]
             crate::build::field::DataType::Nested(struct_name) => {

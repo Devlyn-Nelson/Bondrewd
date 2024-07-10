@@ -1,14 +1,17 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Display,
-    hash::Hash, ops::Range,
+    hash::Hash,
+    ops::Range,
 };
 
 use thiserror::Error;
 
-use crate::build::{
-    field::{ArrayInfo, DataBuilder, DataType}, field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder}, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption
-};
+use crate::{build::{
+    field::{ArrayInfo, DataBuilder, DataType},
+    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
+    BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
+}, solved::field::Resolver};
 
 use super::field::SolvedData;
 
@@ -145,14 +148,19 @@ where
             0
         };
         let mut pre_fields: Vec<BuiltData<DataId>> = Vec::default();
-        let last_end_bit_index: Option<usize> = None;
+        let mut last_end_bit_index: Option<usize> = None;
         let total_fields = value.fields.len();
         // START_HERE i think i should make an in-between structure that holds "Solved" fields that have not
         // undergone any checks or math to reduce it to an actual Solved struct.
         //
         // First stage checks for validity
         for value_field in &value.fields {
-            let bit_range = get_range(value_field, last_end_bit_index.as_ref());
+            // get resolved range for the field.
+            let bit_range = get_range(value_field, last_end_bit_index.clone());
+            // update internal last_end_bit_index to allow automatic bit-range feature to work.
+            if !value_field.overlap.is_redundant() {
+                last_end_bit_index = Some(bit_range.end);
+            }
             let field = BuiltData {
                 id: value_field.id,
                 ty: value_field.ty.clone(),
@@ -195,7 +203,7 @@ where
                     }
                 }
             }
-            let name = format!("{}", field.id);
+            // let name = format!("{}", field.id);
             pre_fields.push(field);
         }
         let fields: HashMap<DataId, SolvedData> = HashMap::default();
@@ -224,43 +232,53 @@ where
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and
 /// Solved, the point being that this can not be created unless a valid BuilderData that can be solved is
 /// provided. Then we can do all of the calculation because everything has been determined as solvable.
-struct BuiltData<Id: Display> {
+pub(crate) struct BuiltData<Id: Display> {
     /// The name or ident of the field.
-    id: Id,
+    pub(crate) id: Id,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
-    ty: DataType,
-    endianness: Endianness,
+    pub(crate) ty: DataType,
+    pub(crate) endianness: Endianness,
     /// Size of the rust native type in bytes (should never be zero)
-    rust_size: u8,
+    pub(crate) rust_size: u8,
     /// Defines if this field is an array or not.
     /// If `None` this data is not in an array and should just be treated as a single value.
     ///
     /// If `Some` than this is an array, NOT a single value. Also Note that the `ty` and `rust_size` only
     /// describe a true data type, which would be the innermost part of an array. The array info
     /// is marly keeping track of the order and magnitude of the array and its dimensions.
-    array: Option<ArrayInfo>,
+    pub(crate) array: Option<ArrayInfo>,
     /// The range of bits that this field will use.
-    bit_range: Range<usize>,
+    pub(crate) bit_range: Range<usize>,
     /// Describes when the field should be considered.
-    reserve: ReserveFieldOption,
+    pub(crate) reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
-    overlap: OverlapOptions,
+    pub(crate) overlap: OverlapOptions,
 }
 
 /// `field` should be the field we want to get a `bit_range` for.
 /// `last_field_end` should be the ending bit of the previous field processed.
-fn get_range<Id>(field: &DataBuilder<Id>, last_field_end: Option<&usize>) -> Range<usize>
+fn get_range<Id>(field: &DataBuilder<Id>, last_field_end: Option<usize>) -> Range<usize>
 where
     Id: Clone + Copy,
 {
-    match field.bit_range {
-        BuilderRange::Range(ref r) => r.clone(),
-        BuilderRange::Size(_bit_size) => {
-            todo!("use previous-fields-end and provided-bit-size to determine the bit-range");
+    match &field.bit_range {
+        crate::build::BuilderRange::Range(range) => range.clone(),
+        crate::build::BuilderRange::Size(bit_length) => {
+            let start = if let Some(prev) = &last_field_end {
+                *prev
+            } else {
+                0
+            };
+            start..(start + *bit_length as usize)
         }
-        BuilderRange::None => {
-            todo!("use previous-fields-end and the size-of-the-type to determine the bit-range");
+        crate::build::BuilderRange::None => {
+            let start = if let Some(prev) = &last_field_end {
+                *prev
+            } else {
+                0
+            };
+            start..(start + (field.rust_size as usize * 8))
         }
     }
 }
