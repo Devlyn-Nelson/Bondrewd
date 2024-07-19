@@ -135,7 +135,7 @@ pub enum ReserveFieldOption {
     /// User defined, meaning that the field shall not be written-to or read-from on `into_bytes` or
     /// `from_bytes` calls.
     ReserveField,
-    /// used with imaginary fields that bondrewd creates, such as fill_bytes or variant_ids.
+    /// used with imaginary fields that bondrewd creates, such as `fill_bytes` or `variant_ids`.
     /// these typically do not get any standard generated functions.
     FakeField,
     /// used for enum variant id field

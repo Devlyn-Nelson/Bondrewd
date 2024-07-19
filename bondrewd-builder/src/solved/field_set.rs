@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::{build::{
     field::{ArrayInfo, DataBuilder, DataType},
     field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
-    BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
+    Endianness, OverlapOptions, ReserveFieldOption,
 }, solved::field::Resolver};
 
 use super::field::SolvedData;
@@ -156,7 +156,7 @@ where
         // First stage checks for validity
         for value_field in &value.fields {
             // get resolved range for the field.
-            let bit_range = get_range(value_field, last_end_bit_index.clone());
+            let bit_range = get_range(value_field, last_end_bit_index);
             // update internal last_end_bit_index to allow automatic bit-range feature to work.
             if !value_field.overlap.is_redundant() {
                 last_end_bit_index = Some(bit_range.end);
@@ -206,19 +206,63 @@ where
             // let name = format!("{}", field.id);
             pre_fields.push(field);
         }
-        let fields: HashMap<DataId, SolvedData> = HashMap::default();
+        let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
         for pre_field in pre_fields {
-            todo!("do second pass at fields");
-            let resolver = todo!("write resolvers");
+            // get the total number of bits the field uses.
+            let amount_of_bits = pre_field.bit_range.end - pre_field.bit_range.start;
+            // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
+            // left)
+            let zeros_on_left = pre_field.bit_range.start % 8;
+            // NOTE endianness is only for determining how to get the bytes we will apply to the output.
+            // calculate how many of the bits will be inside the most significant byte we are adding to.
+            if 7 < zeros_on_left {
+                return Err(
+                    SolvingError::ResolverUnderflow(
+                        format!("field \"{}\" would have had left shift underflow, report this at \
+                        https://github.com/Devlyn-Nelson/Bondrewd",
+                            pre_field.id,
+                        )
+                    )
+                );
+            }
+            let available_bits_in_first_byte = 8 - zeros_on_left;
+            // calculate the starting byte index in the outgoing buffer
+            let mut starting_inject_byte: usize = pre_field.bit_range.start / 8;
+            if pre_field.endianness.is_byte_order_reversed() {
+                let struct_byte_length = bit_size / 8;
+                starting_inject_byte = struct_byte_length - starting_inject_byte;
+            }
+
+            // make a name for the buffer that we will store the number in byte form
+            #[cfg(feature = "derive")]
+            let field_buffer_name = format_ident!("{}_bytes", field_info.ident().ident());
+
+            let ty = if pre_field.endianness.is_alternative() {
+                // Alt endian logic (default is little packed).
+                
+                todo!("refer to else branch.");
+            } else {
+                // Standard endian logic (default is big).
+                todo!("Figure out how to create the resolver type, need to check if the field spans \
+                across multiple fields or not and what endianness mode it is.")
+            };
+            let resolver = Resolver {
+                amount_of_bits,
+                zeros_on_left,
+                available_bits_in_first_byte,
+                starting_inject_byte,
+                #[cfg(feature = "derive")]
+                field_buffer_name,
+                ty,
+            };
             let new_field = SolvedData { resolver };
+            fields.insert(pre_field.id, new_field);
+            todo!("do second pass at fields");
         }
-        todo!("solve for flip (reverse byte order)");
         todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
-        todo!("overlap protection for fields");
-        let keys: Vec<DataId> = fields.keys().cloned().collect();
+        let keys: Vec<DataId> = fields.keys().copied().collect();
         for key in keys {
             let field = fields.get(&key);
-            todo!("insure no fields overlap unless they are allowed to.");
         }
         todo!("handle array solving");
         todo!("enforcements.");
@@ -230,9 +274,9 @@ where
     }
 }
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and
-/// Solved, the point being that this can not be created unless a valid BuilderData that can be solved is
+/// Solved, the point being that this can not be created unless a valid `BuilderData` that can be solved is
 /// provided. Then we can do all of the calculation because everything has been determined as solvable.
-pub(crate) struct BuiltData<Id: Display> {
+pub(crate) struct BuiltData<Id: Display + PartialEq> {
     /// The name or ident of the field.
     pub(crate) id: Id,
     /// The approximate data type of the field. when solving, this must be

@@ -1,6 +1,6 @@
 use std::{fmt::Display, ops::Range};
 
-use crate::build::field::{DataBuilder, NumberType};
+use crate::build::field::NumberType;
 
 use super::field_set::{BuiltData, SolvingError};
 
@@ -29,7 +29,7 @@ pub struct SolvedData {
 
 impl SolvedData {
     #[must_use]
-    pub fn bit_length(&self) -> u8 {
+    pub fn bit_length(&self) -> usize {
         self.resolver.bit_length()
     }
     pub fn generate_fn_quotes(&self) {
@@ -56,7 +56,7 @@ pub struct NewResolverData<'a> {
 
 pub struct Resolver {
     /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: u8,
+    pub amount_of_bits: usize,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -66,9 +66,9 @@ pub struct Resolver {
     /// the name of the buffer we will use to store the data for the fields value.
     // TODO because the nested ty has the value this is solved from, it may make sense to
     // store only that moving this field into the `ResolverType` variants that do not.
+    #[cfg(feature = "derive")]
     pub field_buffer_name: String,
-    pub byte_order_reversed: bool,
-    ty: ResolverType,
+    pub(crate) ty: ResolverType,
     // TODO START_HERE make a solved bondrewd field that is used for generation and future bondrewd-builder
     // Basically we need to removed all usages of `FieldInfo` in `gen` and allow `Info` to be an
     // active builder we can use for bondrewd builder, then solve. bondrewd-derive would then
@@ -84,11 +84,11 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub(crate) fn get_resolver<Id: Clone + Copy + Display>(
+    pub(crate) fn get_resolver<Id: Clone + Copy + Display + PartialEq>(
         field: BuiltData<Id>,
     ) -> Result<Self, SolvingError> {
         let bit_range = &field.bit_range;
-        
+
         let bit_length = bit_range.end - bit_range.start;
         let spans_multiple_bytes = (bit_range.start / 8) != (bit_range.end / 8);
         let name = format!("{}", field.id);
@@ -96,40 +96,40 @@ impl Resolver {
         let resolver = match &field.ty {
             crate::build::field::DataType::None => return Err(SolvingError::NoTypeProvided(name)),
             crate::build::field::DataType::Number(ty) => match endianness.mode() {
-                    crate::build::EndiannessMode::Alternative => {
-                        if spans_multiple_bytes {
-                            Resolver::multi_alt(
-                                &bit_range,
-                                name.as_str(),
-                                endianness.is_byte_order_reversed(),
-                                ty.clone(),
-                            )
-                        } else {
-                            Resolver::single_alt(
-                                &bit_range,
-                                name.as_str(),
-                                endianness.is_byte_order_reversed(),
-                                ty.clone(),
-                            )
-                        }
+                crate::build::EndiannessMode::Alternative => {
+                    if spans_multiple_bytes {
+                        Resolver::multi_alt(
+                            bit_range,
+                            name.as_str(),
+                            endianness.is_byte_order_reversed(),
+                            ty.clone(),
+                        )
+                    } else {
+                        Resolver::single_alt(
+                            bit_range,
+                            name.as_str(),
+                            endianness.is_byte_order_reversed(),
+                            ty.clone(),
+                        )
                     }
-                    crate::build::EndiannessMode::Standard => {
-                        if spans_multiple_bytes {
-                            Resolver::multi_standard(
-                                &bit_range,
-                                name.as_str(),
-                                endianness.is_byte_order_reversed(),
-                                ty.clone(),
-                            )
-                        } else {
-                            Resolver::single_standard(
-                                &bit_range,
-                                name.as_str(),
-                                endianness.is_byte_order_reversed(),
-                                ty.clone(),
-                            )
-                        }
+                }
+                crate::build::EndiannessMode::Standard => {
+                    if spans_multiple_bytes {
+                        Resolver::multi_standard(
+                            bit_range,
+                            name.as_str(),
+                            endianness.is_byte_order_reversed(),
+                            ty.clone(),
+                        )
+                    } else {
+                        Resolver::single_standard(
+                            bit_range,
+                            name.as_str(),
+                            endianness.is_byte_order_reversed(),
+                            ty.clone(),
+                        )
                     }
+                }
             },
             #[cfg(feature = "derive")]
             crate::build::field::DataType::Nested(struct_name) => {
@@ -244,7 +244,7 @@ impl Resolver {
         })
     }
     #[must_use]
-    pub fn bit_length(&self) -> u8 {
+    pub fn bit_length(&self) -> usize {
         self.amount_of_bits
     }
     #[must_use]
@@ -260,12 +260,13 @@ impl Resolver {
         self.zeros_on_left
     }
     #[must_use]
+    #[cfg(feature = "derive")]
     pub fn field_buffer_name(&self) -> &str {
         self.field_buffer_name.as_str()
     }
     #[must_use]
     pub fn fields_last_bits_index(&self) -> usize {
-        (self.amount_of_bits as usize).div_ceil(8) - 1
+        self.amount_of_bits.div_ceil(8) - 1
     }
     /// If this returns `None` a zeros on left underflow was detected.
     fn new(data: NewResolverData) -> Option<Self> {
@@ -274,7 +275,7 @@ impl Resolver {
         let ty = data.ty;
         let byte_order_reversed = data.byte_order_reversed;
         // get the total number of bits the field uses.
-        let amount_of_bits = (bit_range.end - bit_range.start) as u8;
+        let amount_of_bits = bit_range.end - bit_range.start;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
         let zeros_on_left = bit_range.start % 8;
@@ -301,8 +302,8 @@ impl Resolver {
                 zeros_on_left,
                 available_bits_in_first_byte,
                 starting_inject_byte,
+                #[cfg(feature = "derive")]
                 field_buffer_name,
-                byte_order_reversed,
                 ty,
             })
         }
