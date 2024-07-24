@@ -133,21 +133,18 @@ impl Resolver {
             },
             #[cfg(feature = "derive")]
             crate::build::field::DataType::Nested(struct_name) => {
-                let Some(e) = endianness else {
-                    return Err(SolvingError::NoEndianness(name));
-                };
                 if spans_multiple_bytes {
                     Resolver::multi_nested(
                         &bit_range,
                         name.as_str(),
-                        e.is_byte_order_reversed(),
+                        endianness.is_byte_order_reversed(),
                         struct_name,
                     )
                 } else {
                     Resolver::single_nested(
                         &bit_range,
                         name.as_str(),
-                        e.is_byte_order_reversed(),
+                        endianness.is_byte_order_reversed(),
                         struct_name,
                     )
                 }

@@ -5,13 +5,18 @@ use std::{
     ops::Range,
 };
 
+#[cfg(feature = "derive")]
+use quote::format_ident;
 use thiserror::Error;
 
-use crate::{build::{
-    field::{ArrayInfo, DataBuilder, DataType},
-    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
-    Endianness, OverlapOptions, ReserveFieldOption,
-}, solved::field::Resolver};
+use crate::{
+    build::{
+        field::{ArrayInfo, DataBuilder, DataType},
+        field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
+        Endianness, OverlapOptions, ReserveFieldOption,
+    },
+    solved::field::Resolver,
+};
 
 use super::field::SolvedData;
 
@@ -213,21 +218,20 @@ where
             // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
             // left)
             let zeros_on_left = pre_field.bit_range.start % 8;
-            // NOTE endianness is only for determining how to get the bytes we will apply to the output.
-            // calculate how many of the bits will be inside the most significant byte we are adding to.
+            // TODO if don't think this error is possible, and im wondering why it is being checked for
+            // in the first place.
             if 7 < zeros_on_left {
-                return Err(
-                    SolvingError::ResolverUnderflow(
-                        format!("field \"{}\" would have had left shift underflow, report this at \
+                return Err(SolvingError::ResolverUnderflow(format!(
+                    "field \"{}\" would have had left shift underflow, report this at \
                         https://github.com/Devlyn-Nelson/Bondrewd",
-                            pre_field.id,
-                        )
-                    )
-                );
+                    pre_field.id,
+                )));
             }
             let available_bits_in_first_byte = 8 - zeros_on_left;
             // calculate the starting byte index in the outgoing buffer
             let mut starting_inject_byte: usize = pre_field.bit_range.start / 8;
+            // NOTE endianness is only for determining how to get the bytes we will apply to the output.
+            // calculate how many of the bits will be inside the most significant byte we are adding to.
             if pre_field.endianness.is_byte_order_reversed() {
                 let struct_byte_length = bit_size / 8;
                 starting_inject_byte = struct_byte_length - starting_inject_byte;
@@ -235,16 +239,18 @@ where
 
             // make a name for the buffer that we will store the number in byte form
             #[cfg(feature = "derive")]
-            let field_buffer_name = format_ident!("{}_bytes", field_info.ident().ident());
+            let field_buffer_name = format_ident!("{}_bytes", pre_field.i);
 
             let ty = if pre_field.endianness.is_alternative() {
                 // Alt endian logic (default is little packed).
-                
+
                 todo!("refer to else branch.");
             } else {
                 // Standard endian logic (default is big).
-                todo!("Figure out how to create the resolver type, need to check if the field spans \
-                across multiple fields or not and what endianness mode it is.")
+                todo!(
+                    "Figure out how to create the resolver type, need to check if the field spans \
+                across multiple fields or not and what endianness mode it is."
+                )
             };
             let resolver = Resolver {
                 amount_of_bits,
@@ -257,7 +263,6 @@ where
             };
             let new_field = SolvedData { resolver };
             fields.insert(pre_field.id, new_field);
-            todo!("do second pass at fields");
         }
         todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
         let keys: Vec<DataId> = fields.keys().copied().collect();
