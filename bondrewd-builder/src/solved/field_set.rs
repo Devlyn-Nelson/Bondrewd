@@ -239,11 +239,10 @@ where
 
             // make a name for the buffer that we will store the number in byte form
             #[cfg(feature = "derive")]
-            let field_buffer_name = format_ident!("{}_bytes", pre_field.i);
+            let field_buffer_name = format!("{}_bytes", pre_field.id);
 
             let ty = if pre_field.endianness.is_alternative() {
                 // Alt endian logic (default is little packed).
-
                 todo!("refer to else branch.");
             } else {
                 // Standard endian logic (default is big).
