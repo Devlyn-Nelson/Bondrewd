@@ -5,8 +5,6 @@ use std::{
     ops::Range,
 };
 
-#[cfg(feature = "derive")]
-use quote::format_ident;
 use thiserror::Error;
 
 use crate::{
@@ -15,7 +13,7 @@ use crate::{
         field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
         Endianness, OverlapOptions, ReserveFieldOption,
     },
-    solved::field::Resolver,
+    solved::field::{Resolver, ResolverType},
 };
 
 use super::field::SolvedData;
@@ -172,6 +170,9 @@ where
                 endianness: if let Some(e) = &value_field.endianness {
                     e.clone()
                 } else {
+                    // TODO no endianess is actually valid in the case of nested structs/enums.
+                    // We need to check if the value is a primitive number, then if it is a number and does
+                    // not have endianess we can throw this error.
                     return Err(SolvingError::NoEndianness(format!("{}", value_field.id)));
                 },
                 rust_size: value_field.rust_size,
@@ -196,13 +197,13 @@ where
                     {
                         return Err(SolvingError::Overlap);
                     }
-                    if field.bit_range.end > other.bit_range.start
-                        && field.bit_range.end <= other.bit_range.end
+                    if other.bit_range.end > field.bit_range.start
+                        && other.bit_range.end <= field.bit_range.end
                     {
                         return Err(SolvingError::Overlap);
                     }
-                    if other.bit_range.end > field.bit_range.start
-                        && other.bit_range.end <= field.bit_range.end
+                    if field.bit_range.end > other.bit_range.start
+                        && field.bit_range.end <= other.bit_range.end
                     {
                         return Err(SolvingError::Overlap);
                     }
@@ -240,15 +241,22 @@ where
             // make a name for the buffer that we will store the number in byte form
             #[cfg(feature = "derive")]
             let field_buffer_name = format!("{}_bytes", pre_field.id);
-
+            todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
             let ty = if pre_field.endianness.is_alternative() {
                 // Alt endian logic (default is little packed).
+                // ResolverType::Alternate(())
                 todo!("refer to else branch.");
             } else {
                 // Standard endian logic (default is big).
+                if amount_of_bits > available_bits_in_first_byte {
+                    // multi-byte
+                }else{
+                    // single-byte
+                }
                 todo!(
                     "Figure out how to create the resolver type, need to check if the field spans \
-                across multiple fields or not and what endianness mode it is."
+                across multiple bytes or not and what endianness mode it is. if amount of bit is\
+                greater than available_bits_in_first_byte than it is single byte/"
                 )
             };
             let resolver = Resolver {
@@ -263,7 +271,6 @@ where
             let new_field = SolvedData { resolver };
             fields.insert(pre_field.id, new_field);
         }
-        todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
         let keys: Vec<DataId> = fields.keys().copied().collect();
         for key in keys {
             let field = fields.get(&key);
