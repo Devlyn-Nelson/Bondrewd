@@ -242,23 +242,43 @@ where
             #[cfg(feature = "derive")]
             let field_buffer_name = format!("{}_bytes", pre_field.id);
             todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
-            let ty = if pre_field.endianness.is_alternative() {
-                // Alt endian logic (default is little packed).
-                // ResolverType::Alternate(())
-                todo!("refer to else branch.");
-            } else {
-                // Standard endian logic (default is big).
-                if amount_of_bits > available_bits_in_first_byte {
-                    // multi-byte
-                }else{
-                    // single-byte
-                }
-                todo!(
-                    "Figure out how to create the resolver type, need to check if the field spans \
-                across multiple bytes or not and what endianness mode it is. if amount of bit is\
-                greater than available_bits_in_first_byte than it is single byte/"
-                )
-            };
+            let multi_byte = amount_of_bits > available_bits_in_first_byte;
+            let ty = 
+                
+                match pre_field.ty {
+                    DataType::None => todo!("figure out if this type is a number. if it is a number error\
+                        out, otherwise use nested."),
+                    DataType::Number(nt) => {
+                        if pre_field.endianness.is_alternative() {
+                            if multi_byte {
+                                // multi-byte
+                                ResolverType::AlternateMultiple(nt)
+                            } else {
+                                // single-byte
+                                
+                                ResolverType::AlternateSingle(nt)
+                            }
+                        } else {
+                            // Standard endian logic (default is big).
+                            if multi_byte {
+                                // multi-byte
+                                ResolverType::StandardMultiple(nt)
+                            } else {
+                                // single-byte
+                                
+                                ResolverType::StandardSingle(nt)
+                            }
+                        }
+                    }
+                    DataType::Nested(name) => 
+                        if multi_byte {
+                            // multi-byte
+                            ResolverType::NestedMultiple(name)
+                        } else {
+                            // single-byte
+                            ResolverType::NestedSingle(name)
+                        },
+                };
             let resolver = Resolver {
                 amount_of_bits,
                 zeros_on_left,
