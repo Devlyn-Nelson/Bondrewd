@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use crate::{
     build::{
-        field::{ArrayInfo, DataBuilder, DataType},
+        field::{ArrayInfo, DataBuilder, DataType, RustByteSize},
         field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
         Endianness, OverlapOptions, ReserveFieldOption,
     },
@@ -243,42 +243,37 @@ where
             let field_buffer_name = format!("{}_bytes", pre_field.id);
             todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
             let multi_byte = amount_of_bits > available_bits_in_first_byte;
-            let ty = 
-                
-                match pre_field.ty {
-                    DataType::None => todo!("figure out if this type is a number. if it is a number error\
-                        out, otherwise use nested."),
-                    DataType::Number(nt) => {
-                        if pre_field.endianness.is_alternative() {
-                            if multi_byte {
-                                // multi-byte
-                                ResolverType::AlternateMultiple(nt)
-                            } else {
-                                // single-byte
-                                
-                                ResolverType::AlternateSingle(nt)
-                            }
-                        } else {
-                            // Standard endian logic (default is big).
-                            if multi_byte {
-                                // multi-byte
-                                ResolverType::StandardMultiple(nt)
-                            } else {
-                                // single-byte
-                                
-                                ResolverType::StandardSingle(nt)
-                            }
-                        }
-                    }
-                    DataType::Nested(name) => 
+            let ty = match pre_field.ty {
+                DataType::Number(nt) => {
+                    if pre_field.endianness.is_alternative() {
                         if multi_byte {
                             // multi-byte
-                            ResolverType::NestedMultiple(name)
+                            ResolverType::AlternateMultiple(nt)
                         } else {
                             // single-byte
-                            ResolverType::NestedSingle(name)
-                        },
-                };
+                            ResolverType::AlternateSingle(nt)
+                        }
+                    } else {
+                        // Standard endian logic (default is big).
+                        if multi_byte {
+                            // multi-byte
+                            ResolverType::StandardMultiple(nt)
+                        } else {
+                            // single-byte
+                            ResolverType::StandardSingle(nt)
+                        }
+                    }
+                }
+                DataType::Nested(name) => {
+                    if multi_byte {
+                        // multi-byte
+                        ResolverType::NestedMultiple(name)
+                    } else {
+                        // single-byte
+                        ResolverType::NestedSingle(name)
+                    }
+                }
+            };
             let resolver = Resolver {
                 amount_of_bits,
                 zeros_on_left,
@@ -315,7 +310,7 @@ pub(crate) struct BuiltData<Id: Display + PartialEq> {
     pub(crate) ty: DataType,
     pub(crate) endianness: Endianness,
     /// Size of the rust native type in bytes (should never be zero)
-    pub(crate) rust_size: u8,
+    pub(crate) rust_size: RustByteSize,
     /// Defines if this field is an array or not.
     /// If `None` this data is not in an array and should just be treated as a single value.
     ///

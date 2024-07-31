@@ -47,7 +47,7 @@ where
     pub(crate) ty: DataType,
     pub(crate) endianness: Option<Endianness>,
     /// Size of the rust native type in bytes (should never be zero)
-    pub(crate) rust_size: u8,
+    pub(crate) rust_size: RustByteSize,
     /// Defines if this field is an array or not.
     /// If `None` this data is not in an array and should just be treated as a single value.
     ///
@@ -63,15 +63,48 @@ where
     pub(crate) overlap: OverlapOptions,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum RustByteSize {
+    Unknown,
+    One,
+    Two,
+    Four,
+    Eight,
+    Sixteen,
+}
+
+impl RustByteSize {
+    pub fn bytes(&self) -> usize {
+        match self {
+            RustByteSize::Unknown => 0,
+            RustByteSize::One => 1,
+            RustByteSize::Two => 2,
+            RustByteSize::Four => 4,
+            RustByteSize::Eight => 8,
+            RustByteSize::Sixteen => 16,
+        }
+    }
+    pub fn bits(&self) -> usize {
+        match self {
+            RustByteSize::Unknown => 0,
+            RustByteSize::One => 8,
+            RustByteSize::Two => 16,
+            RustByteSize::Four => 32,
+            RustByteSize::Eight => 64,
+            RustByteSize::Sixteen => 128,
+        }
+    }
+}
+
 impl<Id> DataBuilder<Id>
 where
     Id: Clone + Copy,
 {
-    pub fn new(name: Id) -> Self {
+    pub fn new(name: Id, ty: DataType) -> Self {
         Self {
             id: name,
-            ty: DataType::None,
-            rust_size: 0,
+            ty,
+            rust_size: RustByteSize::Unknown,
             endianness: None,
             array: None,
             bit_range: BuilderRange::None,
@@ -79,23 +112,13 @@ where
             overlap: OverlapOptions::None,
         }
     }
-    pub fn with_data_type(mut self, new_ty: DataType) -> Self {
-        self.ty = new_ty;
-        self
-    }
     pub fn id(&self) -> &Id {
         &self.id
-    }
-    pub fn set_data_type(&mut self, new_ty: DataType) -> &mut Self {
-        self.ty = new_ty;
-        self
     }
 }
 
 #[derive(Clone, Debug)]
 pub enum DataType {
-    /// This will result in an error if you try to solve.
-    None,
     /// field is a number or primitive. if the endianess is `None`, it will not solve.
     Number(NumberType),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
