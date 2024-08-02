@@ -153,11 +153,13 @@ where
         let mut pre_fields: Vec<BuiltData<DataId>> = Vec::default();
         let mut last_end_bit_index: Option<usize> = None;
         let total_fields = value.fields.len();
+        // TODO this could be flipped for the field flip.
+        let fields_ref = &value.fields;
         // START_HERE i think i should make an in-between structure that holds "Solved" fields that have not
         // undergone any checks or math to reduce it to an actual Solved struct.
         //
         // First stage checks for validity
-        for value_field in &value.fields {
+        for value_field in fields_ref {
             // get resolved range for the field.
             let bit_range = get_range(value_field, last_end_bit_index);
             // update internal last_end_bit_index to allow automatic bit-range feature to work.
@@ -241,37 +243,16 @@ where
             // make a name for the buffer that we will store the number in byte form
             #[cfg(feature = "derive")]
             let field_buffer_name = format!("{}_bytes", pre_field.id);
-            todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
-            let multi_byte = amount_of_bits > available_bits_in_first_byte;
             let ty = match pre_field.ty {
                 DataType::Number(nt) => {
                     if pre_field.endianness.is_alternative() {
-                        if multi_byte {
-                            // multi-byte
-                            ResolverType::AlternateMultiple(nt)
-                        } else {
-                            // single-byte
-                            ResolverType::AlternateSingle(nt)
-                        }
+                        ResolverType::Alternate(nt)
                     } else {
-                        // Standard endian logic (default is big).
-                        if multi_byte {
-                            // multi-byte
-                            ResolverType::StandardMultiple(nt)
-                        } else {
-                            // single-byte
-                            ResolverType::StandardSingle(nt)
-                        }
+                        ResolverType::Standard(nt)
                     }
                 }
                 DataType::Nested(name) => {
-                    if multi_byte {
-                        // multi-byte
-                        ResolverType::NestedMultiple(name)
-                    } else {
-                        // single-byte
-                        ResolverType::NestedSingle(name)
-                    }
+                    ResolverType::Nested(name)
                 }
             };
             let resolver = Resolver {
@@ -290,6 +271,7 @@ where
         for key in keys {
             let field = fields.get(&key);
         }
+        todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
         todo!("handle array solving");
         todo!("enforcements.");
         Ok(Self {
