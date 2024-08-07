@@ -153,11 +153,7 @@ where
         let mut pre_fields: Vec<BuiltData<DataId>> = Vec::default();
         let mut last_end_bit_index: Option<usize> = None;
         let total_fields = value.fields.len();
-        // TODO this could be flipped for the field flip.
         let fields_ref = &value.fields;
-        // START_HERE i think i should make an in-between structure that holds "Solved" fields that have not
-        // undergone any checks or math to reduce it to an actual Solved struct.
-        //
         // First stage checks for validity
         for value_field in fields_ref {
             // get resolved range for the field.
@@ -215,7 +211,12 @@ where
             pre_fields.push(field);
         }
         let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
-        for pre_field in pre_fields {
+        for mut pre_field in pre_fields {
+            // Reverse field order
+            if pre_field.endianness.is_field_order_reversed() {
+                pre_field.bit_range =
+                    (bit_size - pre_field.bit_range.end)..(bit_size - pre_field.bit_range.start);
+            }
             // get the total number of bits the field uses.
             let amount_of_bits = pre_field.bit_range.end - pre_field.bit_range.start;
             // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
@@ -251,9 +252,7 @@ where
                         ResolverType::Standard(nt)
                     }
                 }
-                DataType::Nested(name) => {
-                    ResolverType::Nested(name)
-                }
+                DataType::Nested(name) => ResolverType::Nested(name),
             };
             let resolver = Resolver {
                 amount_of_bits,
@@ -263,6 +262,7 @@ where
                 #[cfg(feature = "derive")]
                 field_buffer_name,
                 ty,
+                reverse_byte_order: pre_field.endianness.is_byte_order_reversed(),
             };
             let new_field = SolvedData { resolver };
             fields.insert(pre_field.id, new_field);
@@ -271,7 +271,7 @@ where
         for key in keys {
             let field = fields.get(&key);
         }
-        todo!("solve for field order reversal, might do it in loop after `last_end_bit_index` is set.");
+        todo!("solve for field order reversal,should happen before byte_order is flipped.");
         todo!("handle array solving");
         todo!("enforcements.");
         Ok(Self {

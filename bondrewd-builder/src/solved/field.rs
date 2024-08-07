@@ -4,21 +4,20 @@ use crate::build::field::NumberType;
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
-pub enum DynamicIdent {
+pub struct DynamicIdent {
+    /// name of the value given by bondrewd.
+    pub name: String,
+    pub ty: DynamicIdentType,
+}
+
+#[derive(Clone, Debug)]
+pub enum DynamicIdentType {
     /// Named Field
-    Ident {
-        /// name of the field given by the user.
-        ident: String,
-        /// name of the value given by bondrewd.
-        name: String,
-    },
+    /// name of the field given by the user.
+    Ident(String),
     /// Tuple Struct Field
-    Index {
-        /// Index of the field in the tuple struct/enum-variant
-        index: usize,
-        /// name of the value given by bondrewd.
-        name: String,
-    },
+    /// Index of the field in the tuple struct/enum-variant
+    Index(usize),
 }
 
 pub struct SolvedData {
@@ -67,6 +66,8 @@ pub struct Resolver {
     #[cfg(feature = "derive")]
     pub field_buffer_name: String,
     pub(crate) ty: ResolverType,
+    // TODO make sure this happens.
+    pub reverse_byte_order: bool,
     // TODO START_HERE make a solved bondrewd field that is used for generation and future bondrewd-builder
     // Basically we need to removed all usages of `FieldInfo` in `gen` and allow `Info` to be an
     // active builder we can use for bondrewd builder, then solve. bondrewd-derive would then
