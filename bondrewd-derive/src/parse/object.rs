@@ -472,9 +472,9 @@ impl ObjectInfo {
                                         parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
                                     }
                                     if bon_sign != user_sign {
-                                        return Err(Error::new(field.span(), format!("capture_id field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
+                                        return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
                                     }else if bon_ty.to_string() != user_ty.to_string() {
-                                        return Err(Error::new(field.span(), format!("capture_id field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+                                        return Err(Error::new(field.span(), format!("`capture_id` field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
                                     }
                                     let old_id = parsed_fields.remove(0);
                                     if tuple {

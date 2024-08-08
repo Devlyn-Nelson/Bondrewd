@@ -10,7 +10,7 @@ use thiserror::Error;
 use crate::{
     build::{
         field::{ArrayInfo, DataBuilder, DataType, RustByteSize},
-        field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder},
+        field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
         Endianness, OverlapOptions, ReserveFieldOption,
     },
     solved::field::{Resolver, ResolverType},
@@ -77,6 +77,13 @@ pub enum SolvingError {
     /// the `String` provided should be the id or name of the field.
     #[error("Failed solving the `left_shift` due to underflow.")]
     ResolverUnderflow(String),
+    #[error("Final bit count was not evenly divisible by 0.")]
+    EnforceFullBytes,
+    #[error("Final bit count does not match enforcement size.[user = {user}, actual = {actual}]")]
+    EnforceBitCount{
+        actual: usize,
+        user: usize,
+    },
 }
 
 impl<FieldSetId, DataId> TryFrom<GenericBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
@@ -163,8 +170,6 @@ where
                 last_end_bit_index = Some(bit_range.end);
             }
             let field = BuiltData {
-                id: value_field.id,
-                ty: value_field.ty.clone(),
                 endianness: if let Some(e) = &value_field.endianness {
                     e.clone()
                 } else {
@@ -173,9 +178,11 @@ where
                     // not have endianess we can throw this error.
                     return Err(SolvingError::NoEndianness(format!("{}", value_field.id)));
                 },
-                rust_size: value_field.rust_size,
-                array: value_field.array.clone(),
                 bit_range,
+                id: value_field.id,
+                rust_size: value_field.rust_size,
+                ty: value_field.ty.clone(),
+                array: value_field.array.clone(),
                 reserve: value_field.reserve.clone(),
                 overlap: value_field.overlap.clone(),
             };
@@ -271,8 +278,24 @@ where
         for key in keys {
             let field = fields.get(&key);
         }
-        todo!("solve for field order reversal,should happen before byte_order is flipped.");
         todo!("handle array solving");
+        todo!("auto_fill");
+        match value.enforcement {
+            StructEnforcement::NoRules => {}
+            StructEnforcement::EnforceFullBytes => {
+                if bit_size % 8 != 0 {
+                    return Err(SolvingError::EnforceFullBytes);
+                }
+            }
+            StructEnforcement::EnforceBitAmount(expected_total_bits) => {
+                if bit_size != expected_total_bits {
+                    return Err(SolvingError::EnforceBitCount{
+                        actual: bit_size,
+                        user: expected_total_bits
+                    });
+                }
+            }
+        }
         todo!("enforcements.");
         Ok(Self {
             #[cfg(feature = "derive")]

@@ -240,5 +240,5 @@ pub enum StructEnforcement {
     /// Enforce the `BIT_SIZE` equals `BYTE_SIZE` * 8
     EnforceFullBytes,
     /// Enforce the amount of bits that need to be used tot a specific value.
-    EnforceBitAmount(u128),
+    EnforceBitAmount(usize),
 }

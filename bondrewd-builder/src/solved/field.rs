@@ -100,16 +100,16 @@ impl Resolver {
         self.zeros_on_left
     }
     #[must_use]
-    #[cfg(feature = "derive")]
-    pub fn field_buffer_name(&self) -> &str {
-        self.field_buffer_name.as_str()
-    }
-    #[must_use]
     pub fn fields_last_bits_index(&self) -> usize {
         self.amount_of_bits.div_ceil(8) - 1
     }
     pub fn spans_multiple_bytes(&self) -> bool {
         self.amount_of_bits > self.available_bits_in_first_byte
+    }
+    #[must_use]
+    #[cfg(feature = "derive")]
+    pub fn field_buffer_name(&self) -> &str {
+        self.field_buffer_name.as_str()
     }
 }
 
