@@ -80,10 +80,7 @@ pub enum SolvingError {
     #[error("Final bit count was not evenly divisible by 0.")]
     EnforceFullBytes,
     #[error("Final bit count does not match enforcement size.[user = {user}, actual = {actual}]")]
-    EnforceBitCount{
-        actual: usize,
-        user: usize,
-    },
+    EnforceBitCount { actual: usize, user: usize },
 }
 
 impl<FieldSetId, DataId> TryFrom<GenericBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
@@ -289,9 +286,9 @@ where
             }
             StructEnforcement::EnforceBitAmount(expected_total_bits) => {
                 if bit_size != expected_total_bits {
-                    return Err(SolvingError::EnforceBitCount{
+                    return Err(SolvingError::EnforceBitCount {
                         actual: bit_size,
-                        user: expected_total_bits
+                        user: expected_total_bits,
                     });
                 }
             }
