@@ -1,40 +1,5 @@
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
-/// Defines how each element of an array should be treated.
-#[derive(Debug, Clone)]
-pub enum ArrayType {
-    /// Each element of the array is considered its own value.
-    ///
-    /// Good for data, or a collection of datums.
-    Element,
-    /// All of the useful bits/bytes in the array describe a singular piece of information.
-    ///
-    /// Good for Strings, or a series of bits/bytes that make 1 datum.
-    Block,
-}
-
-///
-#[derive(Debug, Clone)]
-pub(crate) struct ArrayInfo {
-    ty: ArrayType,
-    /// Each element represents a dimension to the array with the value being the amount of elements
-    /// for that dimension.
-    ///
-    /// # Examples
-    /// a single dimensional array would only have 1 value
-    /// |      |Element 1|
-    /// |:-----|:-------:|
-    /// |[u8;4]|        4|
-    ///
-    /// X dimensional array will have X values, first being the outer-most array size going
-    /// to the inner-most.
-    ///
-    /// |          |Element 1|Element 2|
-    /// |:---------|:-------:|:-------:|
-    /// |[[u8;4];5]|        5|        4|
-    sizings: Vec<usize>,
-}
-
 #[derive(Debug)]
 pub struct DataBuilder<Id>
 where
@@ -45,17 +10,17 @@ where
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     pub(crate) ty: DataType,
+    /// Describes the properties of which techniques to use for bit extraction
+    /// and modifications the inputs that they can have. When None, we are expecting
+    /// either a Nested Type or the get it from the default.
     pub(crate) endianness: Option<Endianness>,
-    /// Size of the rust native type in bytes (should never be zero)
-    pub(crate) rust_size: RustByteSize,
-    /// Defines if this field is an array or not.
-    /// If `None` this data is not in an array and should just be treated as a single value.
-    ///
-    /// If `Some` than this is an array, NOT a single value. Also Note that the `ty` and `rust_size` only
-    /// describe a true data type, which would be the innermost part of an array. The array info
-    /// is marly keeping track of the order and magnitude of the array and its dimensions.
-    pub(crate) array: Option<ArrayInfo>,
+    /// Size of the rust native type in bytes (should never be zero).
+    /// 
+    /// # WARNING
+    /// Please note that defining `rust_size` for a Nested Type is invalid.
+    pub(crate) rust_size: Option<RustByteSize>,
     /// The range of bits that this field will use.
+    /// TODO this should become a new Range system that allows dynamic start and/or end bit-indices.
     pub(crate) bit_range: BuilderRange,
     /// Describes when the field should be considered.
     pub(crate) reserve: ReserveFieldOption,
@@ -65,7 +30,6 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub enum RustByteSize {
-    Unknown,
     One,
     Two,
     Four,
@@ -76,7 +40,6 @@ pub enum RustByteSize {
 impl RustByteSize {
     pub fn bytes(&self) -> usize {
         match self {
-            RustByteSize::Unknown => 0,
             RustByteSize::One => 1,
             RustByteSize::Two => 2,
             RustByteSize::Four => 4,
@@ -86,34 +49,12 @@ impl RustByteSize {
     }
     pub fn bits(&self) -> usize {
         match self {
-            RustByteSize::Unknown => 0,
             RustByteSize::One => 8,
             RustByteSize::Two => 16,
             RustByteSize::Four => 32,
             RustByteSize::Eight => 64,
             RustByteSize::Sixteen => 128,
         }
-    }
-}
-
-impl<Id> DataBuilder<Id>
-where
-    Id: Clone + Copy,
-{
-    pub fn new(name: Id, ty: DataType) -> Self {
-        Self {
-            id: name,
-            ty,
-            rust_size: RustByteSize::Unknown,
-            endianness: None,
-            array: None,
-            bit_range: BuilderRange::None,
-            reserve: ReserveFieldOption::NotReserve,
-            overlap: OverlapOptions::None,
-        }
-    }
-    pub fn id(&self) -> &Id {
-        &self.id
     }
 }
 
@@ -153,4 +94,32 @@ pub enum NumberType {
     /// - i64
     /// - i128
     Signed,
+}
+
+impl<Id> DataBuilder<Id>
+where
+    Id: Clone + Copy,
+{
+    pub fn new(name: Id, ty: DataType) -> Self {
+        Self {
+            id: name,
+            ty,
+            rust_size: None,
+            endianness: None,
+            bit_range: BuilderRange::None,
+            reserve: ReserveFieldOption::NotReserve,
+            overlap: OverlapOptions::None,
+        }
+    }
+    pub fn id(&self) -> &Id {
+        &self.id
+    }
+
+    pub fn set_rust_size(&mut self, size: RustByteSize) {
+        self.rust_size = Some(size);
+    }
+
+    pub fn set_endianess(&mut self, e: Endianness) {
+        self.endianness = Some(e);
+    }
 }

@@ -31,8 +31,35 @@ impl Debug for Visibility {
     }
 }
 
+/// Each element represents a dimension to the array with the value being the amount of elements
+/// for that dimension.
+///
+/// # Examples
+/// a single dimensional array would only have 1 value
+/// |      |Element 1|
+/// |:-----|:-------:|
+/// |[u8;4]|        4|
+///
+/// X dimensional array will have X values, first being the outer-most array size going
+/// to the inner-most.
+///
+/// |          |Element 1|Element 2|
+/// |:---------|:-------:|:-------:|
+/// |[[u8;4];5]|        5|        4|
+pub type ArraySizings = Vec<usize>;
+
 #[derive(Clone, Debug)]
 pub enum BuilderRange {
+    ElementArray{
+        sizings: ArraySizings,
+        /// Amount of bits each element consumes.
+        element_bit_length: u32, 
+    },
+    BlockArray{
+        sizings: ArraySizings,
+        /// Total amount of bits consumes for entire array.
+        total_bits: u64,
+    },
     /// A range of bits to use. solve this is easy, but note that it is an exclusive range, meaning the
     /// end is NOT included.
     Range(std::ops::Range<usize>),

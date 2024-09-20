@@ -16,3 +16,4 @@
       - [ ] When ending index is `static` we calculate the value at runtime.
       - [ ] When ending index is `dynamic` it is required that a previous field be provided to get a length from. which will make the read and write functions also require a ending index to provided during runtime to determine where it ends.
     - NOTE: When ANY field has a `dynamic` starting or ending bit index, we lose the ability to implement `Bitfields` but `BitfieldsDyn` would still be an option.
+- [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
