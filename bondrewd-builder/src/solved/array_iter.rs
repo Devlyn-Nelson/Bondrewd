@@ -144,7 +144,7 @@ pub enum BuiltDataType {
 impl BuiltDataType {
     pub fn rust_bytes_size(&self) -> usize {
         match self {
-            BuiltDataType::Single(dt) => dt.rust_size().bytes(),
+            BuiltDataType::Single(dt) => dt.rust_size(),
             BuiltDataType::BlockArray { elements, sub }
             | BuiltDataType::ElementArray { elements, sub } => {
                 sub.sub.ty.rust_bytes_size() * elements

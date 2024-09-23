@@ -53,26 +53,29 @@ impl RustByteSize {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct DataType {
-    ty: DataTypeType,
-    rust_size: RustByteSize,
-}
-
 impl DataType {
-    pub fn rust_size(&self) -> &RustByteSize {
-        &self.rust_size
+    pub fn rust_size(&self) -> usize {
+        match self {
+            DataType::Number(number_type, rust_byte_size) => rust_byte_size.bytes(),
+            DataType::Nested {
+                ident,
+                rust_byte_size,
+            } => *rust_byte_size,
+        }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum DataTypeType {
+pub enum DataType {
     /// field is a number or primitive. if the endianess is `None`, it will not solve.
-    Number(NumberType),
+    Number(NumberType, RustByteSize),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
     #[cfg(feature = "derive")]
-    Nested(String),
+    Nested {
+        ident: String,
+        rust_byte_size: usize,
+    },
 }
 
 #[derive(Clone, Debug)]

@@ -9,9 +9,14 @@ use thiserror::Error;
 
 use crate::{
     build::{
-        field::{DataType, RustByteSize}, field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement}, ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption
+        field::DataType,
+        field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
+        ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
     },
-    solved::field::Resolver,
+    solved::field::{
+        Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType,
+        ResolverType,
+    },
 };
 
 use super::field::SolvedData;
@@ -160,8 +165,12 @@ where
         for value_field in fields_ref {
             let rust_size = value_field.ty.rust_size();
             // get resolved range for the field.
-            let bit_range = BuiltRange::from_builder(&value_field.bit_range, &rust_size, last_end_bit_index.clone());// get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
-            // update internal last_end_bit_index to allow automatic bit-range feature to work.
+            let bit_range = BuiltRange::from_builder(
+                &value_field.bit_range,
+                rust_size,
+                last_end_bit_index.clone(),
+            ); // get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
+               // update internal last_end_bit_index to allow automatic bit-range feature to work.
             if !value_field.overlap.is_redundant() {
                 last_end_bit_index = Some(bit_range.end());
             }
@@ -199,14 +208,10 @@ where
                     {
                         return Err(SolvingError::Overlap);
                     }
-                    if other_range.end > field_range.start
-                        && other_range.end <= field_range.end
-                    {
+                    if other_range.end > field_range.start && other_range.end <= field_range.end {
                         return Err(SolvingError::Overlap);
                     }
-                    if field_range.end > other_range.start
-                        && field_range.end <= other_range.end
-                    {
+                    if field_range.end > other_range.start && field_range.end <= other_range.end {
                         return Err(SolvingError::Overlap);
                     }
                 }
@@ -216,14 +221,19 @@ where
         }
         let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
         for mut pre_field in pre_fields {
+            // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
+            // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
+            // happen before byte_order_reversal and field_order_reversal
+            //
             // Reverse field order
             if pre_field.endianness.is_field_order_reversed() {
                 let old_field_range = pre_field.bit_range.range().clone();
-                pre_field.bit_range.bit_range = (bit_size - old_field_range.end)
-                    ..(bit_size - old_field_range.start);
+                pre_field.bit_range.bit_range =
+                    (bit_size - old_field_range.end)..(bit_size - old_field_range.start);
             }
             // get the total number of bits the field uses.
-            let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
+            let amount_of_bits =
+                pre_field.bit_range.range().end - pre_field.bit_range.range().start;
             // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
             // left)
             let zeros_on_left = pre_field.bit_range.range().start % 8;
@@ -249,8 +259,36 @@ where
             // make a name for the buffer that we will store the number in byte form
             #[cfg(feature = "derive")]
             let field_buffer_name = format!("{}_bytes", pre_field.id);
-            let ty = todo!("determine proper built type or error");
-            todo!("handle array solving");
+            let sub_ty = match pre_field.ty {
+                DataType::Number(number_type, rust_byte_size) => {
+                    let resolver_strategy = if pre_field.endianness.is_alternative() {
+                        ResolverPrimitiveStrategy::Alternate
+                    } else {
+                        ResolverPrimitiveStrategy::Standard
+                    };
+                    ResolverSubType::Primitive {
+                        number_ty: number_type,
+                        resolver_strategy,
+                    }
+                }
+                DataType::Nested {
+                    ident,
+                    rust_byte_size,
+                } => ResolverSubType::Nested { ty_ident: ident },
+            };
+            let ty = match pre_field.bit_range.ty {
+                BuiltRangeType::SingleElement => sub_ty.into(),
+                BuiltRangeType::BlockArray(vec) => ResolverType::Array {
+                    sub_ty,
+                    array_ty: ResolverArrayType::Block,
+                    sizings: vec,
+                },
+                BuiltRangeType::ElementArray(vec) => ResolverType::Array {
+                    sub_ty,
+                    array_ty: ResolverArrayType::Element,
+                    sizings: vec,
+                },
+            };
             let resolver = Resolver {
                 amount_of_bits,
                 zeros_on_left,
@@ -268,7 +306,6 @@ where
         for key in keys {
             let field = fields.get(&key);
         }
-        todo!("auto_fill");
         match value.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
@@ -285,7 +322,7 @@ where
                 }
             }
         }
-        todo!("enforcements.");
+        //TODO check and uphold enforcements.
         Ok(Self {
             #[cfg(feature = "derive")]
             name: value.name,
@@ -311,7 +348,11 @@ pub struct BuiltData<Id: Display + PartialEq> {
 
 #[derive(Clone, Debug)]
 pub struct BuiltRange {
+    /// This is the full bit range of the field. The `ty` does not effect this values meaning, `bit_range`
+    /// shall contain the entire bit range for a field, array elements should each calculate their own
+    /// range within this range.
     bit_range: Range<usize>,
+    /// The range type determines if the `bit_range` contains a single value or contains a array of values.
     ty: BuiltRangeType,
 }
 
@@ -334,7 +375,7 @@ impl BuiltRange {
     }
     fn from_builder(
         builder: &BuilderRange,
-        rust_size: &RustByteSize,
+        rust_size: usize,
         last_field_end: Option<usize>,
     ) -> Self {
         let start = if let Some(prev) = &last_field_end {
@@ -343,11 +384,9 @@ impl BuiltRange {
             0
         };
         match builder {
-            BuilderRange::Range(bit_range) => {
-                Self {
-                    bit_range: bit_range.clone(),
-                    ty: BuiltRangeType::SingleElement,
-                }
+            BuilderRange::Range(bit_range) => Self {
+                bit_range: bit_range.clone(),
+                ty: BuiltRangeType::SingleElement,
             },
             BuilderRange::Size(bit_length) => {
                 let bit_range = start..(start + *bit_length as usize);
@@ -357,7 +396,7 @@ impl BuiltRange {
                 }
             }
             BuilderRange::None => {
-                let bit_range = start..(start + (*rust_size as usize * 8));
+                let bit_range = start..(start + (rust_size * 8));
                 Self {
                     bit_range,
                     ty: BuiltRangeType::SingleElement,
@@ -376,7 +415,7 @@ impl BuiltRange {
                     bit_range,
                     ty: BuiltRangeType::ElementArray(sizings.clone()),
                 }
-            },
+            }
             BuilderRange::BlockArray {
                 sizings,
                 total_bits,

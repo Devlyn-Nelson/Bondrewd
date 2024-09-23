@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::build::field::NumberType;
+use crate::build::{field::NumberType, ArraySizings};
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug)]
@@ -90,18 +90,6 @@ pub struct Resolver {
     pub(crate) ty: ResolverType,
     // TODO make sure this happens.
     pub reverse_byte_order: bool,
-    // TODO START_HERE make a solved bondrewd field that is used for generation and future bondrewd-builder
-    // Basically we need to removed all usages of `FieldInfo` in `gen` and allow `Info` to be an
-    // active builder we can use for bondrewd builder, then solve. bondrewd-derive would then
-    // use `Solved` for its information and `bondrewd-builder` would use a `Solved` runtime api to
-    // access bondrewd's bit-engine at runtime.
-    //
-    // Also the `fill_bits` that make enums variants expand to the largest variant size currently get added
-    // after the byte-order-reversal. This would make it so the `Object` could: parse all of the variants
-    // one at a at, until a solve function is called, which then grabs the largest variant, does a
-    // auto-fill-bits operation on variants that need it, THEN solve the byte-order for all of them,
-    // Each quote maker (multi-byte-le, single-byte-ne, there are 6 total) will become a FieldHandler
-    // that can be used at runtime or be used by bondrewd-derive to construct its quotes.
 }
 
 impl Resolver {
@@ -135,8 +123,52 @@ impl Resolver {
     }
 }
 
+pub enum ResolverPrimitiveStrategy {
+    Standard,
+    Alternate,
+}
+
+pub enum ResolverArrayType {
+    Element,
+    Block,
+}
+
 pub enum ResolverType {
-    Standard(NumberType),
-    Alternate(NumberType),
-    Nested(String),
+    Primitive {
+        number_ty: NumberType,
+        resolver_strategy: ResolverPrimitiveStrategy,
+    },
+    Nested {
+        ty_ident: String,
+    },
+    Array {
+        sub_ty: ResolverSubType,
+        array_ty: ResolverArrayType,
+        sizings: ArraySizings,
+    },
+}
+
+pub enum ResolverSubType {
+    Primitive {
+        number_ty: NumberType,
+        resolver_strategy: ResolverPrimitiveStrategy,
+    },
+    Nested {
+        ty_ident: String,
+    },
+}
+
+impl From<ResolverSubType> for ResolverType {
+    fn from(value: ResolverSubType) -> Self {
+        match value {
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+            } => ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+            },
+            ResolverSubType::Nested { ty_ident } => ResolverType::Nested { ty_ident },
+        }
+    }
 }
