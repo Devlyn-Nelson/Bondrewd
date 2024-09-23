@@ -1,5 +1,6 @@
 use self::field::SolvedData;
 
+pub mod array_iter;
 pub mod field;
 pub mod field_set;
 
