@@ -20,6 +20,28 @@ pub enum DynamicIdentType {
     Index(usize),
 }
 
+impl DynamicIdent {
+    pub fn new_ident(name: String, ident: String) -> Self {
+        Self {
+            name,
+            ty: DynamicIdentType::Ident(ident),
+        }
+    }
+    pub fn new_index(name: String, index: usize) -> Self {
+        Self {
+            name,
+            ty: DynamicIdentType::Index(index),
+        }
+    }
+
+    pub fn ident(&self) -> String {
+        match &self.ty {
+            DynamicIdentType::Ident(ident) => ident.to_owned(),
+            DynamicIdentType::Index(index) => format!("{index}"),
+        }
+    }
+}
+
 pub struct SolvedData {
     pub resolver: Resolver,
 }

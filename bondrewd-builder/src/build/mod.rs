@@ -50,12 +50,12 @@ pub type ArraySizings = Vec<usize>;
 
 #[derive(Clone, Debug)]
 pub enum BuilderRange {
-    ElementArray{
+    ElementArray {
         sizings: ArraySizings,
         /// Amount of bits each element consumes.
-        element_bit_length: u32, 
+        element_bit_length: u32,
     },
-    BlockArray{
+    BlockArray {
         sizings: ArraySizings,
         /// Total amount of bits consumes for entire array.
         total_bits: u64,

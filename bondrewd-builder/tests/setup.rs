@@ -1,4 +1,7 @@
-use bondrewd_builder::build::{field::{DataBuilder, DataType, NumberType}, field_set::GenericBuilder};
+use bondrewd_builder::build::{
+    field::{DataBuilder, DataType, NumberType},
+    field_set::GenericBuilder,
+};
 
 #[test]
 fn derive_struct_setup() {

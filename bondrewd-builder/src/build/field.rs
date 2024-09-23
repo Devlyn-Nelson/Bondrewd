@@ -14,11 +14,6 @@ where
     /// and modifications the inputs that they can have. When None, we are expecting
     /// either a Nested Type or the get it from the default.
     pub(crate) endianness: Option<Endianness>,
-    /// Size of the rust native type in bytes (should never be zero).
-    /// 
-    /// # WARNING
-    /// Please note that defining `rust_size` for a Nested Type is invalid.
-    pub(crate) rust_size: Option<RustByteSize>,
     /// The range of bits that this field will use.
     /// TODO this should become a new Range system that allows dynamic start and/or end bit-indices.
     pub(crate) bit_range: BuilderRange,
@@ -59,7 +54,19 @@ impl RustByteSize {
 }
 
 #[derive(Clone, Debug)]
-pub enum DataType {
+pub struct DataType {
+    ty: DataTypeType,
+    rust_size: RustByteSize,
+}
+
+impl DataType {
+    pub fn rust_size(&self) -> &RustByteSize {
+        &self.rust_size
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum DataTypeType {
     /// field is a number or primitive. if the endianess is `None`, it will not solve.
     Number(NumberType),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
@@ -104,7 +111,6 @@ where
         Self {
             id: name,
             ty,
-            rust_size: None,
             endianness: None,
             bit_range: BuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
@@ -113,10 +119,6 @@ where
     }
     pub fn id(&self) -> &Id {
         &self.id
-    }
-
-    pub fn set_rust_size(&mut self, size: RustByteSize) {
-        self.rust_size = Some(size);
     }
 
     pub fn set_endianess(&mut self, e: Endianness) {
