@@ -3,8 +3,7 @@ use crate::solved::field::DynamicIdent;
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
 #[derive(Debug)]
-pub struct DataBuilder
-{
+pub struct DataBuilder {
     /// The name or ident of the field.
     pub(crate) id: DynamicIdent,
     /// The approximate data type of the field. when solving, this must be
@@ -105,8 +104,7 @@ pub enum NumberType {
     Signed,
 }
 
-impl DataBuilder
-{
+impl DataBuilder {
     pub fn new(name: DynamicIdent, ty: DataType) -> Self {
         Self {
             id: name,

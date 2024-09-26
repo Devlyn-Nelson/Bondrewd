@@ -1,9 +1,9 @@
 #![allow(unreachable_code, dead_code, unused_variables)]
 
 pub mod build;
-pub mod solved;
-pub mod masked;
 pub mod derive;
+pub mod masked;
+pub mod solved;
 // TODO I think a further calculated model is possible beyond the current solved.
 // currently Solved is a small data package describing the area of bits and the
 // technique to to calculate the actual masks and byte indices. This new model

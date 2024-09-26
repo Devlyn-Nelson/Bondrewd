@@ -1,7 +1,5 @@
 use syn::{token::Pub, Ident};
 
-use crate::solved::field::DynamicIdent;
-
 use super::field::DataBuilder;
 use super::Visibility;
 
@@ -9,8 +7,7 @@ use super::Visibility;
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
 /// This is actually intended to be used by `bondrewd-derive`.
 #[derive(Debug)]
-pub struct GenericBuilder
-{
+pub struct GenericBuilder {
     /// Define if we are building a single `field_set` or variant type containing
     /// multiple `field_sets` switched by an id field.
     pub ty: BuilderType,
@@ -20,19 +17,18 @@ pub struct GenericBuilder
     pub tuple: bool,
 }
 
-impl GenericBuilder
-{
-    pub fn single_set(name: DynamicIdent) -> Self {
+impl GenericBuilder {
+    pub fn single_set(name: Ident) -> Self {
         Self {
-            ty: BuilderType::Struct(FieldSetBuilder::new(name.into())),
+            ty: BuilderType::Struct(FieldSetBuilder::new(name)),
             tuple: false,
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
     #[must_use]
-    pub fn variant_set() -> Self {
+    pub fn variant_set(name: Ident) -> Self {
         Self {
-            ty: BuilderType::Enum(EnumBuilder::new()),
+            ty: BuilderType::Enum(EnumBuilder::new(name)),
             tuple: false,
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
@@ -47,16 +43,14 @@ impl GenericBuilder
 /// Distinguishes between enums and structs or a single `field_set` vs multiple
 /// `field_sets` that switch based on an id field.
 #[derive(Debug)]
-pub enum BuilderType
-{
+pub enum BuilderType {
     /// Multiple `field_sets` that switch based on an id field.
     Enum(EnumBuilder),
     /// A single `field_set`.
     Struct(FieldSetBuilder),
 }
 
-impl BuilderType
-{
+impl BuilderType {
     pub fn get_struct(&self) -> Option<&FieldSetBuilder> {
         if let Self::Struct(ref thing) = self {
             Some(thing)
@@ -89,10 +83,9 @@ impl BuilderType
 
 /// Builds an enum bitfield model.
 #[derive(Debug)]
-pub struct EnumBuilder
-{
+pub struct EnumBuilder {
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
-    pub(crate) name: Option<Ident>,
+    pub(crate) name: Ident,
     /// The id field with determines the `field_set` to use.
     pub(crate) id: Option<DataBuilder>,
     /// The default variant for situations where no other variant matches.
@@ -101,19 +94,11 @@ pub struct EnumBuilder
     pub(crate) variants: Vec<VariantBuilder>,
 }
 
-impl Default for EnumBuilder
-{
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EnumBuilder
-{
+impl EnumBuilder {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(name: Ident) -> Self {
         Self {
-            name: None,
+            name,
             id: None,
             invalid: None,
             variants: Vec::default(),
@@ -122,8 +107,7 @@ impl EnumBuilder
 }
 /// Contains builder information for constructing variant style bitfield models.
 #[derive(Debug)]
-pub struct VariantBuilder
-{
+pub struct VariantBuilder {
     /// The id value that this variant shall be used for.
     id: Option<i64>,
     /// If the variant has a field that whats to capture the
@@ -135,9 +119,8 @@ pub struct VariantBuilder
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
 #[derive(Debug)]
-pub struct FieldSetBuilder
-{
-    pub(crate) name: DynamicIdent,
+pub struct FieldSetBuilder {
+    pub(crate) name: Ident,
     /// the set of fields.
     pub(crate) fields: Vec<DataBuilder>,
     /// Imposes checks on the sizing of the `field_set`
@@ -156,9 +139,8 @@ pub struct FieldSetBuilder
     pub fill_bits: FillBits,
 }
 
-impl FieldSetBuilder
-{
-    pub fn new(key: DynamicIdent) -> Self {
+impl FieldSetBuilder {
+    pub fn new(key: Ident) -> Self {
         Self {
             name: key,
             fields: Vec::default(),

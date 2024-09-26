@@ -21,7 +21,7 @@ impl Deref for Visibility {
 
 impl Debug for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.to_token_stream().to_string())
+        write!(f, "{}", self.0.to_token_stream())
     }
 }
 

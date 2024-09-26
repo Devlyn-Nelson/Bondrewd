@@ -1,7 +1,6 @@
-use std::{
-    collections::BTreeMap, ops::Range
-};
+use std::{collections::BTreeMap, ops::Range};
 
+use syn::Ident;
 use thiserror::Error;
 
 use crate::{
@@ -11,19 +10,17 @@ use crate::{
         ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
     },
     solved::field::{
-        Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType,
-        ResolverType,
+        Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType, ResolverType,
     },
 };
 
 use super::field::{DynamicIdent, ResolverData, SolvedData};
 
-pub struct Solved
-{
+pub struct Solved {
     /// DataSet's name.
     ///
     /// for derive this would be the Enum or Struct ident.
-    name: DynamicIdent,
+    name: Ident,
     ty: SolvedType,
 }
 enum SolvedType {
@@ -44,7 +41,7 @@ enum SolvedType {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct VariantInfo {
     id: i64,
-    name: DynamicIdent,
+    name: Ident,
 }
 
 struct SolvedFieldSet {
@@ -80,8 +77,7 @@ pub enum SolvingError {
     EnforceBitCount { actual: usize, user: usize },
 }
 
-impl TryFrom<GenericBuilder> for Solved
-{
+impl TryFrom<GenericBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: GenericBuilder) -> Result<Self, Self::Error> {
@@ -92,8 +88,7 @@ impl TryFrom<GenericBuilder> for Solved
     }
 }
 
-impl TryFrom<EnumBuilder> for Solved
-{
+impl TryFrom<EnumBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
@@ -105,8 +100,7 @@ impl TryFrom<EnumBuilder> for Solved
     }
 }
 
-impl TryFrom<FieldSetBuilder> for Solved
-{
+impl TryFrom<FieldSetBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: FieldSetBuilder) -> Result<Self, Self::Error> {
@@ -114,9 +108,7 @@ impl TryFrom<FieldSetBuilder> for Solved
     }
 }
 
-impl TryFrom<&FieldSetBuilder>
-    for Solved
-{
+impl TryFrom<&FieldSetBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: &FieldSetBuilder) -> Result<Self, Self::Error> {
@@ -124,8 +116,7 @@ impl TryFrom<&FieldSetBuilder>
     }
 }
 
-impl Solved
-{
+impl Solved {
     fn try_from_field_set(
         value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,
@@ -143,12 +134,9 @@ impl Solved
         for value_field in fields_ref {
             let rust_size = value_field.ty.rust_size();
             // get resolved range for the field.
-            let bit_range = BuiltRange::from_builder(
-                &value_field.bit_range,
-                rust_size,
-                last_end_bit_index.clone(),
-            ); // get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
-               // update internal last_end_bit_index to allow automatic bit-range feature to work.
+            let bit_range =
+                BuiltRange::from_builder(&value_field.bit_range, rust_size, last_end_bit_index); // get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
+                                                                                                 // update internal last_end_bit_index to allow automatic bit-range feature to work.
             if !value_field.overlap.is_redundant() {
                 last_end_bit_index = Some(bit_range.end());
             }
@@ -162,7 +150,10 @@ impl Solved
                     // TODO no endianess is actually valid in the case of nested structs/enums.
                     // We need to check if the value is a primitive number, then if it is a number and does
                     // not have endianess we can throw this error.
-                    return Err(SolvingError::NoEndianness(format!("{}", value_field.id.ident())));
+                    return Err(SolvingError::NoEndianness(format!(
+                        "{}",
+                        value_field.id.ident()
+                    )));
                 },
                 id: value_field.id.clone(),
                 reserve: value_field.reserve.clone(),
