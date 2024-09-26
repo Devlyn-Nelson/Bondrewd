@@ -1,8 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Display,
-    hash::Hash,
-    ops::Range,
+    collections::BTreeMap, ops::Range
 };
 
 use thiserror::Error;
@@ -19,42 +16,39 @@ use crate::{
     },
 };
 
-use super::field::SolvedData;
+use super::field::{DynamicIdent, ResolverData, SolvedData};
 
-pub struct Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
+pub struct Solved
 {
     /// DataSet's name.
     ///
     /// for derive this would be the Enum or Struct ident.
-    #[cfg(feature = "derive")]
-    name: FieldSetId,
-    ty: SolvedType<FieldSetId, DataId>,
+    name: DynamicIdent,
+    ty: SolvedType,
 }
-enum SolvedType<FieldSetId, DataId> {
+enum SolvedType {
     Enum {
         /// The id field. or the field that determines the variant.
         id: SolvedData,
         /// The default variant. in the case not other variant matches, this will be used.
-        invalid: SolvedFieldSet<DataId>,
+        invalid: SolvedFieldSet,
         /// The default variant's name/ident
-        invalid_name: VariantInfo<FieldSetId>,
+        invalid_name: VariantInfo,
         /// Sets of fields, each representing a variant of an enum. the String
         /// being the name of the variant
-        variants: BTreeMap<VariantInfo<FieldSetId>, SolvedFieldSet<DataId>>,
+        variants: BTreeMap<VariantInfo, SolvedFieldSet>,
     },
-    Struct(SolvedFieldSet<DataId>),
+    Struct(SolvedFieldSet),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct VariantInfo<FieldSetId> {
+struct VariantInfo {
     id: i64,
-    name: FieldSetId,
+    name: DynamicIdent,
 }
 
-struct SolvedFieldSet<DataId> {
-    fields: HashMap<DataId, SolvedData>,
+struct SolvedFieldSet {
+    fields: Vec<SolvedData>,
 }
 
 #[derive(Debug, Error)]
@@ -86,14 +80,11 @@ pub enum SolvingError {
     EnforceBitCount { actual: usize, user: usize },
 }
 
-impl<FieldSetId, DataId> TryFrom<GenericBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Hash + PartialEq + Eq + Display + Clone + Copy,
+impl TryFrom<GenericBuilder> for Solved
 {
     type Error = SolvingError;
 
-    fn try_from(value: GenericBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+    fn try_from(value: GenericBuilder) -> Result<Self, Self::Error> {
         match value.ty {
             crate::build::field_set::BuilderType::Enum(e) => e.try_into(),
             crate::build::field_set::BuilderType::Struct(s) => s.try_into(),
@@ -101,55 +92,42 @@ where
     }
 }
 
-impl<FieldSetId, DataId> TryFrom<EnumBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Hash + PartialEq + Eq + Display + Clone + Copy,
+impl TryFrom<EnumBuilder> for Solved
 {
     type Error = SolvingError;
 
-    fn try_from(value: EnumBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+    fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
         let id = value.id;
         let variants = value.variants;
         let invalid = value.invalid;
-        #[cfg(feature = "derive")]
         let name = value.name;
         todo!("write conversion from EnumBuilder to Solved")
     }
 }
 
-impl<FieldSetId, DataId> TryFrom<FieldSetBuilder<FieldSetId, DataId>> for Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Hash + PartialEq + Eq + Display + Clone + Copy,
+impl TryFrom<FieldSetBuilder> for Solved
 {
     type Error = SolvingError;
 
-    fn try_from(value: FieldSetBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+    fn try_from(value: FieldSetBuilder) -> Result<Self, Self::Error> {
         Self::try_from_field_set(&value, None)
     }
 }
 
-impl<FieldSetId, DataId> TryFrom<&FieldSetBuilder<FieldSetId, DataId>>
-    for Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Hash + PartialEq + Eq + Display + Clone + Copy,
+impl TryFrom<&FieldSetBuilder>
+    for Solved
 {
     type Error = SolvingError;
 
-    fn try_from(value: &FieldSetBuilder<FieldSetId, DataId>) -> Result<Self, Self::Error> {
+    fn try_from(value: &FieldSetBuilder) -> Result<Self, Self::Error> {
         Self::try_from_field_set(value, None)
     }
 }
 
-impl<FieldSetId, DataId> Solved<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Hash + PartialEq + Eq + Display + Clone + Copy,
+impl Solved
 {
     fn try_from_field_set(
-        value: &FieldSetBuilder<FieldSetId, DataId>,
+        value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,
     ) -> Result<Self, SolvingError> {
         let bit_size = if let Some(id_field) = id_field {
@@ -157,7 +135,7 @@ where
         } else {
             0
         };
-        let mut pre_fields: Vec<BuiltData<DataId>> = Vec::default();
+        let mut pre_fields: Vec<BuiltData> = Vec::default();
         let mut last_end_bit_index: Option<usize> = None;
         let total_fields = value.fields.len();
         let fields_ref = &value.fields;
@@ -184,9 +162,9 @@ where
                     // TODO no endianess is actually valid in the case of nested structs/enums.
                     // We need to check if the value is a primitive number, then if it is a number and does
                     // not have endianess we can throw this error.
-                    return Err(SolvingError::NoEndianness(format!("{}", value_field.id)));
+                    return Err(SolvingError::NoEndianness(format!("{}", value_field.id.ident())));
                 },
-                id: value_field.id,
+                id: value_field.id.clone(),
                 reserve: value_field.reserve.clone(),
                 overlap: value_field.overlap.clone(),
             };
@@ -219,7 +197,7 @@ where
             // let name = format!("{}", field.id);
             pre_fields.push(field);
         }
-        let mut fields: HashMap<DataId, SolvedData> = HashMap::default();
+        let mut fields: Vec<SolvedData> = Vec::default();
         for mut pre_field in pre_fields {
             // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
             // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
@@ -243,7 +221,7 @@ where
                 return Err(SolvingError::ResolverUnderflow(format!(
                     "field \"{}\" would have had left shift underflow, report this at \
                         https://github.com/Devlyn-Nelson/Bondrewd",
-                    pre_field.id,
+                    pre_field.id.ident(),
                 )));
             }
             let available_bits_in_first_byte = 8 - zeros_on_left;
@@ -256,9 +234,6 @@ where
                 starting_inject_byte = struct_byte_length - starting_inject_byte;
             }
 
-            // make a name for the buffer that we will store the number in byte form
-            #[cfg(feature = "derive")]
-            let field_buffer_name = format!("{}_bytes", pre_field.id);
             let sub_ty = match pre_field.ty {
                 DataType::Number(number_type, rust_byte_size) => {
                     let resolver_strategy = if pre_field.endianness.is_alternative() {
@@ -290,22 +265,23 @@ where
                 },
             };
             let resolver = Resolver {
-                amount_of_bits,
-                zeros_on_left,
-                available_bits_in_first_byte,
-                starting_inject_byte,
-                #[cfg(feature = "derive")]
-                field_buffer_name,
+                data: ResolverData {
+                    amount_of_bits,
+                    zeros_on_left,
+                    available_bits_in_first_byte,
+                    starting_inject_byte,
+                    field_name: pre_field.id,
+                    reverse_byte_order: pre_field.endianness.is_byte_order_reversed(),
+                },
                 ty,
-                reverse_byte_order: pre_field.endianness.is_byte_order_reversed(),
             };
             let new_field = SolvedData { resolver };
-            fields.insert(pre_field.id, new_field);
+            fields.push(new_field);
         }
-        let keys: Vec<DataId> = fields.keys().copied().collect();
-        for key in keys {
-            let field = fields.get(&key);
-        }
+        // let keys: Vec<DynamicIdent> = fields.keys().cloned().collect();
+        // for key in keys {
+        //     let field = fields.get(&key);
+        // }
         match value.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
@@ -324,8 +300,7 @@ where
         }
         //TODO check and uphold enforcements.
         Ok(Self {
-            #[cfg(feature = "derive")]
-            name: value.name,
+            name: value.name.clone(),
             ty: SolvedType::Struct(SolvedFieldSet { fields }),
         })
     }
@@ -334,9 +309,9 @@ where
 /// Solved, the point being that this can not be created unless a valid `BuilderData` that can be solved is
 /// provided. Then we can do all of the calculation because everything has been determined as solvable.
 #[derive(Clone, Debug)]
-pub struct BuiltData<Id: Display + PartialEq> {
+pub struct BuiltData {
     /// The name or ident of the field.
-    pub(crate) id: Id,
+    pub(crate) id: DynamicIdent,
     pub(crate) ty: DataType,
     pub(crate) bit_range: BuiltRange,
     pub(crate) endianness: Endianness,

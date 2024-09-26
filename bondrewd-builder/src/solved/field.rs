@@ -1,44 +1,79 @@
-use std::ops::Range;
+use proc_macro2::Span;
+use syn::Ident;
 
 use crate::build::{field::NumberType, ArraySizings};
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DynamicIdent {
     /// name of the value given by bondrewd.
-    pub name: String,
-    pub ty: DynamicIdentType,
+    pub bondrewd_name: Ident,
+    /// Original data from the user
+    pub user_name: DynamicIdentName,
 }
 
-#[derive(Clone, Debug)]
-pub enum DynamicIdentType {
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DynamicIdentName {
     /// Named Field
     /// name of the field given by the user.
-    Ident(String),
+    Ident(Ident),
     /// Tuple Struct Field
     /// Index of the field in the tuple struct/enum-variant
     Index(usize),
 }
 
 impl DynamicIdent {
-    pub fn new_ident(name: String, ident: String) -> Self {
+    /// Returns a `DynamicIdent` for a user-defined-field-name.
+    pub fn from_ident(ident: Ident) -> Self {
         Self {
-            name,
-            ty: DynamicIdentType::Ident(ident),
+            bondrewd_name: ident.clone(),
+            user_name: DynamicIdentName::Ident(ident),
         }
     }
-    pub fn new_index(name: String, index: usize) -> Self {
+    /// Returns a `DynamicIdent` for a tuple-struct-field's-index and the [`Span`]`
+    /// of its type (so we can display error in a nice place).
+    pub fn from_index(index: usize, span: Span) -> Self {
         Self {
-            name,
-            ty: DynamicIdentType::Index(index),
+            bondrewd_name: Ident::new(&format!("field_{index}"), span),
+            user_name: DynamicIdentName::Index(index),
         }
     }
+    /// Returns a `DynamicIdent` for a array's to create unique names for a byte_buffer for each element
+    /// within an array.
+    pub fn from_ident_with_name(ident: Ident, name: Ident) -> Self {
+        Self {
+            bondrewd_name: name,
+            user_name: DynamicIdentName::Ident(ident),
+        }
+    }
+    pub fn ident(&self) -> Ident {
+        match &self.user_name {
+            DynamicIdentName::Ident(ident) => ident.clone(),
+            DynamicIdentName::Index(_) => self.bondrewd_name.clone(),
+        }
+    }
+    pub fn name(&self) -> Ident {
+        self.bondrewd_name.clone()
+    }
+    pub fn span(&self) -> Span {
+        self.bondrewd_name.span()
+    }
+}
 
-    pub fn ident(&self) -> String {
-        match &self.ty {
-            DynamicIdentType::Ident(ident) => ident.to_owned(),
-            DynamicIdentType::Index(index) => format!("{index}"),
-        }
+impl From<(usize, Span)> for DynamicIdent {
+    fn from((index, span): (usize, Span)) -> Self {
+        Self::from_index(index, span)
+    }
+}
+
+impl From<Ident> for DynamicIdent {
+    fn from(ident: Ident) -> Self {
+        Self::from_ident(ident)
+    }
+}
+impl From<(Ident, Ident)> for DynamicIdent {
+    fn from((ident, name): (Ident, Ident)) -> Self {
+        Self::from_ident_with_name(ident, name)
     }
 }
 
@@ -66,14 +101,9 @@ impl SolvedData {
     }
 }
 
-pub struct NewResolverData<'a> {
-    pub bit_range: &'a Range<usize>,
-    pub name: &'a str,
-    pub ty: ResolverType,
-    pub byte_order_reversed: bool,
-}
-
-pub struct Resolver {
+pub struct ResolverData {
+    // TODO make sure this happens.
+    pub reverse_byte_order: bool,
     /// Amount of bits the field uses in bit form.
     pub amount_of_bits: usize,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
@@ -82,44 +112,44 @@ pub struct Resolver {
     pub available_bits_in_first_byte: usize,
     /// the first byte this field is stored in
     pub starting_inject_byte: usize,
-    /// the name of the buffer we will use to store the data for the fields value.
-    // TODO because the nested ty has the value this is solved from, it may make sense to
-    // store only that moving this field into the `ResolverType` variants that do not.
-    #[cfg(feature = "derive")]
-    pub field_buffer_name: String,
+    pub field_name: DynamicIdent,
+}
+
+pub struct Resolver {
+    pub(crate) data: ResolverData,
     pub(crate) ty: ResolverType,
-    // TODO make sure this happens.
-    pub reverse_byte_order: bool,
 }
 
 impl Resolver {
     #[must_use]
     pub fn bit_length(&self) -> usize {
-        self.amount_of_bits
+        self.data.amount_of_bits
     }
     #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
-        self.starting_inject_byte
+        self.data.starting_inject_byte
     }
     #[must_use]
     pub fn available_bits_in_first_byte(&self) -> usize {
-        self.available_bits_in_first_byte
+        self.data.available_bits_in_first_byte
     }
     #[must_use]
     pub fn zeros_on_left(&self) -> usize {
-        self.zeros_on_left
+        self.data.zeros_on_left
     }
     #[must_use]
     pub fn fields_last_bits_index(&self) -> usize {
-        self.amount_of_bits.div_ceil(8) - 1
+        self.data.amount_of_bits.div_ceil(8) - 1
     }
     pub fn spans_multiple_bytes(&self) -> bool {
-        self.amount_of_bits > self.available_bits_in_first_byte
+        self.data.amount_of_bits > self.data.available_bits_in_first_byte
     }
     #[must_use]
-    #[cfg(feature = "derive")]
-    pub fn field_buffer_name(&self) -> &str {
-        self.field_buffer_name.as_str()
+    pub fn field_buffer_name(&self) -> String {
+        format!("{}_bytes", &self.data.field_name.name())
+    }
+    pub fn bit_range_start(&self) -> usize {
+        (self.starting_inject_byte() * 8) + (8 - self.available_bits_in_first_byte())
     }
 }
 

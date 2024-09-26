@@ -1,43 +1,31 @@
-use std::fmt::Display;
-
-#[cfg(feature = "derive")]
 use syn::{token::Pub, Ident};
 
+use crate::solved::field::DynamicIdent;
+
 use super::field::DataBuilder;
-#[cfg(feature = "derive")]
 use super::Visibility;
 
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
 /// This is actually intended to be used by `bondrewd-derive`.
 #[derive(Debug)]
-pub struct GenericBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+pub struct GenericBuilder
 {
     /// Define if we are building a single `field_set` or variant type containing
     /// multiple `field_sets` switched by an id field.
-    pub ty: BuilderType<FieldSetId, DataId>,
+    pub ty: BuilderType,
     /// The viability of the struct/enum
-    #[cfg(feature = "derive")]
     pub vis: Visibility,
     /// Is it a tuple struct/variant
-    #[cfg(feature = "derive")]
     pub tuple: bool,
 }
 
-impl<FieldSetId, DataId> GenericBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+impl GenericBuilder
 {
-    pub fn single_set<S: Into<FieldSetId>>(name: S) -> Self {
+    pub fn single_set(name: DynamicIdent) -> Self {
         Self {
             ty: BuilderType::Struct(FieldSetBuilder::new(name.into())),
-            #[cfg(feature = "derive")]
             tuple: false,
-            #[cfg(feature = "derive")]
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
@@ -45,60 +33,52 @@ where
     pub fn variant_set() -> Self {
         Self {
             ty: BuilderType::Enum(EnumBuilder::new()),
-            #[cfg(feature = "derive")]
             tuple: false,
-            #[cfg(feature = "derive")]
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
-    pub fn get(&self) -> &BuilderType<FieldSetId, DataId> {
+    pub fn get(&self) -> &BuilderType {
         &self.ty
     }
-    pub fn get_mut(&mut self) -> &mut BuilderType<FieldSetId, DataId> {
+    pub fn get_mut(&mut self) -> &mut BuilderType {
         &mut self.ty
     }
 }
 /// Distinguishes between enums and structs or a single `field_set` vs multiple
 /// `field_sets` that switch based on an id field.
 #[derive(Debug)]
-pub enum BuilderType<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+pub enum BuilderType
 {
     /// Multiple `field_sets` that switch based on an id field.
-    Enum(EnumBuilder<FieldSetId, DataId>),
+    Enum(EnumBuilder),
     /// A single `field_set`.
-    Struct(FieldSetBuilder<FieldSetId, DataId>),
+    Struct(FieldSetBuilder),
 }
 
-impl<FieldSetId, DataId> BuilderType<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+impl BuilderType
 {
-    pub fn get_struct(&self) -> Option<&FieldSetBuilder<FieldSetId, DataId>> {
+    pub fn get_struct(&self) -> Option<&FieldSetBuilder> {
         if let Self::Struct(ref thing) = self {
             Some(thing)
         } else {
             None
         }
     }
-    pub fn get_enum(&self) -> Option<&EnumBuilder<FieldSetId, DataId>> {
+    pub fn get_enum(&self) -> Option<&EnumBuilder> {
         if let Self::Enum(ref thing) = self {
             Some(thing)
         } else {
             None
         }
     }
-    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder<FieldSetId, DataId>> {
+    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder> {
         if let Self::Struct(ref mut thing) = self {
             Some(thing)
         } else {
             None
         }
     }
-    pub fn get_mut_enum(&mut self) -> Option<&mut EnumBuilder<FieldSetId, DataId>> {
+    pub fn get_mut_enum(&mut self) -> Option<&mut EnumBuilder> {
         if let Self::Enum(ref mut thing) = self {
             Some(thing)
         } else {
@@ -109,41 +89,30 @@ where
 
 /// Builds an enum bitfield model.
 #[derive(Debug)]
-pub struct EnumBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+pub struct EnumBuilder
 {
     /// Name or ident of the enum, really only matters for `bondrewd-derive`
-    #[cfg(feature = "derive")]
     pub(crate) name: Option<Ident>,
     /// The id field with determines the `field_set` to use.
-    pub(crate) id: Option<DataBuilder<DataId>>,
+    pub(crate) id: Option<DataBuilder>,
     /// The default variant for situations where no other variant matches.
-    pub(crate) invalid: Option<VariantBuilder<FieldSetId, DataId>>,
+    pub(crate) invalid: Option<VariantBuilder>,
     /// The collection of variant `field_sets`.
-    pub(crate) variants: Vec<VariantBuilder<FieldSetId, DataId>>,
+    pub(crate) variants: Vec<VariantBuilder>,
 }
 
-impl<FieldSetId, DataId> Default for EnumBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+impl Default for EnumBuilder
 {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<FieldSetId, DataId> EnumBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+impl EnumBuilder
 {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            #[cfg(feature = "derive")]
             name: None,
             id: None,
             invalid: None,
@@ -153,30 +122,24 @@ where
 }
 /// Contains builder information for constructing variant style bitfield models.
 #[derive(Debug)]
-pub struct VariantBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+pub struct VariantBuilder
 {
     /// The id value that this variant shall be used for.
     id: Option<i64>,
     /// If the variant has a field that whats to capture the
     /// value read for the variant resolution the fields shall be placed here
     /// NOT in the field set, useful for invalid variant.
-    capture_field: Option<DataBuilder<DataId>>,
+    capture_field: Option<DataBuilder>,
     /// the `field_set`
-    field_set: FieldSetBuilder<FieldSetId, DataId>,
+    field_set: FieldSetBuilder,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
 #[derive(Debug)]
-pub struct FieldSetBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy + Clone + Copy,
-    DataId: Clone + Copy,
+pub struct FieldSetBuilder
 {
-    pub(crate) name: FieldSetId,
+    pub(crate) name: DynamicIdent,
     /// the set of fields.
-    pub(crate) fields: Vec<DataBuilder<DataId>>,
+    pub(crate) fields: Vec<DataBuilder>,
     /// Imposes checks on the sizing of the `field_set`
     pub enforcement: StructEnforcement,
     /// PLEASE READ IF YOU ARE NOT USING [`StructEnforcement::EnforceFullBytes`]
@@ -193,12 +156,9 @@ where
     pub fill_bits: FillBits,
 }
 
-impl<FieldSetId, DataId> FieldSetBuilder<FieldSetId, DataId>
-where
-    FieldSetId: Display + Clone + Copy,
-    DataId: Clone + Copy,
+impl FieldSetBuilder
 {
-    pub fn new(key: FieldSetId) -> Self {
+    pub fn new(key: DynamicIdent) -> Self {
         Self {
             name: key,
             fields: Vec::default(),
@@ -206,7 +166,7 @@ where
             fill_bits: FillBits::default(),
         }
     }
-    pub fn add_field(&mut self, new_data: DataBuilder<DataId>) {
+    pub fn add_field(&mut self, new_data: DataBuilder) {
         self.fields.push(new_data);
     }
 }

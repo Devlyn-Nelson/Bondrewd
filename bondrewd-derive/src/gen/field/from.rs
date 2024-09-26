@@ -26,7 +26,7 @@ struct BuildNumberQuotePackage<'a> {
     available_bits_in_first_byte: usize,
     flip: Option<usize>,
 }
-fn build_number_quote(
+fn build_be_number_quote(
     field: &FieldInfo,
     stuff: &BuildNumberQuotePackage,
 ) -> syn::Result<TokenStream> {
@@ -1043,7 +1043,7 @@ impl FieldInfo {
             DataType::Number{size, ref type_quote, ..} |
             DataType::Enum{ref type_quote, size, ..} => {
                 let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                let full_quote = build_number_quote(self, &info)?;
+                let full_quote = build_be_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     #type_quote::from_be_bytes({
                         #full_quote
@@ -1060,7 +1060,7 @@ impl FieldInfo {
                     return Err(syn::Error::new(self.ident.span(), "unsupported floating type"))
                 };
                 let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                let full_quote = build_number_quote(self, &info)?;
+                let full_quote = build_be_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     #alt_type_quote::from_be_bytes({
                         #full_quote
@@ -1070,7 +1070,7 @@ impl FieldInfo {
             }
             DataType::Char{size,..} => {
                 let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                let full_quote = build_number_quote(self, &info)?;
+                let full_quote = build_be_number_quote(self, &info)?;
                 let apply_field_to_buffer = quote! {
                     u32::from_be_bytes({
                         #full_quote

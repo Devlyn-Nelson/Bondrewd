@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use quote::format_ident;
+
 use crate::build::field::DataType;
 
 use super::field::DynamicIdent;
@@ -42,9 +44,10 @@ impl Iterator for ElementArrayIter {
             let start = self.starting_bit_index + (index * self.element_bit_size);
             let bit_range = start..start + self.element_bit_size;
             let outer_ident = self.outer_ident.ident().clone();
-            let name = format!("{outer_ident}_{index}");
-            let ident = DynamicIdent::new_ident(name, outer_ident);
+            let name = format_ident!("{outer_ident}_{index}");
+            let ident = (outer_ident, name).into();
             Some(BuiltDataTypeInfo {
+                name: ident,
                 ty: self.ty.clone(),
                 bit_range,
             })
@@ -103,10 +106,11 @@ impl Iterator for BlockArrayIter {
             self.remaining_bits -= ty_size;
             let index = self.total_elements - self.remaining_elements;
             let outer_ident = self.outer_ident.ident().clone();
-            let name = format!("{outer_ident}_{index}");
-            let ident = DynamicIdent::new_ident(name, outer_ident);
+            let name = format_ident!("{outer_ident}_{index}");
+            let ident = (outer_ident, name).into();
             self.remaining_elements -= 1;
             Some(BuiltDataTypeInfo {
+                name: ident,
                 bit_range,
                 ty: self.ty.clone(),
             })
@@ -118,6 +122,7 @@ impl Iterator for BlockArrayIter {
 
 #[derive(Clone, Debug)]
 pub struct BuiltDataTypeInfo {
+    pub(crate) name: DynamicIdent,
     pub(crate) ty: BuiltDataType,
     /// The range of bits that this field will use.
     pub(crate) bit_range: Range<usize>,

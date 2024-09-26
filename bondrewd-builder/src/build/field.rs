@@ -1,12 +1,12 @@
+use crate::solved::field::DynamicIdent;
+
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
 #[derive(Debug)]
-pub struct DataBuilder<Id>
-where
-    Id: Clone + Copy,
+pub struct DataBuilder
 {
     /// The name or ident of the field.
-    pub(crate) id: Id,
+    pub(crate) id: DynamicIdent,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     pub(crate) ty: DataType,
@@ -71,7 +71,6 @@ pub enum DataType {
     Number(NumberType, RustByteSize),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
-    #[cfg(feature = "derive")]
     Nested {
         ident: String,
         rust_byte_size: usize,
@@ -106,11 +105,9 @@ pub enum NumberType {
     Signed,
 }
 
-impl<Id> DataBuilder<Id>
-where
-    Id: Clone + Copy,
+impl DataBuilder
 {
-    pub fn new(name: Id, ty: DataType) -> Self {
+    pub fn new(name: DynamicIdent, ty: DataType) -> Self {
         Self {
             id: name,
             ty,
@@ -120,7 +117,7 @@ where
             overlap: OverlapOptions::None,
         }
     }
-    pub fn id(&self) -> &Id {
+    pub fn id(&self) -> &DynamicIdent {
         &self.id
     }
 

@@ -186,13 +186,13 @@ pub struct QuoteInfo {
 }
 impl QuoteInfo {
     pub fn new(field_info: &FieldInfo, struct_info: &StructInfo) -> syn::Result<Self> {
-        Self::new_inner(field_info, struct_info.get_flip())
+        Self::new_with_flip(field_info, struct_info.get_flip())
     }
     /// TODO im not sure `new_no_flip` should exist. no flip might not be needed.
     // pub fn new_no_flip(field_info: &FieldInfo) -> syn::Result<Self> {
     //     Self::new_inner(field_info, None)
     // }
-    fn new_inner(field_info: &FieldInfo, flip: Option<usize>) -> syn::Result<Self> {
+    fn new_with_flip(field_info: &FieldInfo, flip: Option<usize>) -> syn::Result<Self> {
         // get the total number of bits the field uses.
         let amount_of_bits = field_info.attrs.bit_length();
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
@@ -270,6 +270,12 @@ impl TryFrom<(&FieldInfo, &StructInfo)> for QuoteInfo {
     type Error = syn::Error;
     fn try_from((fi, si): (&FieldInfo, &StructInfo)) -> Result<Self, Self::Error> {
         QuoteInfo::new(fi, si)
+    }
+}
+impl TryFrom<(&FieldInfo, Option<usize>)> for QuoteInfo {
+    type Error = syn::Error;
+    fn try_from((fi, si): (&FieldInfo, Option<usize>)) -> Result<Self, Self::Error> {
+        QuoteInfo::new_with_flip(fi, si)
     }
 }
 
