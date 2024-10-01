@@ -30,16 +30,16 @@ impl Debug for Visibility {
 ///
 /// # Examples
 /// a single dimensional array would only have 1 value
-/// |      |Element 1|
-/// |:-----|:-------:|
-/// |[u8;4]|        4|
+/// |      |Dimension 1|
+/// |:-----|:---------:|
+/// |[u8;4]|          4|
 ///
-/// X dimensional array will have X values, first being the outer-most array size going
-/// to the inner-most.
+/// X dimensional array will have X values, first being the inner-most array size going
+/// to the outer-most.
 ///
-/// |          |Element 1|Element 2|
-/// |:---------|:-------:|:-------:|
-/// |[[u8;4];5]|        5|        4|
+/// |          |Dimension 1|Dimension 2|
+/// |:---------|:---------:|:---------:|
+/// |[[u8;4];5]|          4|          5|
 pub type ArraySizings = Vec<usize>;
 
 #[derive(Clone, Debug)]

@@ -1,7 +1,14 @@
+use std::ops::Range;
+
 use proc_macro2::Span;
 use syn::Ident;
 
-use crate::build::{field::NumberType, ArraySizings};
+use crate::build::{
+    field::{NumberType, RustByteSize},
+    ArraySizings,
+};
+
+use super::field_set::BuiltData;
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -102,8 +109,6 @@ impl SolvedData {
 }
 
 pub struct ResolverData {
-    // TODO make sure this happens.
-    pub reverse_byte_order: bool,
     /// Amount of bits the field uses in bit form.
     pub amount_of_bits: usize,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
@@ -112,15 +117,24 @@ pub struct ResolverData {
     pub available_bits_in_first_byte: usize,
     /// the first byte this field is stored in
     pub starting_inject_byte: usize,
+    /// if the structure is flipped. (reverse the bytes order)
+    pub flip: Option<usize>,
     pub field_name: DynamicIdent,
+    pub bit_range: Range<usize>,
 }
 
 pub struct Resolver {
-    pub(crate) data: ResolverData,
-    pub(crate) ty: ResolverType,
+    pub(crate) data: Box<ResolverData>,
+    pub(crate) ty: Box<ResolverType>,
 }
 
 impl Resolver {
+    pub fn ident(&self) -> Ident {
+        self.data.field_name.ident()
+    }
+    pub fn name(&self) -> Ident {
+        self.data.field_name.name()
+    }
     #[must_use]
     pub fn bit_length(&self) -> usize {
         self.data.amount_of_bits
@@ -148,28 +162,30 @@ impl Resolver {
     pub fn field_buffer_name(&self) -> String {
         format!("{}_bytes", &self.data.field_name.name())
     }
-    pub fn bit_range_start(&self) -> usize {
-        (self.starting_inject_byte() * 8) + (8 - self.available_bits_in_first_byte())
-    }
 }
 
+#[derive(Debug, Clone)]
 pub enum ResolverPrimitiveStrategy {
     Standard,
     Alternate,
 }
 
+#[derive(Debug, Clone)]
 pub enum ResolverArrayType {
     Element,
     Block,
 }
 
+#[derive(Debug, Clone)]
 pub enum ResolverType {
     Primitive {
         number_ty: NumberType,
         resolver_strategy: ResolverPrimitiveStrategy,
+        rust_size: RustByteSize,
     },
     Nested {
         ty_ident: String,
+        rust_size: usize,
     },
     Array {
         sub_ty: ResolverSubType,
@@ -178,27 +194,115 @@ pub enum ResolverType {
     },
 }
 
+#[derive(Debug, Clone)]
 pub enum ResolverSubType {
     Primitive {
         number_ty: NumberType,
         resolver_strategy: ResolverPrimitiveStrategy,
+        rust_size: RustByteSize,
     },
     Nested {
         ty_ident: String,
+        rust_size: usize,
     },
 }
 
 impl From<ResolverSubType> for ResolverType {
     fn from(value: ResolverSubType) -> Self {
         match value {
-            ResolverSubType::Primitive {
-                number_ty,
-                resolver_strategy,
-            } => ResolverType::Primitive {
-                number_ty,
-                resolver_strategy,
-            },
-            ResolverSubType::Nested { ty_ident } => ResolverType::Nested { ty_ident },
+            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => ResolverType::Primitive { number_ty, resolver_strategy, rust_size } ,
+            ResolverSubType::Nested { ty_ident, rust_size } => ResolverType::Nested { ty_ident, rust_size } ,
         }
+    }
+}
+
+impl From<BuiltData> for SolvedData {
+    fn from(mut pre_field: BuiltData) -> Self {
+        // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
+        // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
+        // happen before byte_order_reversal and field_order_reversal
+        //
+        // Reverse field order
+        if pre_field.endianness.is_field_order_reversed() {
+            let old_field_range = pre_field.bit_range.range().clone();
+            pre_field.bit_range.bit_range =
+                (bit_size - old_field_range.end)..(bit_size - old_field_range.start);
+        }
+        // get the total number of bits the field uses.
+        let amount_of_bits =
+            pre_field.bit_range.range().end - pre_field.bit_range.range().start;
+        // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
+        // left)
+        let zeros_on_left = pre_field.bit_range.range().start % 8;
+        // TODO if don't think this error is possible, and im wondering why it is being checked for
+        // in the first place.
+        if 7 < zeros_on_left {
+            return Err(SolvingError::ResolverUnderflow(format!(
+                "field \"{}\" would have had left shift underflow, report this at \
+                    https://github.com/Devlyn-Nelson/Bondrewd",
+                pre_field.id.ident(),
+            )));
+        }
+        let available_bits_in_first_byte = 8 - zeros_on_left;
+        // calculate the starting byte index in the outgoing buffer
+        let mut starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
+        // NOTE endianness is only for determining how to get the bytes we will apply to the output.
+        // calculate how many of the bits will be inside the most significant byte we are adding to.
+        // if pre_field.endianness.is_byte_order_reversed() {
+        //     let struct_byte_length = bit_size / 8;
+        //     starting_inject_byte = struct_byte_length - starting_inject_byte;
+        // }
+
+        let sub_ty = match pre_field.ty {
+            DataType::Number(number_type, rust_byte_size) => {
+                let resolver_strategy = if pre_field.endianness.is_alternative() {
+                    ResolverPrimitiveStrategy::Alternate
+                } else {
+                    ResolverPrimitiveStrategy::Standard
+                };
+                ResolverSubType::Primitive {
+                    number_ty: number_type,
+                    resolver_strategy,
+                    rust_size: rust_byte_size,
+                }
+            }
+            DataType::Nested {
+                ident,
+                rust_byte_size,
+            } => ResolverSubType::Nested {
+                ty_ident: ident,
+                rust_size: rust_byte_size,
+            },
+        };
+        let ty = Box::new(match pre_field.bit_range.ty {
+            BuiltRangeType::SingleElement => sub_ty.into(),
+            BuiltRangeType::BlockArray(vec) => ResolverType::Array {
+                array_ty: ResolverArrayType::Block,
+                sizings: vec,
+                sub_ty: sub_ty,
+            },
+            BuiltRangeType::ElementArray(vec) => ResolverType::Array {
+                array_ty: ResolverArrayType::Element,
+                sizings: vec,
+                sub_ty: sub_ty,
+            },
+        });
+        let resolver = Resolver {
+            data: Box::new(ResolverData {
+                bit_range: pre_field.bit_range.range().clone(),
+                flip: if pre_field.endianness.is_byte_order_reversed() {
+                    Some(pre_field.ty.rust_size() - 1)
+                } else {
+                    None
+                },
+                amount_of_bits,
+                zeros_on_left,
+                available_bits_in_first_byte,
+                starting_inject_byte,
+                field_name: pre_field.id,
+            }),
+            ty,
+        };
+        let new_field = SolvedData { resolver };
     }
 }

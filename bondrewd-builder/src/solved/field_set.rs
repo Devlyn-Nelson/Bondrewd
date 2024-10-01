@@ -9,12 +9,10 @@ use crate::{
         field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
         ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
     },
-    solved::field::{
-        Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType, ResolverType,
-    },
+    solved::field::{Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverType},
 };
 
-use super::field::{DynamicIdent, ResolverData, SolvedData};
+use super::field::{DynamicIdent, ResolverData, ResolverSubType, SolvedData};
 
 pub struct Solved {
     /// DataSet's name.
@@ -189,85 +187,9 @@ impl Solved {
             pre_fields.push(field);
         }
         let mut fields: Vec<SolvedData> = Vec::default();
-        for mut pre_field in pre_fields {
-            // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
-            // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
-            // happen before byte_order_reversal and field_order_reversal
-            //
-            // Reverse field order
-            if pre_field.endianness.is_field_order_reversed() {
-                let old_field_range = pre_field.bit_range.range().clone();
-                pre_field.bit_range.bit_range =
-                    (bit_size - old_field_range.end)..(bit_size - old_field_range.start);
-            }
-            // get the total number of bits the field uses.
-            let amount_of_bits =
-                pre_field.bit_range.range().end - pre_field.bit_range.range().start;
-            // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
-            // left)
-            let zeros_on_left = pre_field.bit_range.range().start % 8;
-            // TODO if don't think this error is possible, and im wondering why it is being checked for
-            // in the first place.
-            if 7 < zeros_on_left {
-                return Err(SolvingError::ResolverUnderflow(format!(
-                    "field \"{}\" would have had left shift underflow, report this at \
-                        https://github.com/Devlyn-Nelson/Bondrewd",
-                    pre_field.id.ident(),
-                )));
-            }
-            let available_bits_in_first_byte = 8 - zeros_on_left;
-            // calculate the starting byte index in the outgoing buffer
-            let mut starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
-            // NOTE endianness is only for determining how to get the bytes we will apply to the output.
-            // calculate how many of the bits will be inside the most significant byte we are adding to.
-            if pre_field.endianness.is_byte_order_reversed() {
-                let struct_byte_length = bit_size / 8;
-                starting_inject_byte = struct_byte_length - starting_inject_byte;
-            }
-
-            let sub_ty = match pre_field.ty {
-                DataType::Number(number_type, rust_byte_size) => {
-                    let resolver_strategy = if pre_field.endianness.is_alternative() {
-                        ResolverPrimitiveStrategy::Alternate
-                    } else {
-                        ResolverPrimitiveStrategy::Standard
-                    };
-                    ResolverSubType::Primitive {
-                        number_ty: number_type,
-                        resolver_strategy,
-                    }
-                }
-                DataType::Nested {
-                    ident,
-                    rust_byte_size,
-                } => ResolverSubType::Nested { ty_ident: ident },
-            };
-            let ty = match pre_field.bit_range.ty {
-                BuiltRangeType::SingleElement => sub_ty.into(),
-                BuiltRangeType::BlockArray(vec) => ResolverType::Array {
-                    sub_ty,
-                    array_ty: ResolverArrayType::Block,
-                    sizings: vec,
-                },
-                BuiltRangeType::ElementArray(vec) => ResolverType::Array {
-                    sub_ty,
-                    array_ty: ResolverArrayType::Element,
-                    sizings: vec,
-                },
-            };
-            let resolver = Resolver {
-                data: ResolverData {
-                    amount_of_bits,
-                    zeros_on_left,
-                    available_bits_in_first_byte,
-                    starting_inject_byte,
-                    field_name: pre_field.id,
-                    reverse_byte_order: pre_field.endianness.is_byte_order_reversed(),
-                },
-                ty,
-            };
-            let new_field = SolvedData { resolver };
-            fields.push(new_field);
+        for pre_field in pre_fields {
+            
+            fields.push(SolvedData::from(pre_field));
         }
         // let keys: Vec<DynamicIdent> = fields.keys().cloned().collect();
         // for key in keys {
@@ -317,9 +239,9 @@ pub struct BuiltRange {
     /// This is the full bit range of the field. The `ty` does not effect this values meaning, `bit_range`
     /// shall contain the entire bit range for a field, array elements should each calculate their own
     /// range within this range.
-    bit_range: Range<usize>,
+    pub(crate) bit_range: Range<usize>,
     /// The range type determines if the `bit_range` contains a single value or contains a array of values.
-    ty: BuiltRangeType,
+    pub(crate) ty: BuiltRangeType,
 }
 
 impl BuiltRange {

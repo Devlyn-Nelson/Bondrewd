@@ -76,7 +76,7 @@ pub enum DataType {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum NumberType {
     /// Floating point numbers
     ///
@@ -102,6 +102,10 @@ pub enum NumberType {
     /// - i64
     /// - i128
     Signed,
+    /// Just `Char`
+    Char,
+    /// Boolean types
+    Bool,
 }
 
 impl DataBuilder {

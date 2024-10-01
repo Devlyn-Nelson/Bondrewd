@@ -2,9 +2,9 @@ use std::ops::Range;
 
 use quote::format_ident;
 
-use crate::build::field::DataType;
+use crate::build::{field::DataType, ArraySizings};
 
-use super::field::DynamicIdent;
+use super::field::{DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType};
 
 pub struct ElementArrayIter {
     outer_ident: DynamicIdent,
@@ -13,7 +13,7 @@ pub struct ElementArrayIter {
     // The starting bit index of the first element
     starting_bit_index: usize,
     // type the array is holding.
-    ty: BuiltDataType,
+    ty: ResolverSubType,
     // The amount of bits an single element consumes.
     element_bit_size: usize,
 }
@@ -22,7 +22,7 @@ impl ElementArrayIter {
     // creates a new ElementArrayIter with `elements` array length.
     pub fn new(
         outer_ident: DynamicIdent,
-        ty: BuiltDataType,
+        ty: ResolverSubType,
         starting_bit_index: usize,
         elements: usize,
         element_bit_size: usize,
@@ -35,10 +35,32 @@ impl ElementArrayIter {
             element_bit_size,
         }
     }
+    pub fn from_values(
+        resolver_data: &ResolverData,
+        sub_ty: &ResolverSubType,
+        array_ty: &ResolverArrayType,
+        sizings: &ArraySizings,
+    ) -> Self {
+        let mut sizings = sizings.clone();
+        let elements = sizings.pop();
+        let ty = if sizings.is_empty() {
+            sub_ty.into()
+        }else{
+            ResolverType::Array { sub_ty: sub_ty.clone(), array_ty: array_ty.clone(), sizings }
+        };
+        let element_bit_size = resolver_data.amount_of_bits / elements;
+        ElementArrayIter::new(
+            resolver_data.field_name.clone(), 
+            ty, 
+            resolver_data.bit_range_start(), 
+            elements, 
+            element_bit_size,
+        )
+    }
 }
 
 impl Iterator for ElementArrayIter {
-    type Item = BuiltDataTypeInfo;
+    type Item = Resolver;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.element_range.next() {
             let start = self.starting_bit_index + (index * self.element_bit_size);
@@ -46,11 +68,20 @@ impl Iterator for ElementArrayIter {
             let outer_ident = self.outer_ident.ident().clone();
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
-            Some(BuiltDataTypeInfo {
-                name: ident,
-                ty: self.ty.clone(),
-                bit_range,
-            })
+            // TODO : START_HERE
+            Resolver {
+                data: Box::new(ResolverData {
+                    reverse_byte_order: todo!(),
+                    amount_of_bits: todo!(),
+                    zeros_on_left: todo!(),
+                    available_bits_in_first_byte: todo!(),
+                    starting_inject_byte: todo!(),
+                    flip: todo!(),
+                    field_name: todo!(),
+                    bit_range,
+                }),
+                ty: Box::new(),
+            }
         } else {
             None
         }
@@ -65,7 +96,7 @@ pub struct BlockArrayIter {
     // the starting bit index of the first element
     pub starting_bit_index: usize,
     // The amount of bytes the rust type is
-    pub ty: BuiltDataType,
+    pub ty: ResolverSubType,
     // Amount of remaining bits to consume.
     pub remaining_bits: usize,
     // Total amount of bytes the iterator will consume when `None` is the return of `self.next()`.
@@ -76,10 +107,10 @@ impl BlockArrayIter {
     // creates a new ElementArrayIter with `elements` array length.
     pub fn new(
         outer_ident: DynamicIdent,
-        ty: BuiltDataType,
+        ty: ResolverSubType,
         starting_bit_index: usize,
         elements: usize,
-        range: Range<usize>,
+        amount_of_bits: usize,
     ) -> Self {
         Self {
             outer_ident,
@@ -87,13 +118,35 @@ impl BlockArrayIter {
             ty,
             total_elements: elements,
             remaining_elements: elements,
-            remaining_bits: range.end - range.start,
+            remaining_bits: amount_of_bits,
         }
+    }
+
+    pub fn from_values(
+        resolver_data: &ResolverData,
+        sub_ty: &Box<ResolverSubType>,
+        array_ty: &ResolverArrayType,
+        sizings: &ArraySizings,
+    ) -> Self {
+        let mut sizings = sizings.clone();
+        let elements = sizings.pop();
+        let ty = if sizings.is_empty() {
+            sub_ty.into()
+        }else{
+            ResolverType::Array { sub_ty: sub_ty.clone(), array_ty: array_ty.clone(), sizings }
+        };
+        Ok(BlockArrayIter::new(
+            resolver_data.field_name.clone(),
+            ty,
+            resolver_data.bit_range_start(),
+            elements,
+            resolver_data.amount_of_bits,
+        ))
     }
 }
 
 impl Iterator for BlockArrayIter {
-    type Item = BuiltDataTypeInfo;
+    type Item = Resolver;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining_elements != 0 {
             let mut ty_size = self.ty.rust_bytes_size() * 8;
@@ -116,44 +169,6 @@ impl Iterator for BlockArrayIter {
             })
         } else {
             None
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct BuiltDataTypeInfo {
-    pub(crate) name: DynamicIdent,
-    pub(crate) ty: BuiltDataType,
-    /// The range of bits that this field will use.
-    pub(crate) bit_range: Range<usize>,
-}
-
-#[derive(Clone, Debug)]
-pub struct BuiltDataSubType {
-    sub: Box<BuiltDataTypeInfo>,
-}
-
-#[derive(Clone, Debug)]
-pub enum BuiltDataType {
-    Single(DataType),
-    BlockArray {
-        elements: usize,
-        sub: BuiltDataSubType,
-    },
-    ElementArray {
-        elements: usize,
-        sub: BuiltDataSubType,
-    },
-}
-
-impl BuiltDataType {
-    pub fn rust_bytes_size(&self) -> usize {
-        match self {
-            BuiltDataType::Single(dt) => dt.rust_size(),
-            BuiltDataType::BlockArray { elements, sub }
-            | BuiltDataType::ElementArray { elements, sub } => {
-                sub.sub.ty.rust_bytes_size() * elements
-            }
         }
     }
 }
