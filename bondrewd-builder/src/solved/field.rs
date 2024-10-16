@@ -4,11 +4,11 @@ use proc_macro2::Span;
 use syn::Ident;
 
 use crate::build::{
-    field::{NumberType, RustByteSize},
+    field::{DataType, NumberType, RustByteSize},
     ArraySizings,
 };
 
-use super::field_set::BuiltData;
+use super::field_set::{BuiltData, BuiltRangeType, SolvingError};
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -109,8 +109,6 @@ impl SolvedData {
 }
 
 pub struct ResolverData {
-    /// Amount of bits the field uses in bit form.
-    pub amount_of_bits: usize,
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
     /// Amount of bits in the first byte this field has bits in that are used by this field.
@@ -137,7 +135,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn bit_length(&self) -> usize {
-        self.data.amount_of_bits
+        self.data.bit_range.end - self.data.bit_range.start
     }
     #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
@@ -153,10 +151,10 @@ impl Resolver {
     }
     #[must_use]
     pub fn fields_last_bits_index(&self) -> usize {
-        self.data.amount_of_bits.div_ceil(8) - 1
+        self.bit_length().div_ceil(8) - 1
     }
     pub fn spans_multiple_bytes(&self) -> bool {
-        self.data.amount_of_bits > self.data.available_bits_in_first_byte
+        self.bit_length() > self.data.available_bits_in_first_byte
     }
     #[must_use]
     pub fn field_buffer_name(&self) -> String {
@@ -210,8 +208,22 @@ pub enum ResolverSubType {
 impl From<ResolverSubType> for ResolverType {
     fn from(value: ResolverSubType) -> Self {
         match value {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => ResolverType::Primitive { number_ty, resolver_strategy, rust_size } ,
-            ResolverSubType::Nested { ty_ident, rust_size } => ResolverType::Nested { ty_ident, rust_size } ,
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            },
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => ResolverType::Nested {
+                ty_ident,
+                rust_size,
+            },
         }
     }
 }
@@ -223,14 +235,14 @@ impl From<BuiltData> for SolvedData {
         // happen before byte_order_reversal and field_order_reversal
         //
         // Reverse field order
+        let bit_size = pre_field.bit_range.bit_size();
         if pre_field.endianness.is_field_order_reversed() {
             let old_field_range = pre_field.bit_range.range().clone();
             pre_field.bit_range.bit_range =
                 (bit_size - old_field_range.end)..(bit_size - old_field_range.start);
         }
         // get the total number of bits the field uses.
-        let amount_of_bits =
-            pre_field.bit_range.range().end - pre_field.bit_range.range().start;
+        let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
         let zeros_on_left = pre_field.bit_range.range().start % 8;
@@ -295,7 +307,6 @@ impl From<BuiltData> for SolvedData {
                 } else {
                     None
                 },
-                amount_of_bits,
                 zeros_on_left,
                 available_bits_in_first_byte,
                 starting_inject_byte,

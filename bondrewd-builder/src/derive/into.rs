@@ -6,7 +6,10 @@ use syn::{punctuated::Punctuated, token::Comma};
 
 use crate::{
     build::field::{DataType, NumberType},
-    solved::{array_iter::ElementArrayIter, field::{Resolver, ResolverArrayType, ResolverData, ResolverType}},
+    solved::{
+        array_iter::ElementArrayIter,
+        field::{Resolver, ResolverArrayType, ResolverData, ResolverType},
+    },
 };
 
 use super::{
@@ -51,7 +54,7 @@ impl Resolver {
                     } else {
                         quote! {(#field_name as u32)}
                     }
-                }                
+                }
             },
             ResolverType::Nested {
                 ty_ident,

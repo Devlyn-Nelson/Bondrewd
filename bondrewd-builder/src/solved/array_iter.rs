@@ -4,7 +4,9 @@ use quote::format_ident;
 
 use crate::build::{field::DataType, ArraySizings};
 
-use super::field::{DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType};
+use super::field::{
+    DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType,
+};
 
 pub struct ElementArrayIter {
     outer_ident: DynamicIdent,
@@ -16,6 +18,7 @@ pub struct ElementArrayIter {
     ty: ResolverSubType,
     // The amount of bits an single element consumes.
     element_bit_size: usize,
+    flip: Option<usize>,
 }
 
 impl ElementArrayIter {
@@ -26,6 +29,7 @@ impl ElementArrayIter {
         starting_bit_index: usize,
         elements: usize,
         element_bit_size: usize,
+        flip: Option<usize>,
     ) -> Self {
         Self {
             outer_ident,
@@ -33,6 +37,7 @@ impl ElementArrayIter {
             starting_bit_index,
             ty,
             element_bit_size,
+            flip,
         }
     }
     pub fn from_values(
@@ -45,16 +50,21 @@ impl ElementArrayIter {
         let elements = sizings.pop();
         let ty = if sizings.is_empty() {
             sub_ty.into()
-        }else{
-            ResolverType::Array { sub_ty: sub_ty.clone(), array_ty: array_ty.clone(), sizings }
+        } else {
+            ResolverType::Array {
+                sub_ty: sub_ty.clone(),
+                array_ty: array_ty.clone(),
+                sizings,
+            }
         };
         let element_bit_size = resolver_data.amount_of_bits / elements;
         ElementArrayIter::new(
-            resolver_data.field_name.clone(), 
-            ty, 
-            resolver_data.bit_range_start(), 
-            elements, 
+            resolver_data.field_name.clone(),
+            ty,
+            resolver_data.bit_range_start(),
+            elements,
             element_bit_size,
+            resolver_data.flip(),
         )
     }
 }
@@ -69,19 +79,21 @@ impl Iterator for ElementArrayIter {
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
             // TODO : START_HERE
-            Resolver {
+            Some(Resolver {
                 data: Box::new(ResolverData {
-                    reverse_byte_order: todo!(),
-                    amount_of_bits: todo!(),
-                    zeros_on_left: todo!(),
-                    available_bits_in_first_byte: todo!(),
-                    starting_inject_byte: todo!(),
-                    flip: todo!(),
-                    field_name: todo!(),
                     bit_range,
+                    zeros_on_left: bit_range.start % 8,
+                    available_bits_in_first_byte: 8 - zeros_on_left,
+                    starting_inject_byte: bit_range.start / 8,
+                    flip: if self.flip.is_some() {
+                        Some(bit_range.end - bit_range.start)
+                    } else {
+                        None
+                    },
+                    field_name: todo!(),
                 }),
-                ty: Box::new(),
-            }
+                ty: Box::new(self.ty.clone().into()),
+            })
         } else {
             None
         }
@@ -132,8 +144,12 @@ impl BlockArrayIter {
         let elements = sizings.pop();
         let ty = if sizings.is_empty() {
             sub_ty.into()
-        }else{
-            ResolverType::Array { sub_ty: sub_ty.clone(), array_ty: array_ty.clone(), sizings }
+        } else {
+            ResolverType::Array {
+                sub_ty: sub_ty.clone(),
+                array_ty: array_ty.clone(),
+                sizings,
+            }
         };
         Ok(BlockArrayIter::new(
             resolver_data.field_name.clone(),
@@ -162,11 +178,12 @@ impl Iterator for BlockArrayIter {
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
             self.remaining_elements -= 1;
-            Some(BuiltDataTypeInfo {
-                name: ident,
-                bit_range,
-                ty: self.ty.clone(),
-            })
+            // Some(BuiltDataTypeInfo {
+            //     name: ident,
+            //     bit_range,
+            //     ty: self.ty.clone(),
+            // })
+            todo!("make iter logic for block array iter");
         } else {
             None
         }

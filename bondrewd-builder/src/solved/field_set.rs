@@ -188,7 +188,6 @@ impl Solved {
         }
         let mut fields: Vec<SolvedData> = Vec::default();
         for pre_field in pre_fields {
-            
             fields.push(SolvedData::from(pre_field));
         }
         // let keys: Vec<DynamicIdent> = fields.keys().cloned().collect();
@@ -247,6 +246,9 @@ pub struct BuiltRange {
 impl BuiltRange {
     pub fn range(&self) -> &Range<usize> {
         &self.bit_range
+    }
+    pub fn bit_size(&self) -> usize {
+        self.bit_range.end - self.bit_range.start
     }
 }
 
