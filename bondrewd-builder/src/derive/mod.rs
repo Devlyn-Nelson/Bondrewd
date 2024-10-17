@@ -1,6 +1,6 @@
 use crate::solved::field::ResolverData;
 
-mod into;
+// mod into;
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -79,7 +79,7 @@ impl ResolverData {
         }
     }
     pub fn fields_last_bits_index(&self) -> usize {
-        self.amount_of_bits.div_ceil(8) - 1
+        self.bit_range_end().div_ceil(8) - 1
     }
     pub fn flip(&self) -> Option<usize> {
         self.flip
@@ -90,6 +90,10 @@ impl ResolverData {
     pub fn bit_range_end(&self) -> usize {
         self.bit_range.end
     }
+    #[must_use]
+    pub fn bit_length(&self) -> usize {
+        self.bit_range.end - self.bit_range.start
+    }
 }
 
 pub struct ResolverDataLittleAdditive {
@@ -99,13 +103,14 @@ pub struct ResolverDataLittleAdditive {
 }
 impl From<&ResolverData> for ResolverDataLittleAdditive {
     fn from(qi: &ResolverData) -> Self {
-        let bits_in_last_byte = (qi.amount_of_bits - qi.available_bits_in_first_byte) % 8;
+        let amount_of_bits = qi.bit_length();
+        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte) % 8;
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
         // for a f32) then use the last byte in the fields byte array after shifting for the first
         // used byte in the buffer.
-        let mut bits_needed_in_msb = qi.amount_of_bits % 8;
+        let mut bits_needed_in_msb = amount_of_bits % 8;
         if bits_needed_in_msb == 0 {
             bits_needed_in_msb = 8;
         }
@@ -149,7 +154,8 @@ pub struct ResolverDataBigAdditive {
 }
 impl From<&ResolverData> for ResolverDataBigAdditive {
     fn from(qi: &ResolverData) -> Self {
-        let bits_in_last_byte = (qi.amount_of_bits - qi.available_bits_in_first_byte) % 8;
+        let amount_of_bits = qi.bit_length();
+        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte) % 8;
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -157,7 +163,7 @@ impl From<&ResolverData> for ResolverDataBigAdditive {
         // used byte in the buffer.
         #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
-            ((qi.amount_of_bits % 8) as i8) - ((qi.available_bits_in_first_byte % 8) as i8);
+            ((amount_of_bits % 8) as i8) - ((qi.available_bits_in_first_byte % 8) as i8);
         if right_shift < 0 {
             right_shift += 8;
         }

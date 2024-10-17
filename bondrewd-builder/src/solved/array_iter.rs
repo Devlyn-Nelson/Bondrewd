@@ -15,7 +15,7 @@ pub struct ElementArrayIter {
     // The starting bit index of the first element
     starting_bit_index: usize,
     // type the array is holding.
-    ty: ResolverSubType,
+    ty: ResolverType,
     // The amount of bits an single element consumes.
     element_bit_size: usize,
     flip: Option<usize>,
@@ -25,7 +25,7 @@ impl ElementArrayIter {
     // creates a new ElementArrayIter with `elements` array length.
     pub fn new(
         outer_ident: DynamicIdent,
-        ty: ResolverSubType,
+        ty: ResolverType,
         starting_bit_index: usize,
         elements: usize,
         element_bit_size: usize,
@@ -47,9 +47,9 @@ impl ElementArrayIter {
         sizings: &ArraySizings,
     ) -> Self {
         let mut sizings = sizings.clone();
-        let elements = sizings.pop();
-        let ty = if sizings.is_empty() {
-            sub_ty.into()
+        let elements = sizings.pop().expect("Array sizings had not data, meaning a non-array type was attempted to be used as an array type");
+        let ty: ResolverType = if sizings.is_empty() {
+            (*sub_ty).clone().into()
         } else {
             ResolverType::Array {
                 sub_ty: sub_ty.clone(),
@@ -57,7 +57,7 @@ impl ElementArrayIter {
                 sizings,
             }
         };
-        let element_bit_size = resolver_data.amount_of_bits / elements;
+        let element_bit_size = resolver_data.bit_length() / elements;
         ElementArrayIter::new(
             resolver_data.field_name.clone(),
             ty,
@@ -73,24 +73,26 @@ impl Iterator for ElementArrayIter {
     type Item = Resolver;
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(index) = self.element_range.next() {
-            let start = self.starting_bit_index + (index * self.element_bit_size);
-            let bit_range = start..start + self.element_bit_size;
             let outer_ident = self.outer_ident.ident().clone();
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
+            let start = self.starting_bit_index + (index * self.element_bit_size);
+            let bit_range = start..start + self.element_bit_size;
             // TODO : START_HERE
+            let zeros_on_left = bit_range.start % 8;
             Some(Resolver {
                 data: Box::new(ResolverData {
                     bit_range,
-                    zeros_on_left: bit_range.start % 8,
+                    zeros_on_left,
                     available_bits_in_first_byte: 8 - zeros_on_left,
                     starting_inject_byte: bit_range.start / 8,
+                    // TODO the flip information may be incorrect. it might be rust size.
                     flip: if self.flip.is_some() {
                         Some(bit_range.end - bit_range.start)
                     } else {
                         None
                     },
-                    field_name: todo!(),
+                    field_name: ident,
                 }),
                 ty: Box::new(self.ty.clone().into()),
             })
@@ -108,7 +110,7 @@ pub struct BlockArrayIter {
     // the starting bit index of the first element
     pub starting_bit_index: usize,
     // The amount of bytes the rust type is
-    pub ty: ResolverSubType,
+    pub ty: ResolverType,
     // Amount of remaining bits to consume.
     pub remaining_bits: usize,
     // Total amount of bytes the iterator will consume when `None` is the return of `self.next()`.
@@ -119,7 +121,7 @@ impl BlockArrayIter {
     // creates a new ElementArrayIter with `elements` array length.
     pub fn new(
         outer_ident: DynamicIdent,
-        ty: ResolverSubType,
+        ty: ResolverType,
         starting_bit_index: usize,
         elements: usize,
         amount_of_bits: usize,
@@ -136,14 +138,14 @@ impl BlockArrayIter {
 
     pub fn from_values(
         resolver_data: &ResolverData,
-        sub_ty: &Box<ResolverSubType>,
+        sub_ty: &ResolverSubType,
         array_ty: &ResolverArrayType,
         sizings: &ArraySizings,
     ) -> Self {
         let mut sizings = sizings.clone();
         let elements = sizings.pop();
         let ty = if sizings.is_empty() {
-            sub_ty.into()
+            sub_ty.clone()
         } else {
             ResolverType::Array {
                 sub_ty: sub_ty.clone(),
@@ -178,11 +180,28 @@ impl Iterator for BlockArrayIter {
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
             self.remaining_elements -= 1;
+            let zeros_on_left = bit_range.start % 8;
             // Some(BuiltDataTypeInfo {
             //     name: ident,
             //     bit_range,
             //     ty: self.ty.clone(),
             // })
+            Some(Resolver {
+                data: Box::new(ResolverData {
+                    bit_range,
+                    zeros_on_left,
+                    available_bits_in_first_byte: 8 - zeros_on_left,
+                    starting_inject_byte: bit_range.start / 8,
+                    // TODO the flip information may be incorrect. it might be rust size.
+                    flip: if self.flip.is_some() {
+                        Some(bit_range.end - bit_range.start)
+                    } else {
+                        None
+                    },
+                    field_name: ident,
+                }),
+                ty: Box::new(self.ty.clone().into()),
+            });
             todo!("make iter logic for block array iter");
         } else {
             None

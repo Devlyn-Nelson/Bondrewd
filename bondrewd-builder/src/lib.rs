@@ -30,4 +30,3 @@ pub mod solved;
 // model size. None of this should effect `bondrewd-derive` in a negative way but change the
 // actual function writing code to use the `Masks` model to make the function rather than
 // calculating the masks and writing the function at the same time.
-//

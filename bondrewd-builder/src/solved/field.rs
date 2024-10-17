@@ -135,7 +135,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn bit_length(&self) -> usize {
-        self.data.bit_range.end - self.data.bit_range.start
+        self.data.bit_length()
     }
     #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
