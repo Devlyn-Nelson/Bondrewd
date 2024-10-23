@@ -40,12 +40,13 @@ impl ElementArrayIter {
             flip,
         }
     }
-    pub fn from_values(
+    /// If `None` is returned, then a empty `sizings` was provided.
+    pub(crate) fn from_values(
         resolver_data: &ResolverData,
         sub_ty: &ResolverSubType,
         array_ty: &ResolverArrayType,
         sizings: &ArraySizings,
-    ) -> Self {
+    ) -> Option<Self> {
         let mut sizings = sizings.clone();
         let elements = sizings.pop().expect("Array sizings had not data, meaning a non-array type was attempted to be used as an array type");
         let ty: ResolverType = if sizings.is_empty() {
@@ -58,14 +59,14 @@ impl ElementArrayIter {
             }
         };
         let element_bit_size = resolver_data.bit_length() / elements;
-        ElementArrayIter::new(
+        Some(ElementArrayIter::new(
             resolver_data.field_name.clone(),
             ty,
             resolver_data.bit_range_start(),
             elements,
             element_bit_size,
             resolver_data.flip(),
-        )
+        ))
     }
 }
 
@@ -82,16 +83,16 @@ impl Iterator for ElementArrayIter {
             let zeros_on_left = bit_range.start % 8;
             Some(Resolver {
                 data: Box::new(ResolverData {
-                    bit_range,
-                    zeros_on_left,
-                    available_bits_in_first_byte: 8 - zeros_on_left,
-                    starting_inject_byte: bit_range.start / 8,
                     // TODO the flip information may be incorrect. it might be rust size.
                     flip: if self.flip.is_some() {
                         Some(bit_range.end - bit_range.start)
                     } else {
                         None
                     },
+                    starting_inject_byte: bit_range.start / 8,
+                    bit_range,
+                    zeros_on_left,
+                    available_bits_in_first_byte: 8 - zeros_on_left,
                     field_name: ident,
                 }),
                 ty: Box::new(self.ty.clone().into()),
@@ -128,24 +129,25 @@ impl BlockArrayIter {
     ) -> Self {
         Self {
             outer_ident,
+            remaining_elements: elements,
             starting_bit_index,
             ty,
-            total_elements: elements,
-            remaining_elements: elements,
             remaining_bits: amount_of_bits,
+            total_elements: elements,
         }
     }
 
-    pub fn from_values(
+    /// If `None` is returned, then a empty `sizings` was provided.
+    pub(crate) fn from_values(
         resolver_data: &ResolverData,
         sub_ty: &ResolverSubType,
         array_ty: &ResolverArrayType,
         sizings: &ArraySizings,
-    ) -> Self {
+    ) -> Option<Self> {
         let mut sizings = sizings.clone();
-        let elements = sizings.pop();
+        let elements = sizings.pop()?;
         let ty = if sizings.is_empty() {
-            sub_ty.clone()
+            sub_ty.clone().into()
         } else {
             ResolverType::Array {
                 sub_ty: sub_ty.clone(),
@@ -153,12 +155,12 @@ impl BlockArrayIter {
                 sizings,
             }
         };
-        Ok(BlockArrayIter::new(
+        Some(BlockArrayIter::new(
             resolver_data.field_name.clone(),
             ty,
             resolver_data.bit_range_start(),
             elements,
-            resolver_data.amount_of_bits,
+            resolver_data.bit_length(),
         ))
     }
 }
