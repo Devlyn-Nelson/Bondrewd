@@ -116,6 +116,7 @@ pub struct BlockArrayIter {
     pub remaining_bits: usize,
     // Total amount of bytes the iterator will consume when `None` is the return of `self.next()`.
     pub total_elements: usize,
+    pub flip: Option<usize>,
 }
 
 impl BlockArrayIter {
@@ -126,6 +127,7 @@ impl BlockArrayIter {
         starting_bit_index: usize,
         elements: usize,
         amount_of_bits: usize,
+        flip: Option<usize>,
     ) -> Self {
         Self {
             outer_ident,
@@ -134,6 +136,7 @@ impl BlockArrayIter {
             ty,
             remaining_bits: amount_of_bits,
             total_elements: elements,
+            flip,
         }
     }
 
@@ -144,6 +147,7 @@ impl BlockArrayIter {
         array_ty: &ResolverArrayType,
         sizings: &ArraySizings,
     ) -> Option<Self> {
+        let flip = resolver_data.flip();
         let mut sizings = sizings.clone();
         let elements = sizings.pop()?;
         let ty = if sizings.is_empty() {
@@ -161,6 +165,7 @@ impl BlockArrayIter {
             resolver_data.bit_range_start(),
             elements,
             resolver_data.bit_length(),
+            flip,
         ))
     }
 }
@@ -169,20 +174,20 @@ impl Iterator for BlockArrayIter {
     type Item = Resolver;
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining_elements != 0 {
-            let mut ty_size = self.ty.rust_bytes_size() * 8;
+            let mut ty_size = self.ty.rust_size() * 8;
             if self.remaining_bits % ty_size != 0 {
                 ty_size = self.remaining_bits % ty_size;
             }
             let start = self.starting_bit_index;
+            let end = start + ty_size;
             self.starting_bit_index = start + ty_size;
-            let bit_range = start..(start + ty_size);
             self.remaining_bits -= ty_size;
             let index = self.total_elements - self.remaining_elements;
             let outer_ident = self.outer_ident.ident().clone();
             let name = format_ident!("{outer_ident}_{index}");
             let ident = (outer_ident, name).into();
             self.remaining_elements -= 1;
-            let zeros_on_left = bit_range.start % 8;
+            let zeros_on_left = start % 8;
             // Some(BuiltDataTypeInfo {
             //     name: ident,
             //     bit_range,
@@ -190,13 +195,13 @@ impl Iterator for BlockArrayIter {
             // })
             Some(Resolver {
                 data: Box::new(ResolverData {
-                    bit_range,
+                    bit_range: start..end,
                     zeros_on_left,
                     available_bits_in_first_byte: 8 - zeros_on_left,
-                    starting_inject_byte: bit_range.start / 8,
+                    starting_inject_byte: start / 8,
                     // TODO the flip information may be incorrect. it might be rust size.
                     flip: if self.flip.is_some() {
-                        Some(bit_range.end - bit_range.start)
+                        Some(end - start)
                     } else {
                         None
                     },

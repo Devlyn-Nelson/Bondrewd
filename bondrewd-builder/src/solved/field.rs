@@ -192,6 +192,25 @@ pub enum ResolverType {
     },
 }
 
+impl ResolverType {
+    pub fn rust_size(&self) -> usize {
+        match self  {
+            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => rust_size.bytes(),
+            ResolverType::Nested { ty_ident, rust_size } => *rust_size,
+            ResolverType::Array { sub_ty, array_ty, sizings } => {
+                let mut size = match sub_ty {
+                    ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => rust_size.bytes(),
+                    ResolverSubType::Nested { ty_ident, rust_size } => *rust_size,
+                };
+                for sizing in sizings {
+                    size *= sizing;
+                }
+                size
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ResolverSubType {
     Primitive {
@@ -245,15 +264,16 @@ impl From<BuiltData> for SolvedData {
         let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
-        let zeros_on_left = pre_field.bit_range.range().start % 8;
-        // TODO if don't think this error is possible, and im wondering why it is being checked for
-        // in the first place.
+        let mut zeros_on_left = pre_field.bit_range.range().start % 8;
         if 7 < zeros_on_left {
-            return Err(SolvingError::ResolverUnderflow(format!(
-                "field \"{}\" would have had left shift underflow, report this at \
-                    https://github.com/Devlyn-Nelson/Bondrewd",
-                pre_field.id.ident(),
-            )));
+            // TODO if don't think this error is possible, and im wondering why it is being checked for
+            // in the first place.
+            // return Err(SolvingError::ResolverUnderflow(format!(
+            //     "field \"{}\" would have had left shift underflow, report this at \
+            //         https://github.com/Devlyn-Nelson/Bondrewd",
+            //     pre_field.id.ident(),
+            // )));
+            zeros_on_left = zeros_on_left % 8;
         }
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
@@ -315,5 +335,6 @@ impl From<BuiltData> for SolvedData {
             ty,
         };
         let new_field = SolvedData { resolver };
+        new_field
     }
 }
