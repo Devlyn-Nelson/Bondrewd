@@ -3,16 +3,13 @@ use std::{collections::BTreeMap, ops::Range};
 use syn::Ident;
 use thiserror::Error;
 
-use crate::{
-    build::{
-        field::DataType,
-        field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
-        ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
-    },
-    solved::field::{Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverType},
+use crate::build::{
+    field::DataType,
+    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
+    ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
 };
 
-use super::field::{DynamicIdent, ResolverData, ResolverSubType, SolvedData};
+use super::field::{DynamicIdent, SolvedData};
 
 pub struct Solved {
     /// DataSet's name.
@@ -80,8 +77,8 @@ impl TryFrom<GenericBuilder> for Solved {
 
     fn try_from(value: GenericBuilder) -> Result<Self, Self::Error> {
         match value.ty {
-            crate::build::field_set::BuilderType::Enum(e) => e.try_into(),
-            crate::build::field_set::BuilderType::Struct(s) => s.try_into(),
+            crate::build::field_set::BuilderType::Enum(e) => (*e).try_into(),
+            crate::build::field_set::BuilderType::Struct(s) => (*s).try_into(),
         }
     }
 }

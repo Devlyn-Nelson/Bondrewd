@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use quote::format_ident;
 
-use crate::build::{field::DataType, ArraySizings};
+use crate::build::ArraySizings;
 
 use super::field::{
     DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType,
@@ -95,7 +95,7 @@ impl Iterator for ElementArrayIter {
                     available_bits_in_first_byte: 8 - zeros_on_left,
                     field_name: ident,
                 }),
-                ty: Box::new(self.ty.clone().into()),
+                ty: Box::new(self.ty.clone()),
             })
         } else {
             None
@@ -207,9 +207,8 @@ impl Iterator for BlockArrayIter {
                     },
                     field_name: ident,
                 }),
-                ty: Box::new(self.ty.clone().into()),
-            });
-            todo!("make iter logic for block array iter");
+                ty: Box::new(self.ty.clone()),
+            })
         } else {
             None
         }

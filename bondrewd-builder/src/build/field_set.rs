@@ -20,7 +20,7 @@ pub struct GenericBuilder {
 impl GenericBuilder {
     pub fn single_set(name: Ident) -> Self {
         Self {
-            ty: BuilderType::Struct(FieldSetBuilder::new(name)),
+            ty: BuilderType::Struct(Box::new(FieldSetBuilder::new(name))),
             tuple: false,
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
@@ -28,7 +28,7 @@ impl GenericBuilder {
     #[must_use]
     pub fn variant_set(name: Ident) -> Self {
         Self {
-            ty: BuilderType::Enum(EnumBuilder::new(name)),
+            ty: BuilderType::Enum(Box::new(EnumBuilder::new(name))),
             tuple: false,
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
@@ -45,9 +45,9 @@ impl GenericBuilder {
 #[derive(Debug)]
 pub enum BuilderType {
     /// Multiple `field_sets` that switch based on an id field.
-    Enum(EnumBuilder),
+    Enum(Box<EnumBuilder>),
     /// A single `field_set`.
-    Struct(FieldSetBuilder),
+    Struct(Box<FieldSetBuilder>),
 }
 
 impl BuilderType {

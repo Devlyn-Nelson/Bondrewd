@@ -114,7 +114,7 @@ impl ObjectInfo {
             match current_dir() {
                 Ok(mut file_name) => {
                     file_name.push("target");
-                    file_name.push(&format!("{name}_code_gen.rs"));
+                    file_name.push(format!("{name}_code_gen.rs"));
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {

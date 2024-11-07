@@ -8,7 +8,7 @@ use crate::build::{
     ArraySizings,
 };
 
-use super::field_set::{BuiltData, BuiltRangeType, SolvingError};
+use super::field_set::{BuiltData, BuiltRangeType};
 
 // Used to make the handling of tuple structs vs named structs easier by removing the need to care.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -194,13 +194,31 @@ pub enum ResolverType {
 
 impl ResolverType {
     pub fn rust_size(&self) -> usize {
-        match self  {
-            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => rust_size.bytes(),
-            ResolverType::Nested { ty_ident, rust_size } => *rust_size,
-            ResolverType::Array { sub_ty, array_ty, sizings } => {
+        match self {
+            ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => rust_size.bytes(),
+            ResolverType::Nested {
+                ty_ident,
+                rust_size,
+            } => *rust_size,
+            ResolverType::Array {
+                sub_ty,
+                array_ty,
+                sizings,
+            } => {
                 let mut size = match sub_ty {
-                    ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => rust_size.bytes(),
-                    ResolverSubType::Nested { ty_ident, rust_size } => *rust_size,
+                    ResolverSubType::Primitive {
+                        number_ty,
+                        resolver_strategy,
+                        rust_size,
+                    } => rust_size.bytes(),
+                    ResolverSubType::Nested {
+                        ty_ident,
+                        rust_size,
+                    } => *rust_size,
                 };
                 for sizing in sizings {
                     size *= sizing;
@@ -273,11 +291,11 @@ impl From<BuiltData> for SolvedData {
             //         https://github.com/Devlyn-Nelson/Bondrewd",
             //     pre_field.id.ident(),
             // )));
-            zeros_on_left = zeros_on_left % 8;
+            zeros_on_left %= 8;
         }
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
-        let mut starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
+        let starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
         // NOTE endianness is only for determining how to get the bytes we will apply to the output.
         // calculate how many of the bits will be inside the most significant byte we are adding to.
         // if pre_field.endianness.is_byte_order_reversed() {
@@ -285,7 +303,7 @@ impl From<BuiltData> for SolvedData {
         //     starting_inject_byte = struct_byte_length - starting_inject_byte;
         // }
 
-        let sub_ty = match pre_field.ty {
+        let sub_ty = match &pre_field.ty {
             DataType::Number(number_type, rust_byte_size) => {
                 let resolver_strategy = if pre_field.endianness.is_alternative() {
                     ResolverPrimitiveStrategy::Alternate
@@ -293,30 +311,30 @@ impl From<BuiltData> for SolvedData {
                     ResolverPrimitiveStrategy::Standard
                 };
                 ResolverSubType::Primitive {
-                    number_ty: number_type,
+                    number_ty: *number_type,
                     resolver_strategy,
-                    rust_size: rust_byte_size,
+                    rust_size: *rust_byte_size,
                 }
             }
             DataType::Nested {
                 ident,
                 rust_byte_size,
             } => ResolverSubType::Nested {
-                ty_ident: ident,
-                rust_size: rust_byte_size,
+                ty_ident: ident.clone(),
+                rust_size: *rust_byte_size,
             },
         };
-        let ty = Box::new(match pre_field.bit_range.ty {
+        let ty = Box::new(match &pre_field.bit_range.ty {
             BuiltRangeType::SingleElement => sub_ty.into(),
             BuiltRangeType::BlockArray(vec) => ResolverType::Array {
                 array_ty: ResolverArrayType::Block,
-                sizings: vec,
-                sub_ty: sub_ty,
+                sizings: vec.clone(),
+                sub_ty,
             },
             BuiltRangeType::ElementArray(vec) => ResolverType::Array {
                 array_ty: ResolverArrayType::Element,
-                sizings: vec,
-                sub_ty: sub_ty,
+                sizings: vec.clone(),
+                sub_ty,
             },
         });
         let resolver = Resolver {
@@ -334,7 +352,6 @@ impl From<BuiltData> for SolvedData {
             }),
             ty,
         };
-        let new_field = SolvedData { resolver };
-        new_field
+        SolvedData { resolver }
     }
 }
