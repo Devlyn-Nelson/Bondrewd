@@ -539,7 +539,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// experimental attributes please be careful and report unexpected behavior to our github issues.
 /// - `bits = "{RANGE}"` - Define the bit indexes yourself rather than let the proc macro figure
 ///     it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
-///     above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2). 
+///     above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
 ///     [example](#bits-attribute-example)
 /// - `read_only` - Bondrewd will not include `from_bytes` or `into_bytes` logic for the field.
 /// - `overlapping_bits = {BITS}` - Tells bondrewd that the provided BITS amount is shared
