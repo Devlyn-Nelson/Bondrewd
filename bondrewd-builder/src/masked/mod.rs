@@ -1,4 +1,4 @@
-//! TODO START_HERE
+//! TODO `START_HERE`
 //! create the masked structures. this step is takes a resolver and gives
 //! the final form that bondrewd-builder is made to create a `Resolved` type
 //! which is meant to be a fully solved version of a struct or enum containing
@@ -11,7 +11,7 @@ use crate::solved::field::ResolverType;
 
 /// # Definitions
 /// - bitfield: the slice or array of bytes that contain the reduced or "bitfield" form. The bitfield would the the bytes returned by `Bitfield::into_bytes` or given as a argument in `Bitfield::from_bytes`.
-/// - field-buffer: the that is use to transition between bitfield and rust form. When using into_bytes functions this would be the array returned by the rust type. for from_bytes into the array that will be given to the rust type.
+/// - field-buffer: the that is use to transition between bitfield and rust form. When using `into_bytes` functions this would be the array returned by the rust type. for `from_bytes` into the array that will be given to the rust type.
 struct Extractor {
     /// The index in the field-buffer for this set of bits to go into.
     field_buffer_byte_index: usize,

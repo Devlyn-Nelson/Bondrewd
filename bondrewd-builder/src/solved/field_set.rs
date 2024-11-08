@@ -12,7 +12,7 @@ use crate::build::{
 use super::field::{DynamicIdent, SolvedData};
 
 pub struct Solved {
-    /// DataSet's name.
+    /// `DataSet`'s name.
     ///
     /// for derive this would be the Enum or Struct ident.
     name: Ident,
@@ -241,10 +241,10 @@ pub struct BuiltRange {
 }
 
 impl BuiltRange {
-    pub fn range(&self) -> &Range<usize> {
+    #[must_use] pub fn range(&self) -> &Range<usize> {
         &self.bit_range
     }
-    pub fn bit_size(&self) -> usize {
+    #[must_use] pub fn bit_size(&self) -> usize {
         self.bit_range.end - self.bit_range.start
     }
 }
@@ -294,7 +294,7 @@ impl BuiltRange {
                 element_bit_length,
             } => {
                 let mut total_bits = *element_bit_length as usize;
-                for size in sizings.iter() {
+                for size in sizings {
                     total_bits *= size;
                 }
                 let bit_range = start..(start + total_bits);

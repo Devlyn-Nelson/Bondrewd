@@ -1,17 +1,13 @@
 use std::{cmp::Ordering, collections::VecDeque};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{punctuated::Punctuated, token::Comma};
 
+use crate::{build::field::NumberType, solved::field::{Resolver, ResolverArrayType, ResolverData, ResolverPrimitiveStrategy, ResolverType}};
+
 use super::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, BigQuoteInfo, LittleQuoteInfo,
-    NoneQuoteInfo, QuoteInfo,
-};
-use crate::common::{
-    field::{DataType, Info as FieldInfo, NumberSignage},
-    r#struct::Info as StructInfo,
-    EndiannessMode,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask,
 };
 
 fn isolate_bit_index_mask(bit_index: usize) -> u8 {
@@ -26,7 +22,7 @@ fn isolate_bit_index_mask(bit_index: usize) -> u8 {
         _ => 0b1000_0000,
     }
 }
-fn rotate_primitive_vec(prim: Vec<u8>, right_shift: i8, field: &FieldInfo) -> syn::Result<Vec<u8>> {
+fn rotate_primitive_vec(prim: Vec<u8>, right_shift: i8, span: Span) -> syn::Result<Vec<u8>> {
     // REMEMBER SHIFTS ARE BACKWARD BECAUSE YOU COPIED AND PASTED into_bytes
     if right_shift == 0 {
         return Ok(prim);
@@ -104,7 +100,7 @@ fn rotate_primitive_vec(prim: Vec<u8>, right_shift: i8, field: &FieldInfo) -> sy
         }
         _ => {
             return Err(syn::Error::new(
-                field.ident.span(),
+                span,
                 "invalid primitive size",
             ));
         }
@@ -113,36 +109,34 @@ fn rotate_primitive_vec(prim: Vec<u8>, right_shift: i8, field: &FieldInfo) -> sy
 }
 
 fn add_sign_fix_quote(
-    field: &FieldInfo,
+    field: &Resolver,
     amount_of_bits: usize,
     right_shift: i8,
 ) -> syn::Result<Option<TokenStream>> {
-    if let DataType::Number {
-        ref size, ref sign, ..
-    } = field.ty
+    if let ResolverType::Primitive { number_ty, resolver_strategy, rust_size } = field.ty
     {
-        if amount_of_bits != size * 8 {
-            if let NumberSignage::Signed = sign {
-                let (bit_to_isolate, sign_index) = match field.attrs.endianness.mode() {
-                    EndiannessMode::Standard => (
-                        field.attrs.bit_range.start % 8,
-                        field.attrs.bit_range.start / 8,
+        let size =rust_size.bytes();
+        if amount_of_bits != size {
+            if let NumberType::Signed = number_ty {
+                let (bit_to_isolate, sign_index) = match resolver_strategy {
+                    ResolverPrimitiveStrategy::Standard => (
+                        field.data.bit_range_start() % 8,
+                        field.data.bit_range_start() / 8,
                     ),
-                    EndiannessMode::Alternative => {
+                    ResolverPrimitiveStrategy::Alternative => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
-                        let sign_bit_index = field.attrs.bit_range.start + skip_bytes;
+                        let sign_bit_index = field.data.bit_range_start() + skip_bytes;
                         // TODO fix bit isolators to fix signed numbers.
                         (sign_bit_index % 8, sign_bit_index / 8)
                     }
-                    EndiannessMode::Nested => return Ok(None),
                 };
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let sign_bit = quote! {
                     (input_byte_buffer[#sign_index] & #sign_mask)
                 };
-                let mut unused_bits = (size * 8) - amount_of_bits;
+                let mut unused_bits = size - amount_of_bits;
                 let mut buffer: VecDeque<u8> = VecDeque::default();
-                for _i in 0..*size {
+                for _i in 0..size {
                     if unused_bits > 7 {
                         buffer.push_back(get_left_and_mask(8));
                         unused_bits -= 8;
@@ -154,8 +148,8 @@ fn add_sign_fix_quote(
                     }
                 }
                 let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
-                match field.attrs.endianness.mode() {
-                    EndiannessMode::Standard => {
+                match resolver_strategy {
+                    ResolverPrimitiveStrategy::Standard => {
                         buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),
                             right_shift,
@@ -170,7 +164,7 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    EndiannessMode::Alternative => {
+                    ResolverPrimitiveStrategy::Alternative => {
                         match right_shift.cmp(&0) {
                             Ordering::Greater => {
                                 buffer = buffer
@@ -196,7 +190,6 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    EndiannessMode::Nested => return Ok(None),
                 }
                 return Ok(Some(quote! {
                     if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]}
@@ -209,17 +202,15 @@ fn add_sign_fix_quote(
 
 fn add_sign_fix_quote_single_bit(
     field_access: TokenStream,
-    field: &FieldInfo,
+    field: &Resolver,
     amount_of_bits: usize,
     byte_index: usize,
 ) -> TokenStream {
-    if let DataType::Number {
-        ref size, ref sign, ..
-    } = field.ty
+    if let ResolverType::Primitive { number_ty, resolver_strategy, rust_size } = field.ty
     {
-        if amount_of_bits != *size * 8 {
-            if let NumberSignage::Signed = sign {
-                let bit_to_isolate = field.attrs.bit_range.start % 8;
+        if amount_of_bits != rust_size.bytes() {
+            if let NumberType::Signed = number_ty {
+                let bit_to_isolate = field.bit_range_start() % 8;
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let neg_mask = get_left_and_mask(bit_to_isolate + 1);
                 let sign_bit = quote! {
@@ -238,41 +229,44 @@ fn add_sign_fix_quote_single_bit(
 impl Resolver {
     pub(crate) fn get_read_quote(
         &self,
-        struct_info: &StructInfo,
-        gen_read_fn: fn(&FieldInfo, &QuoteInfo) -> syn::Result<TokenStream>,
+        gen_read_fn: fn(&ResolverData, &TokenStream) -> syn::Result<TokenStream>,
     ) -> syn::Result<TokenStream> {
         let value_retrieval = match self.ty {
-            DataType::ElementArray { .. } => {
-                let mut buffer = quote! {};
-                let sub = self.get_element_iter()?;
-                for sub_field in sub {
-                    let sub_field_quote =
-                        Self::get_read_quote(&sub_field, struct_info, gen_read_fn)?;
-                    buffer = quote! {
-                        #buffer
-                        {#sub_field_quote},
-                    };
+            ResolverType::Array { sub_ty, array_ty, sizings } => {
+                match array_ty {
+                    ResolverArrayType::ElementArray { .. } => {
+                        let mut buffer = quote! {};
+                        let sub = self.get_element_iter()?;
+                        for sub_field in sub {
+                            let sub_field_quote =
+                                Self::get_read_quote(&sub_field, gen_read_fn)?;
+                            buffer = quote! {
+                                #buffer
+                                {#sub_field_quote},
+                            };
+                        }
+                        let buffer = quote! { [#buffer] };
+                        buffer
+                    }
+                    ResolverArrayType::BlockArray { .. } => {
+                        let mut buffer = quote! {};
+                        let sub = self.get_block_iter()?;
+                        for sub_field in sub {
+                            let sub_field_quote =
+                                Self::get_read_quote(&sub_field, gen_read_fn)?;
+                            buffer = quote! {
+                                #buffer
+                                {#sub_field_quote},
+                            };
+                        }
+                        let buffer = quote! { [#buffer] };
+                        buffer
+                    }
                 }
-                let buffer = quote! { [#buffer] };
-                buffer
-            }
-            DataType::BlockArray { .. } => {
-                let mut buffer = quote! {};
-                let sub = self.get_block_iter()?;
-                for sub_field in sub {
-                    let sub_field_quote =
-                        Self::get_read_quote(&sub_field, struct_info, gen_read_fn)?;
-                    buffer = quote! {
-                        #buffer
-                        {#sub_field_quote},
-                    };
-                }
-                let buffer = quote! { [#buffer] };
-                buffer
             }
             _ => {
                 let quote_info: QuoteInfo = (self, struct_info).try_into()?;
-                gen_read_fn(self, &quote_info)?
+                gen_read_fn(&self.data, &quote_info)?
             }
         };
 
@@ -303,7 +297,11 @@ impl Resolver {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_le_quote(&self, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_le_quote(
+        &self,
+        sub_ty: ResolverSubType,
+        field_access_quote: &TokenStream,
+    ) -> syn::Result<TokenStream> {
         if quote_info.amount_of_bits() > quote_info.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the

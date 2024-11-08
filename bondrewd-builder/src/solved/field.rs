@@ -31,7 +31,7 @@ pub enum DynamicIdentName {
 
 impl DynamicIdent {
     /// Returns a `DynamicIdent` for a user-defined-field-name.
-    pub fn from_ident(ident: Ident) -> Self {
+    #[must_use] pub fn from_ident(ident: Ident) -> Self {
         Self {
             bondrewd_name: ident.clone(),
             user_name: DynamicIdentName::Ident(ident),
@@ -39,30 +39,30 @@ impl DynamicIdent {
     }
     /// Returns a `DynamicIdent` for a tuple-struct-field's-index and the [`Span`]`
     /// of its type (so we can display error in a nice place).
-    pub fn from_index(index: usize, span: Span) -> Self {
+    #[must_use] pub fn from_index(index: usize, span: Span) -> Self {
         Self {
             bondrewd_name: Ident::new(&format!("field_{index}"), span),
             user_name: DynamicIdentName::Index(index),
         }
     }
-    /// Returns a `DynamicIdent` for a array's to create unique names for a byte_buffer for each element
+    /// Returns a `DynamicIdent` for a array's to create unique names for a `byte_buffer` for each element
     /// within an array.
-    pub fn from_ident_with_name(ident: Ident, name: Ident) -> Self {
+    #[must_use] pub fn from_ident_with_name(ident: Ident, name: Ident) -> Self {
         Self {
             bondrewd_name: name,
             user_name: DynamicIdentName::Ident(ident),
         }
     }
-    pub fn ident(&self) -> Ident {
+    #[must_use] pub fn ident(&self) -> Ident {
         match &self.user_name {
             DynamicIdentName::Ident(ident) => ident.clone(),
             DynamicIdentName::Index(_) => self.bondrewd_name.clone(),
         }
     }
-    pub fn name(&self) -> Ident {
+    #[must_use] pub fn name(&self) -> Ident {
         self.bondrewd_name.clone()
     }
-    pub fn span(&self) -> Span {
+    #[must_use] pub fn span(&self) -> Span {
         self.bondrewd_name.span()
     }
 }
@@ -127,10 +127,10 @@ pub struct Resolver {
 }
 
 impl Resolver {
-    pub fn ident(&self) -> Ident {
+    #[must_use] pub fn ident(&self) -> Ident {
         self.data.field_name.ident()
     }
-    pub fn name(&self) -> Ident {
+    #[must_use] pub fn name(&self) -> Ident {
         self.data.field_name.name()
     }
     #[must_use]
@@ -153,7 +153,7 @@ impl Resolver {
     pub fn fields_last_bits_index(&self) -> usize {
         self.bit_length().div_ceil(8) - 1
     }
-    pub fn spans_multiple_bytes(&self) -> bool {
+    #[must_use] pub fn spans_multiple_bytes(&self) -> bool {
         self.bit_length() > self.data.available_bits_in_first_byte
     }
     #[must_use]
@@ -193,7 +193,7 @@ pub enum ResolverType {
 }
 
 impl ResolverType {
-    pub fn rust_size(&self) -> usize {
+    #[must_use] pub fn rust_size(&self) -> usize {
         match self {
             ResolverType::Primitive {
                 number_ty,
