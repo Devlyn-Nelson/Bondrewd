@@ -241,10 +241,12 @@ pub struct BuiltRange {
 }
 
 impl BuiltRange {
-    #[must_use] pub fn range(&self) -> &Range<usize> {
+    #[must_use]
+    pub fn range(&self) -> &Range<usize> {
         &self.bit_range
     }
-    #[must_use] pub fn bit_size(&self) -> usize {
+    #[must_use]
+    pub fn bit_size(&self) -> usize {
         self.bit_range.end - self.bit_range.start
     }
 }

@@ -18,7 +18,8 @@ pub struct GenericBuilder {
 }
 
 impl GenericBuilder {
-    #[must_use] pub fn single_set(name: Ident) -> Self {
+    #[must_use]
+    pub fn single_set(name: Ident) -> Self {
         Self {
             ty: BuilderType::Struct(Box::new(FieldSetBuilder::new(name))),
             tuple: false,
@@ -33,7 +34,8 @@ impl GenericBuilder {
             vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
-    #[must_use] pub fn get(&self) -> &BuilderType {
+    #[must_use]
+    pub fn get(&self) -> &BuilderType {
         &self.ty
     }
     pub fn get_mut(&mut self) -> &mut BuilderType {
@@ -51,14 +53,16 @@ pub enum BuilderType {
 }
 
 impl BuilderType {
-    #[must_use] pub fn get_struct(&self) -> Option<&FieldSetBuilder> {
+    #[must_use]
+    pub fn get_struct(&self) -> Option<&FieldSetBuilder> {
         if let Self::Struct(ref thing) = self {
             Some(thing)
         } else {
             None
         }
     }
-    #[must_use] pub fn get_enum(&self) -> Option<&EnumBuilder> {
+    #[must_use]
+    pub fn get_enum(&self) -> Option<&EnumBuilder> {
         if let Self::Enum(ref thing) = self {
             Some(thing)
         } else {
@@ -140,7 +144,8 @@ pub struct FieldSetBuilder {
 }
 
 impl FieldSetBuilder {
-    #[must_use] pub fn new(key: Ident) -> Self {
+    #[must_use]
+    pub fn new(key: Ident) -> Self {
         Self {
             name: key,
             fields: Vec::default(),

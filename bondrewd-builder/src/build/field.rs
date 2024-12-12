@@ -32,7 +32,8 @@ pub enum RustByteSize {
 }
 
 impl RustByteSize {
-    #[must_use] pub fn bytes(&self) -> usize {
+    #[must_use]
+    pub fn bytes(&self) -> usize {
         match self {
             RustByteSize::One => 1,
             RustByteSize::Two => 2,
@@ -41,7 +42,8 @@ impl RustByteSize {
             RustByteSize::Sixteen => 16,
         }
     }
-    #[must_use] pub fn bits(&self) -> usize {
+    #[must_use]
+    pub fn bits(&self) -> usize {
         match self {
             RustByteSize::One => 8,
             RustByteSize::Two => 16,
@@ -53,7 +55,8 @@ impl RustByteSize {
 }
 
 impl DataType {
-    #[must_use] pub fn rust_size(&self) -> usize {
+    #[must_use]
+    pub fn rust_size(&self) -> usize {
         match self {
             DataType::Number(number_type, rust_byte_size) => rust_byte_size.bytes(),
             DataType::Nested {
@@ -109,7 +112,8 @@ pub enum NumberType {
 }
 
 impl DataBuilder {
-    #[must_use] pub fn new(name: DynamicIdent, ty: DataType) -> Self {
+    #[must_use]
+    pub fn new(name: DynamicIdent, ty: DataType) -> Self {
         Self {
             id: name,
             ty,
@@ -119,7 +123,8 @@ impl DataBuilder {
             overlap: OverlapOptions::None,
         }
     }
-    #[must_use] pub fn id(&self) -> &DynamicIdent {
+    #[must_use]
+    pub fn id(&self) -> &DynamicIdent {
         &self.id
     }
 

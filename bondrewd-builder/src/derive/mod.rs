@@ -1,10 +1,11 @@
 use crate::solved::field::ResolverData;
 
-mod into;
 mod from;
+mod into;
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
-#[must_use] pub fn get_left_and_mask(num: usize) -> u8 {
+#[must_use]
+pub fn get_left_and_mask(num: usize) -> u8 {
     match num {
         8 => 0b1111_1111,
         7 => 0b1111_1110,
@@ -19,7 +20,8 @@ mod from;
 }
 
 /// Returns a u8 mask with provided `num` amount of 1's on the right side (least significant bit)
-#[must_use] pub fn get_right_and_mask(num: usize) -> u8 {
+#[must_use]
+pub fn get_right_and_mask(num: usize) -> u8 {
     match num {
         8 => 0b1111_1111,
         7 => 0b0111_1111,
@@ -64,7 +66,8 @@ pub fn get_be_starting_index(
 
 impl ResolverData {
     /// Returns the next byte index in sequence based of the given `index` and whether or not the Structure in has a reverse bytes order.
-    #[must_use] pub fn next_index(&self, index: usize) -> usize {
+    #[must_use]
+    pub fn next_index(&self, index: usize) -> usize {
         if self.flip.is_some() {
             index - 1
         } else {
@@ -72,23 +75,28 @@ impl ResolverData {
         }
     }
     /// Returns the `starting_inject_byte` plus or minus `offset` depending on if the bytes order is reversed.
-    #[must_use] pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
+    #[must_use]
+    pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
         if self.flip.is_some() {
             self.starting_inject_byte - offset
         } else {
             self.starting_inject_byte + offset
         }
     }
-    #[must_use] pub fn fields_last_bits_index(&self) -> usize {
+    #[must_use]
+    pub fn fields_last_bits_index(&self) -> usize {
         self.bit_range_end().div_ceil(8) - 1
     }
-    #[must_use] pub fn flip(&self) -> Option<usize> {
+    #[must_use]
+    pub fn flip(&self) -> Option<usize> {
         self.flip
     }
-    #[must_use] pub fn bit_range_start(&self) -> usize {
+    #[must_use]
+    pub fn bit_range_start(&self) -> usize {
         self.bit_range.start
     }
-    #[must_use] pub fn bit_range_end(&self) -> usize {
+    #[must_use]
+    pub fn bit_range_end(&self) -> usize {
         self.bit_range.end
     }
     #[must_use]

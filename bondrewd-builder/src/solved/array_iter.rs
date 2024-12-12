@@ -30,7 +30,8 @@ impl ElementArrayIter {
         self.outer_ident.name()
     }
     // creates a new ElementArrayIter with `elements` array length.
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         outer_ident: DynamicIdent,
         ty: ResolverType,
         starting_bit_index: usize,
@@ -128,7 +129,8 @@ pub struct BlockArrayIter {
 
 impl BlockArrayIter {
     // creates a new ElementArrayIter with `elements` array length.
-    #[must_use] pub fn new(
+    #[must_use]
+    pub fn new(
         outer_ident: DynamicIdent,
         ty: ResolverType,
         starting_bit_index: usize,

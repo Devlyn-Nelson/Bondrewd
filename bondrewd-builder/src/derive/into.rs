@@ -76,9 +76,14 @@ impl Resolver {
                     let mut buffer = quote! {};
                     let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
                     let outer_field_name = &self.ident();
-                    let Some(sub) = ElementArrayIter::from_values(&self.data, sub_ty, array_ty, sizings) else{
+                    let Some(sub) =
+                        ElementArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
+                    else {
                         let ident = self.data.field_name.ident();
-                        return Err(Error::new(ident.span(), format!("Failed to construct valid ElementArrayIter for `{ident}`")));
+                        return Err(Error::new(
+                            ident.span(),
+                            format!("Failed to construct valid ElementArrayIter for `{ident}`"),
+                        ));
                     };
                     for sub_field in sub {
                         let field_name = &sub_field.name();
@@ -105,9 +110,14 @@ impl Resolver {
                     let mut clear_buffer = quote! {};
                     let mut de_refs: Punctuated<syn::Ident, Comma> = Punctuated::default();
                     let outer_field_name = &self.ident();
-                    let Some(sub) = BlockArrayIter::from_values(&self.data, sub_ty, array_ty, sizings) else{
+                    let Some(sub) =
+                        BlockArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
+                    else {
                         let ident = self.data.field_name.ident();
-                        return Err(Error::new(ident.span(), format!("Failed to construct valid ElementArrayIter for `{ident}`")));
+                        return Err(Error::new(
+                            ident.span(),
+                            format!("Failed to construct valid ElementArrayIter for `{ident}`"),
+                        ));
                     };
                     for sub_field in sub {
                         let field_name = &sub_field.name();
@@ -444,9 +454,7 @@ impl Resolver {
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
-        if 8 < amount_of_bits
-            || 8 - amount_of_bits < self.data.bit_range_start() % 8
-        {
+        if 8 < amount_of_bits || 8 - amount_of_bits < self.data.bit_range_start() % 8 {
             return Err(syn::Error::new(
                 self.ident().span(),
                 "calculating ne shift_left failed",
@@ -469,16 +477,33 @@ impl Resolver {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let finished_quote = match sub_ty {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float |
-                NumberType::Unsigned |
-                NumberType::Signed => return Err(syn::Error::new(self.ident().span(), "Number not supported for no-endian insert logic")),
-                NumberType::Char => return Err(syn::Error::new(self.ident().span(), "Char not supported for no-endian insert logic")),
-                NumberType::Bool => quote!{output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;},
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match number_ty {
+                NumberType::Float | NumberType::Unsigned | NumberType::Signed => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "Number not supported for no-endian insert logic",
+                    ))
+                }
+                NumberType::Char => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "Char not supported for no-endian insert logic",
+                    ))
+                }
+                NumberType::Bool => {
+                    quote! {output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
+                }
             },
-            ResolverSubType::Nested { ty_ident, rust_size } => {
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
                 let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte;
-                quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
+                quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
                 // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
                 // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}
             }
@@ -502,9 +527,21 @@ impl Resolver {
         let field_buffer_name = format_ident!("{}_bytes", self.data.field_name.name());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let (field_byte_buffer, size) = match sub_ty {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => return Err(syn::Error::new(self.ident().span(), "Primitive was not given Endianness, please report this.")),
-            ResolverSubType::Nested { ty_ident, rust_size } => {
-                let field_call = quote!{#field_access_quote.into_bytes()};
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Primitive was not given Endianness, please report this.",
+                ))
+            }
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
+                let field_call = quote! {#field_access_quote.into_bytes()};
                 let apply_field_to_buffer = quote! {
                     let mut #field_buffer_name = #field_call
                 };
@@ -735,11 +772,7 @@ impl Resolver {
                 if self.ty.rust_size() * 8 == amount_of_bits {
                     self.ty.rust_size() - 1
                 } else {
-                    match get_be_starting_index(
-                        amount_of_bits,
-                        right_shift,
-                        self.ty.rust_size(),
-                    ) {
+                    match get_be_starting_index(amount_of_bits, right_shift, self.ty.rust_size()) {
                         Ok(good) => good,
                         Err(err) => {
                             return Err(syn::Error::new(
@@ -760,8 +793,7 @@ impl Resolver {
                     let right_shift_usize: u32 = u32::from(right_shift.unsigned_abs());
                     quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
                 },
-                match get_be_starting_index(amount_of_bits, right_shift, self.ty.rust_size())
-                {
+                match get_be_starting_index(amount_of_bits, right_shift, self.ty.rust_size()) {
                     Ok(good) => good,
                     Err(err) => {
                         return Err(syn::Error::new(
@@ -812,9 +844,7 @@ impl Resolver {
         let not_last_bit_mask = !last_bit_mask;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
-            if self.data.available_bits_in_first_byte + bits_in_last_byte
-                != amount_of_bits
-            {
+            if self.data.available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1usize..self.ty.rust_size() {
                     clear_quote = quote! {
                         #clear_quote
@@ -838,9 +868,7 @@ impl Resolver {
             };
         } else {
             // no shift
-            if self.data.available_bits_in_first_byte + bits_in_last_byte
-                != amount_of_bits
-            {
+            if self.data.available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1..self.ty.rust_size() - 1 {
                     clear_quote = quote! {
                         #clear_quote
