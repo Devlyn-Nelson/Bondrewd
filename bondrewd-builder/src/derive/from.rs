@@ -1022,21 +1022,15 @@ impl Resolver {
             )
         };
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
+        let ty_ident = self.ty.get_type_ident();
         let output = match self.ty.as_ref() {
             ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
                 match number_ty {
                     NumberType::Float =>{
-                        let alt_type_quote = if rust_size.bytes() == 4 {
-                            quote!{u32}
-                        }else if size == 8 {
-                            quote!{u64}
-                        }else{
-                            return Err(syn::Error::new(self.ident().span(), "unsupported floating type"))
-                        };
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                        let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
+                        // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
-                            #alt_type_quote::from_be_bytes({
+                            #ty_ident::from_be_bytes({
                                 #full_quote
                             })#shift
                         };
@@ -1044,18 +1038,18 @@ impl Resolver {
                     }
                     NumberType::Unsigned |
                     NumberType::Signed => {
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                        let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
+                        // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
-                            #type_quote::from_be_bytes({
+                            #ty_ident::from_be_bytes({
                                 #full_quote
                             })#shift
                         };
                         apply_field_to_buffer
                     }
                     NumberType::Char => {
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
-                        let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
+                        // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
                             u32::from_be_bytes({
                                 #full_quote
@@ -1080,9 +1074,10 @@ impl Resolver {
 
 fn build_be_number_quote(
     field: &Resolver,
-    stuff: &ResolverDataBigAdditive,
     first_bits_index: usize,
 ) -> syn::Result<TokenStream> {
+
+    let stuff = ResolverDataBigAdditive::from(field.data.as_ref())
     let amount_of_bits = field.bit_length();
     let bits_in_last_byte = stuff.bits_in_last_byte;
     let field_buffer_name = field.field_buffer_name();

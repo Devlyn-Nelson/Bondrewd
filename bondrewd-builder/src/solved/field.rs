@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use proc_macro2::Span;
+use quote::format_ident;
 use syn::Ident;
 
 use crate::build::{
@@ -202,6 +203,30 @@ pub enum ResolverType {
 }
 
 impl ResolverType {
+    pub fn get_type_ident(&self) -> Ident {
+        let span = Span::call_site();
+        match self {
+            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
+                let pre = match number_ty {
+                    NumberType::Float => "f",
+                    NumberType::Unsigned => "u",
+                    NumberType::Signed => "i",
+                    NumberType::Char => return Ident::new("char", span),
+                    NumberType::Bool => return Ident::new("bool", span),
+                };
+                let size = rust_size.bits();
+                Ident::new(&format!("{pre}{size}"), span)
+            }
+            ResolverType::Nested { ty_ident, rust_size } => format_ident!("{ty_ident}"),
+            ResolverType::Array { sub_ty, array_ty, sizings } => {
+                let mut ty = sub_ty.get_type_ident();
+                for size in sizings {
+                    ty = format_ident!("[{ty};{size}]");
+                }
+                ty
+            }
+        }
+    }
     #[must_use]
     pub fn rust_size(&self) -> usize {
         match self {
@@ -250,6 +275,25 @@ pub enum ResolverSubType {
         ty_ident: String,
         rust_size: usize,
     },
+}
+impl ResolverSubType {
+    pub fn get_type_ident(&self) -> Ident {
+        let span = Span::call_site();
+        match self {
+            Self::Primitive { number_ty, resolver_strategy, rust_size } => {
+                let pre = match number_ty {
+                    NumberType::Float => "f",
+                    NumberType::Unsigned => "u",
+                    NumberType::Signed => "i",
+                    NumberType::Char => return Ident::new("char", span),
+                    NumberType::Bool => return Ident::new("bool", span),
+                };
+                let size = rust_size.bits();
+                Ident::new(&format!("{pre}{size}"), span)
+            }
+            Self::Nested { ty_ident, rust_size } => format_ident!("{ty_ident}"),
+        }
+    }
 }
 
 impl From<ResolverSubType> for ResolverType {
