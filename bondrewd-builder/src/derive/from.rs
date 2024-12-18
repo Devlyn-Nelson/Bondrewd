@@ -117,7 +117,7 @@ fn add_sign_fix_quote(
         number_ty,
         resolver_strategy,
         rust_size,
-    } = field.ty
+    } = field.ty.as_ref()
     {
         let size = rust_size.bytes();
         if amount_of_bits != size {
@@ -127,7 +127,7 @@ fn add_sign_fix_quote(
                         field.data.bit_range_start() % 8,
                         field.data.bit_range_start() / 8,
                     ),
-                    ResolverPrimitiveStrategy::Alternative => {
+                    ResolverPrimitiveStrategy::Alternate => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
                         let sign_bit_index = field.data.bit_range_start() + skip_bytes;
                         // TODO fix bit isolators to fix signed numbers.
@@ -157,7 +157,7 @@ fn add_sign_fix_quote(
                         buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),
                             right_shift,
-                            field,
+                            field.ident().span(),
                         )?);
                         while {
                             if let Some(c) = buffer.pop_front() {
@@ -168,7 +168,7 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    ResolverPrimitiveStrategy::Alternative => {
+                    ResolverPrimitiveStrategy::Alternate => {
                         match right_shift.cmp(&0) {
                             Ordering::Greater => {
                                 buffer = buffer
@@ -214,11 +214,11 @@ fn add_sign_fix_quote_single_bit(
         number_ty,
         resolver_strategy,
         rust_size,
-    } = field.ty
+    } = field.ty.as_ref()
     {
         if amount_of_bits != rust_size.bytes() {
             if let NumberType::Signed = number_ty {
-                let bit_to_isolate = field.bit_range_start() % 8;
+                let bit_to_isolate = field.data.bit_range_start() % 8;
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let neg_mask = get_left_and_mask(bit_to_isolate + 1);
                 let sign_bit = quote! {
@@ -239,15 +239,24 @@ impl Resolver {
         &self,
         gen_read_fn: fn(&ResolverData, &TokenStream) -> syn::Result<TokenStream>,
     ) -> syn::Result<TokenStream> {
-        let value_retrieval = match self.ty {
+        let value_retrieval = match self.ty.as_ref() {
             ResolverType::Array {
                 sub_ty,
                 array_ty,
                 sizings,
             } => match array_ty {
-                ResolverArrayType::ElementArray { .. } => {
+                ResolverArrayType::Element { .. } => {
                     let mut buffer = quote! {};
-                    let sub = self.get_element_iter()?;
+                    let Some(sub) =
+                        ElementArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
+                    else {
+                        let ident = self.data.field_name.ident();
+                        return Err(Error::new(
+                            ident.span(),
+                            format!("Failed to construct valid ElementArrayIter for `{ident}`"),
+                        ));
+                    };
+                    // let sub = self.get_element_iter()?;
                     for sub_field in sub {
                         let sub_field_quote = Self::get_read_quote(&sub_field, gen_read_fn)?;
                         buffer = quote! {
@@ -258,9 +267,18 @@ impl Resolver {
                     let buffer = quote! { [#buffer] };
                     buffer
                 }
-                ResolverArrayType::BlockArray { .. } => {
+                ResolverArrayType::Block { .. } => {
                     let mut buffer = quote! {};
-                    let sub = self.get_block_iter()?;
+                    let Some(sub) =
+                        BlockArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
+                    else {
+                        let ident = self.data.field_name.ident();
+                        return Err(Error::new(
+                            ident.span(),
+                            format!("Failed to construct valid ElementArrayIter for `{ident}`"),
+                        ));
+                    };
+                    // let sub = self.get_block_iter()?;
                     for sub_field in sub {
                         let sub_field_quote = Self::get_read_quote(&sub_field, gen_read_fn)?;
                         buffer = quote! {
@@ -358,17 +376,17 @@ impl Resolver {
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
-        if 8 - quote_info.amount_of_bits() < self.attrs.bit_range.start % 8 {
+        if 8 - quote_info.amount_of_bits() < self.data.bit_range_start() % 8 {
             return Err(syn::Error::new(
                 self.ident().span(),
                 format!(
                     "calculating be left_shift failed {} , {}",
                     quote_info.amount_of_bits(),
-                    self.attrs.bit_range.start % 8
+                    self.data.bit_range_start() % 8
                 ),
             ));
         }
-        let shift_left = (8 - quote_info.amount_of_bits()) - (self.attrs.bit_range.start % 8);
+        let shift_left = (8 - quote_info.amount_of_bits()) - (self.data.bit_range_start() % 8);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -386,6 +404,7 @@ impl Resolver {
         let starting_inject_byte = quote_info.starting_inject_byte();
         let field_buffer_name = quote_info.field_buffer_name();
         let output_quote = match self.ty.as_ref() {
+
             ResolverType::Array {
                 sub_ty,
                 array_ty,
@@ -397,8 +416,8 @@ impl Resolver {
                 ));
             }
             ResolverType::Nested {
-                ty_ident: (),
-                rust_size: (),
+                ty_ident: _,
+                rust_size: _,
             } => {
                 return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield"));
             }
@@ -468,7 +487,7 @@ impl Resolver {
             let thing: LittleQuoteInfo = quote_info.into();
             (thing.right_shift, thing.first_bit_mask, thing.last_bit_mask)
         };
-        let rust_type_size = self.ty.size();
+        let rust_type_size = self.ty.rust_size();
         // Allocate a buffer to put the bits into as we extract them. if signed we need to be able fill
         // the unused bits with zero or 1 depending on if it is negative when read.
         let new_array_quote =
@@ -658,7 +677,7 @@ impl Resolver {
         let mask = get_right_and_mask(quote_info.available_bits_in_first_byte())
             & get_left_and_mask(8 - zeros_on_right);
         if 8 < quote_info.amount_of_bits()
-            || 8 - quote_info.amount_of_bits() < self.attrs.bit_range.start % 8
+            || 8 - quote_info.amount_of_bits() < self.data.bit_range_start() % 8
         {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -709,7 +728,7 @@ impl Resolver {
             DataType::Boolean => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             DataType::Enum{..} => return Err(syn::Error::new(self.ident().span(), "Enum was not given Endianness, please report this.")),
             DataType::Struct{ref size, ..} => {
-                let buffer_ident = format_ident!("{}_buffer", self.ident()().ident());
+                let buffer_ident = format_ident!("{}_buffer", self.ident());
                 let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
                 match right_shift.cmp(&0) {
                     Ordering::Greater => {
@@ -845,17 +864,17 @@ impl Resolver {
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
-        if 8 - quote_info.amount_of_bits() < self.attrs.bit_range.start % 8 {
+        if 8 - quote_info.amount_of_bits() < self.data.bit_range_start() % 8 {
             return Err(syn::Error::new(
                 self.ident().span(),
                 format!(
                     "calculating be left_shift failed {} , {}",
                     quote_info.amount_of_bits(),
-                    self.attrs.bit_range.start % 8
+                    self.data.bit_range_start() % 8
                 ),
             ));
         }
-        let shift_left = (8 - quote_info.amount_of_bits()) - (self.attrs.bit_range.start % 8);
+        let shift_left = (8 - quote_info.amount_of_bits()) - (self.data.bit_range_start() % 8);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -1007,14 +1026,14 @@ impl Resolver {
             ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
                 match number_ty {
                     NumberType::Float =>{
-                        let alt_type_quote = if size == 4 {
+                        let alt_type_quote = if rust_size.bytes() == 4 {
                             quote!{u32}
                         }else if size == 8 {
                             quote!{u64}
                         }else{
                             return Err(syn::Error::new(self.ident().span(), "unsupported floating type"))
                         };
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
                             #alt_type_quote::from_be_bytes({
@@ -1025,7 +1044,7 @@ impl Resolver {
                     }
                     NumberType::Unsigned |
                     NumberType::Signed => {
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
                             #type_quote::from_be_bytes({
@@ -1035,7 +1054,7 @@ impl Resolver {
                         apply_field_to_buffer
                     }
                     NumberType::Char => {
-                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
+                        let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, &info, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
                             u32::from_be_bytes({
