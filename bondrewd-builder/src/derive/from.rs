@@ -7,11 +7,11 @@ use syn::{punctuated::Punctuated, token::Comma};
 use crate::{
     build::field::NumberType,
     solved::field::{
-        Resolver, ResolverArrayType, ResolverData, ResolverPrimitiveStrategy, ResolverType,
+        Resolver, ResolverArrayType, ResolverData, ResolverPrimitiveStrategy, ResolverSubType, ResolverType
     },
 };
 
-use super::{get_be_starting_index, get_left_and_mask, get_right_and_mask, ResolverDataBigAdditive};
+use super::{get_be_starting_index, get_left_and_mask, get_right_and_mask, ResolverDataBigAdditive, ResolverDataNestedAdditive};
 
 fn isolate_bit_index_mask(bit_index: usize) -> u8 {
     match bit_index {
@@ -717,17 +717,13 @@ impl Resolver {
             ));
         }
         let right_shift: i8 = {
-            let thing: NoneQuoteInfo = quote_info.into();
+            let thing: ResolverDataNestedAdditive = self.data.as_ref().into();
             thing.right_shift
         };
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let full_quote = match self.ty {
-            DataType::Number{..} |
-            DataType::Float{..} |
-            DataType::Char{..} => return Err(syn::Error::new(self.ident().span(), "Char was not given Endianness, please report this.")),
-            DataType::Boolean => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
-            DataType::Enum{..} => return Err(syn::Error::new(self.ident().span(), "Enum was not given Endianness, please report this.")),
-            DataType::Struct{ref size, ..} => {
+        let full_quote = match self.ty.as_ref() {
+            ResolverType::Primitive { .. } => return Err(syn::Error::new(self.ident().span(), "Primitive was not given Endianness, please report this.")),
+            ResolverType::Nested{rust_size: size, ..} => {
                 let buffer_ident = format_ident!("{}_buffer", self.ident());
                 let mut quote_builder = quote!{let mut #buffer_ident: [u8;#size] = [0u8;#size];};
                 match right_shift.cmp(&0) {
@@ -819,62 +815,62 @@ impl Resolver {
                 };
                 quote_builder
             }
-            DataType::ElementArray{..} | DataType::BlockArray{..} => return Err(syn::Error::new(self.ident().span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+            ResolverType::Array { .. } => return Err(syn::Error::new(self.ident().span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
 
         Ok(full_quote)
     }
 
-    pub(crate) fn get_read_be_quote(&self, quote_info: &QuoteInfo) -> syn::Result<TokenStream> {
-        if quote_info.amount_of_bits > quote_info.available_bits_in_first_byte {
+    pub(crate) fn get_read_be_quote(&self, sub_ty: ResolverSubType) -> syn::Result<TokenStream> {
+        if self.bit_length() > self.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
             // our bytes for the buffer.
-            if quote_info.amount_of_bits() < quote_info.available_bits_in_first_byte() {
+            if self.bit_length() < self.available_bits_in_first_byte() {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "calculating be bits_in_last_bytes failed",
                 ));
             }
-            self.get_read_be_multi_byte_quote(quote_info)
+            self.get_read_be_multi_byte_quote(sub_ty)
         } else {
-            self.get_read_be_single_byte_quote(quote_info)
+            self.get_read_be_single_byte_quote(sub_ty)
         }
     }
     pub(crate) fn get_read_be_single_byte_quote(
         &self,
-        quote_info: &QuoteInfo,
+        sub_ty: ResolverSubType,
     ) -> syn::Result<TokenStream> {
         // TODO make multi-byte values that for some reason use less then 9 bits work in here.
         // currently only u8 and i8 fields will work here. verify bool works it might.
         // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
         // left)
-        if 8 < (quote_info.zeros_on_left() + quote_info.amount_of_bits()) {
+        if 8 < (self.zeros_on_left() + self.bit_length()) {
             return Err(syn::Error::new(
                 self.ident().span(),
                 "calculating zeros_on_right failed",
             ));
         }
-        let zeros_on_right = 8 - (quote_info.zeros_on_left() + quote_info.amount_of_bits());
+        let zeros_on_right = 8 - (self.zeros_on_left() + self.bit_length());
         // combining the left and right masks will give us a mask that keeps the amount og bytes we
         // have in the position we need them to be in for this byte. we use available_bytes for
         // right mask because param is amount of 1's on the side specified (right), and
         // available_bytes is (8 - zeros_on_left) which is equal to ones_on_right.
-        let mask = get_right_and_mask(quote_info.available_bits_in_first_byte())
+        let mask = get_right_and_mask(self.available_bits_in_first_byte())
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
-        if 8 - quote_info.amount_of_bits() < self.data.bit_range_start() % 8 {
+        if 8 - self.bit_length() < self.data.bit_range_start() % 8 {
             return Err(syn::Error::new(
                 self.ident().span(),
                 format!(
                     "calculating be left_shift failed {} , {}",
-                    quote_info.amount_of_bits(),
+                    self.bit_length(),
                     self.data.bit_range_start() % 8
                 ),
             ));
         }
-        let shift_left = (8 - quote_info.amount_of_bits()) - (self.data.bit_range_start() % 8);
+        let shift_left = (8 - self.bit_length()) - (self.data.bit_range_start() % 8);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -889,8 +885,9 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let field_buffer_name = quote_info.field_buffer_name();
-        let starting_inject_byte = quote_info.starting_inject_byte();
+        let field_buffer_name = self.field_buffer_name();
+        let starting_inject_byte = self.starting_inject_byte();
+        let type_quote = self.ty.get_type_ident();
         let output_quote = match self.ty.as_ref() {
             ResolverType::Array {
                 sub_ty,
@@ -920,7 +917,7 @@ impl Resolver {
                     ))
                 }
                 NumberType::Unsigned => {
-                    let mut field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                    let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
                     quote! {#field_value as #type_quote}
                 }
                 NumberType::Signed => {
@@ -928,8 +925,8 @@ impl Resolver {
                     field_value = add_sign_fix_quote_single_bit(
                         field_value,
                         self,
-                        quote_info.amount_of_bits(),
-                        quote_info.starting_inject_byte(),
+                        self.bit_length(),
+                        self.starting_inject_byte(),
                     );
                     let mut value = quote! {
                         let mut #field_buffer_name = #field_value;
@@ -954,10 +951,11 @@ impl Resolver {
     }
     pub(crate) fn get_read_be_multi_byte_quote(
         &self,
-        quote_info: &QuoteInfo,
+        sub_ty: ResolverSubType,
+        // field_access_quote: &TokenStream,
     ) -> syn::Result<TokenStream> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
-            let thing: BigQuoteInfo = quote_info.into();
+            let thing: ResolverDataBigAdditive = self.data.as_ref().into();
             (
                 thing.right_shift,
                 thing.first_bit_mask,
@@ -978,11 +976,11 @@ impl Resolver {
                 // if the size of the field type is the same as the bit size going into the
                 // bit_buffer then we use the last byte for applying to the buffers first effected
                 // byte.
-                if self.ty.rust_size() * 8 == quote_info.amount_of_bits() {
+                if self.ty.rust_size() * 8 == self.bit_length() {
                     self.ty.rust_size() - 1
                 } else {
                     match get_be_starting_index(
-                        quote_info.amount_of_bits(),
+                        self.bit_length(),
                         right_shift,
                         self.ty.rust_size(),
                     ) {
@@ -1007,7 +1005,7 @@ impl Resolver {
                     quote! { .rotate_left(#right_shift_usize) }
                 },
                 match get_be_starting_index(
-                    quote_info.amount_of_bits(),
+                    self.bit_length(),
                     right_shift,
                     self.ty.rust_size(),
                 ) {
