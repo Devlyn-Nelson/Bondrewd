@@ -206,7 +206,11 @@ impl ResolverType {
     pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
-            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
+            ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => {
                 let pre = match number_ty {
                     NumberType::Float => "f",
                     NumberType::Unsigned => "u",
@@ -217,8 +221,15 @@ impl ResolverType {
                 let size = rust_size.bits();
                 Ident::new(&format!("{pre}{size}"), span)
             }
-            ResolverType::Nested { ty_ident, rust_size } => format_ident!("{ty_ident}"),
-            ResolverType::Array { sub_ty, array_ty, sizings } => {
+            ResolverType::Nested {
+                ty_ident,
+                rust_size,
+            } => format_ident!("{ty_ident}"),
+            ResolverType::Array {
+                sub_ty,
+                array_ty,
+                sizings,
+            } => {
                 let mut ty = sub_ty.get_type_ident();
                 for size in sizings {
                     ty = format_ident!("[{ty};{size}]");
@@ -280,7 +291,11 @@ impl ResolverSubType {
     pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
-            Self::Primitive { number_ty, resolver_strategy, rust_size } => {
+            Self::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => {
                 let pre = match number_ty {
                     NumberType::Float => "f",
                     NumberType::Unsigned => "u",
@@ -291,7 +306,10 @@ impl ResolverSubType {
                 let size = rust_size.bits();
                 Ident::new(&format!("{pre}{size}"), span)
             }
-            Self::Nested { ty_ident, rust_size } => format_ident!("{ty_ident}"),
+            Self::Nested {
+                ty_ident,
+                rust_size,
+            } => format_ident!("{ty_ident}"),
         }
     }
 }
