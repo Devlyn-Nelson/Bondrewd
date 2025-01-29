@@ -6,9 +6,11 @@ use syn::{punctuated::Punctuated, token::Comma};
 
 use crate::{
     build::field::NumberType,
-    solved::field::{
-        Resolver, ResolverArrayType, ResolverData, ResolverPrimitiveStrategy, ResolverSubType,
-        ResolverType,
+    solved::{
+        array_iter::{BlockArrayIter, ElementArrayIter},
+        field::{
+            Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType, ResolverType,
+        },
     },
 };
 
@@ -241,7 +243,7 @@ fn add_sign_fix_quote_single_bit(
 impl Resolver {
     pub(crate) fn get_read_quote(
         &self,
-        gen_read_fn: fn(&ResolverData, &TokenStream) -> syn::Result<TokenStream>,
+        gen_read_fn: fn(&Resolver) -> syn::Result<TokenStream>,
     ) -> syn::Result<TokenStream> {
         let value_retrieval = match self.ty.as_ref() {
             ResolverType::Array {
@@ -255,7 +257,7 @@ impl Resolver {
                         ElementArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
                     else {
                         let ident = self.data.field_name.ident();
-                        return Err(Error::new(
+                        return Err(syn::Error::new(
                             ident.span(),
                             format!("Failed to construct valid ElementArrayIter for `{ident}`"),
                         ));
@@ -277,7 +279,7 @@ impl Resolver {
                         BlockArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
                     else {
                         let ident = self.data.field_name.ident();
-                        return Err(Error::new(
+                        return Err(syn::Error::new(
                             ident.span(),
                             format!("Failed to construct valid ElementArrayIter for `{ident}`"),
                         ));
@@ -295,8 +297,8 @@ impl Resolver {
                 }
             },
             _ => {
-                let quote_info: QuoteInfo = (self, struct_info).try_into()?;
-                gen_read_fn(&self.data, &quote_info)?
+                // let quote_info: QuoteInfo = (self, struct_info).try_into()?;
+                gen_read_fn(&self)?
             }
         };
 
@@ -336,10 +338,7 @@ impl Resolver {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_le_quote(
-        &self,
-        field_access_quote: &TokenStream,
-    ) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_le_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the
