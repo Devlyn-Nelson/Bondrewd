@@ -101,6 +101,8 @@ impl SolvedData {
         self.resolver.bit_length()
     }
     pub fn generate_fn_quotes(&self) {
+        // let read = self.resolver.get_read_quote(gen_read_fn)
+        // println!();
         todo!("Solved should get all of the generation code, without needing the Info structures.");
     }
     pub fn read(&self) {
@@ -203,7 +205,7 @@ pub enum ResolverType {
 }
 
 impl ResolverType {
-    pub fn get_type_ident(&self) -> Ident {
+    #[must_use] pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
             ResolverType::Primitive {
@@ -288,7 +290,7 @@ pub enum ResolverSubType {
     },
 }
 impl ResolverSubType {
-    pub fn get_type_ident(&self) -> Ident {
+    #[must_use] pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
             Self::Primitive {

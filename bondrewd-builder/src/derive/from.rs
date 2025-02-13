@@ -241,6 +241,7 @@ fn add_sign_fix_quote_single_bit(
 }
 
 impl Resolver {
+    // TODO START_HERE this need to get called next.
     pub(crate) fn get_read_quote(
         &self,
         gen_read_fn: fn(&Resolver) -> syn::Result<TokenStream>,
@@ -298,7 +299,7 @@ impl Resolver {
             },
             _ => {
                 // let quote_info: QuoteInfo = (self, struct_info).try_into()?;
-                gen_read_fn(&self)?
+                gen_read_fn(self)?
             }
         };
 
