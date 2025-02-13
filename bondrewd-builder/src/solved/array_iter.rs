@@ -23,10 +23,12 @@ pub struct ElementArrayIter {
 }
 
 impl ElementArrayIter {
-    #[must_use] pub fn ident(&self) -> Ident {
+    #[must_use]
+    pub fn ident(&self) -> Ident {
         self.outer_ident.ident()
     }
-    #[must_use] pub fn name(&self) -> Ident {
+    #[must_use]
+    pub fn name(&self) -> Ident {
         self.outer_ident.name()
     }
     // creates a new ElementArrayIter with `elements` array length.

@@ -8,9 +8,7 @@ use crate::{
     build::field::NumberType,
     solved::{
         array_iter::{BlockArrayIter, ElementArrayIter},
-        field::{
-            Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverSubType, ResolverType,
-        },
+        field::{Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverType},
     },
 };
 
@@ -861,7 +859,7 @@ impl Resolver {
         Ok(full_quote)
     }
 
-    pub(crate) fn get_read_be_quote(&self, sub_ty: ResolverSubType) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_be_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up

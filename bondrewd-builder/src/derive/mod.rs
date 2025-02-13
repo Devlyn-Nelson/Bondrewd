@@ -3,6 +3,27 @@ use crate::solved::field::ResolverData;
 mod from;
 mod into;
 
+/// Stores [`TokenStream`] that contain the access (write/read/clear) code for a field.
+pub struct GeneratedQuotes {
+    pub(crate) read: proc_macro2::TokenStream,
+    pub(crate) write: proc_macro2::TokenStream,
+    pub(crate) zero: proc_macro2::TokenStream,
+}
+impl GeneratedQuotes {
+    /// Returns the quote that reads a value from bytes
+    pub fn read(&self) -> &proc_macro2::TokenStream {
+        &self.read
+    }
+    /// Returns the quote that write a value to bytes
+    pub fn write(&self) -> &proc_macro2::TokenStream {
+        &self.write
+    }
+    /// Returns the quote that set the bytes this field are in to zero. (clears the bits so writes can work on dirty set of bits that already had a value)
+    pub fn zero(&self) -> &proc_macro2::TokenStream {
+        &self.zero
+    }
+}
+
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 #[must_use]
 pub fn get_left_and_mask(num: usize) -> u8 {

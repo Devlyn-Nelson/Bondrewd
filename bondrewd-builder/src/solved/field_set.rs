@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, ops::Range};
 
+use proc_macro2::TokenStream;
 use syn::Ident;
 use thiserror::Error;
 
@@ -112,6 +113,13 @@ impl TryFrom<&FieldSetBuilder> for Solved {
 }
 
 impl Solved {
+    // TODO START_HERE
+    // pub fn gen(&self) -> TokenStream {
+    //     match self.ty {
+    //         SolvedType::Enum { id, invalid, invalid_name, variants } => ,
+    //         SolvedType::Struct(solved_field_set) => todo!(),
+    //     }
+    // }
     fn try_from_field_set(
         value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,

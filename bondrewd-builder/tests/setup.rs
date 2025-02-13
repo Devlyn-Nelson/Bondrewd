@@ -1,7 +1,7 @@
-use bondrewd_builder::build::{
+use bondrewd_builder::{build::{
     field::{DataBuilder, DataType, NumberType},
     field_set::GenericBuilder,
-};
+}, solved::field_set::Solved};
 
 #[test]
 fn derive_struct_setup() {
@@ -11,5 +11,12 @@ fn derive_struct_setup() {
     let inner_builder = builder.get_mut().get_mut_struct().unwrap();
     inner_builder.add_field(field_one);
 
-    panic!("{inner_builder:?}");
+    let thing: Solved = match inner_builder.try_into() {
+        Ok(yay) => yay,
+        Err(err) => panic!("Failed Solving [{err}]"),
+    };
+
+    // thing.gen
+
+    panic!("This test is incomplete {inner_builder:?}");
 }

@@ -4,9 +4,12 @@ use proc_macro2::Span;
 use quote::format_ident;
 use syn::Ident;
 
-use crate::build::{
-    field::{DataType, NumberType, RustByteSize},
-    ArraySizings,
+use crate::{
+    build::{
+        field::{DataType, NumberType, RustByteSize},
+        ArraySizings,
+    },
+    derive::GeneratedQuotes,
 };
 
 use super::field_set::{BuiltData, BuiltRangeType};
@@ -100,10 +103,8 @@ impl SolvedData {
     pub fn bit_length(&self) -> usize {
         self.resolver.bit_length()
     }
-    pub fn generate_fn_quotes(&self) {
-        // let read = self.resolver.get_read_quote(gen_read_fn)
-        // println!();
-        todo!("Solved should get all of the generation code, without needing the Info structures.");
+    pub fn generate_fn_quotes(&self) -> syn::Result<GeneratedQuotes> {
+        self.get_quotes()
     }
     pub fn read(&self) {
         todo!(
@@ -114,6 +115,91 @@ impl SolvedData {
         todo!(
             "Solved should use generation information to perform runtime getting/setting of bits"
         );
+    }
+    /// This will return a [`FieldQuotes`] which contains the code that goes into functions like:
+    /// - `read_field`
+    /// - `write_field`
+    /// - `write_slice_field`
+    /// - `StructChecked::read_field`
+    ///
+    /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
+    fn get_quotes(&self) -> syn::Result<GeneratedQuotes> {
+        match self.resolver.ty.as_ref() {
+            ResolverType::Nested {
+                ty_ident,
+                rust_size,
+            } => self.get_ne_quotes(),
+            ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match resolver_strategy {
+                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
+                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+            },
+            ResolverType::Array {
+                sub_ty,
+                array_ty,
+                sizings,
+            } => match sub_ty {
+                ResolverSubType::Primitive {
+                    number_ty,
+                    resolver_strategy,
+                    rust_size,
+                } => match resolver_strategy {
+                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
+                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+                },
+                ResolverSubType::Nested {
+                    ty_ident,
+                    rust_size,
+                } => self.get_ne_quotes(),
+            },
+        }
+    }
+    fn get_le_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+        let (read, write, clear) = {
+            let read = self.resolver.get_read_quote(Resolver::get_read_le_quote)?;
+            let (write, clear) = self
+                .resolver
+                .get_write_quote(Resolver::get_write_le_quote, false)?;
+            (read, write, clear)
+        };
+        Ok(GeneratedQuotes {
+            read,
+            write,
+            zero: clear,
+        })
+    }
+    fn get_ne_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+        let (read, write, clear) = {
+            // generate
+            let read = self.resolver.get_read_quote(Resolver::get_read_ne_quote)?;
+            let (write, clear) = self
+                .resolver
+                .get_write_quote(Resolver::get_write_ne_quote, false)?;
+            (read, write, clear)
+        };
+        Ok(GeneratedQuotes {
+            read,
+            write,
+            zero: clear,
+        })
+    }
+    fn get_be_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+        let (read, write, clear) = {
+            // generate
+            let read = self.resolver.get_read_quote(Resolver::get_read_be_quote)?;
+            let (write, clear) = self
+                .resolver
+                .get_write_quote(Resolver::get_write_be_quote, false)?;
+            (read, write, clear)
+        };
+        Ok(GeneratedQuotes {
+            read,
+            write,
+            zero: clear,
+        })
     }
 }
 
@@ -172,6 +258,31 @@ impl Resolver {
     pub fn field_buffer_name(&self) -> String {
         format!("{}_bytes", &self.data.field_name.name())
     }
+    pub fn get_resolved_ty(&self) -> ResolverSubType {
+        match self.ty.as_ref() {
+            ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => ResolverSubType::Primitive {
+                number_ty: number_ty.clone(),
+                resolver_strategy: resolver_strategy.clone(),
+                rust_size: rust_size.clone(),
+            },
+            ResolverType::Nested {
+                ty_ident,
+                rust_size,
+            } => ResolverSubType::Nested {
+                ty_ident: ty_ident.clone(),
+                rust_size: rust_size.clone(),
+            },
+            ResolverType::Array {
+                sub_ty,
+                array_ty: _,
+                sizings: _,
+            } => sub_ty.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -205,7 +316,8 @@ pub enum ResolverType {
 }
 
 impl ResolverType {
-    #[must_use] pub fn get_type_ident(&self) -> Ident {
+    #[must_use]
+    pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
             ResolverType::Primitive {
@@ -290,7 +402,8 @@ pub enum ResolverSubType {
     },
 }
 impl ResolverSubType {
-    #[must_use] pub fn get_type_ident(&self) -> Ident {
+    #[must_use]
+    pub fn get_type_ident(&self) -> Ident {
         let span = Span::call_site();
         match self {
             Self::Primitive {

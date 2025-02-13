@@ -8,7 +8,7 @@ use crate::{
     build::field::NumberType,
     solved::{
         array_iter::{BlockArrayIter, ElementArrayIter},
-        field::{Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType},
+        field::{Resolver, ResolverArrayType, ResolverSubType, ResolverType},
     },
 };
 
@@ -24,7 +24,7 @@ impl Resolver {
     /// be `get_write_le_multi_byte_quote`;
     pub(crate) fn get_write_quote(
         &self,
-        gen_write_fn: fn(&ResolverData, &TokenStream) -> syn::Result<(TokenStream, TokenStream)>,
+        gen_write_fn: fn(&Resolver, &TokenStream) -> syn::Result<(TokenStream, TokenStream)>,
         with_self: bool,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let field_name = self.name();
@@ -141,11 +141,10 @@ impl Resolver {
                 }
             },
         };
-        gen_write_fn(&self.data, &field_access)
+        gen_write_fn(&self, &field_access)
     }
     pub(crate) fn get_write_le_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         if self.bit_length() > self.available_bits_in_first_byte() {
@@ -168,14 +167,13 @@ impl Resolver {
             //         let right_shift_usize: u32 = right_shift.clone() as u32;
             //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
             //     }
-            self.get_write_le_multi_byte_quote(sub_ty, field_access_quote)
+            self.get_write_le_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_le_single_byte_quote(sub_ty, field_access_quote)
+            self.get_write_le_single_byte_quote(field_access_quote)
         }
     }
     pub(crate) fn get_write_le_single_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.bit_length();
@@ -224,7 +222,7 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let field_as_u8_quote = match sub_ty {
+        let field_as_u8_quote = match self.get_resolved_ty() {
             ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
                 NumberType::Float => return Err(syn::Error::new(self.ident().span(), "Float not supported for single byte insert logic")),
                 NumberType::Unsigned |
@@ -253,7 +251,6 @@ impl Resolver {
     }
     pub(crate) fn get_write_le_multi_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
@@ -264,7 +261,7 @@ impl Resolver {
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = self.data.field_name.name();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let mut full_quote = match sub_ty {
+        let mut full_quote = match self.get_resolved_ty() {
             ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
                 NumberType::Float |
                 NumberType::Unsigned |
@@ -409,7 +406,6 @@ impl Resolver {
     }
     pub(crate) fn get_write_ne_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         if self.data.bit_length() > self.data.available_bits_in_first_byte {
@@ -424,14 +420,13 @@ impl Resolver {
                     "calculating ne right_shift failed",
                 ));
             }
-            self.get_write_ne_multi_byte_quote(sub_ty, field_access_quote)
+            self.get_write_ne_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_ne_single_byte_quote(sub_ty, field_access_quote)
+            self.get_write_ne_single_byte_quote(field_access_quote)
         }
     }
     pub(crate) fn get_write_ne_single_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
@@ -476,7 +471,7 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let finished_quote = match sub_ty {
+        let finished_quote = match self.get_resolved_ty() {
             ResolverSubType::Primitive {
                 number_ty,
                 resolver_strategy,
@@ -516,7 +511,6 @@ impl Resolver {
     }
     pub(crate) fn get_write_ne_multi_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let right_shift: i8 = {
@@ -526,7 +520,7 @@ impl Resolver {
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", self.data.field_name.name());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let (field_byte_buffer, size) = match sub_ty {
+        let (field_byte_buffer, size) = match self.get_resolved_ty() {
             ResolverSubType::Primitive {
                 number_ty,
                 resolver_strategy,
@@ -652,7 +646,6 @@ impl Resolver {
     }
     pub(crate) fn get_write_be_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
@@ -666,14 +659,13 @@ impl Resolver {
                     "calculating be bits_in_last_bytes failed",
                 ));
             }
-            self.get_write_be_multi_byte_quote(sub_ty, field_access_quote)
+            self.get_write_be_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_be_single_byte_quote(sub_ty, field_access_quote)
+            self.get_write_be_single_byte_quote(field_access_quote)
         }
     }
     pub(crate) fn get_write_be_single_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
@@ -721,7 +713,7 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let field_as_u8_quote = match sub_ty {
+        let field_as_u8_quote = match self.get_resolved_ty() {
             ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
                 NumberType::Float => return Err(syn::Error::new(self.ident().span(), "Float not supported for single byte insert logic")),
                 NumberType::Unsigned |
@@ -743,7 +735,6 @@ impl Resolver {
     }
     pub(crate) fn get_write_be_multi_byte_quote(
         &self,
-        sub_ty: ResolverSubType,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
@@ -807,7 +798,7 @@ impl Resolver {
         // make a name for the buffer that we will store the number in byte form
         let field_buffer_name = format_ident!("{}_bytes", self.name());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
-        let field_byte_buffer = match sub_ty {
+        let field_byte_buffer = match self.get_resolved_ty() {
             ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
                 NumberType::Float |
                 NumberType::Unsigned |
