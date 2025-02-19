@@ -8,7 +8,13 @@ use bondrewd_builder::{
 
 #[test]
 fn derive_struct_setup() {
-    let field_one = DataBuilder::new("one", DataType::Number(NumberType::Float, bondrewd_builder::build::field::RustByteSize::Four));
+    let field_one = DataBuilder::new(
+        "one",
+        DataType::Number(
+            NumberType::Float,
+            bondrewd_builder::build::field::RustByteSize::Four,
+        ),
+    );
     // This is a round about way of doing structs and is not recommended.
     let mut builder: GenericBuilder<&str, &str> = GenericBuilder::single_set("test");
     let inner_builder = builder.get_mut().get_mut_struct().unwrap();
