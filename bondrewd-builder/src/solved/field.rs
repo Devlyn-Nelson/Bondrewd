@@ -103,6 +103,7 @@ impl SolvedData {
     pub fn bit_length(&self) -> usize {
         self.resolver.bit_length()
     }
+    // START_HERE
     pub fn generate_fn_quotes(&self) -> syn::Result<GeneratedQuotes> {
         self.get_quotes()
     }

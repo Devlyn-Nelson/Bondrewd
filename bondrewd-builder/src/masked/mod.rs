@@ -1,4 +1,3 @@
-//! TODO `START_HERE`
 //! create the masked structures. this step is takes a resolver and gives
 //! the final form that bondrewd-builder is made to create a `Resolved` type
 //! which is meant to be a fully solved version of a struct or enum containing

@@ -1,11 +1,14 @@
-use bondrewd_builder::{build::{
-    field::{DataBuilder, DataType, NumberType},
-    field_set::GenericBuilder,
-}, solved::field_set::Solved};
+use bondrewd_builder::{
+    build::{
+        field::{DataBuilder, DataType, NumberType},
+        field_set::GenericBuilder,
+    },
+    solved::field_set::Solved,
+};
 
 #[test]
 fn derive_struct_setup() {
-    let field_one = DataBuilder::new("one", DataType::Number(NumberType::Float));
+    let field_one = DataBuilder::new("one", DataType::Number(NumberType::Float, bondrewd_builder::build::field::RustByteSize::Four));
     // This is a round about way of doing structs and is not recommended.
     let mut builder: GenericBuilder<&str, &str> = GenericBuilder::single_set("test");
     let inner_builder = builder.get_mut().get_mut_struct().unwrap();
@@ -16,7 +19,7 @@ fn derive_struct_setup() {
         Err(err) => panic!("Failed Solving [{err}]"),
     };
 
-    // thing.gen
+    let gen = thing.gen();
 
     panic!("This test is incomplete {inner_builder:?}");
 }

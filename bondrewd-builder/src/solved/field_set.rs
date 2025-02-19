@@ -114,12 +114,26 @@ impl TryFrom<&FieldSetBuilder> for Solved {
 
 impl Solved {
     // TODO START_HERE
-    // pub fn gen(&self) -> TokenStream {
-    //     match self.ty {
-    //         SolvedType::Enum { id, invalid, invalid_name, variants } => ,
-    //         SolvedType::Struct(solved_field_set) => todo!(),
-    //     }
-    // }
+    pub fn gen(&self) -> TokenStream {
+        match &self.ty {
+            SolvedType::Enum { id, invalid, invalid_name, variants } => Self::gen_enum(id, invalid, invalid_name, variants),
+            SolvedType::Struct(solved_field_set) => Self::gen_struct(solved_field_set),
+        }
+    }
+    fn gen_enum(
+        id: &SolvedData,
+        invalid: &SolvedFieldSet,
+        invalid_name: &VariantInfo,
+        variants: &BTreeMap<VariantInfo, SolvedFieldSet>,
+    ) -> TokenStream {
+        for (info, variant) in variants {
+            
+        }
+        todo!("generate enum code.");
+    }
+    fn gen_struct(field_set: &SolvedFieldSet) -> TokenStream {
+        todo!("generate struct code.")
+    }
     fn try_from_field_set(
         value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,
