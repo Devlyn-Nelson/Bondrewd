@@ -1,13 +1,12 @@
 use std::{collections::BTreeMap, ops::Range};
 
-use proc_macro2::TokenStream;
 use syn::Ident;
 use thiserror::Error;
 
 use crate::build::{
     field::DataType,
     field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
-    ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption,
+    ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
 };
 
 use super::field::{DynamicIdent, SolvedData};
@@ -16,10 +15,10 @@ pub struct Solved {
     /// `DataSet`'s name.
     ///
     /// for derive this would be the Enum or Struct ident.
-    name: Ident,
-    ty: SolvedType,
+    pub(crate) name: Ident,
+    pub(crate) ty: SolvedType,
 }
-enum SolvedType {
+pub(crate) enum SolvedType {
     Enum {
         /// The id field. or the field that determines the variant.
         id: SolvedData,
@@ -35,13 +34,14 @@ enum SolvedType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct VariantInfo {
-    id: i64,
-    name: Ident,
+pub(crate) struct VariantInfo {
+    pub(crate) id: i64,
+    pub(crate) name: Ident,
 }
 
-struct SolvedFieldSet {
-    fields: Vec<SolvedData>,
+pub(crate) struct SolvedFieldSet {
+    pub(crate) vis: Visibility,
+    pub(crate) fields: Vec<SolvedData>,
 }
 
 #[derive(Debug, Error)]
@@ -113,31 +113,6 @@ impl TryFrom<&FieldSetBuilder> for Solved {
 }
 
 impl Solved {
-    // TODO START_HERE
-    pub fn gen(&self) -> TokenStream {
-        match &self.ty {
-            SolvedType::Enum {
-                id,
-                invalid,
-                invalid_name,
-                variants,
-            } => Self::gen_enum(id, invalid, invalid_name, variants),
-            SolvedType::Struct(solved_field_set) => Self::gen_struct(solved_field_set),
-        }
-    }
-    fn gen_enum(
-        id: &SolvedData,
-        invalid: &SolvedFieldSet,
-        invalid_name: &VariantInfo,
-        variants: &BTreeMap<VariantInfo, SolvedFieldSet>,
-    ) -> TokenStream {
-        for (info, variant) in variants {}
-        todo!("generate enum code.");
-    }
-    fn gen_struct(field_set: &SolvedFieldSet) -> TokenStream {
-        
-        todo!("generate struct code.")
-    }
     fn try_from_field_set(
         value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,
@@ -179,6 +154,7 @@ impl Solved {
                 id: value_field.id.clone(),
                 reserve: value_field.reserve.clone(),
                 overlap: value_field.overlap.clone(),
+                is_captured_id: value_field.is_captured_id,
             };
             let field_range = field.bit_range.range();
             for other in &pre_fields {
@@ -236,7 +212,7 @@ impl Solved {
         //TODO check and uphold enforcements.
         Ok(Self {
             name: value.name.clone(),
-            ty: SolvedType::Struct(SolvedFieldSet { fields }),
+            ty: SolvedType::Struct(SolvedFieldSet { fields, vis: value.vis.clone() }),
         })
     }
 }
@@ -254,6 +230,7 @@ pub struct BuiltData {
     pub(crate) reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
     pub(crate) overlap: OverlapOptions,
+    pub(crate) is_captured_id: bool,
 }
 
 #[derive(Clone, Debug)]

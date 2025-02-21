@@ -6,8 +6,7 @@ use syn::Ident;
 
 use crate::{
     build::{
-        field::{DataType, NumberType, RustByteSize},
-        ArraySizings,
+        field::{DataType, NumberType, RustByteSize}, ArraySizings, OverlapOptions, ReserveFieldOption
     },
     derive::GeneratedQuotes,
 };
@@ -99,13 +98,19 @@ pub struct SolvedData {
 }
 
 impl SolvedData {
+    pub fn attr_capture_id(&self) -> bool {
+        self.resolver.is_captured_id
+    }
+    pub fn attr_reserve(&self) -> &ReserveFieldOption {
+        &self.resolver.reserve
+    }
     #[must_use]
     pub fn bit_length(&self) -> usize {
         self.resolver.bit_length()
     }
-    // START_HERE
-    pub fn generate_fn_quotes(&self) -> syn::Result<GeneratedQuotes> {
-        self.get_quotes()
+    #[must_use]
+    pub fn bit_range(&self) -> Rangle<usize> {
+        self.resolver.bit_range()
     }
     pub fn read(&self) {
         todo!(
@@ -124,7 +129,7 @@ impl SolvedData {
     /// - `StructChecked::read_field`
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
-    fn get_quotes(&self) -> syn::Result<GeneratedQuotes> {
+    pub fn get_quotes(&self) -> syn::Result<GeneratedQuotes> {
         match self.resolver.ty.as_ref() {
             ResolverType::Nested {
                 ty_ident,
@@ -220,6 +225,9 @@ pub struct ResolverData {
 pub struct Resolver {
     pub(crate) data: Box<ResolverData>,
     pub(crate) ty: Box<ResolverType>,
+    pub(crate) reserve: ReserveFieldOption,
+    pub(crate) is_captured_id: bool,
+    pub(crate) overlap: OverlapOptions,
 }
 
 impl Resolver {
@@ -234,6 +242,10 @@ impl Resolver {
     #[must_use]
     pub fn bit_length(&self) -> usize {
         self.data.bit_length()
+    }
+    #[must_use]
+    pub fn bit_range(&self) -> &Range<usize> {
+        self.data.bit_range()
     }
     #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
@@ -283,6 +295,32 @@ impl Resolver {
                 sizings: _,
             } => sub_ty.clone(),
         }
+    }
+
+    #[inline]
+    // this returns how many bits of the fields pertain to total structure bits.
+    // where as attrs.bit_length() give you bits the fields actually needs.
+    pub fn bit_size(&self) -> usize {
+        if self.overlap.is_redundant() {
+            0
+        } else {
+            let minus = if let OverlapOptions::Allow(skip) = self.overlap {
+                skip
+            } else {
+                0
+            };
+            self.bit_length() - minus
+        }
+    }
+
+    #[inline]
+    // this returns how many bits of the fields pertain to total structure bits.
+    // where as attrs.bit_length() give you bits the fields actually needs.
+    pub fn bit_size_no_fill(&self) -> usize {
+        if !self.reserve.count_bits() {
+            return 0;
+        }
+        self.bit_size()
     }
 }
 
@@ -539,6 +577,9 @@ impl From<BuiltData> for SolvedData {
                 field_name: pre_field.id,
             }),
             ty,
+            reserve: pre_field.reserve,
+            is_captured_id: pre_field.is_captured_id,
+            overlap: pre_field.overlap,
         };
         SolvedData { resolver }
     }

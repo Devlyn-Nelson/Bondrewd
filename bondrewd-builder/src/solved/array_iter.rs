@@ -3,7 +3,7 @@ use std::ops::Range;
 use quote::format_ident;
 use syn::Ident;
 
-use crate::build::ArraySizings;
+use crate::build::{ArraySizings, ReserveFieldOption};
 
 use super::field::{
     DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType,
@@ -106,6 +106,9 @@ impl Iterator for ElementArrayIter {
                     field_name: ident,
                 }),
                 ty: Box::new(self.ty.clone()),
+                reserve: ReserveFieldOption::NotReserve,
+                is_captured_id: false,
+                overlap: crate::build::OverlapOptions::None,
             })
         } else {
             None
@@ -219,6 +222,9 @@ impl Iterator for BlockArrayIter {
                     field_name: ident,
                 }),
                 ty: Box::new(self.ty.clone()),
+                reserve: ReserveFieldOption::NotReserve,
+                is_captured_id: false,
+                overlap: crate::build::OverlapOptions::None,
             })
         } else {
             None

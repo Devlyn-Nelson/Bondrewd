@@ -25,6 +25,12 @@ impl Debug for Visibility {
     }
 }
 
+impl From<syn::Visibility> for Visibility {
+    fn from(value: syn::Visibility) -> Self {
+        Self(value)
+    }
+}
+
 /// Each element represents a dimension to the array with the value being the amount of elements
 /// for that dimension.
 ///

@@ -20,6 +20,7 @@ pub struct DataBuilder {
     pub(crate) reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
     pub(crate) overlap: OverlapOptions,
+    pub(crate) is_captured_id: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -121,6 +122,7 @@ impl DataBuilder {
             bit_range: BuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
+            is_captured_id: false,
         }
     }
     #[must_use]

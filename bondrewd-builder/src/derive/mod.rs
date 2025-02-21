@@ -1,8 +1,17 @@
-use crate::solved::field::ResolverData;
+use crate::solved::{
+    field::{ResolverData, SolvedData},
+    field_set::SolvedFieldSet,
+};
+
+use convert_case::{Case, Casing};
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
+use syn::{Ident, Visibility};
 
 mod from;
 mod into;
-
+pub mod quotes;
+use quotes::*;
 /// Stores [`TokenStream`] that contain the access (write/read/clear) code for a field.
 pub struct GeneratedQuotes {
     pub(crate) read: proc_macro2::TokenStream,
@@ -113,6 +122,10 @@ impl ResolverData {
         self.flip
     }
     #[must_use]
+    pub fn bit_range(&self) -> &Range<usize> {
+        &self.bit_range
+    }
+    #[must_use]
     pub fn bit_range_start(&self) -> usize {
         self.bit_range.start
     }
@@ -120,6 +133,7 @@ impl ResolverData {
     pub fn bit_range_end(&self) -> usize {
         self.bit_range.end
     }
+    /// Pure bit length calculation
     #[must_use]
     pub fn bit_length(&self) -> usize {
         self.bit_range.end - self.bit_range.start
@@ -210,6 +224,610 @@ impl From<&ResolverData> for ResolverDataBigAdditive {
             first_bit_mask,
             last_bit_mask,
             bits_in_last_byte,
+        }
+    }
+}
+
+impl SolvedFieldSet { 
+    pub const VARIANT_ID_NAME: &'static str = "variant_id";
+    pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
+    // TODO make sure capture id fields in enums do not get read twice.
+    pub fn vis(&self) -> &Visibility {
+        &self.vis
+    }
+    pub fn gen_field_quotes(
+        &self,
+        name: &Ident,
+        enum_name: Option<&Ident>,
+        dyn_fns: bool,
+    ) -> syn::Result<FieldQuotes> {
+        // generate basic generated code for field access functions.
+        let mut quotes = self.gen_struct_fields(name, enum_name, dyn_fns)?;
+        // Gather information to finish [`Bitfields::from_bytes`]
+        let struct_size = {
+            let mut total: usize = 0;
+            for field in &self.fields {
+                total += field.bit_length();
+            }
+            total
+        };
+        let from_bytes_quote = &quotes.read_fns.bitfield_trait;
+        let fields_list = &quotes.field_list;
+        // construct from bytes function. use input_byte_buffer as input name because,
+        // that is what the field quotes expect to extract from.
+        // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+        // because all of the from_bytes field quote store there data in a temporary variable with the same
+        // name as its destination field the list of field names will be just fine.
+        quotes.read_fns.bitfield_trait = quote! {
+            fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
+                #from_bytes_quote
+                Self{
+                    #fields_list
+                }
+            }
+        };
+        if let Some(dyn_fns) = quotes.read_fns.dyn_fns.as_mut() {
+            // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
+            let from_bytes_dyn_quote_inner = dyn_fns.bitfield_dyn_trait.clone();
+            let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, \
+            removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have \
+            enough bytes an error will be returned.".to_string();
+            let comment = "Creates a new instance of `Self` by copying field from the bitfields. 
+             # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+            dyn_fns.bitfield_dyn_trait = quote! {
+                #[doc = #comment]
+                fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
+                    if input_byte_buffer.len() < Self::BYTE_SIZE {
+                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                    }
+                    let out = {
+                        #from_bytes_dyn_quote_inner
+                        Self {
+                            #fields_list
+                        }
+                    };
+                    Ok(out)
+                }
+            };
+            #[cfg(feature = "std")]
+            {
+                let from_bytes_dyn_quote = &dyn_fns.bitfield_dyn_trait;
+                dyn_fns.bitfield_dyn_trait = quote! {
+                    #from_bytes_dyn_quote
+                    #[doc = #comment_take]
+                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                        if input_byte_buffer.len() < Self::BYTE_SIZE {
+                            return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                        }
+                        let out = {
+                            #from_bytes_dyn_quote_inner
+                            Self {
+                                #fields_list
+                            }
+                        };
+                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                        Ok(out)
+                    }
+                };
+            }
+        }
+        let into_bytes_quote = &quotes.write_fns.bitfield_trait;
+        quotes.write_fns.bitfield_trait = quote! {
+            fn into_bytes(self) -> [u8;#struct_size] {
+                let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
+                #into_bytes_quote
+                output_byte_buffer
+            }
+        };
+        Ok(quotes)
+    }
+    fn gen_struct_fields(
+        &self,
+        name: &Ident,
+        enum_name: Option<&Ident>,
+        dyn_fns: bool,
+    ) -> syn::Result<FieldQuotes> {
+        let variant_name = if enum_name.is_some() {
+            // We what to use the name of the struct because enum variants are just StructInfos internally.
+            Some(format_ident!(
+                "{}",
+                name.to_string().to_case(Case::Snake)
+            ))
+        } else {
+            None
+        };
+        let mut gen_read = GeneratedFunctions::default();
+        let mut gen_write = GeneratedFunctions::default();
+        // If we are building code for an enum variant that does not capture the id
+        // then we should skip the id field to avoid creating an get_id function for each variant.
+        let mut field_name_list = quote! {};
+        for field in &self.fields {
+            let field_access = field.get_quotes()?;
+            self.make_read_fns(
+                field,
+                &variant_name,
+                &mut field_name_list,
+                &mut gen_read,
+                &field_access,
+            )?;
+            self.make_write_fns(field, &variant_name, &mut gen_write, &field_access);
+        }
+        // Do checked struct of this type
+        let checked = if self.fields.is_empty() {None}
+        else if let (Some(dyn_fns_read),Some(dyn_fns_write)) = (&mut gen_read.dyn_fns, &mut gen_write.dyn_fns) 
+            {
+            let struct_name = if let Some(e_name) = enum_name {
+                quote::format_ident!("{e_name}{}", &name)
+            } else {
+                name.clone()
+            };
+            let vis = self.vis();
+            let checked_ident = quote::format_ident!("{struct_name}Checked");
+            let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
+            let unchecked_functions = &dyn_fns_read.checked_struct;
+            let unchecked_mut_functions = &dyn_fns_write.checked_struct;
+            let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+            let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+            let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+            let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+            dyn_fns_write.checked_struct = quote! {
+                #[doc = #comment_mut]
+                #vis struct #checked_mut_ident<'a> {
+                    buffer: &'a mut [u8],
+                }
+                impl<'a> #checked_mut_ident<'a> {
+                    #unchecked_functions
+                    #unchecked_mut_functions
+                    #[doc = #unchecked_comment_mut]
+                    pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                        Self{
+                            buffer: data
+                        }
+                    }
+                }
+            };
+            dyn_fns_read.checked_struct = quote! {
+                #[doc = #comment]
+                #vis struct #checked_ident<'a> {
+                    buffer: &'a [u8],
+                }
+                impl<'a> #checked_ident<'a> {
+                    #unchecked_functions
+                    #[doc = #unchecked_comment]
+                    pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                        Self{
+                            buffer: data
+                        }
+                    }
+                }
+            };
+            let ename = if enum_name.is_some() {
+                Some(&struct_name)
+            } else {
+                None
+            };
+
+            let check_slice_info = CheckedSliceGen::new(name, self.total_bytes(), ename);
+
+            let check_slice_fn = check_slice_info.fn_gen;
+            let impl_fns = gen_read.non_trait;
+            gen_read.non_trait = quote! {
+                #impl_fns
+                #check_slice_fn
+            };
+
+            let check_slice_mut_fn = check_slice_info.mut_fn_gen;
+            let impl_fns = gen_write.non_trait;
+            gen_write.non_trait = quote! {
+                #impl_fns
+                #check_slice_mut_fn
+            };
+            Some(CheckSliceNames {
+                func: check_slice_info.fn_name,
+                mut_func: check_slice_info.mut_fn_name,
+                structure: checked_ident,
+                mut_structure: checked_mut_ident,
+            })
+        }else{None};
+        Ok(FieldQuotes {
+            read_fns: gen_read,
+            write_fns: gen_write,
+            field_list: field_name_list,
+            slice_info: checked,
+        })
+    }
+    fn make_read_fns(
+        &self,
+        field: &SolvedData,
+        variant_name: &Option<Ident>,
+        field_name_list: &mut TokenStream,
+        gen: &mut GeneratedFunctions,
+        field_access: &GeneratedQuotes,
+    ) -> syn::Result<()> {
+        let field_name = field.resolver.ident();
+        let prefixed_name = if let Some(prefix) = variant_name {
+            format_ident!("{prefix}_{field_name}")
+        } else {
+            format_ident!("{field_name}")
+        };
+
+        let mut impl_fns = quote! {};
+        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some(){Some(quote! {})}else{None};
+        let field_extractor = field_access.read();
+        self.make_read_fns_inner(
+            field,
+            &field_name,
+            &prefixed_name,
+            field_extractor,
+            &mut impl_fns,
+            checked_struct_impl_fns.as_mut(),
+        );
+        gen.append_impl_fns(&impl_fns);
+        if let Some(checked_struct_impl_fns) = &checked_struct_impl_fns {
+            gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
+        }
+
+        // fake fields do not exist in the actual structure and should only have functions
+        // that read or write values into byte arrays.
+        if !field.attr_reserve().is_fake_field() {
+            // put the name of the field into the list of fields that are needed to create
+            // the struct.
+            *field_name_list = quote! {#field_name, #field_name_list};
+            // TODO line above replaced commented code below, this is old code that i don't think is necessary.
+            // field order here shouldn't matter.
+            // 
+            // if field.is_field_order_reversed() {
+            //     *field_name_list = quote! {#field_name, #field_name_list}
+            // } else {
+            //     *field_name_list = quote! {#field_name_list #field_name,}
+            // };
+            let peek_call = if field.attr_capture_id() {
+                // put the field extraction in the actual from bytes.
+                if field.attr_reserve().wants_read_fns() {
+                    let id_name = format_ident!("{}", Self::VARIANT_ID_NAME);
+                    quote! {
+                        let #field_name = #id_name;
+                    }
+                } else {
+                    return Err(syn::Error::new(
+                        field.resolver.ident().span(),
+                        "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
+                    ));
+                }
+            } else {
+                // put the field extraction in the actual from bytes.
+                let read_stuff = field_access.read();
+                if field.attr_reserve().wants_read_fns() {
+                    // let fn_field_name = format_ident!("read_{prefixed_name}");
+                    quote! {
+                        let #field_name = #read_stuff;
+                    }
+                } else {
+                    quote! { let #field_name = Default::default(); }
+                }
+            };
+            gen.append_bitfield_trait_impl_fns(&peek_call);
+            gen.append_bitfield_dyn_trait_impl_fns(&quote! {
+                let #field_name = #field_extractor;
+            });
+        }
+        Ok(())
+    }
+    fn make_read_fns_inner(
+        &self,
+        field: &SolvedData,
+        field_name: &Ident,
+        prefixed_name: &Ident,
+        field_extractor: &TokenStream,
+        peek_quote: &mut TokenStream,
+        peek_slice_fns_option: Option<&mut TokenStream>,
+    ) {
+        *peek_quote = generate_read_field_fn(field_extractor, field, self, prefixed_name);
+        // make the slice functions if applicable.
+        if let Some(peek_slice) = peek_slice_fns_option 
+        {
+            let peek_slice_quote =
+                generate_read_slice_field_fn(field_extractor, field, self, prefixed_name);
+            *peek_quote = quote! {
+                #peek_quote
+                #peek_slice_quote
+            };
+            let Some(peek_slice_fns_option) = peek_slice_fns_option else{return};
+            let peek_slice_unchecked_quote =
+                generate_read_slice_field_fn_unchecked(field_extractor, field, self, field_name);
+            *peek_slice_fns_option = quote! {
+                #peek_slice_fns_option
+                #peek_slice_unchecked_quote
+            };
+        }
+    }
+    fn make_write_fns(
+        &self,
+        field: &SolvedData,
+        variant_name: &Option<Ident>,
+        gen: &mut GeneratedFunctions,
+        field_access: &GeneratedQuotes,
+    ) {
+        let field_name = field.resolver.ident();
+        let prefixed_name = if let Some(prefix) = variant_name {
+            format_ident!("{prefix}_{field_name}")
+        } else {
+            format_ident!("{field_name}")
+        };
+        if field.attr_reserve().is_fake_field() {
+            return;
+        }
+        let (field_setter, clear_quote) = (field_access.write(), field_access.zero());
+        if field.attr_reserve().wants_write_fns() {
+            if variant_name.is_some() {
+                let fn_name = format_ident!("write_{prefixed_name}");
+                gen.append_bitfield_trait_impl_fns(&quote! {
+                    Self::#fn_name(&mut output_byte_buffer, #field_name);
+                });
+            } else {
+                gen.append_bitfield_trait_impl_fns(&quote! {
+                    let #field_name = self.#field_name;
+                    #field_setter
+                });
+            }
+        }
+
+        let mut impl_fns = quote! {};
+        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {Some(quote! {})}else{None};
+        self.make_write_fns_inner(
+            field,
+            &prefixed_name,
+            field_setter,
+            clear_quote,
+            &mut impl_fns,
+            checked_struct_impl_fns.as_mut(),       
+        );
+
+        gen.append_impl_fns(&impl_fns);
+        if let Some(checked_struct_impl_fns) = checked_struct_impl_fns{
+        gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
+        }
+    }
+    fn make_write_fns_inner(
+        &self,
+        field: &SolvedData,
+        field_name: &Ident,
+        field_setter: &TokenStream,
+        clear_quote: &TokenStream,
+        write_quote: &mut TokenStream,
+        write_slice_fns_option: Option<&mut TokenStream>,
+    ) {
+        *write_quote = generate_write_field_fn(field_setter, clear_quote, field, self, field_name);
+        if let Some(write_slice_fns_option) = write_slice_fns_option{
+            let set_slice_quote =
+                generate_write_slice_field_fn(field_setter, clear_quote, field, self, field_name);
+            *write_quote = quote! {
+                #write_quote
+                #set_slice_quote
+            };
+            let set_slice_unchecked_quote =
+                generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field, self);
+            *write_slice_fns_option = quote! {
+                #write_slice_fns_option
+                #set_slice_unchecked_quote
+            };
+        }
+    }
+    pub fn total_bits(&self) -> usize {
+        let mut total: usize = 0;
+        for field in &self.fields {
+            total += field.bit_length();
+        }
+        total
+    }
+    pub fn total_bits_no_fill(&self) -> usize {
+        let mut total: usize = 0;
+        for field in &self.fields {
+            total += field.resolver.bit_size_no_fill();
+        }
+
+        total
+    }
+    pub fn total_bytes(&self) -> usize {
+        self.total_bits().div_ceil(8)
+    }
+}
+/// Generates a `read_field_name()` function.
+pub(crate) fn generate_read_field_fn(
+    field_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_name: &Ident,
+) -> TokenStream {
+    let fn_field_name = format_ident!("read_{field_name}");
+    let bit_range = &field.attrs.bit_range;
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let struct_size = &info.total_bytes();
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!("Reads {comment_bits} within `input_byte_buffer`, getting the `{field_name}` field of a `{struct_name}` in bitfield form.");
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(input_byte_buffer: &[u8;#struct_size]) -> #type_ident {
+            #field_quote
+        }
+    }
+}
+/// Generates a `read_slice_field_name()` function for a slice.
+pub(crate) fn generate_read_slice_field_fn(
+    field_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_name: &Ident,
+) -> TokenStream {
+    let fn_field_name = format_ident!("read_slice_{field_name}");
+    let bit_range = &field.attrs.bit_range;
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let min_length = if info.attrs.default_endianess.is_byte_order_reversed() {
+        (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
+    } else {
+        // TODO check this is correct in generated code.
+        field.attrs.bit_range.end.div_ceil(8)
+    };
+    let comment = format!("Returns the value for the `{field_name}` field of a `{struct_name}` in bitfield form by reading  bits {} through {} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.", bit_range.start, bit_range.end - 1);
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(input_byte_buffer: &[u8]) -> Result<#type_ident, bondrewd::BitfieldLengthError> {
+            let slice_length = input_byte_buffer.len();
+            if slice_length < #min_length {
+                Err(bondrewd::BitfieldLengthError(slice_length, #min_length))
+            } else {
+                Ok(
+                    #field_quote
+                )
+            }
+        }
+    }
+}
+/// For use on generated Checked Slice Structures.
+///
+/// Generates a `read_field_name()` function for a slice.
+///
+/// # Warning
+/// generated code does NOT check if the slice is large enough to be read from, Checked Slice Structures
+/// are nothing but a slice ref that has been checked to contain enough bytes for any
+/// `read_slice_field_name` functions.
+pub(crate) fn generate_read_slice_field_fn_unchecked(
+    field_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_name: &Ident,
+) -> TokenStream {
+    let fn_field_name = format_ident!("read_{field_name}");
+    let bit_range = &field.attrs.bit_range;
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!(
+        "Reads {comment_bits} in pre-checked slice, getting the `{field_name}` field of a [{struct_name}] in bitfield form."
+    );
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(&self) -> #type_ident {
+            let input_byte_buffer: &[u8] = self.buffer;
+            #field_quote
+        }
+    }
+}
+
+/// Generates a `write_field_name()` function.
+pub(crate) fn generate_write_field_fn(
+    field_quote: &TokenStream,
+    clear_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    field_name: &Ident,
+) -> TokenStream {
+    let field_name_short = field.ident().ident();
+    let struct_size = info.total_bytes();
+    let bit_range = &field.attrs.bit_range;
+    let fn_field_name = format_ident!("write_{field_name}");
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!("Writes to {comment_bits} within `output_byte_buffer`, setting the `{field_name}` field of a `{struct_name}` in bitfield form.");
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name_short: #type_ident) {
+            #clear_quote
+            #field_quote
+        }
+    }
+}
+/// Generates a `write_slice_field_name()` function for a slice.
+pub(crate) fn generate_write_slice_field_fn(
+    field_quote: &TokenStream,
+    clear_quote: &TokenStream,
+    field: &FieldInfo,
+    info: &StructInfo,
+    prefixed_field_name: &Ident,
+) -> TokenStream {
+    let field_name = field.ident().name();
+    let fn_field_name = format_ident!("write_slice_{prefixed_field_name}");
+    let bit_range = &field.attrs.bit_range;
+    let type_ident = field.ty.type_quote();
+    let struct_name = &info.name;
+    let min_length = if info.attrs.default_endianess.is_byte_order_reversed() {
+        (info.total_bits() - field.attrs.bit_range.start).div_ceil(8)
+    } else {
+        field.attrs.bit_range.end.div_ceil(8)
+    };
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!("Writes to {comment_bits} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field of a `{struct_name}` in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned");
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8], #field_name: #type_ident) -> Result<(), bondrewd::BitfieldLengthError> {
+            let slice_length = output_byte_buffer.len();
+            if slice_length < #min_length {
+                Err(bondrewd::BitfieldLengthError(slice_length, #min_length))
+            } else {
+                #clear_quote
+                #field_quote
+                Ok(())
+            }
+        }
+    }
+}
+/// For use on generated Checked Slice Structures.
+///
+/// Generates a `write_field_name()` function for a slice.
+///
+/// # Warning
+/// generated code does NOT check if the slice can be written to, Checked Slice Structures are nothing
+/// but a slice ref that has been checked to contain enough bytes for any `write_slice_field_name`
+/// functions.
+pub(crate) fn generate_write_slice_field_fn_unchecked(
+    field_quote: &TokenStream,
+    clear_quote: &TokenStream,
+    field: &SolvedData,
+    struct_name: &Ident,
+) -> TokenStream {
+    let field_name = field.ident().name();
+    let fn_field_name = format_ident!("write_{field_name}");
+    let bit_range = &field.bit_range();
+    let type_ident = field.ty.type_quote();
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+    let comment = format!(
+        "Writes to {comment_bits} in pre-checked mutable slice, setting the `{field_name}` field of a [{struct_name}] in bitfield form.",
+    );
+    quote! {
+        #[inline]
+        #[doc = #comment]
+        pub fn #fn_field_name(&mut self, #field_name: #type_ident) {
+            let output_byte_buffer: &mut [u8] = self.buffer;
+            #clear_quote
+            #field_quote
         }
     }
 }
