@@ -75,7 +75,7 @@ impl ElementArrayIter {
             resolver_data.bit_range_start(),
             elements,
             element_bit_size,
-            resolver_data.flip(),
+            resolver_data.flip().copied(),
         ))
     }
 }
@@ -89,7 +89,6 @@ impl Iterator for ElementArrayIter {
             let ident = (outer_ident, name).into();
             let start = self.starting_bit_index + (index * self.element_bit_size);
             let bit_range = start..start + self.element_bit_size;
-            // TODO : START_HERE
             let zeros_on_left = bit_range.start % 8;
             Some(Resolver {
                 data: Box::new(ResolverData {
@@ -161,7 +160,7 @@ impl BlockArrayIter {
         array_ty: &ResolverArrayType,
         sizings: &ArraySizings,
     ) -> Option<Self> {
-        let flip = resolver_data.flip();
+        let flip = resolver_data.flip().copied();
         let mut sizings = sizings.clone();
         let elements = sizings.pop()?;
         let ty = if sizings.is_empty() {

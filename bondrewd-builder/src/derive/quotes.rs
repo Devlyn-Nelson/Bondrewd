@@ -1,5 +1,6 @@
+use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::Ident;
 
 // TODO nothing about field quotes should be public

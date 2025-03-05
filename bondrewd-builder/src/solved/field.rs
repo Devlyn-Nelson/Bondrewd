@@ -109,7 +109,7 @@ impl SolvedData {
         self.resolver.bit_length()
     }
     #[must_use]
-    pub fn bit_range(&self) -> Rangle<usize> {
+    pub fn bit_range(&self) -> &Range<usize> {
         self.resolver.bit_range()
     }
     pub fn read(&self) {
@@ -297,7 +297,6 @@ impl Resolver {
         }
     }
 
-    #[inline]
     // this returns how many bits of the fields pertain to total structure bits.
     // where as attrs.bit_length() give you bits the fields actually needs.
     pub fn bit_size(&self) -> usize {
