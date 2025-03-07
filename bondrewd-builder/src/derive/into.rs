@@ -518,7 +518,7 @@ impl Resolver {
             thing.right_shift % 8
         };
         // make a name for the buffer that we will store the number in byte form
-        let field_buffer_name = format_ident!("{}_bytes", self.data.field_name.name());
+        let field_buffer_name = self.field_buffer_ident();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let (field_byte_buffer, size) = match self.get_resolved_ty() {
             ResolverSubType::Primitive {
@@ -796,7 +796,7 @@ impl Resolver {
             )
         };
         // make a name for the buffer that we will store the number in byte form
-        let field_buffer_name = format_ident!("{}_bytes", self.name());
+        let field_buffer_name = self.field_buffer_ident();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let field_byte_buffer = match self.get_resolved_ty() {
             ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {

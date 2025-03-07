@@ -133,4 +133,9 @@ impl DataBuilder {
     pub fn set_endianess(&mut self, e: Endianness) {
         self.endianness = Some(e);
     }
+
+    pub fn with_endianess(mut self, e: Endianness) -> Self {
+        self.endianness = Some(e);
+        self
+    }
 }

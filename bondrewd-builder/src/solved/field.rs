@@ -271,6 +271,10 @@ impl Resolver {
     pub fn field_buffer_name(&self) -> String {
         format!("{}_bytes", &self.data.field_name.name())
     }
+    #[must_use]
+    pub fn field_buffer_ident(&self) -> Ident {
+        format_ident!("{}", self.field_buffer_name())
+    }
     pub fn get_resolved_ty(&self) -> ResolverSubType {
         match self.ty.as_ref() {
             ResolverType::Primitive {

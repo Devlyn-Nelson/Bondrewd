@@ -408,7 +408,7 @@ impl Resolver {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let starting_inject_byte = self.starting_inject_byte();
-        let field_buffer_name = self.field_buffer_name();
+        let field_buffer_name = self.field_buffer_ident();
         let type_quote = self.ty.get_type_ident();
         let output_quote = match self.ty.as_ref() {
             ResolverType::Array {
@@ -499,7 +499,7 @@ impl Resolver {
             } else {
                 quote! {[0u8;#rust_type_size]}
             };
-        let field_buffer_name = &self.field_buffer_name();
+        let field_buffer_name = self.field_buffer_ident();
         // Create the full buffer initiation quotes.
         let mut full_quote = quote! {
             let mut #field_buffer_name: [u8;#rust_type_size] = #new_array_quote;
@@ -919,7 +919,7 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let field_buffer_name = self.field_buffer_name();
+        let field_buffer_name = self.field_buffer_ident();
         let starting_inject_byte = self.starting_inject_byte();
         let type_quote = self.ty.get_type_ident();
         let output_quote = match self.ty.as_ref() {
@@ -1111,7 +1111,7 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
     let stuff = ResolverDataBigAdditive::from(field.data.as_ref());
     let amount_of_bits = field.bit_length();
     let bits_in_last_byte = stuff.bits_in_last_byte;
-    let field_buffer_name = field.field_buffer_name();
+    let field_buffer_name = field.field_buffer_ident();
     let size = field.ty.rust_size();
     let starting_inject_byte = field.starting_inject_byte();
     let first_bit_mask = stuff.first_bit_mask;

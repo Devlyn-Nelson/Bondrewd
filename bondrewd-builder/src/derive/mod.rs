@@ -254,22 +254,16 @@ impl SolvedFieldSet {
     pub fn vis(&self) -> &Visibility {
         &self.vis
     }
-    pub fn gen_field_quotes(
+    pub fn generate_quotes(
         &self,
         name: &Ident,
         enum_name: Option<&Ident>,
+        struct_size: usize,
         dyn_fns: bool,
     ) -> syn::Result<FieldQuotes> {
         // generate basic generated code for field access functions.
         let mut quotes = self.gen_struct_fields(name, enum_name, dyn_fns)?;
         // Gather information to finish [`Bitfields::from_bytes`]
-        let struct_size = {
-            let mut total: usize = 0;
-            for field in &self.fields {
-                total += field.bit_length();
-            }
-            total
-        };
         let from_bytes_quote = &quotes.read_fns.bitfield_trait;
         let fields_list = &quotes.field_list;
         // construct from bytes function. use input_byte_buffer as input name because,

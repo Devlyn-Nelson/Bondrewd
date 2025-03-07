@@ -1,5 +1,8 @@
-use std::{collections::BTreeMap, ops::Range};
+use std::{collections::BTreeMap, env::current_dir, ops::Range};
 
+use convert_case::Case;
+use proc_macro2::TokenStream;
+use quote::quote;
 use syn::Ident;
 use thiserror::Error;
 
@@ -113,6 +116,124 @@ impl TryFrom<&FieldSetBuilder> for Solved {
 }
 
 impl Solved {
+    pub fn total_bits_no_fill(&self) -> usize {
+        match self.ty {
+            SolvedType::Enum { id, invalid, invalid_name, variants } => {
+                let mut largest = 0;
+                for var in variants {
+                    let other = var.1.total_bits_no_fill();
+                    if other > largest {
+                        largest = other;
+                    }
+                }
+                largest
+            }
+            SolvedType::Struct(solved_field_set) => solved_field_set.total_bits_no_fill(),
+        }
+    }
+    pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
+        let struct_name = &self.name;
+        let (gen, struct_size) = match &self.ty {
+            SolvedType::Enum { id, invalid, invalid_name, variants } => todo!("generate enum quotes"),
+            SolvedType::Struct(solved_field_set) => {
+                let struct_size = {
+                    let mut total: usize = 0;
+                    for field in &solved_field_set.fields {
+                        total += field.bit_length();
+                    }
+                    total
+                };
+                (solved_field_set.generate_quotes(struct_name, None, struct_size, true)?.finish(), struct_size)
+            },
+        };
+        // get the struct size and name so we can use them in a quote.
+        let impl_fns = gen.non_trait;
+        let mut output = match self.ty {
+            SolvedType::Struct(..) => if setters {
+                return Err(syn::Error::new(self.name.span(), "Setters are currently unsupported"))
+                // TODO get setter for arrays working.
+                // get the setters, functions that set a field disallowing numbers
+                // outside of the range the Bitfield.
+                // let setters_quote = match struct_fns::create_setters_quotes(struct_info) {
+                //     Ok(parsed_struct) => parsed_struct,
+                //     Err(err) => {
+                //         return Err(err);
+                //     }
+                // };
+                // quote! {
+                //     impl #struct_name {
+                //         #impl_fns
+                //         #setters_quote
+                //     }
+                // }
+            }else{
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                }
+            },
+            SolvedType::Enum { .. } => {
+                // TODO implement getters and setters for enums.
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                }
+            }
+        };
+        // get the bit size of the entire set of fields to fill in trait requirement.
+        let bit_size = self.total_bits_no_fill();
+        let trait_impl_fn = gen.bitfield_trait;
+        output = quote! {
+            #output
+            impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                const BIT_SIZE: usize = #bit_size;
+                #trait_impl_fn
+            }
+        };
+        if hex_fns
+        {
+            let hex_size = struct_size * 2;
+            output = quote! {
+                #output
+                impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+            };
+            if dyn_fns
+            {
+                output = quote! {
+                    #output
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
+        }
+        if dyn_fns
+        {
+            let checked_structs = gen.checked_struct;
+            let from_vec_quote = gen.bitfield_dyn_trait;
+            output = quote! {
+                #output
+                #checked_structs
+                impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                    #from_vec_quote
+                }
+            }
+        }
+        if self.dump() {
+            let name = self.name().to_string().to_case(Case::Snake);
+            match current_dir() {
+                Ok(mut file_name) => {
+                    file_name.push("target");
+                    file_name.push(format!("{name}_code_gen.rs"));
+                    let _ = std::fs::write(file_name, output.to_string());
+                }
+                Err(err) => {
+                    return Err(syn::Error::new(self.name().span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
+                }
+            }
+        }
+        Ok(output)
+    }
     fn try_from_field_set(
         value: &FieldSetBuilder,
         id_field: Option<&SolvedData>,
