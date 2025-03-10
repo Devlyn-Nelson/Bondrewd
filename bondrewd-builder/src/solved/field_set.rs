@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, env::current_dir, ops::Range};
 
-use convert_case::Case;
+use convert_case::{Case, Casing};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
@@ -21,7 +21,7 @@ pub struct Solved {
     pub(crate) name: Ident,
     pub(crate) ty: SolvedType,
 }
-pub(crate) enum SolvedType {
+pub enum SolvedType {
     Enum {
         /// The id field. or the field that determines the variant.
         id: SolvedData,
@@ -37,14 +37,29 @@ pub(crate) enum SolvedType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct VariantInfo {
+pub struct VariantInfo {
     pub(crate) id: i64,
     pub(crate) name: Ident,
 }
 
-pub(crate) struct SolvedFieldSet {
-    pub(crate) vis: Visibility,
+pub struct SolvedFieldSet {
+    pub(crate) attrs: SolvedFieldSetAttributes,
     pub(crate) fields: Vec<SolvedData>,
+}
+
+#[derive(Debug, Clone)]
+pub struct SolvedFieldSetAttributes{
+    pub dump: bool,
+    pub vis: Visibility,
+}
+
+impl Default for SolvedFieldSetAttributes {
+    fn default() -> Self {
+        Self { 
+            vis: Visibility(syn::Visibility::Public(syn::token::Pub { span: proc_macro2::Span::call_site() })),
+            dump: false,
+         }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -117,7 +132,7 @@ impl TryFrom<&FieldSetBuilder> for Solved {
 
 impl Solved {
     pub fn total_bits_no_fill(&self) -> usize {
-        match self.ty {
+        match &self.ty {
             SolvedType::Enum { id, invalid, invalid_name, variants } => {
                 let mut largest = 0;
                 for var in variants {
@@ -207,10 +222,10 @@ impl Solved {
                 };
             }
         }
-        if dyn_fns
+        if let Some(dyn_fns) = gen.dyn_fns
         {
-            let checked_structs = gen.checked_struct;
-            let from_vec_quote = gen.bitfield_dyn_trait;
+            let checked_structs = dyn_fns.checked_struct;
+            let from_vec_quote = dyn_fns.bitfield_dyn_trait;
             output = quote! {
                 #output
                 #checked_structs
@@ -220,7 +235,7 @@ impl Solved {
             }
         }
         if self.dump() {
-            let name = self.name().to_string().to_case(Case::Snake);
+            let name = self.name.to_string().to_case(Case::Snake);
             match current_dir() {
                 Ok(mut file_name) => {
                     file_name.push("target");
@@ -228,11 +243,20 @@ impl Solved {
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {
-                    return Err(syn::Error::new(self.name().span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
+                    return Err(syn::Error::new(self.name.span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
                 }
             }
         }
         Ok(output)
+    }
+    fn dump(&self) -> bool {
+        match &self.ty {
+            SolvedType::Enum { id, invalid, invalid_name, variants } => {
+                // TODO impl dump for enums.
+                false
+            }
+            SolvedType::Struct(solved_field_set) => solved_field_set.attrs.dump,
+        }
     }
     fn try_from_field_set(
         value: &FieldSetBuilder,
@@ -333,7 +357,7 @@ impl Solved {
         //TODO check and uphold enforcements.
         Ok(Self {
             name: value.name.clone(),
-            ty: SolvedType::Struct(SolvedFieldSet { fields, vis: value.vis.clone() }),
+            ty: SolvedType::Struct(SolvedFieldSet { fields, attrs: value.attrs.clone() }),
         })
     }
 }

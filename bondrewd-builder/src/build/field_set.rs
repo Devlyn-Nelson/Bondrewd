@@ -1,5 +1,6 @@
-use proc_macro2::Span;
 use syn::{token::Pub, Ident};
+
+use crate::solved::field_set::SolvedFieldSetAttributes;
 
 use super::field::DataBuilder;
 use super::Visibility;
@@ -142,7 +143,7 @@ pub struct FieldSetBuilder {
     /// Using Auto is useful because if the `field_set` doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
-    pub(crate) vis: Visibility,
+    pub(crate) attrs: SolvedFieldSetAttributes,
 }
 
 impl FieldSetBuilder {
@@ -153,7 +154,7 @@ impl FieldSetBuilder {
             fields: Vec::default(),
             enforcement: StructEnforcement::default(),
             fill_bits: FillBits::default(),
-            vis: Visibility(syn::Visibility::Public(Pub { span: Span::call_site() }))
+            attrs: SolvedFieldSetAttributes::default(),
         }
     }
     pub fn add_field(&mut self, new_data: DataBuilder) {

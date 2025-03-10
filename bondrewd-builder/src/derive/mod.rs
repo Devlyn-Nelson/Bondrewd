@@ -252,7 +252,7 @@ impl SolvedFieldSet {
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     // TODO make sure capture id fields in enums do not get read twice.
     pub fn vis(&self) -> &Visibility {
-        &self.vis
+        &self.attrs.vis
     }
     pub fn generate_quotes(
         &self,
