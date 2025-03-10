@@ -1,9 +1,13 @@
 #![allow(unreachable_code, dead_code, unused_variables)]
 
-pub mod build;
-pub mod derive;
-pub mod masked;
-pub mod solved;
+use build::field_set::GenericBuilder;
+use proc_macro::TokenStream;
+use syn::{parse_macro_input, DeriveInput};
+
+mod build;
+mod derive;
+mod masked;
+mod solved;
 // TODO I think a further calculated model is possible beyond the current solved.
 // currently Solved is a small data package describing the area of bits and the
 // technique to to calculate the actual masks and byte indices. This new model
@@ -30,3 +34,19 @@ pub mod solved;
 // model size. None of this should effect `bondrewd-derive` in a negative way but change the
 // actual function writing code to use the `Masks` model to make the function rather than
 // calculating the masks and writing the function at the same time.
+#[proc_macro_derive(Bitfields, attributes(bondrewd_builder,))]
+pub fn derive_bitfields(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    // parse the input into a StructInfo which contains all the information we
+    // along with some helpful structures to generate our Bitfield code.
+    let struct_info = match GenericBuilder::parse(&input) {
+        Ok(parsed_struct) => parsed_struct,
+        Err(err) => {
+            return TokenStream::from(err.to_compile_error());
+        }
+    };
+    match struct_info.generate() {
+        Ok(gen) => gen.into(),
+        Err(err) => TokenStream::from(err.to_compile_error()),
+    }
+}

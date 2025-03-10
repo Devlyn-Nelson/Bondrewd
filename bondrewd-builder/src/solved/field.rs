@@ -6,7 +6,8 @@ use syn::Ident;
 
 use crate::{
     build::{
-        field::{DataType, NumberType, RustByteSize}, ArraySizings, OverlapOptions, ReserveFieldOption
+        field::{DataType, NumberType, RustByteSize},
+        ArraySizings, OverlapOptions, ReserveFieldOption,
     },
     derive::GeneratedQuotes,
 };

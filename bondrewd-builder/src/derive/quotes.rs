@@ -86,7 +86,7 @@ impl GeneratedFunctions {
             #other_impl_fns
         };
         // dyn
-        if let (Some(dyn_fns), Some(other_dyn_fns)) = (&mut self.dyn_fns, &other.dyn_fns){
+        if let (Some(dyn_fns), Some(other_dyn_fns)) = (&mut self.dyn_fns, &other.dyn_fns) {
             let checked_struct_impl_fns = &dyn_fns.checked_struct;
             let other_checked_struct_impl_fns = &other_dyn_fns.checked_struct;
             dyn_fns.checked_struct = quote! {

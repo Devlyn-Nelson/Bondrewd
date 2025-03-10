@@ -1,9 +1,8 @@
-use syn::{token::Pub, Ident};
+use syn::Ident;
 
 use crate::solved::field_set::SolvedFieldSetAttributes;
 
 use super::field::DataBuilder;
-use super::Visibility;
 
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
@@ -13,27 +12,21 @@ pub struct GenericBuilder {
     /// Define if we are building a single `field_set` or variant type containing
     /// multiple `field_sets` switched by an id field.
     pub ty: BuilderType,
-    /// The viability of the struct/enum
-    pub vis: Visibility,
     /// Is it a tuple struct/variant
     pub tuple: bool,
 }
 
 impl GenericBuilder {
-    #[must_use]
-    pub fn single_set(name: Ident) -> Self {
+    pub fn from_struct_builder(s: Box<StructBuilder>) -> Self {
         Self {
-            ty: BuilderType::Struct(Box::new(FieldSetBuilder::new(name))),
+            ty: BuilderType::Struct(s),
             tuple: false,
-            vis: Visibility(syn::Visibility::Public(Pub::default())),
         }
     }
-    #[must_use]
-    pub fn variant_set(name: Ident) -> Self {
+    pub fn from_struct_builder_derive(s: Box<StructBuilder>, tuple: bool) -> Self {
         Self {
-            ty: BuilderType::Enum(Box::new(EnumBuilder::new(name))),
-            tuple: false,
-            vis: Visibility(syn::Visibility::Public(Pub::default())),
+            ty: BuilderType::Struct(s),
+            tuple,
         }
     }
     #[must_use]
@@ -51,42 +44,27 @@ pub enum BuilderType {
     /// Multiple `field_sets` that switch based on an id field.
     Enum(Box<EnumBuilder>),
     /// A single `field_set`.
-    Struct(Box<FieldSetBuilder>),
+    Struct(Box<StructBuilder>),
 }
-
-impl BuilderType {
-    #[must_use]
-    pub fn get_struct(&self) -> Option<&FieldSetBuilder> {
-        if let Self::Struct(ref thing) = self {
-            Some(thing)
-        } else {
-            None
-        }
-    }
-    #[must_use]
-    pub fn get_enum(&self) -> Option<&EnumBuilder> {
-        if let Self::Enum(ref thing) = self {
-            Some(thing)
-        } else {
-            None
-        }
-    }
-    pub fn get_mut_struct(&mut self) -> Option<&mut FieldSetBuilder> {
-        if let Self::Struct(ref mut thing) = self {
-            Some(thing)
-        } else {
-            None
-        }
-    }
-    pub fn get_mut_enum(&mut self) -> Option<&mut EnumBuilder> {
-        if let Self::Enum(ref mut thing) = self {
-            Some(thing)
-        } else {
-            None
+/// Builds an enum bitfield model.
+#[derive(Debug)]
+pub struct StructBuilder {
+    pub(crate) field_set: FieldSetBuilder,
+    pub(crate) attrs: SolvedFieldSetAttributes,
+}
+impl From<FieldSetBuilder> for StructBuilder {
+    fn from(value: FieldSetBuilder) -> Self {
+        Self {
+            field_set: value,
+            attrs: SolvedFieldSetAttributes::default(),
         }
     }
 }
-
+impl From<(FieldSetBuilder, SolvedFieldSetAttributes)> for StructBuilder {
+    fn from((field_set, attrs): (FieldSetBuilder, SolvedFieldSetAttributes)) -> Self {
+        Self { field_set, attrs }
+    }
+}
 /// Builds an enum bitfield model.
 #[derive(Debug)]
 pub struct EnumBuilder {
@@ -98,6 +76,7 @@ pub struct EnumBuilder {
     pub(crate) invalid: Option<VariantBuilder>,
     /// The collection of variant `field_sets`.
     pub(crate) variants: Vec<VariantBuilder>,
+    pub(crate) attrs: SolvedFieldSetAttributes,
 }
 
 impl EnumBuilder {
@@ -108,6 +87,7 @@ impl EnumBuilder {
             id: None,
             invalid: None,
             variants: Vec::default(),
+            attrs: SolvedFieldSetAttributes::default(),
         }
     }
 }
@@ -143,7 +123,6 @@ pub struct FieldSetBuilder {
     /// Using Auto is useful because if the `field_set` doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
-    pub(crate) attrs: SolvedFieldSetAttributes,
 }
 
 impl FieldSetBuilder {
@@ -154,11 +133,14 @@ impl FieldSetBuilder {
             fields: Vec::default(),
             enforcement: StructEnforcement::default(),
             fill_bits: FillBits::default(),
-            attrs: SolvedFieldSetAttributes::default(),
         }
     }
     pub fn add_field(&mut self, new_data: DataBuilder) {
         self.fields.push(new_data);
+    }
+    pub fn with_field(mut self, new_data: DataBuilder) -> Self {
+        self.fields.push(new_data);
+        self
     }
 }
 

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::solved::{
-    field::{ ResolverData, SolvedData},
+    field::{ResolverData, SolvedData},
     field_set::SolvedFieldSet,
 };
 
@@ -231,8 +231,13 @@ impl From<&ResolverData> for ResolverDataBigAdditive {
 }
 
 pub enum SolvedFieldSetAdditive<'a> {
-    Struct{name: &'a Ident},
-    Variant{enum_name: &'a Ident, variant_name: &'a Ident},
+    Struct {
+        name: &'a Ident,
+    },
+    Variant {
+        enum_name: &'a Ident,
+        variant_name: &'a Ident,
+    },
 }
 
 impl<'a> SolvedFieldSetAdditive<'a> {
@@ -240,14 +245,23 @@ impl<'a> SolvedFieldSetAdditive<'a> {
         Self::Struct { name: value }
     }
     pub fn new_variant(enum_name: &'a Ident, variant_name: &'a Ident) -> Self {
-        Self::Variant { enum_name, variant_name }
+        Self::Variant {
+            enum_name,
+            variant_name,
+        }
     }
     pub fn is_variant(&self) -> bool {
-        matches!(self, Self::Variant { enum_name: _, variant_name: _ })
+        matches!(
+            self,
+            Self::Variant {
+                enum_name: _,
+                variant_name: _
+            }
+        )
     }
 }
 
-impl SolvedFieldSet { 
+impl SolvedFieldSet {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     // TODO make sure capture id fields in enums do not get read twice.
@@ -282,9 +296,11 @@ impl SolvedFieldSet {
         if let Some(dyn_fns) = quotes.read_fns.dyn_fns.as_mut() {
             // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
             let from_bytes_dyn_quote_inner = dyn_fns.bitfield_dyn_trait.clone();
-            let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, \
+            let comment_take =
+                "Creates a new instance of `Self` by copying field from the bitfields, \
             removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have \
-            enough bytes an error will be returned.".to_string();
+            enough bytes an error will be returned."
+                    .to_string();
             let comment = "Creates a new instance of `Self` by copying field from the bitfields. 
              # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
             dyn_fns.bitfield_dyn_trait = quote! {
@@ -342,10 +358,7 @@ impl SolvedFieldSet {
     ) -> syn::Result<FieldQuotes> {
         let variant_name = if enum_name.is_some() {
             // We what to use the name of the struct because enum variants are just StructInfos internally.
-            Some(format_ident!(
-                "{}",
-                name.to_string().to_case(Case::Snake)
-            ))
+            Some(format_ident!("{}", name.to_string().to_case(Case::Snake)))
         } else {
             None
         };
@@ -356,7 +369,7 @@ impl SolvedFieldSet {
         let mut field_name_list = quote! {};
         let set_add = if let Some(vname) = enum_name {
             SolvedFieldSetAdditive::new_variant(name, &vname)
-        }else{
+        } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
         for field in &self.fields {
@@ -371,9 +384,11 @@ impl SolvedFieldSet {
             self.make_write_fns(field, &set_add, &mut gen_write, &field_access);
         }
         // Do checked struct of this type
-        let checked = if self.fields.is_empty() {None}
-        else if let (Some(dyn_fns_read),Some(dyn_fns_write)) = (&mut gen_read.dyn_fns, &mut gen_write.dyn_fns) 
-            {
+        let checked = if self.fields.is_empty() {
+            None
+        } else if let (Some(dyn_fns_read), Some(dyn_fns_write)) =
+            (&mut gen_read.dyn_fns, &mut gen_write.dyn_fns)
+        {
             let struct_name = if let Some(e_name) = enum_name {
                 quote::format_ident!("{e_name}{}", &name)
             } else {
@@ -446,7 +461,9 @@ impl SolvedFieldSet {
                 structure: checked_ident,
                 mut_structure: checked_mut_ident,
             })
-        }else{None};
+        } else {
+            None
+        };
         Ok(FieldQuotes {
             read_fns: gen_read,
             write_fns: gen_write,
@@ -470,7 +487,11 @@ impl SolvedFieldSet {
         };
 
         let mut impl_fns = quote! {};
-        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some(){Some(quote! {})}else{None};
+        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {
+            Some(quote! {})
+        } else {
+            None
+        };
         let field_extractor = field_access.read();
         self.make_read_fns_inner(
             field,
@@ -493,7 +514,7 @@ impl SolvedFieldSet {
             *field_name_list = quote! {#field_name, #field_name_list};
             // TODO line above replaced commented code below, this is old code that i don't think is necessary.
             // field order here shouldn't matter.
-            // 
+            //
             // if field.is_field_order_reversed() {
             //     *field_name_list = quote! {#field_name, #field_name_list}
             // } else {
@@ -540,18 +561,27 @@ impl SolvedFieldSet {
         peek_quote: &mut TokenStream,
         peek_slice_fns_option: Option<&mut TokenStream>,
     ) {
-        *peek_quote = generate_read_field_fn(field_extractor, field, struct_name, self.total_bytes(), prefixed_field_name);
+        *peek_quote = generate_read_field_fn(
+            field_extractor,
+            field,
+            struct_name,
+            self.total_bytes(),
+            prefixed_field_name,
+        );
         // make the slice functions if applicable.
-        if let Some(peek_slice) = peek_slice_fns_option 
-        {
-            let peek_slice_quote =
-                generate_read_slice_field_fn(field_extractor, field, struct_name, prefixed_field_name);
+        if let Some(peek_slice) = peek_slice_fns_option {
+            let peek_slice_quote = generate_read_slice_field_fn(
+                field_extractor,
+                field,
+                struct_name,
+                prefixed_field_name,
+            );
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_quote
             };
             let peek_slice_unchecked_quote =
-                generate_read_slice_field_fn_unchecked(field_extractor, field, struct_name, );
+                generate_read_slice_field_fn_unchecked(field_extractor, field, struct_name);
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_unchecked_quote
@@ -567,12 +597,11 @@ impl SolvedFieldSet {
     ) {
         let field_name = field.resolver.ident();
         let (struct_name, prefixed_name) = match set_add {
-            SolvedFieldSetAdditive::Struct { name } => {
-                (name, format_ident!("{field_name}"))
-            }
-            SolvedFieldSetAdditive::Variant { enum_name, variant_name } => {
-                (enum_name, format_ident!("{variant_name}_{field_name}"))
-            }
+            SolvedFieldSetAdditive::Struct { name } => (name, format_ident!("{field_name}")),
+            SolvedFieldSetAdditive::Variant {
+                enum_name,
+                variant_name,
+            } => (enum_name, format_ident!("{variant_name}_{field_name}")),
         };
         if field.attr_reserve().is_fake_field() {
             return;
@@ -593,7 +622,11 @@ impl SolvedFieldSet {
         }
 
         let mut impl_fns = quote! {};
-        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {Some(quote! {})}else{None};
+        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {
+            Some(quote! {})
+        } else {
+            None
+        };
         self.make_write_fns_inner(
             field,
             &prefixed_name,
@@ -601,12 +634,12 @@ impl SolvedFieldSet {
             field_setter,
             clear_quote,
             &mut impl_fns,
-            checked_struct_impl_fns.as_mut(),       
+            checked_struct_impl_fns.as_mut(),
         );
 
         gen.append_impl_fns(&impl_fns);
-        if let Some(checked_struct_impl_fns) = checked_struct_impl_fns{
-        gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
+        if let Some(checked_struct_impl_fns) = checked_struct_impl_fns {
+            gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
         }
     }
     fn make_write_fns_inner(
@@ -619,16 +652,31 @@ impl SolvedFieldSet {
         write_quote: &mut TokenStream,
         write_slice_fns_option: Option<&mut TokenStream>,
     ) {
-        *write_quote = generate_write_field_fn(field_setter, clear_quote, field, struct_name, self.total_bytes());
-        if let Some(write_slice_fns_option) = write_slice_fns_option{
-            let set_slice_quote =
-                generate_write_slice_field_fn(field_setter, clear_quote, field, struct_name, prefixed_field_name);
+        *write_quote = generate_write_field_fn(
+            field_setter,
+            clear_quote,
+            field,
+            struct_name,
+            self.total_bytes(),
+        );
+        if let Some(write_slice_fns_option) = write_slice_fns_option {
+            let set_slice_quote = generate_write_slice_field_fn(
+                field_setter,
+                clear_quote,
+                field,
+                struct_name,
+                prefixed_field_name,
+            );
             *write_quote = quote! {
                 #write_quote
                 #set_slice_quote
             };
-            let set_slice_unchecked_quote =
-                generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field, struct_name);
+            let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
+                field_setter,
+                clear_quote,
+                field,
+                struct_name,
+            );
             *write_slice_fns_option = quote! {
                 #write_slice_fns_option
                 #set_slice_unchecked_quote
@@ -782,8 +830,7 @@ pub(crate) fn generate_write_slice_field_fn(
     let type_ident = field.resolver.ty.get_type_ident();
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("write_slice_{prefixed_field_name}");
-    let min_length = 
-        bit_range.end.div_ceil(8);
+    let min_length = bit_range.end.div_ceil(8);
     let comment_bits = if bit_range.end - bit_range.start > 1 {
         format!("bits {} through {}", bit_range.start, bit_range.end - 1)
     } else {

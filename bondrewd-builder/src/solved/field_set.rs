@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::build::{
     field::DataType,
-    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructEnforcement},
+    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructBuilder, StructEnforcement},
     ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
 };
 
@@ -48,17 +48,19 @@ pub struct SolvedFieldSet {
 }
 
 #[derive(Debug, Clone)]
-pub struct SolvedFieldSetAttributes{
+pub struct SolvedFieldSetAttributes {
     pub dump: bool,
     pub vis: Visibility,
 }
 
 impl Default for SolvedFieldSetAttributes {
     fn default() -> Self {
-        Self { 
-            vis: Visibility(syn::Visibility::Public(syn::token::Pub { span: proc_macro2::Span::call_site() })),
+        Self {
+            vis: Visibility(syn::Visibility::Public(syn::token::Pub {
+                span: proc_macro2::Span::call_site(),
+            })),
             dump: false,
-         }
+        }
     }
 }
 
@@ -114,26 +116,31 @@ impl TryFrom<EnumBuilder> for Solved {
     }
 }
 
-impl TryFrom<FieldSetBuilder> for Solved {
+impl TryFrom<StructBuilder> for Solved {
     type Error = SolvingError;
 
-    fn try_from(value: FieldSetBuilder) -> Result<Self, Self::Error> {
-        Self::try_from_field_set(&value, None)
+    fn try_from(value: StructBuilder) -> Result<Self, Self::Error> {
+        Self::try_from_field_set(&value.field_set, &value.attrs, None)
     }
 }
 
-impl TryFrom<&FieldSetBuilder> for Solved {
+impl TryFrom<&StructBuilder> for Solved {
     type Error = SolvingError;
 
-    fn try_from(value: &FieldSetBuilder) -> Result<Self, Self::Error> {
-        Self::try_from_field_set(value, None)
+    fn try_from(value: &StructBuilder) -> Result<Self, Self::Error> {
+        Self::try_from_field_set(&value.field_set, &value.attrs, None)
     }
 }
 
 impl Solved {
     pub fn total_bits_no_fill(&self) -> usize {
         match &self.ty {
-            SolvedType::Enum { id, invalid, invalid_name, variants } => {
+            SolvedType::Enum {
+                id,
+                invalid,
+                invalid_name,
+                variants,
+            } => {
                 let mut largest = 0;
                 for var in variants {
                     let other = var.1.total_bits_no_fill();
@@ -149,7 +156,12 @@ impl Solved {
     pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
         let (gen, struct_size) = match &self.ty {
-            SolvedType::Enum { id, invalid, invalid_name, variants } => todo!("generate enum quotes"),
+            SolvedType::Enum {
+                id,
+                invalid,
+                invalid_name,
+                variants,
+            } => todo!("generate enum quotes"),
             SolvedType::Struct(solved_field_set) => {
                 let struct_size = {
                     let mut total: usize = 0;
@@ -158,36 +170,46 @@ impl Solved {
                     }
                     total
                 };
-                (solved_field_set.generate_quotes(struct_name, None, struct_size, true)?.finish(), struct_size)
-            },
+                (
+                    solved_field_set
+                        .generate_quotes(struct_name, None, struct_size, true)?
+                        .finish(),
+                    struct_size,
+                )
+            }
         };
         // get the struct size and name so we can use them in a quote.
         let impl_fns = gen.non_trait;
         let mut output = match self.ty {
-            SolvedType::Struct(..) => if setters {
-                return Err(syn::Error::new(self.name.span(), "Setters are currently unsupported"))
-                // TODO get setter for arrays working.
-                // get the setters, functions that set a field disallowing numbers
-                // outside of the range the Bitfield.
-                // let setters_quote = match struct_fns::create_setters_quotes(struct_info) {
-                //     Ok(parsed_struct) => parsed_struct,
-                //     Err(err) => {
-                //         return Err(err);
-                //     }
-                // };
-                // quote! {
-                //     impl #struct_name {
-                //         #impl_fns
-                //         #setters_quote
-                //     }
-                // }
-            }else{
-                quote! {
-                    impl #struct_name {
-                        #impl_fns
+            SolvedType::Struct(..) => {
+                if setters {
+                    return Err(syn::Error::new(
+                        self.name.span(),
+                        "Setters are currently unsupported",
+                    ));
+                    // TODO get setter for arrays working.
+                    // get the setters, functions that set a field disallowing numbers
+                    // outside of the range the Bitfield.
+                    // let setters_quote = match struct_fns::create_setters_quotes(struct_info) {
+                    //     Ok(parsed_struct) => parsed_struct,
+                    //     Err(err) => {
+                    //         return Err(err);
+                    //     }
+                    // };
+                    // quote! {
+                    //     impl #struct_name {
+                    //         #impl_fns
+                    //         #setters_quote
+                    //     }
+                    // }
+                } else {
+                    quote! {
+                        impl #struct_name {
+                            #impl_fns
+                        }
                     }
                 }
-            },
+            }
             SolvedType::Enum { .. } => {
                 // TODO implement getters and setters for enums.
                 quote! {
@@ -207,23 +229,20 @@ impl Solved {
                 #trait_impl_fn
             }
         };
-        if hex_fns
-        {
+        if hex_fns {
             let hex_size = struct_size * 2;
             output = quote! {
                 #output
                 impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
             };
-            if dyn_fns
-            {
+            if dyn_fns {
                 output = quote! {
                     #output
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
                 };
             }
         }
-        if let Some(dyn_fns) = gen.dyn_fns
-        {
+        if let Some(dyn_fns) = gen.dyn_fns {
             let checked_structs = dyn_fns.checked_struct;
             let from_vec_quote = dyn_fns.bitfield_dyn_trait;
             output = quote! {
@@ -251,7 +270,12 @@ impl Solved {
     }
     fn dump(&self) -> bool {
         match &self.ty {
-            SolvedType::Enum { id, invalid, invalid_name, variants } => {
+            SolvedType::Enum {
+                id,
+                invalid,
+                invalid_name,
+                variants,
+            } => {
                 // TODO impl dump for enums.
                 false
             }
@@ -260,6 +284,7 @@ impl Solved {
     }
     fn try_from_field_set(
         value: &FieldSetBuilder,
+        attrs: &SolvedFieldSetAttributes,
         id_field: Option<&SolvedData>,
     ) -> Result<Self, SolvingError> {
         let bit_size = if let Some(id_field) = id_field {
@@ -357,7 +382,10 @@ impl Solved {
         //TODO check and uphold enforcements.
         Ok(Self {
             name: value.name.clone(),
-            ty: SolvedType::Struct(SolvedFieldSet { fields, attrs: value.attrs.clone() }),
+            ty: SolvedType::Struct(SolvedFieldSet {
+                fields,
+                attrs: attrs.clone(),
+            }),
         })
     }
 }
