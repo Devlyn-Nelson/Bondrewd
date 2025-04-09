@@ -1,5 +1,5 @@
 use proc_macro2::{Span, TokenStream};
-use syn::{spanned::Spanned, DeriveInput, Error, Ident};
+use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident};
 
 use crate::solved::field_set::SolvedFieldSetAttributes;
 
@@ -74,20 +74,21 @@ impl GenericBuilder {
         }else{
             FillBits::None
         };
-        match input.data {
+        match &input.data {
             syn::Data::Struct(data_struct) => {
                 let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
+                let mut fields = Vec::default();
+                Self::extract_fields(&mut fields, &data_struct.fields)?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: darling.ident,
-                        fields: (),
+                        fields,
                         enforcement,
                         fill_bits,
                     },
                     attrs: SolvedFieldSetAttributes { dump: darling.dump, vis: super::Visibility(darling.vis) },
                     tuple,
                 };
-                // START_HERE we need to parse the fields.
                 Ok(Self {
                     ty: BuilderType::Struct(Box::new(s)),
                 })
@@ -98,6 +99,150 @@ impl GenericBuilder {
             )),
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
+    }
+    fn extract_fields(bondrewd_fields: &mut Vec<DataBuilder>, syn_fields: &Fields) -> syn::Result<()> {
+        let is_enum = !bondrewd_fields.is_empty();
+        let mut bit_size = if let Some(id_field) = bondrewd_fields.first() {
+            id_field.bit_length()
+        } else {
+            0
+        };
+        let stripped_fields = match syn_fields {
+            syn::Fields::Named(ref named_fields) => Some(
+                named_fields
+                    .named
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<syn::Field>>(),
+            ),
+            syn::Fields::Unnamed(ref fields) => {
+                Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>())
+            }
+            syn::Fields::Unit => {
+                if bit_size == 0 {
+                    return Err(Error::new(Span::call_site(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
+                }
+                None
+            }
+        };
+        // figure out what the field are and what/where they should be in byte form.
+        if let Some(fields) = stripped_fields {
+            for (i, ref field) in fields.iter().enumerate() {
+                // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
+                // if parsed_field.attrs.capture_id {
+                //     if is_enum {
+                //         if i == 0 {
+                //             match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
+                //                 (DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..}, DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}) => {
+                //                     // TODO this if statements actions could cause confusing behavior
+                //                     if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
+                //                         parsed_field.attrs.bit_range = bondrewd_fields[0].attrs.bit_range.clone();
+                //                     }
+                //                     if bon_sign != user_sign {
+                //                         return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
+                //                     }else if bon_ty.to_string() != user_ty.to_string() {
+                //                         return Err(Error::new(field.span(), format!("`capture_id` field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+                //                     }
+                //                     let old_id = bondrewd_fields.remove(0);
+                //                     if tuple {
+                //                         parsed_field.ident = old_id.ident;
+                //                     }
+                //                 }
+                //                 (DataType::Number{ type_quote: bon_ty, ..}, _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
+                //                 _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+                //             }
+                //         } else {
+                //             return Err(Error::new(
+                //                 field.span(),
+                //                 "`capture_id` attribute must be the first field.",
+                //             ));
+                //         }
+                //     } else {
+                //         return Err(Error::new(
+                //             field.span(),
+                //             "`capture_id` attribute is intended for enum variants only.",
+                //         ));
+                //     }
+                // } else {
+                //     bit_size += parsed_field.bit_size();
+                // }
+                // bondrewd_fields.push(parsed_field);
+            }
+        }
+
+        // match attrs.enforcement {
+        //     StructEnforcement::NoRules => {}
+        //     StructEnforcement::EnforceFullBytes => {
+        //         if bit_size % 8 != 0 {
+        //             return Err(syn::Error::new(
+        //                 name.span(),
+        //                 "BIT_SIZE modulus 8 is not zero",
+        //             ));
+        //         }
+        //     }
+        //     StructEnforcement::EnforceBitAmount(expected_total_bits) => {
+        //         if bit_size != expected_total_bits {
+        //             return Err(syn::Error::new(
+        //                 name.span(),
+        //                 format!(
+        //                     "Bit Enforcement failed because bondrewd detected {bit_size} total bits used by defined fields, but the bit enforcement attribute is defined as {expected_total_bits} bits.",
+        //                 ),
+        //             ));
+        //         }
+        //     }
+        // }
+
+        // let first_bit = if let Some(last_range) = bondrewd_fields.iter().last() {
+        //     last_range.attrs.bit_range.end
+        // } else {
+        //     0_usize
+        // };
+        // let auto_fill = match attrs.fill_bits {
+        //     crate::common::FillBits::None => None,
+        //     crate::common::FillBits::Bits(bits) => Some(bits),
+        //     crate::common::FillBits::Auto => {
+        //         let unused_bits = bit_size % 8;
+        //         if unused_bits == 0 {
+        //             None
+        //         } else {
+        //             Some(8 - unused_bits)
+        //             // None
+        //         }
+        //     }
+        // };
+        // // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
+        // if let Some(fill_bits) = auto_fill {
+        //     let end_bit = first_bit + fill_bits;
+        //     bit_size += fill_bits;
+        //     let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
+        //     let ident = quote::format_ident!("bondrewd_fill_bits");
+        //     let mut endian = attrs.default_endianess.clone();
+        //     if !endian.has_endianness() {
+        //         endian.set_mode(crate::common::EndiannessMode::Standard);
+        //     }
+        //     bondrewd_fields.push(FieldInfo {
+        //         ident: Box::new(ident.into()),
+        //         attrs: Attributes {
+        //             bit_range: first_bit..end_bit,
+        //             endianness: Box::new(endian),
+        //             reserve: ReserveFieldOption::FakeField,
+        //             overlap: OverlapOptions::None,
+        //             capture_id: false,
+        //         },
+        //         ty: DataType::BlockArray {
+        //             sub_type: Box::new(SubFieldInfo {
+        //                 ty: DataType::Number {
+        //                     size: 1,
+        //                     sign: NumberSignage::Unsigned,
+        //                     type_quote: quote! {u8},
+        //                 },
+        //             }),
+        //             length: fill_bytes_size,
+        //             type_quote: quote! {[u8;#fill_bytes_size]},
+        //         },
+        //     });
+        // }
+        Ok(())
     }
     pub fn generate(&self) -> syn::Result<TokenStream> {
         Err(Error::new(Span::call_site(), "generate is not done"))

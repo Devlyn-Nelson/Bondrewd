@@ -70,6 +70,21 @@ pub enum BuilderRange {
 }
 
 impl BuilderRange {
+    pub fn bit_length(&self) -> usize {
+        match self {
+            BuilderRange::ElementArray { sizings, element_bit_length } => {
+                let mut size = *element_bit_length as usize;
+                for len in sizings {
+                    size *= len;
+                }
+                size
+            }
+            BuilderRange::BlockArray { sizings: _, total_bits } => *total_bits as usize,
+            BuilderRange::Range(range) => range.end - range.start,
+            BuilderRange::Size(bits) => *bits as usize,
+            BuilderRange::None => 0,
+        }
+    }
     /// This is intended for use in `bondrewd-derive`.
     ///
     /// Tries to extract a range from a `&Expr`. there is no need to check the type of expr.

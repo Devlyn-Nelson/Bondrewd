@@ -2,6 +2,8 @@ use crate::solved::field::DynamicIdent;
 
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
+use syn::spanned::Spanned;
+
 #[derive(Debug)]
 pub struct DataBuilder {
     /// The name or ident of the field.
@@ -137,5 +139,61 @@ impl DataBuilder {
     pub fn with_endianess(mut self, e: Endianness) -> Self {
         self.endianness = Some(e);
         self
+    }
+    pub fn bit_length(&self) -> usize {
+        self.bit_range.bit_length()
+    }
+
+    pub fn parse(
+        field: &syn::Field,
+        fields: &[DataBuilder],
+    ) -> syn::Result<Self> {
+        let ident: DynamicIdent = if let Some(ref name) = field.ident {
+            name.clone().into()
+        } else {
+            (fields.len(), field.span()).into()
+            // return Err(Error::new(Span::call_site(), "all fields must be named"));
+        };
+        // parse all attrs. which will also give us the bit locations
+        // NOTE read only attribute assumes that the value should not effect the placement of the rest og
+        let last_relevant_field = fields
+            .iter()
+            .filter(|x| !x.overlap.is_redundant())
+            .last();
+        // START_HERE parse the field's attrs and return it.
+        
+        // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
+        // // check the field for supported types.
+        // let data_type = DataType::parse(&field.ty, &mut attrs_builder, &attrs.default_endianess)?;
+
+        // let attrs: Attributes = match attrs_builder.try_into() {
+        //     Ok(attr) => attr,
+        //     Err(fix_me) => {
+        //         let mut start = 0;
+        //         if let Some(last_value) = last_relevant_field {
+        //             start = last_value.attrs.bit_range.end;
+        //         }
+        //         fix_me.fix(start..start + (data_type.size() * 8))
+        //     }
+        // };
+
+        // // construct the field we are parsed.
+        // let new_field = FieldInfo {
+        //     ident: Box::new(ident),
+        //     ty: data_type,
+        //     attrs,
+        // };
+        // // check to verify there are no overlapping bit ranges from previously parsed fields.
+        // for (i, parsed_field) in fields.iter().enumerate() {
+        //     if parsed_field.overlapping(&new_field) {
+        //         return Err(Error::new(
+        //             Span::call_site(),
+        //             format!("fields {} and {} overlap", i, fields.len()),
+        //         ));
+        //     }
+        // }
+
+        // Ok(new_field)
+        todo!("finish parsing fields")
     }
 }
