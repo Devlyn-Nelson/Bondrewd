@@ -1,9 +1,9 @@
 use proc_macro2::{Span, TokenStream};
-use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident};
+use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident, LitStr};
 
 use crate::solved::field_set::SolvedFieldSetAttributes;
 
-use super::field::DataBuilder;
+use super::{field::DataBuilder, Endianness};
 
 use darling::{FromDeriveInput, FromVariant};
 
@@ -40,45 +40,56 @@ impl GenericBuilder {
         // determine byte enforcement if any.
         let enforcement = if darling.enforce_full_bytes {
             if darling.enforce_bytes.is_none() && darling.enforce_bits.is_none() {
-                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
-            }else{
+                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"));
+            } else {
                 StructEnforcement::EnforceFullBytes
             }
-        }else if let Some(bytes) = darling.enforce_bytes {
+        } else if let Some(bytes) = darling.enforce_bytes {
             if darling.enforce_bits.is_none() {
                 StructEnforcement::EnforceBitAmount(bytes * 8)
-            }else{
-                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
-
+            } else {
+                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"));
             }
-        }else if let Some(bits) = darling.enforce_bits {
+        } else if let Some(bits) = darling.enforce_bits {
             StructEnforcement::EnforceBitAmount(bits)
-        }else{
+        } else {
             StructEnforcement::NoRules
         };
         // determine byte filling if any.
         let fill_bits = if darling.fill {
             if darling.fill_bytes.is_none() && darling.fill_bits.is_none() {
-                return Err(Error::new(input.span(), "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)"))
-            }else{
+                return Err(Error::new(
+                    input.span(),
+                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
+                ));
+            } else {
                 FillBits::Auto
             }
-        }else if let Some(bytes) = darling.fill_bytes {
+        } else if let Some(bytes) = darling.fill_bytes {
             if darling.fill_bits.is_none() {
                 FillBits::Bits(bytes * 8)
-            }else{
-                return Err(Error::new(input.span(), "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)"))
+            } else {
+                return Err(Error::new(
+                    input.span(),
+                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
+                ));
             }
-        }else if let Some(bits) = darling.fill_bits {
+        } else if let Some(bits) = darling.fill_bits {
             FillBits::Bits(bits)
-        }else{
+        } else {
             FillBits::None
         };
+        let default_endianness = if let Some(val) = darling.default_endianness {
+            Endianness::from_expr(&val)?
+        } else {
+            // TODO decide final default for endianness.
+            Endianness::little_packed()
+        }; // HERE
         match &input.data {
             syn::Data::Struct(data_struct) => {
                 let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
                 let mut fields = Vec::default();
-                Self::extract_fields(&mut fields, &data_struct.fields)?;
+                Self::extract_fields(&mut fields, &data_struct.fields, &default_endianness)?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: darling.ident,
@@ -86,7 +97,10 @@ impl GenericBuilder {
                         enforcement,
                         fill_bits,
                     },
-                    attrs: SolvedFieldSetAttributes { dump: darling.dump, vis: super::Visibility(darling.vis) },
+                    attrs: SolvedFieldSetAttributes {
+                        dump: darling.dump,
+                        vis: super::Visibility(darling.vis),
+                    },
                     tuple,
                 };
                 Ok(Self {
@@ -100,7 +114,11 @@ impl GenericBuilder {
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
     }
-    fn extract_fields(bondrewd_fields: &mut Vec<DataBuilder>, syn_fields: &Fields) -> syn::Result<()> {
+    fn extract_fields(
+        bondrewd_fields: &mut Vec<DataBuilder>,
+        syn_fields: &Fields,
+        default_endianness: &Endianness,
+    ) -> syn::Result<()> {
         let is_enum = !bondrewd_fields.is_empty();
         let mut bit_size = if let Some(id_field) = bondrewd_fields.first() {
             id_field.bit_length()
@@ -128,6 +146,8 @@ impl GenericBuilder {
         // figure out what the field are and what/where they should be in byte form.
         if let Some(fields) = stripped_fields {
             for (i, ref field) in fields.iter().enumerate() {
+                // START_HERE parse the field's and use it.
+                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, default_endianness);
                 // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
                 // if parsed_field.attrs.capture_id {
                 //     if is_enum {
@@ -251,7 +271,7 @@ impl GenericBuilder {
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
 pub struct StructDarling {
-    pub default_endianness: String,
+    pub default_endianness: Option<LitStr>,
     pub reverse: bool,
     // Below are being used.
     pub ident: Ident,

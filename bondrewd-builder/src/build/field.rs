@@ -2,7 +2,8 @@ use crate::solved::field::DynamicIdent;
 
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
-use syn::spanned::Spanned;
+use darling::FromField;
+use syn::{spanned::Spanned, Error, Field, LitStr, Type};
 
 #[derive(Debug)]
 pub struct DataBuilder {
@@ -82,6 +83,266 @@ pub enum DataType {
     },
 }
 
+impl DataType {
+    pub fn is_number(&self) -> bool {
+        match self {
+            DataType::Number(number_type, rust_byte_size) => match number_type {
+                NumberType::Bool => false,
+                _ => true,
+            },
+            DataType::Nested {
+                ident,
+                rust_byte_size,
+            } => false,
+        }
+    }
+    #[allow(clippy::too_many_lines)]
+    pub fn parse(
+        ty: &syn::Type,
+        attrs: &mut DataDarlingSimplified,
+        default_endianness: &Endianness,
+    ) -> syn::Result<DataType> {
+        let data_type: Self = match ty {
+            Type::Path(ref path) => Self::parse_path(&path.path, attrs)?,
+            Type::Array(ref array_path) => {
+                todo!()
+                //     // arrays must use a literal for length, because its would be hard any other way.
+                //     let lit_int = get_lit_int(
+                //         &array_path.len,
+                //         &Ident::new("array_length", ty.span()),
+                //         None,
+                //     )?;
+                //     if let Ok(array_length) = lit_int.base10_parse::<usize>() {
+                //         match attrs.ty {
+                //             AttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
+                //                 attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
+                //                     BuilderRange::Range(ref range) => {
+                //                         if range.end < range.start {
+                //                             return Err(syn::Error::new(
+                //                                 ty.span(),
+                //                                 "range end is less than range start",
+                //                             ));
+                //                         }
+                //                         if range.end - range.start != *element_bit_size * array_length {
+                //                             return Err(
+                //                                         syn::Error::new(
+                //                                             ty.span(),
+                //                                             "Element arrays bit range didn't match (element bit size * array length)"
+                //                                         )
+                //                                     );
+                //                         }
+                //                         BuilderRange::Range(range.clone())
+                //                     }
+                //                     BuilderRange::LastEnd(ref last_end) => BuilderRange::Range(
+                //                         *last_end..last_end + (array_length * *element_bit_size),
+                //                     ),
+                //                     BuilderRange::None => {
+                //                         return Err(syn::Error::new(
+                //                             ty.span(),
+                //                             "failed getting Range for element array",
+                //                         ));
+                //                     }
+                //                 };
+                //                 let mut sub_attrs = attrs.clone();
+                //                 if let Type::Array(_) = array_path.elem.as_ref() {
+                //                 } else if let Some(ref ty) = sub.as_ref() {
+                //                     sub_attrs.ty = ty.clone();
+                //                 } else {
+                //                     sub_attrs.ty = AttrBuilderType::None;
+                //                 }
+                //                 let mut sub_ty =
+                //                     Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
+
+                //                 match sub_ty {
+                //                     DataType::Enum { ref mut size, .. }
+                //                     | DataType::Struct { ref mut size, .. } => {
+                //                         *size = size.div_ceil(array_length);
+                //                     }
+                //                     _ => {}
+                //                 }
+
+                //                 let type_ident = &sub_ty.type_quote();
+                //                 DataType::ElementArray {
+                //                     sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                //                     length: array_length,
+                //                     type_quote: quote! {[#type_ident;#array_length]},
+                //                 }
+                //             }
+                //             AttrBuilderType::BlockArray(_) => {
+                //                 let mut sub_attrs = attrs.clone();
+                //                 if let Type::Array(_) = array_path.elem.as_ref() {
+                //                 } else {
+                //                     sub_attrs.ty = AttrBuilderType::None;
+                //                 }
+
+                //                 let sub_ty =
+                //                     Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
+                //                 attrs.endianness = sub_attrs.endianness;
+                //                 let type_ident = &sub_ty.type_quote();
+                //                 DataType::BlockArray {
+                //                     sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                //                     length: array_length,
+                //                     type_quote: quote! {[#type_ident;#array_length]},
+                //                 }
+                //             }
+                //             AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
+                //                 let mut sub_attrs = attrs.clone();
+                //                 if let Type::Array(_) = array_path.elem.as_ref() {
+                //                 } else {
+                //                     sub_attrs.ty = attrs.ty.clone();
+                //                 }
+
+                //                 let sub_ty =
+                //                     Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
+                //                 attrs.endianness = sub_attrs.endianness;
+                //                 let type_ident = &sub_ty.type_quote();
+                //                 DataType::BlockArray {
+                //                     sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                //                     length: array_length,
+                //                     type_quote: quote! {[#type_ident;#array_length]},
+                //                 }
+                //             }
+                //             AttrBuilderType::None => {
+                //                 let mut sub_attrs = attrs.clone();
+                //                 if let Type::Array(_) = array_path.elem.as_ref() {
+                //                 } else {
+                //                     sub_attrs.ty = AttrBuilderType::None;
+                //                 }
+                //                 let sub_ty =
+                //                     Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
+                //                 attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
+                //                     BuilderRange::Range(ref range) => {
+                //                         if range.end < range.start {
+                //                             return Err(syn::Error::new(
+                //                                 ty.span(),
+                //                                 "range end is less than range start",
+                //                             ));
+                //                         }
+                //                         if range.end - range.start % array_length != 0 {
+                //                             return Err(
+                //                                         syn::Error::new(
+                //                                             ty.span(),
+                //                                             "Array Inference failed because given total bit_length does not split up evenly between elements, perhaps try using `element_bit_length` attribute"
+                //                                         )
+                //                                     );
+                //                         }
+                //                         BuilderRange::Range(range.clone())
+                //                     }
+                //                     BuilderRange::LastEnd(ref last_end) => {
+                //                         let element_bit_length = sub_ty.get_element_bit_length();
+                //                         BuilderRange::Range(
+                //                             *last_end..last_end + (array_length * element_bit_length),
+                //                         )
+                //                     }
+                //                     BuilderRange::None => {
+                //                         return Err(syn::Error::new(
+                //                             ty.span(),
+                //                             "failed getting Range for element array",
+                //                         ));
+                //                     }
+                //                 };
+                //                 let type_ident = &sub_ty.type_quote();
+                //                 DataType::ElementArray {
+                //                     sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
+                //                     length: array_length,
+                //                     type_quote: quote! {[#type_ident;#array_length]},
+                //                 }
+                //             }
+                //         }
+                //     } else {
+                //         return Err(Error::new(
+                //             array_path.bracket_token.span.span(),
+                //             "failed parsing array length as literal integer",
+                //         ));
+                //     }
+            }
+            _ => {
+                return Err(syn::Error::new(ty.span(), "Unsupported field type"));
+            }
+        };
+        // if the type is a number and its endianess is None (numbers should have endianess) then we
+        // apply the structs default (which might also be None)
+        if attrs.endianness.is_none() && data_type.rust_size() == 1 {
+            // currently nested fields that are 1 byte or less are expected to go through big endian logic.
+            attrs.endianness = Some(Endianness::big())
+        }
+        if data_type.is_number() && attrs.endianness.is_none() {
+            attrs.endianness = Some(default_endianness.clone());
+        }
+
+        Ok(data_type)
+    }
+    #[allow(clippy::too_many_lines)]
+    fn parse_path(path: &syn::Path, attrs: &mut DataDarlingSimplified) -> syn::Result<DataType> {
+        if let Some(last_segment) = path.segments.last() {
+            let type_quote = &last_segment.ident;
+            let field_type_name = last_segment.ident.to_string();
+            match field_type_name.as_str() {
+                "bool" => match attrs.bits {
+                    #[allow(clippy::range_plus_one)]
+                    BuilderRange::None => Ok(DataType::Number(NumberType::Bool, RustByteSize::One)),
+                    _ => Ok(DataType::Number(NumberType::Bool, RustByteSize::One)),
+                },
+                "u8" => Ok(DataType::Number(NumberType::Unsigned, RustByteSize::One)),
+                "i8" => Ok(DataType::Number(NumberType::Signed, RustByteSize::One)),
+                "u16" => Ok(DataType::Number(NumberType::Unsigned, RustByteSize::Two)),
+                "i16" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Two)),
+                "f32" => {
+                    if let BuilderRange::Range(ref span) = attrs.bits {
+                        if 32 != span.end - span.start {
+                            return Err(syn::Error::new(path.span(), format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
+                        }
+                    }
+                    Ok(DataType::Number(NumberType::Float, RustByteSize::Four))
+                }
+                "u32" => Ok(DataType::Number(NumberType::Unsigned, RustByteSize::Four)),
+                "i32" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Four)),
+                "char" => Ok(DataType::Number(NumberType::Char, RustByteSize::Four)),
+                "f64" => {
+                    if let BuilderRange::Range(ref span) = attrs.bits {
+                        if 64 != span.end - span.start {
+                            return Err(syn::Error::new(path.span(), format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
+                        }
+                    }
+                    Ok(DataType::Number(NumberType::Float, RustByteSize::Eight))
+                }
+                "u64" => Ok(DataType::Number(NumberType::Unsigned, RustByteSize::Eight)),
+                "i64" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Eight)),
+                "u128" => Ok(DataType::Number(
+                    NumberType::Unsigned,
+                    RustByteSize::Sixteen,
+                )),
+                "i128" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Sixteen)),
+                "usize" | "isize" => Err(Error::new(
+                    path.span(),
+                    "usize and isize are not supported due to ambiguous sizing".to_string(),
+                )),
+                _ => Ok(DataType::Nested {
+                    ident: type_quote.to_string(),
+                    rust_byte_size: match attrs.bits {
+                        BuilderRange::Range(ref range) => (range.end - range.start).div_ceil(8),
+                        BuilderRange::Size(size) => size,
+                        BuilderRange::BlockArray { .. } | BuilderRange::ElementArray { .. } => {
+                            return Err(Error::new(
+                                path.span(),
+                                format!("Attributes provided imply this field is an array but bondrewd disagrees, either you are using invalid attributes or bondrewd has a bug."),
+                            ));
+                        }
+                        BuilderRange::None => {
+                            return Err(Error::new(
+                                        path.span(),
+                                        format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
+                                    ));
+                        }
+                    },
+                }),
+            }
+        } else {
+            Err(Error::new(path.span(), "field has no Type?"))
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum NumberType {
     /// Floating point numbers
@@ -143,10 +404,10 @@ impl DataBuilder {
     pub fn bit_length(&self) -> usize {
         self.bit_range.bit_length()
     }
-
     pub fn parse(
         field: &syn::Field,
         fields: &[DataBuilder],
+        default_endianness: &Endianness,
     ) -> syn::Result<Self> {
         let ident: DynamicIdent = if let Some(ref name) = field.ident {
             name.clone().into()
@@ -156,16 +417,14 @@ impl DataBuilder {
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = fields
-            .iter()
-            .filter(|x| !x.overlap.is_redundant())
-            .last();
-        // START_HERE parse the field's attrs and return it.
-        
-        // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
-        // // check the field for supported types.
-        // let data_type = DataType::parse(&field.ty, &mut attrs_builder, &attrs.default_endianess)?;
+        let last_relevant_field = fields.iter().filter(|x| !x.overlap.is_redundant()).last();
 
+        // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
+        let mut attrs = DataDarling::from_field(field)?.simplify(field)?;
+        // check the field for supported types.
+        let data_type = DataType::parse(&field.ty, &mut attrs, default_endianness)?;
+
+        // TODO make sure fields that don't have a solved range here get solved during the solve process.
         // let attrs: Attributes = match attrs_builder.try_into() {
         //     Ok(attr) => attr,
         //     Err(fix_me) => {
@@ -177,12 +436,56 @@ impl DataBuilder {
         //     }
         // };
 
-        // // construct the field we are parsed.
+        // construct the field we are parsed.
         // let new_field = FieldInfo {
         //     ident: Box::new(ident),
         //     ty: data_type,
         //     attrs,
         // };
+        let overlap = if attrs.redundant {
+            if attrs.overlapping_bits.is_none() {
+                OverlapOptions::Redundant
+            } else {
+                return Err(Error::new(field.span(), "Field has `overlapping_bits` and `redundant` defined. \
+                Only 1 of these is allowed on a single field, if the entire fields overlaps use `redundant` \
+                otherwise use `overlapping_bits`."));
+            }
+        } else {
+            attrs
+                .overlapping_bits
+                .map(|bits| OverlapOptions::Allow(bits))
+                .unwrap_or(OverlapOptions::None)
+        };
+        let reserve = if attrs.read_only {
+            if attrs.reserve {
+                return Err(Error::new(field.span(), "Field has `read_only` and `reserve` defined. \
+                Only 1 of these is allowed on a single field, if there is no need to read the values \
+                during a `from_bytes` call use `reserve`, if you want the value to be read use `read_only`."));
+            } else {
+                ReserveFieldOption::ReadOnly
+            }
+        } else if attrs.reserve {
+            ReserveFieldOption::ReserveField
+        } else {
+            ReserveFieldOption::NotReserve
+        };
+        let new_field = Self {
+            id: if let Some(id) = &field.ident {
+                id.into()
+            } else {
+                return Err(Error::new(
+                    field.span(),
+                    "Currently unnamed fields are not supported.",
+                ));
+            },
+            ty: data_type,
+            endianness: attrs.endianness,
+            bit_range: attrs.bits,
+            reserve,
+            overlap,
+            is_captured_id: attrs.capture_id,
+        };
+        // TODO i think the overlap checking happens during solve process, please verify.
         // // check to verify there are no overlapping bit ranges from previously parsed fields.
         // for (i, parsed_field) in fields.iter().enumerate() {
         //     if parsed_field.overlapping(&new_field) {
@@ -193,7 +496,99 @@ impl DataBuilder {
         //     }
         // }
 
-        // Ok(new_field)
-        todo!("finish parsing fields")
+        Ok(new_field)
     }
+}
+
+#[derive(Debug, FromField)]
+pub struct DataDarling {
+    endianness: Option<LitStr>,
+    bit_length: Option<usize>,
+    byte_length: Option<usize>,
+    bits: Option<syn::Expr>,
+    element_bit_length: Option<usize>,
+    element_byte_length: Option<usize>,
+    block_bit_length: Option<usize>,
+    block_byte_length: Option<usize>,
+    overlapping_bits: Option<usize>,
+    reserve: bool,
+    read_only: bool,
+    capture_id: bool,
+    redundant: bool,
+}
+
+impl DataDarling {
+    fn bits(&self) -> syn::Result<Option<BuilderRange>> {
+        if let Some(b) = &self.bits {
+            Ok(Some(BuilderRange::range_from_expr(b)?))
+        } else {
+            Ok(None)
+        }
+    }
+    fn endianness(&self, field: &Field) -> syn::Result<Option<Endianness>> {
+        let Some(val) = &self.endianness else {
+            return Ok(None);
+        };
+        Ok(Some(Endianness::from_expr(val)?))
+    }
+    fn simplify(self, field: &Field) -> Result<DataDarlingSimplified, syn::Error> {
+        let mut bit_defs = 0;
+        if self.bit_length.is_some() {
+            bit_defs += 1;
+        }
+        if self.byte_length.is_some() {}
+        let bits = if bit_defs > 1 {
+            return Err(syn::Error::new(
+                field.span(),
+                "please use either `bit_length` or `byte_length` or `bits` attributes, multiple on the same field is not allowed",
+            ));
+        } else {
+            let thing = self.bits()?.or(self
+                .bit_length
+                .or(self.byte_length.map(|bytes| bytes * 8))
+                .map(|bits| BuilderRange::Size(bits)));
+            // let Some(out) = thing else{
+            //     return Err(syn::Error::new(field.span(), "Could not determine amount of bits to use for field, either `element_bit_length` or `element_byte_length` attributes"));
+            // };
+            thing.unwrap_or(BuilderRange::None)
+        };
+
+        Ok(DataDarlingSimplified {
+            endianness: self.endianness(field)?,
+            bits,
+            element_bit_length: if self.element_bit_length.is_some()
+                && self.element_byte_length.is_some()
+            {
+                return Err(syn::Error::new(field.span(), "please use either `element_bit_length` or `element_byte_length` attributes, not both"));
+            } else {
+                self.element_bit_length
+                    .or(self.element_byte_length.map(|bytes| bytes * 8))
+            },
+            block_bit_length: if self.block_bit_length.is_some() && self.block_byte_length.is_some()
+            {
+                return Err(syn::Error::new(field.span(), "please use either `block_bit_length` or `block_byte_length` attributes, not both"));
+            } else {
+                self.block_bit_length
+                    .or(self.block_byte_length.map(|bytes| bytes * 8))
+            },
+            overlapping_bits: self.overlapping_bits,
+            reserve: self.reserve,
+            read_only: self.read_only,
+            capture_id: self.capture_id,
+            redundant: self.redundant,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct DataDarlingSimplified {
+    endianness: Option<Endianness>,
+    bits: BuilderRange,
+    element_bit_length: Option<usize>,
+    block_bit_length: Option<usize>,
+    overlapping_bits: Option<usize>,
+    reserve: bool,
+    read_only: bool,
+    capture_id: bool,
+    redundant: bool,
 }

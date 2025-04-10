@@ -83,6 +83,17 @@ impl From<(usize, Span)> for DynamicIdent {
     }
 }
 
+impl From<&Ident> for DynamicIdent {
+    fn from(ident: &Ident) -> Self {
+        Self::from_ident(ident.clone())
+    }
+}
+impl From<(&Ident, &Ident)> for DynamicIdent {
+    fn from((ident, name): (&Ident, &Ident)) -> Self {
+        Self::from_ident_with_name(ident.clone(), name.clone())
+    }
+}
+
 impl From<Ident> for DynamicIdent {
     fn from(ident: Ident) -> Self {
         Self::from_ident(ident)

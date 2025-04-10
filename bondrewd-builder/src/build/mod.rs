@@ -6,7 +6,7 @@ use std::{
     fmt::Debug,
     ops::{Deref, Range},
 };
-use syn::{Expr, Ident, Lit, LitInt, LitStr};
+use syn::{spanned::Spanned, Expr, Ident, Lit, LitInt, LitStr};
 
 #[derive(Clone)]
 pub struct Visibility(pub syn::Visibility);
@@ -64,7 +64,7 @@ pub enum BuilderRange {
     /// end is NOT included.
     Range(std::ops::Range<usize>),
     /// Amount of bits to consume
-    Size(u8),
+    Size(usize),
     /// Will not solve, must be another variant.
     None,
 }
@@ -72,14 +72,20 @@ pub enum BuilderRange {
 impl BuilderRange {
     pub fn bit_length(&self) -> usize {
         match self {
-            BuilderRange::ElementArray { sizings, element_bit_length } => {
+            BuilderRange::ElementArray {
+                sizings,
+                element_bit_length,
+            } => {
                 let mut size = *element_bit_length as usize;
                 for len in sizings {
                     size *= len;
                 }
                 size
             }
-            BuilderRange::BlockArray { sizings: _, total_bits } => *total_bits as usize,
+            BuilderRange::BlockArray {
+                sizings: _,
+                total_bits,
+            } => *total_bits as usize,
             BuilderRange::Range(range) => range.end - range.start,
             BuilderRange::Size(bits) => *bits as usize,
             BuilderRange::None => 0,
@@ -90,12 +96,9 @@ impl BuilderRange {
     /// Tries to extract a range from a `&Expr`. there is no need to check the type of expr.
     /// If the Result returns `Err` then a parsing error occurred and should be reported as an error to user.
     /// If `Ok(None)`, no error but `expr` was not valid for housing a range.
-    pub fn range_from_expr(expr: &Expr, ident: &Ident) -> syn::Result<Option<Self>> {
-        if let Some(lit) = get_lit_range(expr, ident)? {
-            Ok(Some(Self::Range(lit)))
-        } else {
-            Ok(None)
-        }
+    pub fn range_from_expr(expr: &Expr) -> syn::Result<Self> {
+        let lit = get_lit_range(expr)?;
+        Ok(Self::Range(lit))
     }
 }
 
@@ -416,6 +419,18 @@ impl Endianness {
     pub fn merge(outer: Self, inner: Self) {
         todo!("Endianness is stupid and we need to be able to merge endianness together to get proper behaviors")
     }
+    pub fn from_expr(val: &LitStr) -> syn::Result<Self> {
+        let val = val.value();
+        match val.to_lowercase().as_str() {
+            "le" | "lsb" | "little" | "lil" => Ok(Endianness::little_packed()),
+            "ale" | "little-aliened" | "lilali" => Ok(Endianness::little_aligned()),
+            "be" | "msb" | "big" => Ok(Endianness::big()),
+            _ => Err(syn::Error::new(
+                val.span(),
+                "unknown endianness try \"little\", \"big\", or \"little-aliened\"",
+            )),
+        }
+    }
 }
 
 /// Defines when a field is relevant, which could be never if it is a reserved set of bit for future use.
@@ -547,7 +562,7 @@ pub(crate) fn get_lit_int<'a>(
     }
 }
 
-pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Range<usize>>> {
+pub(crate) fn get_lit_range(expr: &Expr) -> syn::Result<Range<usize>> {
     if let Expr::Range(ref lit) = expr {
         let start = if let Some(ref v) = lit.start {
             if let Expr::Lit(ref el) = v.as_ref() {
@@ -555,19 +570,19 @@ pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Ra
                     i.base10_parse()?
                 } else {
                     return Err(syn::Error::new(
-                        ident.span(),
+                        expr.span(),
                         "start of range must be an integer.",
                     ));
                 }
             } else {
                 return Err(syn::Error::new(
-                    ident.span(),
+                    expr.span(),
                     "start of range must be an integer literal.",
                 ));
             }
         } else {
             return Err(syn::Error::new(
-                ident.span(),
+                expr.span(),
                 "range for bits must define a start",
             ));
         };
@@ -577,23 +592,23 @@ pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Ra
                     i.base10_parse()?
                 } else {
                     return Err(syn::Error::new(
-                        ident.span(),
+                        expr.span(),
                         "end of range must be an integer.",
                     ));
                 }
             } else {
                 return Err(syn::Error::new(
-                    ident.span(),
+                    expr.span(),
                     "end of range must be an integer literal.",
                 ));
             }
         } else {
             return Err(syn::Error::new(
-                ident.span(),
+                expr.span(),
                 "range for bits must define a end",
             ));
         };
-        Ok(Some(match lit.limits {
+        Ok(match lit.limits {
             syn::RangeLimits::HalfOpen(_) => start..end,
             #[allow(clippy::range_plus_one)]
             syn::RangeLimits::Closed(_) => {
@@ -601,8 +616,11 @@ pub(crate) fn get_lit_range(expr: &Expr, ident: &Ident) -> syn::Result<Option<Ra
                 // code for something so trivial.
                 start..end + 1
             }
-        }))
+        })
     } else {
-        Ok(None)
+        Err(syn::Error::new(
+            expr.span(),
+            "provided values must be a range. ex `0..4` would select 0, 1, 2 and 3",
+        ))
     }
 }
