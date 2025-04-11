@@ -151,7 +151,7 @@ impl GenericBuilder {
                 if parsed_field.is_captured_id {
                     if is_enum {
                         if i == 0 {
-                            // START_HERE implement array stuff in builder code and add required code to builder -> solved process.
+                            // START_HERE impl below
                             todo!("finish this after putting array handling in builder and required code going into solved");
                             // if bondrewd_fields[0].ty && parsed_field.ty.is_number()
                             // match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {

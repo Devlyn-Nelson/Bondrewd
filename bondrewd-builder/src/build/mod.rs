@@ -1,6 +1,7 @@
 pub mod field;
 pub mod field_set;
 
+use field::DataBuilderRange;
 use quote::ToTokens;
 use std::{
     fmt::Debug,
@@ -48,17 +49,25 @@ impl From<syn::Visibility> for Visibility {
 /// |[[u8;4];5]|          4|          5|
 pub type ArraySizings = Vec<usize>;
 
+#[derive(Debug, Clone)]
+pub enum BuilderRangeArraySize {
+    Size(usize),
+    Range(std::ops::Range<usize>),
+}
+
 #[derive(Clone, Debug)]
 pub enum BuilderRange {
     ElementArray {
         sizings: ArraySizings,
-        /// Amount of bits each element consumes.
-        element_bit_length: u32,
+        /// Size is individual element size,
+        /// Range needs calc to determine above size.
+        size: BuilderRangeArraySize,
     },
     BlockArray {
         sizings: ArraySizings,
-        /// Total amount of bits consumes for entire array.
-        total_bits: u64,
+        /// Size is total amount of bits consumes for entire array.
+        /// Range needs calc to determine above size.
+        size: BuilderRangeArraySize,
     },
     /// A range of bits to use. solve this is easy, but note that it is an exclusive range, meaning the
     /// end is NOT included.
@@ -72,33 +81,34 @@ pub enum BuilderRange {
 impl BuilderRange {
     pub fn bit_length(&self) -> usize {
         match self {
-            BuilderRange::ElementArray {
-                sizings,
-                element_bit_length,
-            } => {
-                let mut size = *element_bit_length as usize;
-                for len in sizings {
-                    size *= len;
+            BuilderRange::ElementArray { sizings, size } => match size {
+                BuilderRangeArraySize::Size(element_bit_length) => {
+                    let mut size = *element_bit_length as usize;
+                    for len in sizings {
+                        size *= len;
+                    }
+                    size
                 }
-                size
-            }
-            BuilderRange::BlockArray {
-                sizings: _,
-                total_bits,
-            } => *total_bits as usize,
+                BuilderRangeArraySize::Range(range) => range.end - range.start,
+            },
+            BuilderRange::BlockArray { sizings: _, size } => match size {
+                BuilderRangeArraySize::Size(total_bits) => *total_bits,
+                BuilderRangeArraySize::Range(range) => range.end - range.start,
+            },
             BuilderRange::Range(range) => range.end - range.start,
             BuilderRange::Size(bits) => *bits as usize,
             BuilderRange::None => 0,
         }
     }
-    /// This is intended for use in `bondrewd-derive`.
-    ///
-    /// Tries to extract a range from a `&Expr`. there is no need to check the type of expr.
-    /// If the Result returns `Err` then a parsing error occurred and should be reported as an error to user.
-    /// If `Ok(None)`, no error but `expr` was not valid for housing a range.
-    pub fn range_from_expr(expr: &Expr) -> syn::Result<Self> {
-        let lit = get_lit_range(expr)?;
-        Ok(Self::Range(lit))
+}
+
+impl From<DataBuilderRange> for BuilderRange {
+    fn from(value: DataBuilderRange) -> Self {
+        match value {
+            DataBuilderRange::Range(range) => Self::Range(range),
+            DataBuilderRange::Size(size) => Self::Size(size),
+            DataBuilderRange::None => Self::None,
+        }
     }
 }
 

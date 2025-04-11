@@ -9,7 +9,8 @@ use thiserror::Error;
 use crate::build::{
     field::DataType,
     field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructBuilder, StructEnforcement},
-    ArraySizings, BuilderRange, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
+    ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
+    ReserveFieldOption, Visibility,
 };
 
 use super::field::{DynamicIdent, SolvedData};
@@ -467,25 +468,30 @@ impl BuiltRange {
                     ty: BuiltRangeType::SingleElement,
                 }
             }
-            BuilderRange::ElementArray {
-                sizings,
-                element_bit_length,
-            } => {
-                let mut total_bits = *element_bit_length as usize;
-                for size in sizings {
-                    total_bits *= size;
-                }
-                let bit_range = start..(start + total_bits);
+            BuilderRange::ElementArray { sizings, size } => {
+                let bit_range = match &size {
+                    BuilderRangeArraySize::Size(element_bit_length) => {
+                        let mut total_bits = *element_bit_length as usize;
+                        for size in sizings {
+                            total_bits *= size;
+                        }
+                        start..(start + total_bits)
+                    }
+                    BuilderRangeArraySize::Range(range) => range.clone(),
+                };
+
                 Self {
                     bit_range,
                     ty: BuiltRangeType::ElementArray(sizings.clone()),
                 }
             }
-            BuilderRange::BlockArray {
-                sizings,
-                total_bits,
-            } => {
-                let bit_range = start..(start + *total_bits as usize);
+            BuilderRange::BlockArray { sizings, size } => {
+                let bit_range = match &size {
+                    BuilderRangeArraySize::Size(total_bits) => {
+                        start..(start + *total_bits as usize)
+                    }
+                    BuilderRangeArraySize::Range(range) => range.clone(),
+                };
                 Self {
                     bit_range,
                     ty: BuiltRangeType::BlockArray(sizings.clone()),
