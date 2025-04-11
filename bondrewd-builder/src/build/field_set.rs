@@ -146,47 +146,52 @@ impl GenericBuilder {
         // figure out what the field are and what/where they should be in byte form.
         if let Some(fields) = stripped_fields {
             for (i, ref field) in fields.iter().enumerate() {
-                // START_HERE parse the field's and use it.
-                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, default_endianness);
+                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
                 // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
-                // if parsed_field.attrs.capture_id {
-                //     if is_enum {
-                //         if i == 0 {
-                //             match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
-                //                 (DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..}, DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}) => {
-                //                     // TODO this if statements actions could cause confusing behavior
-                //                     if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
-                //                         parsed_field.attrs.bit_range = bondrewd_fields[0].attrs.bit_range.clone();
-                //                     }
-                //                     if bon_sign != user_sign {
-                //                         return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
-                //                     }else if bon_ty.to_string() != user_ty.to_string() {
-                //                         return Err(Error::new(field.span(), format!("`capture_id` field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
-                //                     }
-                //                     let old_id = bondrewd_fields.remove(0);
-                //                     if tuple {
-                //                         parsed_field.ident = old_id.ident;
-                //                     }
-                //                 }
-                //                 (DataType::Number{ type_quote: bon_ty, ..}, _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
-                //                 _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
-                //             }
-                //         } else {
-                //             return Err(Error::new(
-                //                 field.span(),
-                //                 "`capture_id` attribute must be the first field.",
-                //             ));
-                //         }
-                //     } else {
-                //         return Err(Error::new(
-                //             field.span(),
-                //             "`capture_id` attribute is intended for enum variants only.",
-                //         ));
-                //     }
-                // } else {
-                //     bit_size += parsed_field.bit_size();
-                // }
-                // bondrewd_fields.push(parsed_field);
+                if parsed_field.is_captured_id {
+                    if is_enum {
+                        if i == 0 {
+                            // START_HERE implement array stuff in builder code and add required code to builder -> solved process.
+                            todo!("finish this after putting array handling in builder and required code going into solved");
+                            // if bondrewd_fields[0].ty && parsed_field.ty.is_number()
+                            // match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
+                            //     (
+                            //         DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..},
+                            //         DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}
+                            //     ) => {
+                            //         // TODO this if statements actions could cause confusing behavior
+                            //         if parsed_fields[0].bit_range != parsed_field.bit_range {
+                            //             parsed_field.bit_range = bondrewd_fields[0].bit_range.clone();
+                            //         }
+                            //         if bon_sign != user_sign {
+                            //             return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
+                            //         }else if bon_ty.to_string() != user_ty.to_string() {
+                            //             return Err(Error::new(field.span(), format!("`capture_id` field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+                            //         }
+                            //         let old_id = bondrewd_fields.remove(0);
+                            //         if tuple {
+                            //             parsed_field.id = old_id.id;
+                            //         }
+                            //     }
+                            //     (valid, _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {}.", valid.type_ident()))),
+                            //     _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+                            // }
+                        } else {
+                            return Err(Error::new(
+                                field.span(),
+                                "`capture_id` attribute must be the first field.",
+                            ));
+                        }
+                    } else {
+                        return Err(Error::new(
+                            field.span(),
+                            "`capture_id` attribute is intended for enum variants only.",
+                        ));
+                    }
+                } else {
+                    bit_size += parsed_field.bit_length();
+                }
+                bondrewd_fields.push(parsed_field);
             }
         }
 

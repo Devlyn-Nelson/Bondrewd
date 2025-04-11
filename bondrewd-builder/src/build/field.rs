@@ -2,8 +2,9 @@ use crate::solved::field::DynamicIdent;
 
 use super::{BuilderRange, Endianness, OverlapOptions, ReserveFieldOption};
 
-use darling::FromField;
-use syn::{spanned::Spanned, Error, Field, LitStr, Type};
+use darling::{FromField, FromMeta};
+use quote::format_ident;
+use syn::{spanned::Spanned, Error, Field, Ident, LitStr, Type};
 
 #[derive(Debug)]
 pub struct DataBuilder {
@@ -84,7 +85,24 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn is_number(&self) -> bool {
+    pub fn type_ident(&self) -> syn::Result<Ident> {
+        Ok(match self {
+            DataType::Number(number_type, rust_byte_size) => {
+                let ty = match number_type {
+                    NumberType::Float => 'f',
+                    NumberType::Unsigned => 'u',
+                    NumberType::Signed => 'i',
+                    NumberType::Char => return Ok(format_ident!("char")),
+                    NumberType::Bool => return Ok(format_ident!("bool")),
+                };
+                let bits = rust_byte_size.bits();
+                // TODOthis might not do numbers correctly.
+                format_ident!("{ty}{bits}")
+            }
+            DataType::Nested { ident, .. } => Ident::from_string(&ident)?,
+        })
+    }
+    pub fn needs_endianness(&self) -> bool {
         match self {
             DataType::Number(number_type, rust_byte_size) => match number_type {
                 NumberType::Bool => false,
@@ -266,7 +284,7 @@ impl DataType {
             // currently nested fields that are 1 byte or less are expected to go through big endian logic.
             attrs.endianness = Some(Endianness::big())
         }
-        if data_type.is_number() && attrs.endianness.is_none() {
+        if data_type.needs_endianness() && attrs.endianness.is_none() {
             attrs.endianness = Some(default_endianness.clone());
         }
 
@@ -402,6 +420,7 @@ impl DataBuilder {
         self
     }
     pub fn bit_length(&self) -> usize {
+        // TODO test if this should not include redundant bytes or and verify none of the call sites require that.
         self.bit_range.bit_length()
     }
     pub fn parse(
