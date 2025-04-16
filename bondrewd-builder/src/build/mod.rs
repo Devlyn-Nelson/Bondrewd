@@ -55,7 +55,7 @@ pub enum BuilderRangeArraySize {
     Range(std::ops::Range<usize>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuilderRange {
     ElementArray {
         sizings: ArraySizings,

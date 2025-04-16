@@ -369,26 +369,27 @@ pub enum ResolverType {
     },
 }
 
+pub fn get_number_type_ident(number_ty: &NumberType, bits: usize) -> Ident {
+    let span = Span::call_site();
+    let pre = match number_ty {
+        NumberType::Float => "f",
+        NumberType::Unsigned => "u",
+        NumberType::Signed => "i",
+        NumberType::Char => return Ident::new("char", span),
+        NumberType::Bool => return Ident::new("bool", span),
+    };
+    Ident::new(&format!("{pre}{bits}"), span)
+}
+
 impl ResolverType {
     #[must_use]
     pub fn get_type_ident(&self) -> Ident {
-        let span = Span::call_site();
         match self {
             ResolverType::Primitive {
                 number_ty,
                 resolver_strategy,
                 rust_size,
-            } => {
-                let pre = match number_ty {
-                    NumberType::Float => "f",
-                    NumberType::Unsigned => "u",
-                    NumberType::Signed => "i",
-                    NumberType::Char => return Ident::new("char", span),
-                    NumberType::Bool => return Ident::new("bool", span),
-                };
-                let size = rust_size.bits();
-                Ident::new(&format!("{pre}{size}"), span)
-            }
+            } => get_number_type_ident(number_ty, rust_size.bits()),
             ResolverType::Nested {
                 ty_ident,
                 rust_size,

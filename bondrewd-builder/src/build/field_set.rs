@@ -1,9 +1,12 @@
 use proc_macro2::{Span, TokenStream};
 use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident, LitStr};
 
-use crate::solved::field_set::SolvedFieldSetAttributes;
+use crate::solved::{field::get_number_type_ident, field_set::SolvedFieldSetAttributes};
 
-use super::{field::DataBuilder, Endianness};
+use super::{
+    field::{DataBuilder, DataType},
+    Endianness,
+};
 
 use darling::{FromDeriveInput, FromVariant};
 
@@ -89,7 +92,85 @@ impl GenericBuilder {
             syn::Data::Struct(data_struct) => {
                 let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
                 let mut fields = Vec::default();
-                Self::extract_fields(&mut fields, &data_struct.fields, &default_endianness)?;
+                let bit_size = Self::extract_fields(
+                    &mut fields,
+                    &data_struct.fields,
+                    &default_endianness,
+                    tuple,
+                )?;
+                // START_HERE below commented code should be moved to the solving process.
+                // match enforcement {
+                //     StructEnforcement::NoRules => {}
+                //     StructEnforcement::EnforceFullBytes => {
+                //         if bit_size % 8 != 0 {
+                //             return Err(syn::Error::new(
+                //                 data_struct.struct_token.span(),
+                //                 "BIT_SIZE modulus 8 is not zero",
+                //             ));
+                //         }
+                //     }
+                //     StructEnforcement::EnforceBitAmount(expected_total_bits) => {
+                //         if bit_size != expected_total_bits {
+                //             return Err(syn::Error::new(
+                //                 data_struct.struct_token.span(),
+                //                 format!(
+                //                     "Bit Enforcement failed because bondrewd detected {bit_size} total bits used by defined fields, but the bit enforcement attribute is defined as {expected_total_bits} bits.",
+                //                 ),
+                //             ));
+                //         }
+                //     }
+                // }
+                // let first_bit = if let Some(last_range) = fields.iter().last() {
+                //     last_range.bit_range.end
+                // } else {
+                //     0_usize
+                // };
+                // let auto_fill = match fill_bits {
+                //     FillBits::None => None,
+                //     FillBits::Bits(bits) => Some(bits),
+                //     FillBits::Auto => {
+                //         let unused_bits = bit_size % 8;
+                //         if unused_bits == 0 {
+                //             None
+                //         } else {
+                //             Some(8 - unused_bits)
+                //             // None
+                //         }
+                //     }
+                // };
+                // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
+                // if let Some(fill_bits) = auto_fill {
+                //     let end_bit = first_bit + fill_bits;
+                //     bit_size += fill_bits;
+                //     let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
+                //     let ident = quote::format_ident!("bondrewd_fill_bits");
+                //     let mut endian = attrs.default_endianess.clone();
+                //     if !endian.has_endianness() {
+                //         endian.set_mode(crate::common::EndiannessMode::Standard);
+                //     }
+                //     bondrewd_fields.push(FieldInfo {
+                //         ident: Box::new(ident.into()),
+                //         attrs: Attributes {
+                //             bit_range: first_bit..end_bit,
+                //             endianness: Box::new(endian),
+                //             reserve: ReserveFieldOption::FakeField,
+                //             overlap: OverlapOptions::None,
+                //             capture_id: false,
+                //         },
+                //         ty: DataType::BlockArray {
+                //             sub_type: Box::new(SubFieldInfo {
+                //                 ty: DataType::Number {
+                //                     size: 1,
+                //                     sign: NumberSignage::Unsigned,
+                //                     type_quote: quote! {u8},
+                //                 },
+                //             }),
+                //             length: fill_bytes_size,
+                //             type_quote: quote! {[u8;#fill_bytes_size]},
+                //         },
+                //     });
+                // }
+                //
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: darling.ident,
@@ -114,11 +195,22 @@ impl GenericBuilder {
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
     }
+    /// `bondrewd_fields` should either be empty or have exactly 1 field. If a field is provided it is assumed that
+    /// this "struct" is an enum variant and the field is the enum value.
+    ///
+    /// `syn_fields` is just the raw fields from the `syn` crate.
+    ///
+    /// `default_endianness` is the endianness any fields that do not have specified endianness will be given.
+    ///
+    /// `tuple` do the fields have names.
+    ///
+    /// Returns the total bits used by the fields.
     fn extract_fields(
         bondrewd_fields: &mut Vec<DataBuilder>,
         syn_fields: &Fields,
         default_endianness: &Endianness,
-    ) -> syn::Result<()> {
+        tuple: bool,
+    ) -> syn::Result<usize> {
         let is_enum = !bondrewd_fields.is_empty();
         let mut bit_size = if let Some(id_field) = bondrewd_fields.first() {
             id_field.bit_length()
@@ -146,36 +238,39 @@ impl GenericBuilder {
         // figure out what the field are and what/where they should be in byte form.
         if let Some(fields) = stripped_fields {
             for (i, ref field) in fields.iter().enumerate() {
-                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
+                let mut parsed_field =
+                    DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
                 // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
                 if parsed_field.is_captured_id {
                     if is_enum {
                         if i == 0 {
-                            // START_HERE impl below
-                            todo!("finish this after putting array handling in builder and required code going into solved");
-                            // if bondrewd_fields[0].ty && parsed_field.ty.is_number()
-                            // match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
-                            //     (
-                            //         DataType::Number{sign: ref bon_sign, type_quote: ref bon_ty, ..},
-                            //         DataType::Number{sign: ref user_sign, type_quote: ref user_ty, ..}
-                            //     ) => {
-                            //         // TODO this if statements actions could cause confusing behavior
-                            //         if parsed_fields[0].bit_range != parsed_field.bit_range {
-                            //             parsed_field.bit_range = bondrewd_fields[0].bit_range.clone();
-                            //         }
-                            //         if bon_sign != user_sign {
-                            //             return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
-                            //         }else if bon_ty.to_string() != user_ty.to_string() {
-                            //             return Err(Error::new(field.span(), format!("`capture_id` field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
-                            //         }
-                            //         let old_id = bondrewd_fields.remove(0);
-                            //         if tuple {
-                            //             parsed_field.id = old_id.id;
-                            //         }
-                            //     }
-                            //     (valid, _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {}.", valid.type_ident()))),
-                            //     _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
-                            // }
+                            match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
+                                (
+                                    DataType::Number(number_ty_bon, rust_size_bon),
+                                    DataType::Number(number_ty, rust_size)
+                                ) => {
+                                    let ty_ident = get_number_type_ident(number_ty, rust_size.bits());
+                                    let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
+                                    // TODO this if statements actions could cause confusing behavior
+                                    if bondrewd_fields[0].bit_range != parsed_field.bit_range {
+                                        parsed_field.bit_range = bondrewd_fields[0].bit_range.clone();
+                                    }
+                                    if number_ty_bon != number_ty {
+                                        return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {ty_ident_bon}")));
+                                    }else if ty_ident_bon != ty_ident {
+                                        return Err(Error::new(field.span(), format!("`capture_id` field currently must be {ty_ident_bon} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+                                    }
+                                    let old_id = bondrewd_fields.remove(0);
+                                    if tuple {
+                                        parsed_field.id = old_id.id;
+                                    }
+                                }
+                                (DataType::Number(number_ty_bon, rust_size_bon), _) => {
+                                    let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
+                                    return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {ty_ident_bon}.")))
+                                }
+                                _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+                            }
                         } else {
                             return Err(Error::new(
                                 field.span(),
@@ -194,80 +289,7 @@ impl GenericBuilder {
                 bondrewd_fields.push(parsed_field);
             }
         }
-
-        // match attrs.enforcement {
-        //     StructEnforcement::NoRules => {}
-        //     StructEnforcement::EnforceFullBytes => {
-        //         if bit_size % 8 != 0 {
-        //             return Err(syn::Error::new(
-        //                 name.span(),
-        //                 "BIT_SIZE modulus 8 is not zero",
-        //             ));
-        //         }
-        //     }
-        //     StructEnforcement::EnforceBitAmount(expected_total_bits) => {
-        //         if bit_size != expected_total_bits {
-        //             return Err(syn::Error::new(
-        //                 name.span(),
-        //                 format!(
-        //                     "Bit Enforcement failed because bondrewd detected {bit_size} total bits used by defined fields, but the bit enforcement attribute is defined as {expected_total_bits} bits.",
-        //                 ),
-        //             ));
-        //         }
-        //     }
-        // }
-
-        // let first_bit = if let Some(last_range) = bondrewd_fields.iter().last() {
-        //     last_range.attrs.bit_range.end
-        // } else {
-        //     0_usize
-        // };
-        // let auto_fill = match attrs.fill_bits {
-        //     crate::common::FillBits::None => None,
-        //     crate::common::FillBits::Bits(bits) => Some(bits),
-        //     crate::common::FillBits::Auto => {
-        //         let unused_bits = bit_size % 8;
-        //         if unused_bits == 0 {
-        //             None
-        //         } else {
-        //             Some(8 - unused_bits)
-        //             // None
-        //         }
-        //     }
-        // };
-        // // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        // if let Some(fill_bits) = auto_fill {
-        //     let end_bit = first_bit + fill_bits;
-        //     bit_size += fill_bits;
-        //     let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
-        //     let ident = quote::format_ident!("bondrewd_fill_bits");
-        //     let mut endian = attrs.default_endianess.clone();
-        //     if !endian.has_endianness() {
-        //         endian.set_mode(crate::common::EndiannessMode::Standard);
-        //     }
-        //     bondrewd_fields.push(FieldInfo {
-        //         ident: Box::new(ident.into()),
-        //         attrs: Attributes {
-        //             bit_range: first_bit..end_bit,
-        //             endianness: Box::new(endian),
-        //             reserve: ReserveFieldOption::FakeField,
-        //             overlap: OverlapOptions::None,
-        //             capture_id: false,
-        //         },
-        //         ty: DataType::BlockArray {
-        //             sub_type: Box::new(SubFieldInfo {
-        //                 ty: DataType::Number {
-        //                     size: 1,
-        //                     sign: NumberSignage::Unsigned,
-        //                     type_quote: quote! {u8},
-        //                 },
-        //             }),
-        //             length: fill_bytes_size,
-        //             type_quote: quote! {[u8;#fill_bytes_size]},
-        //         },
-        //     });
-        // }
-        Ok(())
+        Ok(bit_size)
     }
     pub fn generate(&self) -> syn::Result<TokenStream> {
         Err(Error::new(Span::call_site(), "generate is not done"))
