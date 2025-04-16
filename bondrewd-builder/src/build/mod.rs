@@ -445,6 +445,7 @@ impl Endianness {
 
 impl Default for Endianness {
     fn default() -> Self {
+        // TODO decide final default for endianness.
         Self::little_packed()
     }
 }

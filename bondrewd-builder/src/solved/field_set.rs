@@ -432,7 +432,6 @@ impl Solved {
                 }
             }
         }
-        // START_HERE below commented code should be moved to the solving process.
         let first_bit = if let Some(last_range) = out.fields.iter().last() {
             last_range.bit_range().end
         } else {

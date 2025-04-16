@@ -1,5 +1,5 @@
 use proc_macro2::Span;
-use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident, LitStr};
+use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Fields, Ident, LitStr};
 
 use crate::solved::{field::get_number_type_ident, field_set::SolvedFieldSetAttributes};
 
@@ -82,12 +82,11 @@ impl GenericBuilder {
         } else {
             FillBits::None
         };
-        let default_endianness = if let Some(val) = darling.default_endianness {
-            Endianness::from_expr(&val)?
+        let default_endianness = if let Some(ref val) = darling.default_endianness {
+            Endianness::from_expr(val)?
         } else {
-            // TODO decide final default for endianness.
-            Endianness::little_packed()
-        }; // HERE
+            Endianness::default()
+        };
         match &input.data {
             syn::Data::Struct(data_struct) => {
                 let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
@@ -116,12 +115,331 @@ impl GenericBuilder {
                     ty: BuilderType::Struct(Box::new(s)),
                 })
             }
-            syn::Data::Enum(data_enum) => Err(Error::new(
-                Span::call_site(),
-                "Enum support is in development",
-            )),
+            syn::Data::Enum(data_enum) => {
+                let enum_attrs = EnumDarling::from_derive_input(input)?.try_into()?;
+                Self::parse_enum(data_enum, &darling, &enum_attrs)
+            }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
+    }
+
+    fn parse_enum(
+        data_enum: &DataEnum,
+        struct_attrs: &StructDarling,
+        enum_attrs: &EnumDarlingSimplified,
+    ) -> syn::Result<Self> {
+        // START_HERE implement enum parsing.
+
+        // let mut variants: Vec<StructInfo> = Vec::default();
+        // let (id_field_type, id_bits) = {
+        //     let id_bits = if let Some(id_bits) = enum_attrs.id_bits {
+        //         id_bits
+        //     } else if let (Some(payload_size), Some(total_size)) =
+        //         (enum_attrs.payload_bit_size, enum_attrs.total_bit_size)
+        //     {
+        //         total_size - payload_size
+        //     } else {
+        //         return Err(syn::Error::new(
+        //                     data.enum_token.span(),
+        //                     "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
+        //                 ));
+        //     };
+        //     (
+        //         DataType::Number {
+        //             size: id_bits.div_ceil(8),
+        //             sign: NumberSignage::Unsigned,
+        //             type_quote: get_id_type(id_bits, name.span())?,
+        //         },
+        //         id_bits,
+        //     )
+        // };
+        // let id_field = FieldInfo {
+        //     ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
+        //     ty: id_field_type,
+        //     attrs: Attributes {
+        //         endianness: Box::new(attrs.default_endianness.clone()),
+        //         // this need to accommodate tailing ids, currently this locks the
+        //         // id field to the first field read from the starting point of reading.
+        //         // TODO make sure this gets corrected if the id size is unknown.
+        //         bit_range: 0..id_bits,
+        //         reserve: ReserveFieldOption::EnumId,
+        //         overlap: OverlapOptions::None,
+        //         capture_id: false,
+        //     },
+        // };
+        // for variant in &data.variants {
+        //     let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
+        //     let mut attrs = attrs.clone();
+        //     if let Some((_, ref expr)) = variant.discriminant {
+        //         let parsed = Self::parse_lit_discriminant_expr(expr)?;
+        //         attrs.id = Some(parsed);
+        //     }
+        //     Self::parse_struct_attrs(&variant.attrs, &mut attrs, true)?;
+        //     let variant_name = variant.ident.clone();
+        //     // TODO currently we always add the id field, but some people might want the id to be a
+        //     // field in the variant. this would no longer need to insert the id as a "fake-field".
+        //     let fields = Self::parse_fields(
+        //         &variant_name,
+        //         &variant.fields,
+        //         &attrs,
+        //         Some(id_field.clone()),
+        //         tuple,
+        //     )?;
+        //     variants.push(StructInfo {
+        //         name: variant_name,
+        //         attrs,
+        //         fields,
+        //         vis: crate::common::Visibility(input.vis.clone()),
+        //         tuple,
+        //     });
+        // }
+        // // detect and fix variants without ids and verify non conflict.
+        // let mut used_ids: Vec<u128> = Vec::default();
+        // let mut unassigned_indices: Vec<usize> = Vec::default();
+        // let mut invalid_index: Option<usize> = None;
+        // let mut largest = 0;
+        // for (i, variant) in variants.iter().enumerate() {
+        //     if let Some(ref value) = variant.attrs.id {
+        //         if used_ids.contains(value) {
+        //             return Err(Error::new(
+        //                 variant.name.span(),
+        //                 "variant identifier used twice.",
+        //             ));
+        //         }
+        //         used_ids.push(*value);
+        //     } else {
+        //         unassigned_indices.push(i);
+        //     }
+        //     if variant.attrs.invalid {
+        //         if invalid_index.is_none() {
+        //             invalid_index = Some(i);
+        //         } else {
+        //             return Err(Error::new(
+        //                 variant.name.span(),
+        //                 "second catch invalid variant found. only 1 is currently allowed.",
+        //             ));
+        //         }
+        //     }
+        // }
+        // if !unassigned_indices.is_empty() {
+        //     let mut current_guess: u128 = 0;
+        //     for i in unassigned_indices {
+        //         while used_ids.contains(&current_guess) {
+        //             current_guess += 1;
+        //         }
+        //         variants[i].attrs.id = Some(current_guess);
+        //         used_ids.push(current_guess);
+        //         current_guess += 1;
+        //     }
+        // }
+        // for variant in &variants {
+        //     // verify the size doesn't go over set size.
+        //     let size = variant.total_bits();
+        //     if largest < size {
+        //         largest = size;
+        //     }
+        //     let variant_id_field = {
+        //         if let Some(id) = variant.get_id_field()? {
+        //             id
+        //         } else {
+        //             return Err(syn::Error::new(variant.name.span(), "failed to get variant field for variant. (this is a bondrewd issue, please report issue)"));
+        //         }
+        //     };
+
+        //     if let Some(bit_size) = enum_attrs.payload_bit_size {
+        //         if bit_size < size - variant_id_field.bit_size() {
+        //             return Err(Error::new(
+        //                         variant.name.span(),
+        //                         format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant_id_field.bit_size()),
+        //                     ));
+        //         }
+        //     } else if let (Some(bit_size), Some(id_size)) =
+        //         (enum_attrs.total_bit_size, enum_attrs.id_bits)
+        //     {
+        //         if bit_size - id_size < size - variant_id_field.bit_size() {
+        //             return Err(Error::new(
+        //                         variant.name.span(),
+        //                         format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size - variant_id_field.bit_size()),
+        //                     ));
+        //         }
+        //     }
+        // }
+        // if let Some(ii) = invalid_index {
+        //     let var = variants.remove(ii);
+        //     variants.push(var);
+        // }
+        // // find minimal id size from largest id value
+        // used_ids.sort_unstable();
+        // let min_id_size = if let Some(last_id) = used_ids.last() {
+        //     let mut x = *last_id;
+        //     // find minimal id size from largest id value
+        //     let mut n = 0;
+        //     while x != 0 {
+        //         x >>= 1;
+        //         n += 1;
+        //     }
+        //     n
+        // } else {
+        //     return Err(Error::new(
+        //         data.enum_token.span(),
+        //         "found no variants and could not determine size of id".to_string(),
+        //     ));
+        // };
+        // let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
+        //     (Some(payload), None) => {
+        //         if let Some(id) = enum_attrs.id_bits {
+        //             EnumAttrInfo {
+        //                 payload_bit_size: payload,
+        //                 id_bits: id,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         } else {
+        //             EnumAttrInfo {
+        //                 payload_bit_size: payload,
+        //                 id_bits: min_id_size,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         }
+        //     }
+        //     (None, Some(total)) => {
+        //         if let Some(id) = enum_attrs.id_bits {
+        //             EnumAttrInfo {
+        //                 payload_bit_size: total - id,
+        //                 id_bits: id,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         } else if largest < total {
+        //             let id = total - largest;
+        //             EnumAttrInfo {
+        //                 payload_bit_size: largest,
+        //                 id_bits: id,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         } else {
+        //             return Err(Error::new(
+        //                         data.enum_token.span(),
+        //                         "specified total is not smaller than the largest payload size, meaning there is not room the the variant id.".to_string(),
+        //                     ));
+        //         }
+        //     }
+        //     (Some(payload), Some(total)) => {
+        //         if let Some(id) = enum_attrs.id_bits {
+        //             if payload + id != total {
+        //                 return Err(Error::new(
+        //                             data.enum_token.span(),
+        //                             format!("total_size, payload_size, and id_size where all specified but id_size ({id}) + payload_size ({payload}) is not equal to total_size ({total})"),
+        //                         ));
+        //             }
+        //             if payload < largest {
+        //                 return Err(Error::new(
+        //                     data.enum_token.span(),
+        //                     "detected a variant over the maximum defined size.".to_string(),
+        //                 ));
+        //             }
+        //             EnumAttrInfo {
+        //                 id_bits: id,
+        //                 id_position: enum_attrs.id_position,
+        //                 payload_bit_size: payload,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         } else {
+        //             EnumAttrInfo {
+        //                 payload_bit_size: largest,
+        //                 id_bits: min_id_size,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         }
+        //     }
+        //     _ => {
+        //         if let Some(id) = enum_attrs.id_bits {
+        //             EnumAttrInfo {
+        //                 id_bits: id,
+        //                 id_position: enum_attrs.id_position,
+        //                 payload_bit_size: largest,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         } else {
+        //             EnumAttrInfo {
+        //                 payload_bit_size: largest,
+        //                 id_bits: min_id_size,
+        //                 id_position: enum_attrs.id_position,
+        //                 attrs: attrs.clone(),
+        //             }
+        //         }
+        //     }
+        // };
+        // if enum_attrs.id_bits < min_id_size {
+        //     return Err(Error::new(
+        //         data.enum_token.span(),
+        //         "the bit size being used is less than required to describe each variant"
+        //             .to_string(),
+        //     ));
+        // }
+        // if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
+        //     return Err(Error::new(
+        //         data.enum_token.span(),
+        //         "the payload size being used is less than largest variant".to_string(),
+        //     ));
+        // }
+        // let id_field_ty = FieldDataType::Number(
+        //     enum_attrs.id_bits,
+        //     NumberSignage::Unsigned,
+        //     get_id_type(enum_attrs.id_bits, name.span())?,
+        // );
+        // add fill_bits if needed.
+        // TODO fix fill byte getting inserted of wrong side sometimes.
+        // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
+        // for v in &mut variants {
+        //     let first_bit = v.total_bits();
+        //     if first_bit < largest {
+        //         let fill_bytes_size = (largest - first_bit).div_ceil(8);
+        //         let ident = quote::format_ident!("enum_fill_bits");
+        //         let fill = FieldInfo {
+        //             ident: Box::new(ident.into()),
+        //             attrs: Attributes {
+        //                 bit_range: first_bit..largest,
+        //                 endianness: Box::new(Endianness::big()),
+        //                 reserve: ReserveFieldOption::FakeField,
+        //                 overlap: OverlapOptions::None,
+        //                 capture_id: false,
+        //             },
+        //             ty: DataType::BlockArray {
+        //                 sub_type: Box::new(SubFieldInfo {
+        //                     ty: DataType::Number {
+        //                         size: 1,
+        //                         sign: NumberSignage::Unsigned,
+        //                         type_quote: quote! {u8},
+        //                     },
+        //                 }),
+        //                 length: fill_bytes_size,
+        //                 type_quote: quote! {[u8;#fill_bytes_size]},
+        //             },
+        //         };
+        //         if v.attrs.default_endianess.is_byte_order_reversed() {
+        //             v.fields.insert(0, fill);
+        //         } else {
+        //             v.fields.push(fill);
+        //         }
+        //     }
+        // }
+        // let out = Self::Enum(EnumInfo {
+        //     name,
+        //     variants,
+        //     attrs: enum_attrs,
+        //     vis: crate::common::Visibility(input.vis.clone()),
+        // });
+        // println!("enum - {out:?}");
+        // Ok(out)
+        //
+        Err(Error::new(
+            Span::call_site(),
+            "Enum support is in development",
+        ))
     }
     /// `bondrewd_fields` should either be empty or have exactly 1 field. If a field is provided it is assumed that
     /// this "struct" is an enum variant and the field is the enum value.
@@ -225,7 +543,6 @@ impl GenericBuilder {
 pub struct StructDarling {
     pub default_endianness: Option<LitStr>,
     pub reverse: darling::util::Flag,
-    // Below are being used.
     pub ident: Ident,
     pub vis: syn::Visibility,
     pub dump: darling::util::Flag,
@@ -236,6 +553,58 @@ pub struct StructDarling {
     pub fill_bytes: Option<usize>,
     pub fill: darling::util::Flag,
 }
+#[derive(Debug, FromDeriveInput, FromVariant)]
+#[darling(attributes(bondrewd))]
+pub struct EnumDarling {
+    pub ident: Ident,
+    pub vis: syn::Visibility,
+    // TODO implement id_tail and id_head.
+    // pub id_tail: darling::util::Flag,
+    // pub id_head: darling::util::Flag,
+    pub payload_bit_length: Option<usize>,
+    pub payload_byte_length: Option<usize>,
+    pub id_bit_length: Option<usize>,
+    pub id_byte_length: Option<usize>,
+}
+#[derive(Debug)]
+pub struct EnumDarlingSimplified {
+    pub ident: Ident,
+    pub vis: syn::Visibility,
+    pub payload_bit_length: Option<usize>,
+    pub id_bit_length: Option<usize>,
+}
+
+impl TryFrom<EnumDarling> for EnumDarlingSimplified {
+    type Error = syn::Error;
+
+    fn try_from(value: EnumDarling) -> Result<Self, Self::Error> {
+        Ok(EnumDarlingSimplified {
+            payload_bit_length: if value.payload_bit_length.is_some()
+                && value.payload_byte_length.is_some()
+            {
+                return Err(syn::Error::new(
+                    value.ident.span(),
+                    "you must use either `payload_bit_length` OR `payload_byte_length`, not both.",
+                ));
+            } else {
+                value
+                    .payload_bit_length
+                    .or(value.payload_byte_length.map(|x| x * 8))
+            },
+            id_bit_length: if value.id_bit_length.is_some() && value.id_byte_length.is_some() {
+                return Err(syn::Error::new(
+                    value.ident.span(),
+                    "you must use either `id_bit_length` OR `id_byte_length`, not both.",
+                ));
+            } else {
+                value.id_bit_length.or(value.id_byte_length.map(|x| x * 8))
+            },
+            ident: value.ident,
+            vis: value.vis,
+        })
+    }
+}
+
 /// Distinguishes between enums and structs or a single `field_set` vs multiple
 /// `field_sets` that switch based on an id field.
 #[derive(Debug)]
