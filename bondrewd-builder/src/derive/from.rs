@@ -241,7 +241,8 @@ fn add_sign_fix_quote_single_bit(
 impl Resolver {
     pub(crate) fn get_read_quote(
         &self,
-        gen_read_fn: fn(&Resolver) -> syn::Result<TokenStream>,
+        gen_read_fn: fn(&Resolver, usize) -> syn::Result<TokenStream>,
+        total_bytes: usize,
     ) -> syn::Result<TokenStream> {
         let value_retrieval = match self.ty.as_ref() {
             ResolverType::Array {
@@ -262,7 +263,8 @@ impl Resolver {
                     };
                     // let sub = self.get_element_iter()?;
                     for sub_field in sub {
-                        let sub_field_quote = Self::get_read_quote(&sub_field, gen_read_fn)?;
+                        let sub_field_quote =
+                            Self::get_read_quote(&sub_field, gen_read_fn, total_bytes)?;
                         buffer = quote! {
                             #buffer
                             {#sub_field_quote},
@@ -284,7 +286,8 @@ impl Resolver {
                     };
                     // let sub = self.get_block_iter()?;
                     for sub_field in sub {
-                        let sub_field_quote = Self::get_read_quote(&sub_field, gen_read_fn)?;
+                        let sub_field_quote =
+                            Self::get_read_quote(&sub_field, gen_read_fn, total_bytes)?;
                         buffer = quote! {
                             #buffer
                             {#sub_field_quote},
@@ -296,7 +299,7 @@ impl Resolver {
             },
             _ => {
                 // let quote_info: QuoteInfo = (self, struct_info).try_into()?;
-                gen_read_fn(self)?
+                gen_read_fn(self, total_bytes)?
             }
         };
 
@@ -336,7 +339,7 @@ impl Resolver {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_le_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_le_quote(&self, _total_bytes: usize) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the
@@ -640,7 +643,7 @@ impl Resolver {
 
         Ok(output)
     }
-    pub(crate) fn get_read_ne_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_ne_quote(&self, _total_bytes: usize) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // how many times to shift the number right.
             // NOTE if negative shift left.
@@ -858,7 +861,7 @@ impl Resolver {
         Ok(full_quote)
     }
 
-    pub(crate) fn get_read_be_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_be_quote(&self, total_bytes: usize) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
@@ -869,7 +872,7 @@ impl Resolver {
                     "calculating be bits_in_last_bytes failed",
                 ));
             }
-            self.get_read_be_multi_byte_quote()
+            self.get_read_be_multi_byte_quote(total_bytes)
         } else {
             self.get_read_be_single_byte_quote()
         }
@@ -983,7 +986,10 @@ impl Resolver {
         };
         Ok(output_quote)
     }
-    pub(crate) fn get_read_be_multi_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_be_multi_byte_quote(
+        &self,
+        total_bytes: usize,
+    ) -> syn::Result<TokenStream> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
             let thing: ResolverDataBigAdditive = self.data.as_ref().into();
             (

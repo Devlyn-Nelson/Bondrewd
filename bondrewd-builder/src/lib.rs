@@ -2,6 +2,7 @@
 
 use build::field_set::GenericBuilder;
 use proc_macro::TokenStream;
+use solved::field_set::Solved;
 use syn::{parse_macro_input, DeriveInput};
 
 mod build;
@@ -34,7 +35,7 @@ mod solved;
 // model size. None of this should effect `bondrewd-derive` in a negative way but change the
 // actual function writing code to use the `Masks` model to make the function rather than
 // calculating the masks and writing the function at the same time.
-#[proc_macro_derive(Bitfields, attributes(bondrewd_builder,))]
+#[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     // parse the input into a StructInfo which contains all the information we
@@ -45,7 +46,16 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-    match struct_info.generate() {
+
+    let solved: Solved = match struct_info.try_into() {
+        Ok(s) => s,
+        Err(err) => {
+            let err: syn::Error = err.into();
+            return TokenStream::from(err.to_compile_error());
+        }
+    };
+
+    match solved.gen(true, true, false) {
         Ok(gen) => gen.into(),
         Err(err) => TokenStream::from(err.to_compile_error()),
     }

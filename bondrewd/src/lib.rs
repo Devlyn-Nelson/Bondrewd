@@ -48,7 +48,7 @@ where
 }
 
 #[cfg(feature = "dyn_fns")]
-pub trait BitfieldsSlice<const SIZE: usize>: Bitfields<SIZE> {
+pub trait BitfieldsSlice<const SIZE: usize>: Bitfields<SIZE> + Sized {
     /// Returns a "checked" slice type for the type. This typically should be a structure that stores a slice of bytes,
     /// that are confirmed to contain enough bytes for all fields. this allows the user to read specific fields
     /// from the byte slice rather than getting all fields with `from_bytes`.

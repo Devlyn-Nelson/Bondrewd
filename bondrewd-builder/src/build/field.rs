@@ -79,6 +79,22 @@ impl DataType {
             } => *rust_byte_size,
         }
     }
+    #[must_use]
+    pub fn default_bit_size(&self) -> usize {
+        match self {
+            DataType::Number(number_type, rust_byte_size) => match number_type {
+                NumberType::Float
+                | NumberType::Unsigned
+                | NumberType::Signed
+                | NumberType::Char => rust_byte_size.bits(),
+                NumberType::Bool => 1,
+            },
+            DataType::Nested {
+                ident,
+                rust_byte_size,
+            } => rust_byte_size * 8,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -662,6 +678,7 @@ impl DataBuilder {
 }
 
 #[derive(Debug, FromField)]
+#[darling(attributes(bondrewd))]
 pub struct DataDarling {
     endianness: Option<LitStr>,
     bit_length: Option<usize>,
@@ -672,10 +689,10 @@ pub struct DataDarling {
     block_bit_length: Option<usize>,
     block_byte_length: Option<usize>,
     overlapping_bits: Option<usize>,
-    reserve: bool,
-    read_only: bool,
-    capture_id: bool,
-    redundant: bool,
+    reserve: darling::util::Flag,
+    read_only: darling::util::Flag,
+    capture_id: darling::util::Flag,
+    redundant: darling::util::Flag,
 }
 
 impl DataDarling {
@@ -754,10 +771,10 @@ impl DataDarling {
             },
             bits,
             overlapping_bits: self.overlapping_bits,
-            reserve: self.reserve,
-            read_only: self.read_only,
-            capture_id: self.capture_id,
-            redundant: self.redundant,
+            reserve: self.reserve.is_present(),
+            read_only: self.read_only.is_present(),
+            capture_id: self.capture_id.is_present(),
+            redundant: self.redundant.is_present(),
         })
     }
 }

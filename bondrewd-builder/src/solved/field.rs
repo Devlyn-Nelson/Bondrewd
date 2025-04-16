@@ -141,19 +141,19 @@ impl SolvedData {
     /// - `StructChecked::read_field`
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
-    pub fn get_quotes(&self) -> syn::Result<GeneratedQuotes> {
+    pub fn get_quotes(&self, total_bytes: usize) -> syn::Result<GeneratedQuotes> {
         match self.resolver.ty.as_ref() {
             ResolverType::Nested {
                 ty_ident,
                 rust_size,
-            } => self.get_ne_quotes(),
+            } => self.get_ne_quotes(total_bytes),
             ResolverType::Primitive {
                 number_ty,
                 resolver_strategy,
                 rust_size,
             } => match resolver_strategy {
-                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
-                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(total_bytes),
+                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(total_bytes),
             },
             ResolverType::Array {
                 sub_ty,
@@ -165,19 +165,21 @@ impl SolvedData {
                     resolver_strategy,
                     rust_size,
                 } => match resolver_strategy {
-                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
-                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(total_bytes),
+                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(total_bytes),
                 },
                 ResolverSubType::Nested {
                     ty_ident,
                     rust_size,
-                } => self.get_ne_quotes(),
+                } => self.get_ne_quotes(total_bytes),
             },
         }
     }
-    fn get_le_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_le_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
-            let read = self.resolver.get_read_quote(Resolver::get_read_le_quote)?;
+            let read = self
+                .resolver
+                .get_read_quote(Resolver::get_read_le_quote, total_bytes)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_le_quote, false)?;
@@ -189,10 +191,12 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_ne_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_ne_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.resolver.get_read_quote(Resolver::get_read_ne_quote)?;
+            let read = self
+                .resolver
+                .get_read_quote(Resolver::get_read_ne_quote, total_bytes)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_ne_quote, false)?;
@@ -204,10 +208,12 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_be_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_be_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.resolver.get_read_quote(Resolver::get_read_be_quote)?;
+            let read = self
+                .resolver
+                .get_read_quote(Resolver::get_read_be_quote, total_bytes)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_be_quote, false)?;

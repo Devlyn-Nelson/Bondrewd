@@ -1,14 +1,16 @@
 use std::{collections::BTreeMap, env::current_dir, ops::Range};
 
 use convert_case::{Case, Casing};
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::Ident;
 use thiserror::Error;
 
 use crate::build::{
-    field::DataType,
-    field_set::{EnumBuilder, FieldSetBuilder, GenericBuilder, StructBuilder, StructEnforcement},
+    field::{DataType, NumberType, RustByteSize},
+    field_set::{
+        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcement,
+    },
     ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
     ReserveFieldOption, Visibility,
 };
@@ -94,6 +96,12 @@ pub enum SolvingError {
     EnforceBitCount { actual: usize, user: usize },
 }
 
+impl From<SolvingError> for syn::Error {
+    fn from(value: SolvingError) -> Self {
+        syn::Error::new(Span::call_site(), format!("{value}"))
+    }
+}
+
 impl TryFrom<GenericBuilder> for Solved {
     type Error = SolvingError;
 
@@ -154,6 +162,46 @@ impl Solved {
             SolvedType::Struct(solved_field_set) => solved_field_set.total_bits_no_fill(),
         }
     }
+    pub fn total_bytes_used(&self) -> usize {
+        match &self.ty {
+            SolvedType::Enum {
+                id,
+                invalid,
+                invalid_name,
+                variants,
+            } => {
+                let mut largest = 0;
+                for var in variants {
+                    let other = var.1.total_bytes();
+                    if other > largest {
+                        largest = other;
+                    }
+                }
+                largest
+            }
+            SolvedType::Struct(solved_field_set) => solved_field_set.total_bytes(),
+        }
+    }
+    pub fn total_bits_used(&self) -> usize {
+        match &self.ty {
+            SolvedType::Enum {
+                id,
+                invalid,
+                invalid_name,
+                variants,
+            } => {
+                let mut largest = 0;
+                for var in variants {
+                    let other = var.1.total_bits();
+                    if other > largest {
+                        largest = other;
+                    }
+                }
+                largest
+            }
+            SolvedType::Struct(solved_field_set) => solved_field_set.total_bits(),
+        }
+    }
     pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
         let (gen, struct_size) = match &self.ty {
@@ -164,13 +212,7 @@ impl Solved {
                 variants,
             } => todo!("generate enum quotes"),
             SolvedType::Struct(solved_field_set) => {
-                let struct_size = {
-                    let mut total: usize = 0;
-                    for field in &solved_field_set.fields {
-                        total += field.bit_length();
-                    }
-                    total
-                };
+                let struct_size = self.total_bytes_used();
                 (
                     solved_field_set
                         .generate_quotes(struct_name, None, struct_size, true)?
@@ -288,22 +330,27 @@ impl Solved {
         attrs: &SolvedFieldSetAttributes,
         id_field: Option<&SolvedData>,
     ) -> Result<Self, SolvingError> {
-        let bit_size = if let Some(id_field) = id_field {
-            id_field.bit_length()
-        } else {
-            0
-        };
+        // TODO solve arrays.
+        // let bit_size = if let Some(id_field) = id_field {
+        //     id_field.bit_length()
+        // } else {
+        //     0
+        // };
         let mut pre_fields: Vec<BuiltData> = Vec::default();
         let mut last_end_bit_index: Option<usize> = None;
         let total_fields = value.fields.len();
         let fields_ref = &value.fields;
         // First stage checks for validity
         for value_field in fields_ref {
-            let rust_size = value_field.ty.rust_size();
+            let default_bit_size = value_field.ty.default_bit_size();
             // get resolved range for the field.
-            let bit_range =
-                BuiltRange::from_builder(&value_field.bit_range, rust_size, last_end_bit_index); // get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
-                                                                                                 // update internal last_end_bit_index to allow automatic bit-range feature to work.
+            let bit_range = BuiltRange::from_builder(
+                &value_field.bit_range,
+                default_bit_size,
+                last_end_bit_index,
+            );
+            // get_range(&value_field.bit_range, &rust_size, last_end_bit_index);
+            // update internal last_end_bit_index to allow automatic bit-range feature to work.
             if !value_field.overlap.is_redundant() {
                 last_end_bit_index = Some(bit_range.end());
             }
@@ -360,10 +407,15 @@ impl Solved {
         for pre_field in pre_fields {
             fields.push(SolvedData::from(pre_field));
         }
+        let mut out = SolvedFieldSet {
+            fields,
+            attrs: attrs.clone(),
+        };
         // let keys: Vec<DynamicIdent> = fields.keys().cloned().collect();
         // for key in keys {
         //     let field = fields.get(&key);
         // }
+        let bit_size = out.total_bits();
         match value.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
@@ -380,13 +432,70 @@ impl Solved {
                 }
             }
         }
-        //TODO check and uphold enforcements.
+        // START_HERE below commented code should be moved to the solving process.
+        let first_bit = if let Some(last_range) = out.fields.iter().last() {
+            last_range.bit_range().end
+        } else {
+            0_usize
+        };
+        let auto_fill = match value.fill_bits {
+            FillBits::None => None,
+            FillBits::Bits(bits) => Some(bits),
+            FillBits::Auto => {
+                let unused_bits = bit_size % 8;
+                if unused_bits == 0 {
+                    None
+                } else {
+                    Some(8 - unused_bits)
+                    // None
+                }
+            }
+        };
+        // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
+        if let Some(fill_bits) = auto_fill {
+            let end_bit = first_bit + fill_bits;
+            // bit_size += fill_bits;
+            let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
+            let ident = quote::format_ident!("bondrewd_fill_bits");
+            let endian = value.default_endianness.clone();
+            // fields.push(FieldInfo {
+            //     ident: Box::new(ident.into()),
+            //     attrs: Attributes {
+            //         bit_range: first_bit..end_bit,
+            //         endianness: Box::new(endian),
+            //         reserve: ReserveFieldOption::FakeField,
+            //         overlap: OverlapOptions::None,
+            //         capture_id: false,
+            //     },
+            //     ty: DataType::BlockArray {
+            //         sub_type: Box::new(SubFieldInfo {
+            //             ty: DataType::Number {
+            //                 size: 1,
+            //                 sign: NumberSignage::Unsigned,
+            //                 type_quote: quote! {u8},
+            //             },
+            //         }),
+            //         length: fill_bytes_size,
+            //         type_quote: quote! {[u8;#fill_bytes_size]},
+            //     },
+            // });
+            let fill_field = BuiltData {
+                id: ident.into(),
+                ty: DataType::Number(NumberType::Unsigned, RustByteSize::One),
+                bit_range: BuiltRange {
+                    bit_range: first_bit..end_bit,
+                    ty: BuiltRangeType::BlockArray(vec![fill_bytes_size]),
+                },
+                endianness: endian,
+                reserve: ReserveFieldOption::FakeField,
+                overlap: OverlapOptions::None,
+                is_captured_id: false,
+            };
+            out.fields.push(fill_field.into());
+        }
         Ok(Self {
             name: value.name.clone(),
-            ty: SolvedType::Struct(SolvedFieldSet {
-                fields,
-                attrs: attrs.clone(),
-            }),
+            ty: SolvedType::Struct(out),
         })
     }
 }
@@ -441,7 +550,7 @@ impl BuiltRange {
     }
     fn from_builder(
         builder: &BuilderRange,
-        rust_size: usize,
+        default_bit_length: usize,
         last_field_end: Option<usize>,
     ) -> Self {
         let start = if let Some(prev) = &last_field_end {
@@ -462,7 +571,7 @@ impl BuiltRange {
                 }
             }
             BuilderRange::None => {
-                let bit_range = start..(start + (rust_size * 8));
+                let bit_range = start..(start + default_bit_length);
                 Self {
                     bit_range,
                     ty: BuiltRangeType::SingleElement,

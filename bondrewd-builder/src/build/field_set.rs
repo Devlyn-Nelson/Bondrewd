@@ -1,4 +1,4 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::Span;
 use syn::{spanned::Spanned, DeriveInput, Error, Fields, Ident, LitStr};
 
 use crate::solved::{field::get_number_type_ident, field_set::SolvedFieldSetAttributes};
@@ -41,7 +41,7 @@ impl GenericBuilder {
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
         let darling = StructDarling::from_derive_input(input)?;
         // determine byte enforcement if any.
-        let enforcement = if darling.enforce_full_bytes {
+        let enforcement = if darling.enforce_full_bytes.is_present() {
             if darling.enforce_bytes.is_none() && darling.enforce_bits.is_none() {
                 return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"));
             } else {
@@ -59,7 +59,7 @@ impl GenericBuilder {
             StructEnforcement::NoRules
         };
         // determine byte filling if any.
-        let fill_bits = if darling.fill {
+        let fill_bits = if darling.fill.is_present() {
             if darling.fill_bytes.is_none() && darling.fill_bits.is_none() {
                 return Err(Error::new(
                     input.span(),
@@ -98,88 +98,16 @@ impl GenericBuilder {
                     &default_endianness,
                     tuple,
                 )?;
-                // START_HERE below commented code should be moved to the solving process.
-                // match enforcement {
-                //     StructEnforcement::NoRules => {}
-                //     StructEnforcement::EnforceFullBytes => {
-                //         if bit_size % 8 != 0 {
-                //             return Err(syn::Error::new(
-                //                 data_struct.struct_token.span(),
-                //                 "BIT_SIZE modulus 8 is not zero",
-                //             ));
-                //         }
-                //     }
-                //     StructEnforcement::EnforceBitAmount(expected_total_bits) => {
-                //         if bit_size != expected_total_bits {
-                //             return Err(syn::Error::new(
-                //                 data_struct.struct_token.span(),
-                //                 format!(
-                //                     "Bit Enforcement failed because bondrewd detected {bit_size} total bits used by defined fields, but the bit enforcement attribute is defined as {expected_total_bits} bits.",
-                //                 ),
-                //             ));
-                //         }
-                //     }
-                // }
-                // let first_bit = if let Some(last_range) = fields.iter().last() {
-                //     last_range.bit_range.end
-                // } else {
-                //     0_usize
-                // };
-                // let auto_fill = match fill_bits {
-                //     FillBits::None => None,
-                //     FillBits::Bits(bits) => Some(bits),
-                //     FillBits::Auto => {
-                //         let unused_bits = bit_size % 8;
-                //         if unused_bits == 0 {
-                //             None
-                //         } else {
-                //             Some(8 - unused_bits)
-                //             // None
-                //         }
-                //     }
-                // };
-                // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-                // if let Some(fill_bits) = auto_fill {
-                //     let end_bit = first_bit + fill_bits;
-                //     bit_size += fill_bits;
-                //     let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
-                //     let ident = quote::format_ident!("bondrewd_fill_bits");
-                //     let mut endian = attrs.default_endianess.clone();
-                //     if !endian.has_endianness() {
-                //         endian.set_mode(crate::common::EndiannessMode::Standard);
-                //     }
-                //     bondrewd_fields.push(FieldInfo {
-                //         ident: Box::new(ident.into()),
-                //         attrs: Attributes {
-                //             bit_range: first_bit..end_bit,
-                //             endianness: Box::new(endian),
-                //             reserve: ReserveFieldOption::FakeField,
-                //             overlap: OverlapOptions::None,
-                //             capture_id: false,
-                //         },
-                //         ty: DataType::BlockArray {
-                //             sub_type: Box::new(SubFieldInfo {
-                //                 ty: DataType::Number {
-                //                     size: 1,
-                //                     sign: NumberSignage::Unsigned,
-                //                     type_quote: quote! {u8},
-                //                 },
-                //             }),
-                //             length: fill_bytes_size,
-                //             type_quote: quote! {[u8;#fill_bytes_size]},
-                //         },
-                //     });
-                // }
-                //
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: darling.ident,
                         fields,
                         enforcement,
                         fill_bits,
+                        default_endianness,
                     },
                     attrs: SolvedFieldSetAttributes {
-                        dump: darling.dump,
+                        dump: darling.dump.is_present(),
                         vis: super::Visibility(darling.vis),
                     },
                     tuple,
@@ -291,25 +219,22 @@ impl GenericBuilder {
         }
         Ok(bit_size)
     }
-    pub fn generate(&self) -> syn::Result<TokenStream> {
-        Err(Error::new(Span::call_site(), "generate is not done"))
-    }
 }
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
 pub struct StructDarling {
     pub default_endianness: Option<LitStr>,
-    pub reverse: bool,
+    pub reverse: darling::util::Flag,
     // Below are being used.
     pub ident: Ident,
     pub vis: syn::Visibility,
-    pub dump: bool,
-    pub enforce_full_bytes: bool,
+    pub dump: darling::util::Flag,
+    pub enforce_full_bytes: darling::util::Flag,
     pub enforce_bytes: Option<usize>,
     pub enforce_bits: Option<usize>,
     pub fill_bits: Option<usize>,
     pub fill_bytes: Option<usize>,
-    pub fill: bool,
+    pub fill: darling::util::Flag,
 }
 /// Distinguishes between enums and structs or a single `field_set` vs multiple
 /// `field_sets` that switch based on an id field.
@@ -404,6 +329,7 @@ pub struct FieldSetBuilder {
     /// Using Auto is useful because if the `field_set` doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
+    pub default_endianness: Endianness,
 }
 
 impl FieldSetBuilder {
@@ -414,6 +340,7 @@ impl FieldSetBuilder {
             fields: Vec::default(),
             enforcement: StructEnforcement::default(),
             fill_bits: FillBits::default(),
+            default_endianness: Endianness::default(),
         }
     }
     pub fn add_field(&mut self, new_data: DataBuilder) {

@@ -90,7 +90,8 @@ pub fn get_be_starting_index(
 ) -> Result<usize, String> {
     let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
     if last_index < first {
-        Err("Failed getting the starting index for big endianness, field's type doesn't fix the bit size".to_string())
+        // TODO figure out a better message for this error. its confusing. and no, i don't know what it means.
+        Err(format!("Failed getting the starting index for big endianness, aob: {amount_of_bits}, rr: {right_rotation}, li: {last_index}, f: {first}."))
     } else {
         Ok(last_index - first)
     }
@@ -373,7 +374,7 @@ impl SolvedFieldSet {
             SolvedFieldSetAdditive::new_struct(name)
         };
         for field in &self.fields {
-            let field_access = field.get_quotes()?;
+            let field_access = field.get_quotes(self.total_bytes())?;
             self.make_read_fns(
                 field,
                 &variant_name,

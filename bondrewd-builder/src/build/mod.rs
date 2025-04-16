@@ -49,7 +49,7 @@ impl From<syn::Visibility> for Visibility {
 /// |[[u8;4];5]|          4|          5|
 pub type ArraySizings = Vec<usize>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuilderRangeArraySize {
     Size(usize),
     Range(std::ops::Range<usize>),
@@ -440,6 +440,12 @@ impl Endianness {
                 "unknown endianness try \"little\", \"big\", or \"little-aliened\"",
             )),
         }
+    }
+}
+
+impl Default for Endianness {
+    fn default() -> Self {
+        Self::little_packed()
     }
 }
 
