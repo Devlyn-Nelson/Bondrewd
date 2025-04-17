@@ -1,4 +1,5 @@
 - [ ] Add non-packed little endian
+- [ ] Make a way for the Id of a enum to be received via another field when using nested enums.
 - [ ] Make field attributes applied to an enum apply the id_field
 - [ ] Fix nested structs/enums. Currently if you want Aligned Little Endian your nested struct must NOT reverse byte-order.
 - [ ] Zero shifts happen still. Please insure these don't get output.

@@ -1,11 +1,12 @@
 use proc_macro2::Span;
-use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Fields, Ident, LitStr};
+use quote::format_ident;
+use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit, LitStr};
 
 use crate::solved::{field::get_number_type_ident, field_set::SolvedFieldSetAttributes};
 
 use super::{
-    field::{DataBuilder, DataType},
-    Endianness,
+    field::{DataBuilder, DataType, NumberType, RustByteSize},
+    Endianness, OverlapOptions, ReserveFieldOption,
 };
 
 use darling::{FromDeriveInput, FromVariant};
@@ -39,54 +40,7 @@ impl GenericBuilder {
         &mut self.ty
     }
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
-        let darling = StructDarling::from_derive_input(input)?;
-        // determine byte enforcement if any.
-        let enforcement = if darling.enforce_full_bytes.is_present() {
-            if darling.enforce_bytes.is_none() && darling.enforce_bits.is_none() {
-                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"));
-            } else {
-                StructEnforcement::EnforceFullBytes
-            }
-        } else if let Some(bytes) = darling.enforce_bytes {
-            if darling.enforce_bits.is_none() {
-                StructEnforcement::EnforceBitAmount(bytes * 8)
-            } else {
-                return Err(Error::new(input.span(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"));
-            }
-        } else if let Some(bits) = darling.enforce_bits {
-            StructEnforcement::EnforceBitAmount(bits)
-        } else {
-            StructEnforcement::NoRules
-        };
-        // determine byte filling if any.
-        let fill_bits = if darling.fill.is_present() {
-            if darling.fill_bytes.is_none() && darling.fill_bits.is_none() {
-                return Err(Error::new(
-                    input.span(),
-                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
-                ));
-            } else {
-                FillBits::Auto
-            }
-        } else if let Some(bytes) = darling.fill_bytes {
-            if darling.fill_bits.is_none() {
-                FillBits::Bits(bytes * 8)
-            } else {
-                return Err(Error::new(
-                    input.span(),
-                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
-                ));
-            }
-        } else if let Some(bits) = darling.fill_bits {
-            FillBits::Bits(bits)
-        } else {
-            FillBits::None
-        };
-        let default_endianness = if let Some(ref val) = darling.default_endianness {
-            Endianness::from_expr(val)?
-        } else {
-            Endianness::default()
-        };
+        let attrs: StructDarlingSimplified = StructDarling::from_derive_input(input)?.try_into()?;
         match &input.data {
             syn::Data::Struct(data_struct) => {
                 let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
@@ -94,20 +48,20 @@ impl GenericBuilder {
                 let bit_size = Self::extract_fields(
                     &mut fields,
                     &data_struct.fields,
-                    &default_endianness,
+                    &attrs.default_endianness,
                     tuple,
                 )?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
-                        name: darling.ident,
+                        name: attrs.ident,
                         fields,
-                        enforcement,
-                        fill_bits,
-                        default_endianness,
+                        enforcement: attrs.enforcement,
+                        fill_bits: attrs.fill_bits,
+                        default_endianness: attrs.default_endianness,
                     },
                     attrs: SolvedFieldSetAttributes {
-                        dump: darling.dump.is_present(),
-                        vis: super::Visibility(darling.vis),
+                        dump: attrs.dump,
+                        vis: super::Visibility(attrs.vis),
                     },
                     tuple,
                 };
@@ -117,82 +71,118 @@ impl GenericBuilder {
             }
             syn::Data::Enum(data_enum) => {
                 let enum_attrs = EnumDarling::from_derive_input(input)?.try_into()?;
-                Self::parse_enum(data_enum, &darling, &enum_attrs)
+                Self::parse_enum(data_enum, &attrs, &enum_attrs)
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
         }
     }
-
+    // Parses the Expression, looking for a literal number expression
+    fn parse_lit_discriminant_expr(input: &Expr) -> syn::Result<usize> {
+        match input {
+            Expr::Lit(ref lit) => match lit.lit {
+                Lit::Int(ref i) => Ok(i.base10_parse()?),
+                _ => Err(syn::Error::new(
+                    input.span(),
+                    "Non-integer literals for custom discriminant are illegal.",
+                )),
+            },
+            _ => Err(syn::Error::new(
+                input.span(),
+                "non-literal expressions for custom discriminant are illegal.",
+            )),
+        }
+    }
     fn parse_enum(
         data_enum: &DataEnum,
-        struct_attrs: &StructDarling,
+        struct_attrs: &StructDarlingSimplified,
         enum_attrs: &EnumDarlingSimplified,
     ) -> syn::Result<Self> {
-        // START_HERE implement enum parsing.
-
-        // let mut variants: Vec<StructInfo> = Vec::default();
-        // let (id_field_type, id_bits) = {
-        //     let id_bits = if let Some(id_bits) = enum_attrs.id_bits {
-        //         id_bits
-        //     } else if let (Some(payload_size), Some(total_size)) =
-        //         (enum_attrs.payload_bit_size, enum_attrs.total_bit_size)
-        //     {
-        //         total_size - payload_size
-        //     } else {
-        //         return Err(syn::Error::new(
-        //                     data.enum_token.span(),
-        //                     "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
-        //                 ));
-        //     };
-        //     (
-        //         DataType::Number {
-        //             size: id_bits.div_ceil(8),
-        //             sign: NumberSignage::Unsigned,
-        //             type_quote: get_id_type(id_bits, name.span())?,
-        //         },
-        //         id_bits,
-        //     )
-        // };
-        // let id_field = FieldInfo {
-        //     ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
-        //     ty: id_field_type,
-        //     attrs: Attributes {
-        //         endianness: Box::new(attrs.default_endianness.clone()),
-        //         // this need to accommodate tailing ids, currently this locks the
-        //         // id field to the first field read from the starting point of reading.
-        //         // TODO make sure this gets corrected if the id size is unknown.
-        //         bit_range: 0..id_bits,
-        //         reserve: ReserveFieldOption::EnumId,
-        //         overlap: OverlapOptions::None,
-        //         capture_id: false,
-        //     },
-        // };
-        // for variant in &data.variants {
-        //     let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
-        //     let mut attrs = attrs.clone();
-        //     if let Some((_, ref expr)) = variant.discriminant {
-        //         let parsed = Self::parse_lit_discriminant_expr(expr)?;
-        //         attrs.id = Some(parsed);
-        //     }
-        //     Self::parse_struct_attrs(&variant.attrs, &mut attrs, true)?;
-        //     let variant_name = variant.ident.clone();
-        //     // TODO currently we always add the id field, but some people might want the id to be a
-        //     // field in the variant. this would no longer need to insert the id as a "fake-field".
-        //     let fields = Self::parse_fields(
-        //         &variant_name,
-        //         &variant.fields,
-        //         &attrs,
-        //         Some(id_field.clone()),
-        //         tuple,
-        //     )?;
-        //     variants.push(StructInfo {
-        //         name: variant_name,
-        //         attrs,
-        //         fields,
-        //         vis: crate::common::Visibility(input.vis.clone()),
-        //         tuple,
-        //     });
-        // }
+        let mut variants: Vec<VariantBuilder> = Vec::default();
+        let (id_field_type, id_bits) = {
+            let id_bits = if let Some(id_bits) = enum_attrs.id_bit_length {
+                id_bits
+            } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
+                (&enum_attrs.payload_bit_length, &struct_attrs.enforcement)
+            {
+                total_size - payload_size
+            } else {
+                return Err(syn::Error::new(
+                    data_enum.enum_token.span(),
+                    "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
+                ));
+            };
+            let bytes = match id_bits.div_ceil(8) {
+                1 => RustByteSize::One,
+                2 => RustByteSize::Two,
+                3..=4 => RustByteSize::Four,
+                5..=8 => RustByteSize::Eight,
+                9..=16 => RustByteSize::Sixteen,
+                invalid => return Err(syn::Error::new(
+                    data_enum.enum_token.span(),
+                    format!("The variant is must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."),
+                )),
+            };
+            (DataType::Number(NumberType::Unsigned, bytes), id_bits)
+        };
+        let id_field = DataBuilder {
+            ty: id_field_type,
+            id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
+            endianness: Some(struct_attrs.default_endianness.clone()),
+            bit_range: super::BuilderRange::Range(0..id_bits),
+            reserve: ReserveFieldOption::FakeField,
+            overlap: OverlapOptions::None,
+            is_captured_id: false,
+        };
+        for variant in &data_enum.variants {
+            let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
+            let mut attrs = struct_attrs.clone();
+            let lit_id = if let Some((_, ref expr)) = variant.discriminant {
+                let parsed = Self::parse_lit_discriminant_expr(expr)?;
+                Some(parsed)
+            } else {
+                None
+            };
+            let () = attrs.merge(StructDarling::from_variant(variant)?)?;
+            let mut variant_attrs = VariantDarling::from_variant(variant)?;
+            if variant_attrs.id.is_none() {
+                variant_attrs.id = lit_id;
+            } else if lit_id.is_some() {
+                return Err(syn::Error::new(variant.span(), "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id."));
+            };
+            // let variant_name = variant.ident.clone();
+            // let fields = Self::parse_fields(
+            //     &variant_name,
+            //     &variant.fields,
+            //     &attrs,
+            //     Some(id_field.clone()),
+            //     tuple,
+            // )?;
+            // TODO currently we always add the id field, but some people might want the id to be a
+            // field in the variant. this would no longer need to insert the id as a "fake-field".
+            let mut fields = Vec::default();
+            let bit_size = Self::extract_fields(
+                &mut fields,
+                &variant.fields,
+                &attrs.default_endianness,
+                tuple,
+            )?;
+            // START_HERE implement enum parsing. I need to figure out the best way to pass
+            // the id field along properly. currently the id field should be the first field in fields,
+            // but Variant Builder currently thinks it should be separate.
+            // 
+            // let variant_info = VariantBuilder {
+            //     id: variant_attrs.id,
+            //     capture_field: ,
+            //     field_set: todo!(),
+            // };
+            // variants.push(StructInfo {
+            //     name: variant_name,
+            //     attrs,
+            //     fields,
+            //     vis: Visibility(enum_attrs.vis.clone()),
+            //     tuple,
+            // });
+        }
         // // detect and fix variants without ids and verify non conflict.
         // let mut used_ids: Vec<u128> = Vec::default();
         // let mut unassigned_indices: Vec<usize> = Vec::default();
@@ -553,6 +543,134 @@ pub struct StructDarling {
     pub fill_bytes: Option<usize>,
     pub fill: darling::util::Flag,
 }
+#[derive(Debug, Clone)]
+pub struct StructDarlingSimplified {
+    pub default_endianness: Endianness,
+    pub reverse: bool,
+    pub ident: Ident,
+    pub vis: syn::Visibility,
+    pub dump: bool,
+    pub enforcement: StructEnforcement,
+    pub fill_bits: FillBits,
+}
+
+impl StructDarlingSimplified {
+    pub fn try_solve_endianness(lit_str: &LitStr) -> syn::Result<Endianness> {
+        Endianness::from_expr(lit_str)
+    }
+    pub fn try_solve_enforcement(
+        enforce_full_bytes: darling::util::Flag,
+        enforce_bytes: Option<usize>,
+        enforce_bits: Option<usize>,
+    ) -> syn::Result<StructEnforcement> {
+        if enforce_full_bytes.is_present() {
+            if enforce_bytes.is_none() && enforce_bits.is_none() {
+                Ok(StructEnforcement::EnforceFullBytes)
+            } else {
+                Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
+            }
+        } else if let Some(bytes) = enforce_bytes {
+            if enforce_bits.is_none() {
+                Ok(StructEnforcement::EnforceBitAmount(bytes * 8))
+            } else {
+                Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
+            }
+        } else if let Some(bits) = enforce_bits {
+            Ok(StructEnforcement::EnforceBitAmount(bits))
+        } else {
+            Ok(StructEnforcement::NoRules)
+        }
+    }
+    pub fn try_solve_fill_bits(
+        fill_bits: Option<usize>,
+        fill_bytes: Option<usize>,
+        fill: darling::util::Flag,
+    ) -> syn::Result<FillBits> {
+        if fill.is_present() {
+            if fill_bytes.is_none() && fill_bits.is_none() {
+                Ok(FillBits::Auto)
+            } else {
+                Err(Error::new(
+                    Span::call_site(),
+                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
+                ))
+            }
+        } else if let Some(bytes) = fill_bytes {
+            if fill_bits.is_none() {
+                Ok(FillBits::Bits(bytes * 8))
+            } else {
+                Err(Error::new(
+                    Span::call_site(),
+                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
+                ))
+            }
+        } else if let Some(bits) = fill_bits {
+            Ok(FillBits::Bits(bits))
+        } else {
+            Ok(FillBits::None)
+        }
+    }
+    pub fn merge(&mut self, other: StructDarling) -> syn::Result<()> {
+        if let Some(ref val) = other.default_endianness {
+            self.default_endianness = Self::try_solve_endianness(val)?
+        };
+        let enforcement = Self::try_solve_enforcement(
+            other.enforce_full_bytes,
+            other.enforce_bytes,
+            other.enforce_bits,
+        )?;
+        let fill_bits = Self::try_solve_fill_bits(other.fill_bits, other.fill_bytes, other.fill)?;
+        if !matches!(enforcement, StructEnforcement::NoRules) {
+            self.enforcement = enforcement;
+        }
+        if !matches!(fill_bits, FillBits::None) {
+            self.fill_bits = fill_bits;
+        }
+        if other.dump.is_present() {
+            self.dump = true;
+        }
+        if other.reverse.is_present() {
+            self.reverse = true;
+        }
+        self.ident = other.ident;
+        Ok(())
+    }
+}
+
+impl TryFrom<StructDarling> for StructDarlingSimplified {
+    type Error = syn::Error;
+
+    fn try_from(darling: StructDarling) -> Result<Self, Self::Error> {
+        let default_endianness = if let Some(ref val) = darling.default_endianness {
+            Self::try_solve_endianness(val)?
+        } else {
+            Endianness::default()
+        };
+        // determine byte enforcement if any.
+        let enforcement = Self::try_solve_enforcement(
+            darling.enforce_full_bytes,
+            darling.enforce_bytes,
+            darling.enforce_bits,
+        )?;
+        // determine byte filling if any.
+        let fill_bits =
+            Self::try_solve_fill_bits(darling.fill_bits, darling.fill_bytes, darling.fill)?;
+        Ok(Self {
+            default_endianness,
+            reverse: darling.reverse.is_present(),
+            ident: darling.ident,
+            vis: darling.vis,
+            dump: darling.dump.is_present(),
+            enforcement,
+            fill_bits,
+        })
+    }
+}
+#[derive(Debug, FromVariant)]
+#[darling(attributes(bondrewd))]
+pub struct VariantDarling {
+    pub id: Option<usize>,
+}
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
 pub struct EnumDarling {
@@ -655,6 +773,8 @@ pub struct EnumBuilder {
 }
 
 impl EnumBuilder {
+    pub const VARIANT_ID_NAME: &'static str = "variant_id";
+    pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     #[must_use]
     pub fn new(name: Ident) -> Self {
         Self {
@@ -670,7 +790,7 @@ impl EnumBuilder {
 #[derive(Debug)]
 pub struct VariantBuilder {
     /// The id value that this variant shall be used for.
-    id: Option<i64>,
+    id: Option<u64>,
     /// If the variant has a field that whats to capture the
     /// value read for the variant resolution the fields shall be placed here
     /// NOT in the field set, useful for invalid variant.
