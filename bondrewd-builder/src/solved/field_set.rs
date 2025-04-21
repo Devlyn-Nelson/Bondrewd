@@ -94,6 +94,8 @@ pub enum SolvingError {
     EnforceFullBytes,
     #[error("Final bit count does not match enforcement size.[user = {user}, actual = {actual}]")]
     EnforceBitCount { actual: usize, user: usize },
+    #[error("A feature you are trying to use in not yet supported. complain to the Bondrewd maintainer about \"{0}\"")]
+    Unfinished(String),
 }
 
 impl From<SolvingError> for syn::Error {
@@ -121,6 +123,154 @@ impl TryFrom<EnumBuilder> for Solved {
         let variants = value.variants;
         let invalid = value.invalid;
         let name = value.name;
+        // START_HERE enum solving need to be written.
+        // // give all variants ids.
+        // // TODO this code was in hte parsing code, but has been moved here.
+        // let mut used_ids: Vec<usize> = (&invalid_variant.id).map(|f| vec![f]).unwrap_or_default();
+        // let mut last = 0;
+        // for (i, variant) in variants.iter_mut().enumerate() {
+        //     if let Some(ref value) = variant.id {
+        //         if used_ids.contains(value) {
+        //             return Err(Error::new(
+        //                 variant.field_set.name.span(),
+        //                 "variant identifier used twice.",
+        //             ));
+        //         }
+        //         last = *value;
+        //         // push used index.
+        //         used_ids.push(*value);
+        //     } else {
+        //         let mut guess = last + 1;
+        //         while used_ids.contains(&guess) {
+        //             guess += 1;
+        //         }
+        //         variant.id = Some(guess);
+        //         used_ids.push(guess);
+        //     }
+        // }
+        // // validity checks
+        // if largest_variant_id > id_field_bit_length_max_value {
+        //     return Err(Error::new(
+        //         data.enum_token.span(),
+        //         "the bit size being used is less than required to describe each variant"
+        //             .to_string(),
+        //     ));
+        // }
+        // if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
+        //     return Err(Error::new(
+        //         data.enum_token.span(),
+        //         "the payload size being used is less than largest variant".to_string(),
+        //     ));
+        // }
+        // // verify the size doesn't go over set size.
+        // for variant in &variants {
+        //     let size = variant.total_bits();
+        //     if largest < size {
+        //         largest = size;
+        //     }
+        //     let variant_id_field = {
+        //         if let Some(id) = variant.get_id_field()? {
+        //             id
+        //         } else {
+        //             return Err(syn::Error::new(variant.name.span(), "failed to get variant field for variant. (this is a bondrewd issue, please report issue)"));
+        //         }
+        //     };
+
+        //     if let Some(bit_size) = enum_attrs.payload_bit_size {
+        //         if bit_size < size - variant_id_field.bit_size() {
+        //             return Err(Error::new(
+        //                         variant.name.span(),
+        //                         format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant_id_field.bit_size()),
+        //                     ));
+        //         }
+        //     } else if let (Some(bit_size), Some(id_size)) =
+        //         (enum_attrs.total_bit_size, enum_attrs.id_bits)
+        //     {
+        //         if bit_size - id_size < size - variant_id_field.bit_size() {
+        //             return Err(Error::new(
+        //                         variant.name.span(),
+        //                         format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size - variant_id_field.bit_size()),
+        //                     ));
+        //         }
+        //     }
+        // }
+        // // add fill_bits if needed.
+        // // TODO fix fill byte getting inserted of wrong side sometimes.
+        // // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
+        // for v in &mut variants {
+        //     let first_bit = v.total_bits();
+        //     if first_bit < largest {
+        //         let fill_bytes_size = (largest - first_bit).div_ceil(8);
+        //         let ident = quote::format_ident!("enum_fill_bits");
+        //         let fill = FieldInfo {
+        //             ident: Box::new(ident.into()),
+        //             attrs: Attributes {
+        //                 bit_range: first_bit..largest,
+        //                 endianness: Box::new(Endianness::big()),
+        //                 reserve: ReserveFieldOption::FakeField,
+        //                 overlap: OverlapOptions::None,
+        //                 capture_id: false,
+        //             },
+        //             ty: DataType::BlockArray {
+        //                 sub_type: Box::new(SubFieldInfo {
+        //                     ty: DataType::Number {
+        //                         size: 1,
+        //                         sign: NumberSignage::Unsigned,
+        //                         type_quote: quote! {u8},
+        //                     },
+        //                 }),
+        //                 length: fill_bytes_size,
+        //                 type_quote: quote! {[u8;#fill_bytes_size]},
+        //             },
+        //         };
+        //         if v.attrs.default_endianess.is_byte_order_reversed() {
+        //             v.fields.insert(0, fill);
+        //         } else {
+        //             v.fields.push(fill);
+        //         }
+        //     }
+        // }
+        // // TODO make the id_field of truth. or the one that bondrewd actually reads NOT captured id_fields.
+        // // the truth Id_field should also match the capture_id fields that do exist. use below code for this.
+        // let (id_field_type, id_bits) = {
+        //     let id_bits = if let Some(id_bits) = enum_attrs.id_bit_length {
+        //         id_bits
+        //     } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
+        //         (&enum_attrs.payload_bit_length, &struct_attrs.enforcement)
+        //     {
+        //         total_size - payload_size
+        //     } else {
+        //         let mut x = data_enum.variants.len();
+        //         // find minimal id size from largest id value
+        //         let mut n = 0;
+        //         while x != 0 {
+        //             x >>= 1;
+        //             n += 1;
+        //         }
+        //         n
+        //     };
+        //     let bytes = match id_bits.div_ceil(8) {
+        //         1 => RustByteSize::One,
+        //         2 => RustByteSize::Two,
+        //         3..=4 => RustByteSize::Four,
+        //         5..=8 => RustByteSize::Eight,
+        //         9..=16 => RustByteSize::Sixteen,
+        //         invalid => return Err(syn::Error::new(
+        //             data_enum.enum_token.span(),
+        //             format!("The variant is must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."),
+        //         )),
+        //     };
+        //     (DataType::Number(NumberType::Unsigned, bytes), id_bits)
+        // };
+        // let id_field = DataBuilder {
+        //     ty: id_field_type,
+        //     id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
+        //     endianness: Some(struct_attrs.default_endianness.clone()),
+        //     bit_range: super::BuilderRange::Range(0..id_bits),
+        //     reserve: ReserveFieldOption::FakeField,
+        //     overlap: OverlapOptions::None,
+        //     is_captured_id: false,
+        // };
         todo!("write conversion from EnumBuilder to Solved")
     }
 }
@@ -331,11 +481,51 @@ impl Solved {
         id_field: Option<&BuiltData>,
     ) -> Result<Self, SolvingError> {
         // TODO solve arrays.
+        //
         // let bit_size = if let Some(id_field) = id_field {
         //     id_field.bit_length()
         // } else {
         //     0
         // };
+        //
+        // TODO verify captured id fields match the generated id field using below commented code.
+        // if let Some(bondrewd_field) = id_field {
+        //     if i == 0 {
+        //         match (&bondrewd_field.ty, &mut parsed_field.ty) {
+        //             (
+        //                 DataType::Number(number_ty_bon, rust_size_bon),
+        //                 DataType::Number(number_ty, rust_size)
+        //             ) => {
+        //                 let ty_ident = get_number_type_ident(number_ty, rust_size.bits());
+        //                 let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
+        //                 // TODO this if statements actions could cause confusing behavior
+        //                 if bondrewd_field.bit_range != parsed_field.bit_range {
+        //                     parsed_field.bit_range = bondrewd_field.bit_range.clone();
+        //                 }
+        //                 if number_ty_bon != number_ty {
+        //                     return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {ty_ident_bon}")));
+        //                 }else if ty_ident_bon != ty_ident {
+        //                     return Err(Error::new(field.span(), format!("`capture_id` field currently must be {ty_ident_bon} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+        //                 }
+        //             }
+        //             (DataType::Number(number_ty_bon, rust_size_bon), _) => {
+        //                 let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
+        //                 return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {ty_ident_bon}.")))
+        //             }
+        //             _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+        //         }
+        //     } else {
+        //         return Err(Error::new(
+        //             field.span(),
+        //             "`capture_id` attribute must be the first field.",
+        //         ));
+        //     }
+        // } else {
+        //     return Err(Error::new(
+        //         field.span(),
+        //         "`capture_id` attribute is intended for enum variants only.",
+        //     ));
+        // }
         let mut pre_fields: Vec<BuiltData> = Vec::default();
         let mut last_end_bit_index: Option<usize> = id_field.map(|f| f.bit_range.bit_length());
         let total_fields = value.fields.len();
@@ -426,6 +616,11 @@ impl Solved {
             FillBits::None => None,
             FillBits::Bits(bits) => Some(bits),
             FillBits::Auto => {
+                if id_field.is_some() {
+                    return Err(SolvingError::Unfinished(
+                        "Auto fill_bits is currently not finished for enums.".to_string(),
+                    ));
+                }
                 let unused_bits = bit_size % 8;
                 if unused_bits == 0 {
                     None
@@ -510,15 +705,13 @@ impl BuiltData {
             let other_range = other.bit_range.range();
             // check that self's start is not within other's range
             if field_range.start >= other_range.start
-                && (field_range.start == other_range.start
-                    || field_range.start < other_range.end)
+                && (field_range.start == other_range.start || field_range.start < other_range.end)
             {
                 return true;
             }
             // check that other's start is not within self's range
             if other_range.start >= field_range.start
-                && (other_range.start == field_range.start
-                    || other_range.start < field_range.end)
+                && (other_range.start == field_range.start || other_range.start < field_range.end)
             {
                 return true;
             }

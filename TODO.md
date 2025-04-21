@@ -1,3 +1,4 @@
+- [ ] Make sure capture id is not reading twice.
 - [ ] Add non-packed little endian
 - [ ] Make a way for the Id of a enum to be received via another field when using nested enums.
 - [ ] Make field attributes applied to an enum apply the id_field

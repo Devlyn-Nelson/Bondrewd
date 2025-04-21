@@ -1,13 +1,9 @@
 use proc_macro2::Span;
-use quote::format_ident;
 use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit, LitStr};
 
-use crate::solved::{field::get_number_type_ident, field_set::SolvedFieldSetAttributes};
+use crate::solved::field_set::SolvedFieldSetAttributes;
 
-use super::{
-    field::{DataBuilder, DataType, NumberType, RustByteSize},
-    Endianness, OverlapOptions, ReserveFieldOption,
-};
+use super::{field::DataBuilder, Endianness};
 
 use darling::{FromDeriveInput, FromVariant};
 
@@ -46,7 +42,6 @@ impl GenericBuilder {
                 let mut fields = Vec::default();
                 let tuple = Self::extract_fields(
                     &mut fields,
-                    None,
                     &data_struct.fields,
                     &attrs.default_endianness,
                 )?;
@@ -97,41 +92,8 @@ impl GenericBuilder {
         enum_attrs: &EnumDarlingSimplified,
     ) -> syn::Result<Self> {
         let mut variants: Vec<VariantBuilder> = Vec::default();
-        let (id_field_type, id_bits) = {
-            let id_bits = if let Some(id_bits) = enum_attrs.id_bit_length {
-                id_bits
-            } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
-                (&enum_attrs.payload_bit_length, &struct_attrs.enforcement)
-            {
-                total_size - payload_size
-            } else {
-                return Err(syn::Error::new(
-                    data_enum.enum_token.span(),
-                    "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
-                ));
-            };
-            let bytes = match id_bits.div_ceil(8) {
-                1 => RustByteSize::One,
-                2 => RustByteSize::Two,
-                3..=4 => RustByteSize::Four,
-                5..=8 => RustByteSize::Eight,
-                9..=16 => RustByteSize::Sixteen,
-                invalid => return Err(syn::Error::new(
-                    data_enum.enum_token.span(),
-                    format!("The variant is must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."),
-                )),
-            };
-            (DataType::Number(NumberType::Unsigned, bytes), id_bits)
-        };
-        let id_field = DataBuilder {
-            ty: id_field_type,
-            id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
-            endianness: Some(struct_attrs.default_endianness.clone()),
-            bit_range: super::BuilderRange::Range(0..id_bits),
-            reserve: ReserveFieldOption::FakeField,
-            overlap: OverlapOptions::None,
-            is_captured_id: false,
-        };
+        // let mut id_hint =
+        let mut invalid_variant: Option<VariantBuilder> = None;
         for variant in &data_enum.variants {
             let mut attrs = struct_attrs.clone();
             let lit_id = if let Some((_, ref expr)) = variant.discriminant {
@@ -147,7 +109,7 @@ impl GenericBuilder {
             } else if lit_id.is_some() {
                 return Err(syn::Error::new(variant.span(), "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id."));
             };
-            // let variant_name = variant.ident.clone();
+            let variant_name = variant.ident.clone();
             // let fields = Self::parse_fields(
             //     &variant_name,
             //     &variant.fields,
@@ -158,280 +120,57 @@ impl GenericBuilder {
             // TODO currently we always add the id field, but some people might want the id to be a
             // field in the variant. this would no longer need to insert the id as a "fake-field".
             let mut fields = Vec::default();
-            let tuple = Self::extract_fields(
-                &mut fields,
-                Some(&id_field),
-                &variant.fields,
-                &attrs.default_endianness,
-            )?;
-            // START_HERE implement enum parsing. I need to figure out the best way to pass
-            // the id field along properly. currently the id field should be the first field in fields,
-            // but Variant Builder currently thinks it should be separate.
-            // 
-            // let variant_info = VariantBuilder {
-            //     id: variant_attrs.id,
-            //     capture_field: ,
-            //     field_set: todo!(),
-            // };
-            // variants.push(StructInfo {
-            //     name: variant_name,
-            //     attrs,
-            //     fields,
-            //     vis: Visibility(enum_attrs.vis.clone()),
-            //     tuple,
-            // });
+            let tuple =
+                Self::extract_fields(&mut fields, &variant.fields, &attrs.default_endianness)?;
+            let field_set = FieldSetBuilder {
+                name: variant_name,
+                fields,
+                enforcement: attrs.enforcement,
+                fill_bits: attrs.fill_bits,
+                default_endianness: attrs.default_endianness,
+            };
+            let id = variant_attrs.id.into();
+            if enum_attrs.invalid {
+                if invalid_variant.is_some() {
+                    return Err(Error::new(
+                        field_set.name.span(),
+                        "second \"invalid\" variant found. This acts as the Enum's default for invalid cases and bondrewd currently only allows 1.",
+                    ));
+                }
+                invalid_variant = Some(VariantBuilder { id, field_set });
+            } else {
+                variants.push(VariantBuilder { id, field_set });
+            }
         }
-        // // detect and fix variants without ids and verify non conflict.
-        // let mut used_ids: Vec<u128> = Vec::default();
-        // let mut unassigned_indices: Vec<usize> = Vec::default();
-        // let mut invalid_index: Option<usize> = None;
-        // let mut largest = 0;
-        // for (i, variant) in variants.iter().enumerate() {
-        //     if let Some(ref value) = variant.attrs.id {
-        //         if used_ids.contains(value) {
-        //             return Err(Error::new(
-        //                 variant.name.span(),
-        //                 "variant identifier used twice.",
-        //             ));
-        //         }
-        //         used_ids.push(*value);
-        //     } else {
-        //         unassigned_indices.push(i);
-        //     }
-        //     if variant.attrs.invalid {
-        //         if invalid_index.is_none() {
-        //             invalid_index = Some(i);
-        //         } else {
-        //             return Err(Error::new(
-        //                 variant.name.span(),
-        //                 "second catch invalid variant found. only 1 is currently allowed.",
-        //             ));
-        //         }
-        //     }
-        // }
-        // if !unassigned_indices.is_empty() {
-        //     let mut current_guess: u128 = 0;
-        //     for i in unassigned_indices {
-        //         while used_ids.contains(&current_guess) {
-        //             current_guess += 1;
-        //         }
-        //         variants[i].attrs.id = Some(current_guess);
-        //         used_ids.push(current_guess);
-        //         current_guess += 1;
-        //     }
-        // }
-        // for variant in &variants {
-        //     // verify the size doesn't go over set size.
-        //     let size = variant.total_bits();
-        //     if largest < size {
-        //         largest = size;
-        //     }
-        //     let variant_id_field = {
-        //         if let Some(id) = variant.get_id_field()? {
-        //             id
-        //         } else {
-        //             return Err(syn::Error::new(variant.name.span(), "failed to get variant field for variant. (this is a bondrewd issue, please report issue)"));
-        //         }
-        //     };
+        // detect and fix variants without ids and verify non conflict.
+        let invalid_variant = if let Some(iv) = invalid_variant {
+            iv
+        } else if let Some(last) = variants.pop() {
+            last
+        } else {
+            return Err(Error::new(
+                Span::call_site(),
+                "Enums must contain at least one variant... Please...",
+            ));
+        };
 
-        //     if let Some(bit_size) = enum_attrs.payload_bit_size {
-        //         if bit_size < size - variant_id_field.bit_size() {
-        //             return Err(Error::new(
-        //                         variant.name.span(),
-        //                         format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant_id_field.bit_size()),
-        //                     ));
-        //         }
-        //     } else if let (Some(bit_size), Some(id_size)) =
-        //         (enum_attrs.total_bit_size, enum_attrs.id_bits)
-        //     {
-        //         if bit_size - id_size < size - variant_id_field.bit_size() {
-        //             return Err(Error::new(
-        //                         variant.name.span(),
-        //                         format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size - variant_id_field.bit_size()),
-        //                     ));
-        //         }
-        //     }
-        // }
-        // if let Some(ii) = invalid_index {
-        //     let var = variants.remove(ii);
-        //     variants.push(var);
-        // }
-        // // find minimal id size from largest id value
-        // used_ids.sort_unstable();
-        // let min_id_size = if let Some(last_id) = used_ids.last() {
-        //     let mut x = *last_id;
-        //     // find minimal id size from largest id value
-        //     let mut n = 0;
-        //     while x != 0 {
-        //         x >>= 1;
-        //         n += 1;
-        //     }
-        //     n
-        // } else {
-        //     return Err(Error::new(
-        //         data.enum_token.span(),
-        //         "found no variants and could not determine size of id".to_string(),
-        //     ));
-        // };
-        // let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
-        //     (Some(payload), None) => {
-        //         if let Some(id) = enum_attrs.id_bits {
-        //             EnumAttrInfo {
-        //                 payload_bit_size: payload,
-        //                 id_bits: id,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         } else {
-        //             EnumAttrInfo {
-        //                 payload_bit_size: payload,
-        //                 id_bits: min_id_size,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         }
-        //     }
-        //     (None, Some(total)) => {
-        //         if let Some(id) = enum_attrs.id_bits {
-        //             EnumAttrInfo {
-        //                 payload_bit_size: total - id,
-        //                 id_bits: id,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         } else if largest < total {
-        //             let id = total - largest;
-        //             EnumAttrInfo {
-        //                 payload_bit_size: largest,
-        //                 id_bits: id,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         } else {
-        //             return Err(Error::new(
-        //                         data.enum_token.span(),
-        //                         "specified total is not smaller than the largest payload size, meaning there is not room the the variant id.".to_string(),
-        //                     ));
-        //         }
-        //     }
-        //     (Some(payload), Some(total)) => {
-        //         if let Some(id) = enum_attrs.id_bits {
-        //             if payload + id != total {
-        //                 return Err(Error::new(
-        //                             data.enum_token.span(),
-        //                             format!("total_size, payload_size, and id_size where all specified but id_size ({id}) + payload_size ({payload}) is not equal to total_size ({total})"),
-        //                         ));
-        //             }
-        //             if payload < largest {
-        //                 return Err(Error::new(
-        //                     data.enum_token.span(),
-        //                     "detected a variant over the maximum defined size.".to_string(),
-        //                 ));
-        //             }
-        //             EnumAttrInfo {
-        //                 id_bits: id,
-        //                 id_position: enum_attrs.id_position,
-        //                 payload_bit_size: payload,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         } else {
-        //             EnumAttrInfo {
-        //                 payload_bit_size: largest,
-        //                 id_bits: min_id_size,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         }
-        //     }
-        //     _ => {
-        //         if let Some(id) = enum_attrs.id_bits {
-        //             EnumAttrInfo {
-        //                 id_bits: id,
-        //                 id_position: enum_attrs.id_position,
-        //                 payload_bit_size: largest,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         } else {
-        //             EnumAttrInfo {
-        //                 payload_bit_size: largest,
-        //                 id_bits: min_id_size,
-        //                 id_position: enum_attrs.id_position,
-        //                 attrs: attrs.clone(),
-        //             }
-        //         }
-        //     }
-        // };
-        // if enum_attrs.id_bits < min_id_size {
-        //     return Err(Error::new(
-        //         data.enum_token.span(),
-        //         "the bit size being used is less than required to describe each variant"
-        //             .to_string(),
-        //     ));
-        // }
-        // if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
-        //     return Err(Error::new(
-        //         data.enum_token.span(),
-        //         "the payload size being used is less than largest variant".to_string(),
-        //     ));
-        // }
-        // let id_field_ty = FieldDataType::Number(
-        //     enum_attrs.id_bits,
-        //     NumberSignage::Unsigned,
-        //     get_id_type(enum_attrs.id_bits, name.span())?,
-        // );
-        // add fill_bits if needed.
-        // TODO fix fill byte getting inserted of wrong side sometimes.
-        // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
-        // for v in &mut variants {
-        //     let first_bit = v.total_bits();
-        //     if first_bit < largest {
-        //         let fill_bytes_size = (largest - first_bit).div_ceil(8);
-        //         let ident = quote::format_ident!("enum_fill_bits");
-        //         let fill = FieldInfo {
-        //             ident: Box::new(ident.into()),
-        //             attrs: Attributes {
-        //                 bit_range: first_bit..largest,
-        //                 endianness: Box::new(Endianness::big()),
-        //                 reserve: ReserveFieldOption::FakeField,
-        //                 overlap: OverlapOptions::None,
-        //                 capture_id: false,
-        //             },
-        //             ty: DataType::BlockArray {
-        //                 sub_type: Box::new(SubFieldInfo {
-        //                     ty: DataType::Number {
-        //                         size: 1,
-        //                         sign: NumberSignage::Unsigned,
-        //                         type_quote: quote! {u8},
-        //                     },
-        //                 }),
-        //                 length: fill_bytes_size,
-        //                 type_quote: quote! {[u8;#fill_bytes_size]},
-        //             },
-        //         };
-        //         if v.attrs.default_endianess.is_byte_order_reversed() {
-        //             v.fields.insert(0, fill);
-        //         } else {
-        //             v.fields.push(fill);
-        //         }
-        //     }
-        // }
-        // let out = Self::Enum(EnumInfo {
-        //     name,
-        //     variants,
-        //     attrs: enum_attrs,
-        //     vis: crate::common::Visibility(input.vis.clone()),
-        // });
-        // println!("enum - {out:?}");
-        // Ok(out)
-        //
-        Err(Error::new(
-            Span::call_site(),
-            "Enum support is in development",
-        ))
+        let out = Self {
+            ty: BuilderType::Enum(Box::new(EnumBuilder {
+                name: struct_attrs.ident.clone(),
+                id: None,
+                invalid: invalid_variant,
+                variants,
+                attrs: SolvedFieldSetAttributes {
+                    dump: struct_attrs.dump,
+                    vis: super::Visibility(struct_attrs.vis.clone()),
+                },
+            })),
+        };
+        Ok(out)
     }
     /// `bondrewd_fields` should either be empty or have exactly 1 field. If a field is provided it is assumed that
     /// this "struct" is an enum variant and the field is the enum value.
-    /// 
+    ///
     /// `id_field` in the case of enum variants the id field is defined by the enums attributes or calculated.
     /// The id field bondrewd creates must be passed in here. otherwise this will be treated as a Struct.
     ///
@@ -443,83 +182,30 @@ impl GenericBuilder {
     /// `false` indicating that the fields are named.
     fn extract_fields(
         bondrewd_fields: &mut Vec<DataBuilder>,
-        id_field: Option<&DataBuilder>,
         syn_fields: &Fields,
         default_endianness: &Endianness,
     ) -> syn::Result<bool> {
-        let mut bit_size = if let Some(id_field) = id_field {
-            id_field.bit_length()
-        } else {
-            0
-        };
         let (stripped_fields, tuple) = match syn_fields {
-            syn::Fields::Named(ref named_fields) => 
-                (
-                    Some(named_fields
-                    .named
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<syn::Field>>()),
-                    false,
-                )
-            ,
-            syn::Fields::Unnamed(ref fields) => {
-                (Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()), true)
-            }
-            syn::Fields::Unit => {
-                if bit_size == 0 {
-                    return Err(Error::new(Span::call_site(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
-                }
-                (None, false)
-            }
+            syn::Fields::Named(ref named_fields) => (
+                Some(
+                    named_fields
+                        .named
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<syn::Field>>(),
+                ),
+                false,
+            ),
+            syn::Fields::Unnamed(ref fields) => (
+                Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()),
+                true,
+            ),
+            syn::Fields::Unit => (None, false),
         };
         // figure out what the field are and what/where they should be in byte form.
         if let Some(fields) = stripped_fields {
             for (i, ref field) in fields.iter().enumerate() {
-                let mut parsed_field =
-                    DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
-                // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
-                if parsed_field.is_captured_id {
-                    if let Some(bondrewd_field) = id_field {
-                        if i == 0 {
-                            match (&bondrewd_field.ty, &mut parsed_field.ty) {
-                                (
-                                    DataType::Number(number_ty_bon, rust_size_bon),
-                                    DataType::Number(number_ty, rust_size)
-                                ) => {
-                                    let ty_ident = get_number_type_ident(number_ty, rust_size.bits());
-                                    let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
-                                    // TODO this if statements actions could cause confusing behavior
-                                    if bondrewd_field.bit_range != parsed_field.bit_range {
-                                        parsed_field.bit_range = bondrewd_field.bit_range.clone();
-                                    }
-                                    if number_ty_bon != number_ty {
-                                        return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {ty_ident_bon}")));
-                                    }else if ty_ident_bon != ty_ident {
-                                        return Err(Error::new(field.span(), format!("`capture_id` field currently must be {ty_ident_bon} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
-                                    }
-                                }
-                                (DataType::Number(number_ty_bon, rust_size_bon), _) => {
-                                    let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
-                                    return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {ty_ident_bon}.")))
-                                }
-                                _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
-                            }
-                        } else {
-                            return Err(Error::new(
-                                field.span(),
-                                "`capture_id` attribute must be the first field.",
-                            ));
-                        }
-                    } else {
-                        return Err(Error::new(
-                            field.span(),
-                            "`capture_id` attribute is intended for enum variants only.",
-                        ));
-                    }
-                } else {
-                    bit_size += parsed_field.bit_length();
-                }
+                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
                 bondrewd_fields.push(parsed_field);
             }
         }
@@ -681,6 +367,7 @@ pub struct EnumDarling {
     pub payload_byte_length: Option<usize>,
     pub id_bit_length: Option<usize>,
     pub id_byte_length: Option<usize>,
+    pub invalid: darling::util::Flag,
 }
 #[derive(Debug)]
 pub struct EnumDarlingSimplified {
@@ -688,6 +375,7 @@ pub struct EnumDarlingSimplified {
     pub vis: syn::Visibility,
     pub payload_bit_length: Option<usize>,
     pub id_bit_length: Option<usize>,
+    pub invalid: bool,
 }
 
 impl TryFrom<EnumDarling> for EnumDarlingSimplified {
@@ -717,6 +405,7 @@ impl TryFrom<EnumDarling> for EnumDarlingSimplified {
             },
             ident: value.ident,
             vis: value.vis,
+            invalid: value.invalid.is_present(),
         })
     }
 }
@@ -764,7 +453,7 @@ pub struct EnumBuilder {
     /// The id field with determines the `field_set` to use.
     pub(crate) id: Option<DataBuilder>,
     /// The default variant for situations where no other variant matches.
-    pub(crate) invalid: Option<VariantBuilder>,
+    pub(crate) invalid: VariantBuilder,
     /// The collection of variant `field_sets`.
     pub(crate) variants: Vec<VariantBuilder>,
     pub(crate) attrs: SolvedFieldSetAttributes,
@@ -774,11 +463,11 @@ impl EnumBuilder {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     #[must_use]
-    pub fn new(name: Ident) -> Self {
+    pub fn new(name: Ident, invalid: VariantBuilder) -> Self {
         Self {
             name,
             id: None,
-            invalid: None,
+            invalid,
             variants: Vec::default(),
             attrs: SolvedFieldSetAttributes::default(),
         }
@@ -788,11 +477,7 @@ impl EnumBuilder {
 #[derive(Debug)]
 pub struct VariantBuilder {
     /// The id value that this variant shall be used for.
-    id: Option<u64>,
-    /// If the variant has a field that whats to capture the
-    /// value read for the variant resolution the fields shall be placed here
-    /// NOT in the field set, useful for invalid variant.
-    capture_field: Option<DataBuilder>,
+    id: Option<usize>,
     /// the `field_set`
     field_set: FieldSetBuilder,
 }
