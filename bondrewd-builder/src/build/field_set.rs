@@ -43,13 +43,12 @@ impl GenericBuilder {
         let attrs: StructDarlingSimplified = StructDarling::from_derive_input(input)?.try_into()?;
         match &input.data {
             syn::Data::Struct(data_struct) => {
-                let tuple = matches!(data_struct.fields, syn::Fields::Unnamed(_));
                 let mut fields = Vec::default();
-                let bit_size = Self::extract_fields(
+                let tuple = Self::extract_fields(
                     &mut fields,
+                    None,
                     &data_struct.fields,
                     &attrs.default_endianness,
-                    tuple,
                 )?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
@@ -134,7 +133,6 @@ impl GenericBuilder {
             is_captured_id: false,
         };
         for variant in &data_enum.variants {
-            let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
             let mut attrs = struct_attrs.clone();
             let lit_id = if let Some((_, ref expr)) = variant.discriminant {
                 let parsed = Self::parse_lit_discriminant_expr(expr)?;
@@ -160,11 +158,11 @@ impl GenericBuilder {
             // TODO currently we always add the id field, but some people might want the id to be a
             // field in the variant. this would no longer need to insert the id as a "fake-field".
             let mut fields = Vec::default();
-            let bit_size = Self::extract_fields(
+            let tuple = Self::extract_fields(
                 &mut fields,
+                Some(&id_field),
                 &variant.fields,
                 &attrs.default_endianness,
-                tuple,
             )?;
             // START_HERE implement enum parsing. I need to figure out the best way to pass
             // the id field along properly. currently the id field should be the first field in fields,
@@ -433,42 +431,46 @@ impl GenericBuilder {
     }
     /// `bondrewd_fields` should either be empty or have exactly 1 field. If a field is provided it is assumed that
     /// this "struct" is an enum variant and the field is the enum value.
+    /// 
+    /// `id_field` in the case of enum variants the id field is defined by the enums attributes or calculated.
+    /// The id field bondrewd creates must be passed in here. otherwise this will be treated as a Struct.
     ///
     /// `syn_fields` is just the raw fields from the `syn` crate.
     ///
     /// `default_endianness` is the endianness any fields that do not have specified endianness will be given.
     ///
-    /// `tuple` do the fields have names.
-    ///
-    /// Returns the total bits used by the fields.
+    /// Returns `true` if the fields are unnamed, meaning this is a tuple Struct or Variant.
+    /// `false` indicating that the fields are named.
     fn extract_fields(
         bondrewd_fields: &mut Vec<DataBuilder>,
+        id_field: Option<&DataBuilder>,
         syn_fields: &Fields,
         default_endianness: &Endianness,
-        tuple: bool,
-    ) -> syn::Result<usize> {
-        let is_enum = !bondrewd_fields.is_empty();
-        let mut bit_size = if let Some(id_field) = bondrewd_fields.first() {
+    ) -> syn::Result<bool> {
+        let mut bit_size = if let Some(id_field) = id_field {
             id_field.bit_length()
         } else {
             0
         };
-        let stripped_fields = match syn_fields {
-            syn::Fields::Named(ref named_fields) => Some(
-                named_fields
+        let (stripped_fields, tuple) = match syn_fields {
+            syn::Fields::Named(ref named_fields) => 
+                (
+                    Some(named_fields
                     .named
                     .iter()
                     .cloned()
-                    .collect::<Vec<syn::Field>>(),
-            ),
+                    .collect::<Vec<syn::Field>>()),
+                    false,
+                )
+            ,
             syn::Fields::Unnamed(ref fields) => {
-                Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>())
+                (Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()), true)
             }
             syn::Fields::Unit => {
                 if bit_size == 0 {
                     return Err(Error::new(Span::call_site(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
                 }
-                None
+                (None, false)
             }
         };
         // figure out what the field are and what/where they should be in byte form.
@@ -478,9 +480,9 @@ impl GenericBuilder {
                     DataBuilder::parse(field, &bondrewd_fields, default_endianness)?;
                 // let mut parsed_field = FieldInfo::from_syn_field(field, &bondrewd_fields, attrs)?;
                 if parsed_field.is_captured_id {
-                    if is_enum {
+                    if let Some(bondrewd_field) = id_field {
                         if i == 0 {
-                            match (&bondrewd_fields[0].ty, &mut parsed_field.ty) {
+                            match (&bondrewd_field.ty, &mut parsed_field.ty) {
                                 (
                                     DataType::Number(number_ty_bon, rust_size_bon),
                                     DataType::Number(number_ty, rust_size)
@@ -488,17 +490,13 @@ impl GenericBuilder {
                                     let ty_ident = get_number_type_ident(number_ty, rust_size.bits());
                                     let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
                                     // TODO this if statements actions could cause confusing behavior
-                                    if bondrewd_fields[0].bit_range != parsed_field.bit_range {
-                                        parsed_field.bit_range = bondrewd_fields[0].bit_range.clone();
+                                    if bondrewd_field.bit_range != parsed_field.bit_range {
+                                        parsed_field.bit_range = bondrewd_field.bit_range.clone();
                                     }
                                     if number_ty_bon != number_ty {
                                         return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {ty_ident_bon}")));
                                     }else if ty_ident_bon != ty_ident {
                                         return Err(Error::new(field.span(), format!("`capture_id` field currently must be {ty_ident_bon} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
-                                    }
-                                    let old_id = bondrewd_fields.remove(0);
-                                    if tuple {
-                                        parsed_field.id = old_id.id;
                                     }
                                 }
                                 (DataType::Number(number_ty_bon, rust_size_bon), _) => {
@@ -525,7 +523,7 @@ impl GenericBuilder {
                 bondrewd_fields.push(parsed_field);
             }
         }
-        Ok(bit_size)
+        Ok(tuple)
     }
 }
 #[derive(Debug, FromDeriveInput, FromVariant)]

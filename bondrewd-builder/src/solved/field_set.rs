@@ -328,7 +328,7 @@ impl Solved {
     fn try_from_field_set(
         value: &FieldSetBuilder,
         attrs: &SolvedFieldSetAttributes,
-        id_field: Option<&SolvedData>,
+        id_field: Option<&BuiltData>,
     ) -> Result<Self, SolvingError> {
         // TODO solve arrays.
         // let bit_size = if let Some(id_field) = id_field {
@@ -337,7 +337,7 @@ impl Solved {
         //     0
         // };
         let mut pre_fields: Vec<BuiltData> = Vec::default();
-        let mut last_end_bit_index: Option<usize> = None;
+        let mut last_end_bit_index: Option<usize> = id_field.map(|f| f.bit_range.bit_length());
         let total_fields = value.fields.len();
         let fields_ref = &value.fields;
         // First stage checks for validity
@@ -376,28 +376,8 @@ impl Solved {
             };
             let field_range = field.bit_range.range();
             for other in &pre_fields {
-                if !field.overlap.enabled() && !other.overlap.enabled() {
-                    let other_range = other.bit_range.range();
-                    // check that self's start is not within other's range
-                    if field_range.start >= other_range.start
-                        && (field_range.start == other_range.start
-                            || field_range.start < other_range.end)
-                    {
-                        return Err(SolvingError::Overlap);
-                    }
-                    // check that other's start is not within self's range
-                    if other_range.start >= field_range.start
-                        && (other_range.start == field_range.start
-                            || other_range.start < field_range.end)
-                    {
-                        return Err(SolvingError::Overlap);
-                    }
-                    if other_range.end > field_range.start && other_range.end <= field_range.end {
-                        return Err(SolvingError::Overlap);
-                    }
-                    if field_range.end > other_range.start && field_range.end <= other_range.end {
-                        return Err(SolvingError::Overlap);
-                    }
+                if field.conflict(other) {
+                    return Err(SolvingError::Overlap);
                 }
             }
             // let name = format!("{}", field.id);
@@ -405,6 +385,11 @@ impl Solved {
         }
         let mut fields: Vec<SolvedData> = Vec::default();
         for pre_field in pre_fields {
+            if let Some(field) = id_field {
+                if field.conflict(&pre_field) {
+                    return Err(SolvingError::Overlap);
+                }
+            }
             fields.push(SolvedData::from(pre_field));
         }
         let mut out = SolvedFieldSet {
@@ -515,6 +500,39 @@ pub struct BuiltData {
     pub(crate) is_captured_id: bool,
 }
 
+impl BuiltData {
+    pub fn conflict(&self, other: &Self) -> bool {
+        if self.reserve.is_fake_field() {
+            return false;
+        }
+        if !self.overlap.enabled() && !other.overlap.enabled() {
+            let field_range = self.bit_range.range();
+            let other_range = other.bit_range.range();
+            // check that self's start is not within other's range
+            if field_range.start >= other_range.start
+                && (field_range.start == other_range.start
+                    || field_range.start < other_range.end)
+            {
+                return true;
+            }
+            // check that other's start is not within self's range
+            if other_range.start >= field_range.start
+                && (other_range.start == field_range.start
+                    || other_range.start < field_range.end)
+            {
+                return true;
+            }
+            if other_range.end > field_range.start && other_range.end <= field_range.end {
+                return true;
+            }
+            if field_range.end > other_range.start && field_range.end <= other_range.end {
+                return true;
+            }
+        }
+        false
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct BuiltRange {
     /// This is the full bit range of the field. The `ty` does not effect this values meaning, `bit_range`
@@ -531,7 +549,7 @@ impl BuiltRange {
         &self.bit_range
     }
     #[must_use]
-    pub fn bit_size(&self) -> usize {
+    pub fn bit_length(&self) -> usize {
         self.bit_range.end - self.bit_range.start
     }
 }

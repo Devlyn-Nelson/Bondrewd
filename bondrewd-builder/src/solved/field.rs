@@ -520,7 +520,7 @@ impl From<BuiltData> for SolvedData {
         // happen before byte_order_reversal and field_order_reversal
         //
         // Reverse field order
-        let bit_size = pre_field.bit_range.bit_size();
+        let bit_size = pre_field.bit_range.bit_length();
         if pre_field.endianness.is_field_order_reversed() {
             let old_field_range = pre_field.bit_range.range().clone();
             pre_field.bit_range.bit_range =
