@@ -2,14 +2,14 @@ use std::{collections::BTreeMap, env::current_dir, ops::Range};
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::Ident;
 use thiserror::Error;
 
 use crate::build::{
     field::{DataType, NumberType, RustByteSize},
     field_set::{
-        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcement,
+        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcement, VariantBuilder,
     },
     ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
     ReserveFieldOption, Visibility,
@@ -41,8 +41,20 @@ pub enum SolvedType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VariantInfo {
-    pub(crate) id: i64,
+    pub(crate) id: usize,
     pub(crate) name: Ident,
+}
+
+impl PartialOrd for VariantInfo {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for VariantInfo {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
 }
 
 pub struct SolvedFieldSet {
@@ -94,6 +106,20 @@ pub enum SolvingError {
     EnforceFullBytes,
     #[error("Final bit count does not match enforcement size.[user = {user}, actual = {actual}]")]
     EnforceBitCount { actual: usize, user: usize },
+    #[error("Variant name \"{0}\" used twice. Variants must have unique names.")]
+    VariantConflict(Ident),
+    #[error("Largest variant id value ({variant_id_bit_length}) is larger than `id_bit_size` ({bit_length})")]
+    VariantIdBitLength {
+        variant_id_bit_length: usize,
+        bit_length: usize,
+    },
+    #[error("Largest variant payload ({variant_payload_length}) is larger than `payload_bit_size` ({bit_length})")]
+    VariantPayloadBitLength {
+        variant_payload_length: usize,
+        bit_length: usize,
+    },
+    #[error("The variant id must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {0} and bondrewd doesn't know which type use.")]
+    VariantIdType(usize),
     #[error("A feature you are trying to use in not yet supported. complain to the Bondrewd maintainer about \"{0}\"")]
     Unfinished(String),
 }
@@ -115,53 +141,160 @@ impl TryFrom<GenericBuilder> for Solved {
     }
 }
 
+/// Contains builder information for constructing variant style bitfield models.
+#[derive(Debug)]
+pub struct VariantBuilt {
+    /// The id value that this variant shall be used for.
+    pub(crate) id: usize,
+    /// the `field_set`
+    pub(crate) field_set: FieldSetBuilder,
+}
+
+fn bits_needed(x: usize) -> usize {
+    let mut x = x;
+    // find minimal id size from largest id value
+    let mut n = 0;
+    while x != 0 {
+        x >>= 1;
+        n += 1;
+    }
+    n
+}
+
+fn get_built_variant(variant: VariantBuilder, used_ids: &mut Vec<usize>, last: &mut usize,largest_variant_id: &mut usize, largest_bit_size: &mut usize) -> Result<VariantBuilt, SolvingError> {
+    let id = if let Some(value) = variant.id {
+        if used_ids.contains(&value) {
+            return Err(SolvingError::VariantConflict(
+                variant.field_set.name.clone(),
+            ));
+        }
+        value
+    } else {
+        let mut guess = *last + 1;
+        while used_ids.contains(&guess) {
+            guess += 1;
+        }
+        guess
+    };
+    *last = id;
+    if *largest_variant_id < id {
+        *largest_variant_id = id;
+    }
+    let bit_length = variant.field_set.bit_length();
+    if *largest_bit_size < bit_length {
+        *largest_bit_size = bit_length
+    }
+    used_ids.push(id);
+    Ok(VariantBuilt {
+        id,
+        field_set: variant.field_set,
+    })
+}
+
 impl TryFrom<EnumBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
-        let id = value.id;
         let variants = value.variants;
-        let invalid = value.invalid;
-        let name = value.name;
         // START_HERE enum solving need to be written.
-        // // give all variants ids.
-        // // TODO this code was in hte parsing code, but has been moved here.
-        // let mut used_ids: Vec<usize> = (&invalid_variant.id).map(|f| vec![f]).unwrap_or_default();
-        // let mut last = 0;
-        // for (i, variant) in variants.iter_mut().enumerate() {
-        //     if let Some(ref value) = variant.id {
-        //         if used_ids.contains(value) {
-        //             return Err(Error::new(
-        //                 variant.field_set.name.span(),
-        //                 "variant identifier used twice.",
-        //             ));
-        //         }
-        //         last = *value;
-        //         // push used index.
-        //         used_ids.push(*value);
-        //     } else {
-        //         let mut guess = last + 1;
-        //         while used_ids.contains(&guess) {
-        //             guess += 1;
-        //         }
-        //         variant.id = Some(guess);
-        //         used_ids.push(guess);
-        //     }
-        // }
-        // // validity checks
-        // if largest_variant_id > id_field_bit_length_max_value {
-        //     return Err(Error::new(
-        //         data.enum_token.span(),
-        //         "the bit size being used is less than required to describe each variant"
-        //             .to_string(),
-        //     ));
-        // }
-        // if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
-        //     return Err(Error::new(
-        //         data.enum_token.span(),
-        //         "the payload size being used is less than largest variant".to_string(),
-        //     ));
-        // }
+        // give all variants ids.
+        // TODO this code was in hte parsing code, but has been moved here.
+        let mut used_ids: Vec<usize> = (&value.invalid.id).map(|f| vec![f]).unwrap_or_default();
+        let mut last = 0;
+        let mut built_variants = Vec::<VariantBuilt>::with_capacity(variants.len());
+        let mut largest_variant_id = 0;
+        let mut largest_bit_size = 0;
+        // Remove the
+        for variant in variants {
+            let built = get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id, &mut largest_bit_size)?;
+            built_variants.push(built);
+        }
+        let built_invalid = get_built_variant(value.invalid, &mut used_ids, &mut last, &mut largest_variant_id, &mut largest_bit_size)?;
+        // determine id field.
+        let (id_field_type, id_bits) = {
+            let id_bits = if let Some(id_bits) = value.id_bit_length {
+                id_bits
+            } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
+                (&value.payload_bit_length, &value.attrs.enforcement)
+            {
+                total_size - payload_size
+            } else {
+                bits_needed(largest_variant_id)
+            };
+            let bytes = match id_bits.div_ceil(8) {
+                1 => RustByteSize::One,
+                2 => RustByteSize::Two,
+                3..=4 => RustByteSize::Four,
+                5..=8 => RustByteSize::Eight,
+                9..=16 => RustByteSize::Sixteen,
+                invalid => return Err(SolvingError::VariantIdType(invalid)),
+            };
+            (DataType::Number(NumberType::Unsigned, bytes), id_bits)
+        };
+        // validity checks
+        if bits_needed(largest_variant_id) > id_bits {
+            return Err(SolvingError::VariantIdBitLength {
+                variant_id_bit_length: largest_variant_id,
+                bit_length: id_bits,
+            });
+        }
+
+        // TODO try to enhance id field detection, use any hints given such as `capture_id` fields.
+        let id_field = BuiltData {
+            id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
+            ty: id_field_type,
+            bit_range: BuiltRange {
+                bit_range: 0..id_bits,
+                ty: BuiltRangeType::SingleElement,
+            },
+            endianness: value.attrs.default_endianness,
+            reserve: ReserveFieldOption::FakeField,
+            overlap: OverlapOptions::None,
+            is_captured_id: false,
+        };
+
+        let mut solved_variants: BTreeMap<VariantInfo, SolvedFieldSet> = BTreeMap::default();
+        let payload_bit_length = value.payload_bit_length.unwrap_or(largest_bit_size);
+
+        for mut variant in built_variants {
+            let bit_length = variant.field_set.bit_length();
+            if payload_bit_length < largest_bit_size {
+                return Err(SolvingError::VariantPayloadBitLength {
+                    variant_payload_length: bit_length,
+                    bit_length: payload_bit_length,
+                });
+            }
+            if matches!(variant.field_set.fill_bits, FillBits::Auto) {
+                let mut target = largest_bit_size + id_bits;
+                if target != 0 {
+                    target = 8 - target;
+                }
+                let fill = target - (id_bits + bit_length);
+                variant.field_set.fill_bits = FillBits::Bits(fill);
+            } else if bit_length != largest_bit_size {
+                variant.field_set.fill_bits = FillBits::Bits(largest_bit_size - bit_length);
+            }
+            let solved_variant =
+                Self::try_from_field_set(&variant.field_set, &value.solved_attrs, Some(&id_field))?;
+
+            let variant_info = VariantInfo {
+                id: variant.id,
+                name: variant.field_set.name,
+            };
+
+            solved_variants.insert(variant_info, solved_variant);
+        }
+        let invalid = Self::try_from_field_set(&built_invalid.field_set, &value.solved_attrs, Some(&id_field))?;
+        let invalid_name = VariantInfo { id: built_invalid.id, name: built_invalid.field_set.name };
+        Ok(Solved {
+            name: value.name,
+            ty: SolvedType::Enum {
+                id: id_field.into(),
+                invalid,
+                invalid_name,
+                variants: solved_variants,
+            },
+        })
         // // verify the size doesn't go over set size.
         // for variant in &variants {
         //     let size = variant.total_bits();
@@ -194,6 +327,7 @@ impl TryFrom<EnumBuilder> for Solved {
         //         }
         //     }
         // }
+        // TODO add validity check that ensures all capture-id fields are valid.
         // // add fill_bits if needed.
         // // TODO fix fill byte getting inserted of wrong side sometimes.
         // // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
@@ -232,46 +366,8 @@ impl TryFrom<EnumBuilder> for Solved {
         // }
         // // TODO make the id_field of truth. or the one that bondrewd actually reads NOT captured id_fields.
         // // the truth Id_field should also match the capture_id fields that do exist. use below code for this.
-        // let (id_field_type, id_bits) = {
-        //     let id_bits = if let Some(id_bits) = enum_attrs.id_bit_length {
-        //         id_bits
-        //     } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
-        //         (&enum_attrs.payload_bit_length, &struct_attrs.enforcement)
-        //     {
-        //         total_size - payload_size
-        //     } else {
-        //         let mut x = data_enum.variants.len();
-        //         // find minimal id size from largest id value
-        //         let mut n = 0;
-        //         while x != 0 {
-        //             x >>= 1;
-        //             n += 1;
-        //         }
-        //         n
-        //     };
-        //     let bytes = match id_bits.div_ceil(8) {
-        //         1 => RustByteSize::One,
-        //         2 => RustByteSize::Two,
-        //         3..=4 => RustByteSize::Four,
-        //         5..=8 => RustByteSize::Eight,
-        //         9..=16 => RustByteSize::Sixteen,
-        //         invalid => return Err(syn::Error::new(
-        //             data_enum.enum_token.span(),
-        //             format!("The variant is must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."),
-        //         )),
-        //     };
-        //     (DataType::Number(NumberType::Unsigned, bytes), id_bits)
-        // };
-        // let id_field = DataBuilder {
-        //     ty: id_field_type,
-        //     id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
-        //     endianness: Some(struct_attrs.default_endianness.clone()),
-        //     bit_range: super::BuilderRange::Range(0..id_bits),
-        //     reserve: ReserveFieldOption::FakeField,
-        //     overlap: OverlapOptions::None,
-        //     is_captured_id: false,
-        // };
-        todo!("write conversion from EnumBuilder to Solved")
+        //
+        // todo!("write conversion from EnumBuilder to Solved")
     }
 }
 
@@ -279,7 +375,7 @@ impl TryFrom<StructBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: StructBuilder) -> Result<Self, Self::Error> {
-        Self::try_from_field_set(&value.field_set, &value.attrs, None)
+        Self::try_from(&value)
     }
 }
 
@@ -287,7 +383,11 @@ impl TryFrom<&StructBuilder> for Solved {
     type Error = SolvingError;
 
     fn try_from(value: &StructBuilder) -> Result<Self, Self::Error> {
-        Self::try_from_field_set(&value.field_set, &value.attrs, None)
+        let fs = Self::try_from_field_set(&value.field_set, &value.attrs, None)?;
+        Ok(Self {
+            name: value.field_set.name.clone(),
+            ty: SolvedType::Struct(fs),
+        })
     }
 }
 
@@ -479,7 +579,7 @@ impl Solved {
         value: &FieldSetBuilder,
         attrs: &SolvedFieldSetAttributes,
         id_field: Option<&BuiltData>,
-    ) -> Result<Self, SolvingError> {
+    ) -> Result<SolvedFieldSet, SolvingError> {
         // TODO solve arrays.
         //
         // let bit_size = if let Some(id_field) = id_field {
@@ -591,7 +691,7 @@ impl Solved {
         //     let field = fields.get(&key);
         // }
         let bit_size = out.total_bits();
-        match value.enforcement {
+        match value.attrs.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
                 if bit_size % 8 != 0 {
@@ -636,7 +736,7 @@ impl Solved {
             // bit_size += fill_bits;
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
-            let endian = value.default_endianness.clone();
+            let endian = value.attrs.default_endianness.clone();
             // fields.push(FieldInfo {
             //     ident: Box::new(ident.into()),
             //     attrs: Attributes {
@@ -672,10 +772,7 @@ impl Solved {
             };
             out.fields.push(fill_field.into());
         }
-        Ok(Self {
-            name: value.name.clone(),
-            ty: SolvedType::Struct(out),
-        })
+        Ok(out)
     }
 }
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and

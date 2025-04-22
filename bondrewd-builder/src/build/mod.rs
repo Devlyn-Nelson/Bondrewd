@@ -7,7 +7,7 @@ use std::{
     fmt::Debug,
     ops::{Deref, Range},
 };
-use syn::{spanned::Spanned, Expr, Ident, Lit, LitInt, LitStr};
+use syn::{spanned::Spanned, token::Pub, Expr, Ident, Lit, LitInt, LitStr};
 
 #[derive(Clone)]
 pub struct Visibility(pub syn::Visibility);
@@ -23,6 +23,12 @@ impl Deref for Visibility {
 impl Debug for Visibility {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.to_token_stream())
+    }
+}
+
+impl Default for Visibility {
+    fn default() -> Self {
+        Self(syn::Visibility::Public(Pub::default()))
     }
 }
 

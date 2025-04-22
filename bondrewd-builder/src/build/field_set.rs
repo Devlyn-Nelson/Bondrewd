@@ -49,9 +49,11 @@ impl GenericBuilder {
                     field_set: FieldSetBuilder {
                         name: attrs.ident,
                         fields,
-                        enforcement: attrs.enforcement,
                         fill_bits: attrs.fill_bits,
-                        default_endianness: attrs.default_endianness,
+                        attrs: AttrsBuilder {
+                            enforcement: attrs.enforcement,
+                            default_endianness: attrs.default_endianness,
+                        },
                     },
                     attrs: SolvedFieldSetAttributes {
                         dump: attrs.dump,
@@ -125,12 +127,14 @@ impl GenericBuilder {
             let field_set = FieldSetBuilder {
                 name: variant_name,
                 fields,
-                enforcement: attrs.enforcement,
                 fill_bits: attrs.fill_bits,
-                default_endianness: attrs.default_endianness,
+                attrs: AttrsBuilder {
+                    enforcement: attrs.enforcement,
+                    default_endianness: attrs.default_endianness,
+                },
             };
             let id = variant_attrs.id.into();
-            if enum_attrs.invalid {
+            if variant_attrs.invalid.is_present() {
                 if invalid_variant.is_some() {
                     return Err(Error::new(
                         field_set.name.span(),
@@ -160,9 +164,15 @@ impl GenericBuilder {
                 id: None,
                 invalid: invalid_variant,
                 variants,
-                attrs: SolvedFieldSetAttributes {
+                solved_attrs: SolvedFieldSetAttributes {
                     dump: struct_attrs.dump,
                     vis: super::Visibility(struct_attrs.vis.clone()),
+                },
+                id_bit_length: enum_attrs.id_bit_length,
+                payload_bit_length: enum_attrs.payload_bit_length,
+                attrs: AttrsBuilder {
+                    enforcement: struct_attrs.enforcement.clone(),
+                    default_endianness: struct_attrs.default_endianness.clone(),
                 },
             })),
         };
@@ -354,6 +364,7 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
 #[darling(attributes(bondrewd))]
 pub struct VariantDarling {
     pub id: Option<usize>,
+    pub invalid: darling::util::Flag,
 }
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
@@ -367,7 +378,6 @@ pub struct EnumDarling {
     pub payload_byte_length: Option<usize>,
     pub id_bit_length: Option<usize>,
     pub id_byte_length: Option<usize>,
-    pub invalid: darling::util::Flag,
 }
 #[derive(Debug)]
 pub struct EnumDarlingSimplified {
@@ -375,7 +385,6 @@ pub struct EnumDarlingSimplified {
     pub vis: syn::Visibility,
     pub payload_bit_length: Option<usize>,
     pub id_bit_length: Option<usize>,
-    pub invalid: bool,
 }
 
 impl TryFrom<EnumDarling> for EnumDarlingSimplified {
@@ -405,7 +414,6 @@ impl TryFrom<EnumDarling> for EnumDarlingSimplified {
             },
             ident: value.ident,
             vis: value.vis,
-            invalid: value.invalid.is_present(),
         })
     }
 }
@@ -445,6 +453,12 @@ impl From<(FieldSetBuilder, SolvedFieldSetAttributes)> for StructBuilder {
         }
     }
 }
+#[derive(Debug, Default)]
+pub struct AttrsBuilder {
+    /// Imposes checks on the sizing of the `field_set`
+    pub enforcement: StructEnforcement,
+    pub default_endianness: Endianness,
+}
 /// Builds an enum bitfield model.
 #[derive(Debug)]
 pub struct EnumBuilder {
@@ -456,7 +470,10 @@ pub struct EnumBuilder {
     pub(crate) invalid: VariantBuilder,
     /// The collection of variant `field_sets`.
     pub(crate) variants: Vec<VariantBuilder>,
-    pub(crate) attrs: SolvedFieldSetAttributes,
+    pub(crate) solved_attrs: SolvedFieldSetAttributes,
+    pub(crate) payload_bit_length: Option<usize>,
+    pub(crate) id_bit_length: Option<usize>,
+    pub(crate) attrs: AttrsBuilder,
 }
 
 impl EnumBuilder {
@@ -469,7 +486,10 @@ impl EnumBuilder {
             id: None,
             invalid,
             variants: Vec::default(),
-            attrs: SolvedFieldSetAttributes::default(),
+            solved_attrs: SolvedFieldSetAttributes::default(),
+            id_bit_length: None,
+            payload_bit_length: None,
+            attrs: AttrsBuilder::default(),
         }
     }
 }
@@ -477,9 +497,9 @@ impl EnumBuilder {
 #[derive(Debug)]
 pub struct VariantBuilder {
     /// The id value that this variant shall be used for.
-    id: Option<usize>,
+    pub(crate) id: Option<usize>,
     /// the `field_set`
-    field_set: FieldSetBuilder,
+    pub(crate) field_set: FieldSetBuilder,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
 #[derive(Debug)]
@@ -487,8 +507,6 @@ pub struct FieldSetBuilder {
     pub(crate) name: Ident,
     /// the set of fields.
     pub(crate) fields: Vec<DataBuilder>,
-    /// Imposes checks on the sizing of the `field_set`
-    pub enforcement: StructEnforcement,
     /// PLEASE READ IF YOU ARE NOT USING [`StructEnforcement::EnforceFullBytes`]
     ///
     /// If you define a `field_sets` with a total bit count that does not divide evenly by 8, funny behavior can
@@ -501,7 +519,7 @@ pub struct FieldSetBuilder {
     /// Using Auto is useful because if the `field_set` doesn't
     /// take a multiple of 8 bits, it will fill bits until it does.
     pub fill_bits: FillBits,
-    pub default_endianness: Endianness,
+    pub attrs: AttrsBuilder,
 }
 
 impl FieldSetBuilder {
@@ -510,9 +528,8 @@ impl FieldSetBuilder {
         Self {
             name: key,
             fields: Vec::default(),
-            enforcement: StructEnforcement::default(),
             fill_bits: FillBits::default(),
-            default_endianness: Endianness::default(),
+            attrs: AttrsBuilder::default(),
         }
     }
     pub fn add_field(&mut self, new_data: DataBuilder) {
@@ -521,6 +538,19 @@ impl FieldSetBuilder {
     pub fn with_field(mut self, new_data: DataBuilder) -> Self {
         self.fields.push(new_data);
         self
+    }
+    pub fn bit_length(&self) -> usize {
+        let mut bl = 0;
+        for f in &self.fields {
+            if f.reserve.count_bits() {
+                bl += match f.overlap {
+                    super::OverlapOptions::None => f.bit_length(),
+                    super::OverlapOptions::Allow(bits) => f.bit_length() - bits,
+                    super::OverlapOptions::Redundant => 0,
+                };
+            }
+        }
+        bl
     }
 }
 
