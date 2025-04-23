@@ -46,7 +46,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-
     let solved: Solved = match struct_info.try_into() {
         Ok(s) => s,
         Err(err) => {

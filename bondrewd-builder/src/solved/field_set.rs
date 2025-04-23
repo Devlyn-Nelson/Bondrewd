@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, env::current_dir, ops::Range};
+use std::{collections::BTreeMap, env::current_dir, ops::Range, str::FromStr};
 
 use convert_case::{Case, Casing};
 use proc_macro2::{Span, TokenStream};
@@ -6,13 +6,17 @@ use quote::{format_ident, quote};
 use syn::Ident;
 use thiserror::Error;
 
-use crate::build::{
-    field::{DataType, NumberType, RustByteSize},
-    field_set::{
-        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcement, VariantBuilder,
+use crate::{
+    build::{
+        field::{DataType, NumberType, RustByteSize},
+        field_set::{
+            EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder,
+            StructEnforcement, VariantBuilder,
+        },
+        ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
+        ReserveFieldOption, Visibility,
     },
-    ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
-    ReserveFieldOption, Visibility,
+    derive::{quotes::GeneratedFunctions, SolvedFieldSetAdditive},
 };
 
 use super::field::{DynamicIdent, SolvedData};
@@ -35,6 +39,7 @@ pub enum SolvedType {
         /// Sets of fields, each representing a variant of an enum. the String
         /// being the name of the variant
         variants: BTreeMap<VariantInfo, SolvedFieldSet>,
+        dump: bool,
     },
     Struct(SolvedFieldSet),
 }
@@ -43,6 +48,7 @@ pub enum SolvedType {
 pub struct VariantInfo {
     pub(crate) id: usize,
     pub(crate) name: Ident,
+    pub(crate) tuple: bool,
 }
 
 impl PartialOrd for VariantInfo {
@@ -148,6 +154,7 @@ pub struct VariantBuilt {
     pub(crate) id: usize,
     /// the `field_set`
     pub(crate) field_set: FieldSetBuilder,
+    pub(crate) tuple: bool,
 }
 
 fn bits_needed(x: usize) -> usize {
@@ -161,7 +168,13 @@ fn bits_needed(x: usize) -> usize {
     n
 }
 
-fn get_built_variant(variant: VariantBuilder, used_ids: &mut Vec<usize>, last: &mut usize,largest_variant_id: &mut usize, largest_bit_size: &mut usize) -> Result<VariantBuilt, SolvingError> {
+fn get_built_variant(
+    variant: VariantBuilder,
+    used_ids: &mut Vec<usize>,
+    next: &mut usize,
+    largest_variant_id: &mut usize,
+    largest_bit_size: &mut usize,
+) -> Result<VariantBuilt, SolvingError> {
     let id = if let Some(value) = variant.id {
         if used_ids.contains(&value) {
             return Err(SolvingError::VariantConflict(
@@ -170,13 +183,13 @@ fn get_built_variant(variant: VariantBuilder, used_ids: &mut Vec<usize>, last: &
         }
         value
     } else {
-        let mut guess = *last + 1;
+        let mut guess = *next;
         while used_ids.contains(&guess) {
             guess += 1;
         }
         guess
     };
-    *last = id;
+    *next = id + 1;
     if *largest_variant_id < id {
         *largest_variant_id = id;
     }
@@ -188,6 +201,7 @@ fn get_built_variant(variant: VariantBuilder, used_ids: &mut Vec<usize>, last: &
     Ok(VariantBuilt {
         id,
         field_set: variant.field_set,
+        tuple: variant.tuple,
     })
 }
 
@@ -196,20 +210,30 @@ impl TryFrom<EnumBuilder> for Solved {
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
         let variants = value.variants;
-        // START_HERE enum solving need to be written.
         // give all variants ids.
-        // TODO this code was in hte parsing code, but has been moved here.
+        // TODO this code was in the parsing code, but has been moved here.
         let mut used_ids: Vec<usize> = (&value.invalid.id).map(|f| vec![f]).unwrap_or_default();
         let mut last = 0;
         let mut built_variants = Vec::<VariantBuilt>::with_capacity(variants.len());
         let mut largest_variant_id = 0;
         let mut largest_bit_size = 0;
-        // Remove the
         for variant in variants {
-            let built = get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id, &mut largest_bit_size)?;
+            let built = get_built_variant(
+                variant,
+                &mut used_ids,
+                &mut last,
+                &mut largest_variant_id,
+                &mut largest_bit_size,
+            )?;
             built_variants.push(built);
         }
-        let built_invalid = get_built_variant(value.invalid, &mut used_ids, &mut last, &mut largest_variant_id, &mut largest_bit_size)?;
+        let built_invalid = get_built_variant(
+            value.invalid,
+            &mut used_ids,
+            &mut last,
+            &mut largest_variant_id,
+            &mut largest_bit_size,
+        )?;
         // determine id field.
         let (id_field_type, id_bits) = {
             let id_bits = if let Some(id_bits) = value.id_bit_length {
@@ -256,36 +280,25 @@ impl TryFrom<EnumBuilder> for Solved {
         let mut solved_variants: BTreeMap<VariantInfo, SolvedFieldSet> = BTreeMap::default();
         let payload_bit_length = value.payload_bit_length.unwrap_or(largest_bit_size);
 
-        for mut variant in built_variants {
-            let bit_length = variant.field_set.bit_length();
-            if payload_bit_length < largest_bit_size {
-                return Err(SolvingError::VariantPayloadBitLength {
-                    variant_payload_length: bit_length,
-                    bit_length: payload_bit_length,
-                });
-            }
-            if matches!(variant.field_set.fill_bits, FillBits::Auto) {
-                let mut target = largest_bit_size + id_bits;
-                if target != 0 {
-                    target = 8 - target;
-                }
-                let fill = target - (id_bits + bit_length);
-                variant.field_set.fill_bits = FillBits::Bits(fill);
-            } else if bit_length != largest_bit_size {
-                variant.field_set.fill_bits = FillBits::Bits(largest_bit_size - bit_length);
-            }
-            let solved_variant =
-                Self::try_from_field_set(&variant.field_set, &value.solved_attrs, Some(&id_field))?;
-
-            let variant_info = VariantInfo {
-                id: variant.id,
-                name: variant.field_set.name,
-            };
-
+        for variant in built_variants {
+            let (variant_info, solved_variant) = Self::solve_variant(
+                variant,
+                &id_field,
+                &value.solved_attrs,
+                payload_bit_length,
+                largest_bit_size,
+                id_bits,
+            )?;
             solved_variants.insert(variant_info, solved_variant);
         }
-        let invalid = Self::try_from_field_set(&built_invalid.field_set, &value.solved_attrs, Some(&id_field))?;
-        let invalid_name = VariantInfo { id: built_invalid.id, name: built_invalid.field_set.name };
+        let (invalid_name, invalid) = Self::solve_variant(
+            built_invalid,
+            &id_field,
+            &value.solved_attrs,
+            payload_bit_length,
+            largest_bit_size,
+            id_bits,
+        )?;
         Ok(Solved {
             name: value.name,
             ty: SolvedType::Enum {
@@ -293,6 +306,7 @@ impl TryFrom<EnumBuilder> for Solved {
                 invalid,
                 invalid_name,
                 variants: solved_variants,
+                dump: value.solved_attrs.dump,
             },
         })
         // // verify the size doesn't go over set size.
@@ -392,6 +406,40 @@ impl TryFrom<&StructBuilder> for Solved {
 }
 
 impl Solved {
+    fn solve_variant(
+        mut variant: VariantBuilt,
+        id_field: &BuiltData,
+        solved_attrs: &SolvedFieldSetAttributes,
+        payload_bit_length: usize,
+        largest_bit_size: usize,
+        id_bits: usize,
+    ) -> Result<(VariantInfo, SolvedFieldSet), SolvingError> {
+        let bit_length = variant.field_set.bit_length();
+        if payload_bit_length < largest_bit_size {
+            return Err(SolvingError::VariantPayloadBitLength {
+                variant_payload_length: bit_length,
+                bit_length: payload_bit_length,
+            });
+        }
+        if matches!(variant.field_set.fill_bits, FillBits::Auto) || bit_length < largest_bit_size {
+            let mut target = largest_bit_size + id_bits;
+            target = target.div_ceil(8) * 8;
+            let fill = target - (id_bits + bit_length);
+            variant.field_set.fill_bits = FillBits::Bits(fill);
+        } else if bit_length != largest_bit_size {
+            println!("{largest_bit_size} - {bit_length}");
+            variant.field_set.fill_bits = FillBits::Bits(largest_bit_size - bit_length);
+        }
+        let solved_variant =
+            Self::try_from_field_set(&variant.field_set, solved_attrs, Some(id_field))?;
+
+        let variant_info = VariantInfo {
+            id: variant.id,
+            name: variant.field_set.name,
+            tuple: variant.tuple,
+        };
+        Ok((variant_info, solved_variant))
+    }
     pub fn total_bits_no_fill(&self) -> usize {
         match &self.ty {
             SolvedType::Enum {
@@ -399,6 +447,7 @@ impl Solved {
                 invalid,
                 invalid_name,
                 variants,
+                dump,
             } => {
                 let mut largest = 0;
                 for var in variants {
@@ -419,6 +468,7 @@ impl Solved {
                 invalid,
                 invalid_name,
                 variants,
+                dump,
             } => {
                 let mut largest = 0;
                 for var in variants {
@@ -439,6 +489,7 @@ impl Solved {
                 invalid,
                 invalid_name,
                 variants,
+                dump,
             } => {
                 let mut largest = 0;
                 for var in variants {
@@ -454,22 +505,18 @@ impl Solved {
     }
     pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
-        let (gen, struct_size) = match &self.ty {
+        let struct_size = self.total_bytes_used();
+        let gen = match &self.ty {
             SolvedType::Enum {
                 id,
                 invalid,
                 invalid_name,
                 variants,
-            } => todo!("generate enum quotes"),
-            SolvedType::Struct(solved_field_set) => {
-                let struct_size = self.total_bytes_used();
-                (
-                    solved_field_set
-                        .generate_quotes(struct_name, None, struct_size, true)?
-                        .finish(),
-                    struct_size,
-                )
-            }
+                dump,
+            } => Self::gen_enum(struct_name, id, invalid, invalid_name, variants, dyn_fns)?,
+            SolvedType::Struct(solved_field_set) => solved_field_set
+                .generate_quotes(struct_name, None, struct_size, dyn_fns)?
+                .finish(),
         };
         // get the struct size and name so we can use them in a quote.
         let impl_fns = gen.non_trait;
@@ -568,10 +615,8 @@ impl Solved {
                 invalid,
                 invalid_name,
                 variants,
-            } => {
-                // TODO impl dump for enums.
-                false
-            }
+                dump,
+            } => *dump,
             SolvedType::Struct(solved_field_set) => solved_field_set.attrs.dump,
         }
     }
@@ -773,6 +818,377 @@ impl Solved {
             out.fields.push(fill_field.into());
         }
         Ok(out)
+    }
+    fn gen_enum(
+        enum_name: &Ident,
+        id: &SolvedData,
+        invalid: &SolvedFieldSet,
+        invalid_name: &VariantInfo,
+        variants: &BTreeMap<VariantInfo, SolvedFieldSet>,
+        dyn_fns: bool,
+    ) -> syn::Result<GeneratedFunctions> {
+        let mut gen_read = GeneratedFunctions::default();
+        let mut gen_write = GeneratedFunctions::default();
+        let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
+        let field_access = id.get_quotes()?;
+        invalid.make_read_fns(id, &None, &mut quote! {}, &mut gen_read, &field_access)?;
+        invalid.make_write_fns(id, &set_add, &mut gen_write, &field_access)?;
+        gen_read.merge(&gen_write);
+        let mut gen = gen_read;
+        // TODO generate slice functions for id field.
+        // let id_slice_read = generate_read_slice_field_fn(
+        //     access.read(),
+        //     &field,
+        //     &temp_struct_info,
+        //     field_name,
+        // );
+        // let id_slice_write = generate_write_slice_field_fn(
+        //     access.write(),
+        //     access.zero(),
+        //     &field,
+        //     &temp_struct_info,
+        //     field_name,
+        // );
+        // quote! {
+        //     #output
+        //     #id_slice_read
+        //     #id_slice_write
+        // }
+        let struct_size = {
+            let add_id_field = if let Some(maybe_capture) = invalid.fields.first() {
+                !maybe_capture.attr_capture_id()
+            } else {
+                true
+            };
+            let mut out = invalid.total_bytes();
+            if add_id_field {
+                out += id.bit_length();
+            }
+            out
+        };
+        // let last_variant = self.variants.len() - 1;
+        // stores all of the into/from bytes functions across variants.
+        let mut into_bytes_fn: TokenStream = quote! {};
+        let mut from_bytes_fn: TokenStream = quote! {};
+        // stores the build up for the id function.
+        let mut id_fn: TokenStream = quote! {};
+        // stores the build up for the `check_slice` fn for an enum.
+        let (mut check_slice_fn, checked_ident): (TokenStream, Ident) =
+            (quote! {}, format_ident!("{enum_name}Checked"));
+        // stores the build up for the `check_slice_mut` fn for an enum.
+        let (mut check_slice_mut_fn, checked_ident_mut): (TokenStream, Ident) =
+            (quote! {}, format_ident!("{enum_name}CheckedMut"));
+        // Stores a build up for creating a match enum type that contains CheckStruct for each variant.
+        let (mut checked_slice_enum, mut checked_slice_enum_mut, mut lifetime): (
+            TokenStream,
+            TokenStream,
+            bool,
+        ) = (quote! {}, quote! {}, false);
+        // the string `variant_id` as an Ident
+        let v_id = format_ident!("{}", EnumBuilder::VARIANT_ID_NAME);
+        // setup function names for getting variant id.
+        let v_id_read_call = format_ident!("read_{v_id}");
+        let v_id_write_call = format_ident!("write_{v_id}");
+        let v_id_read_slice_call = format_ident!("read_slice_{v_id}");
+        for (variant_info, variant) in variants.iter() {
+            // this is the slice indexing that will fool the set function code into thinking
+            // it is looking at a smaller array.
+            //
+            // v_name is the name of the variant.
+            let v_name = &variant_info.name;
+            // upper_v_name is an Screaming Snake Case of v_name.
+            let upper_v_name = v_name.to_string().to_case(Case::UpperSnake);
+            // constant names for variant bit and byte sizings.
+            let v_byte_const_name = format_ident!("{upper_v_name}_BYTE_SIZE");
+            let v_bit_const_name = format_ident!("{upper_v_name}_BIT_SIZE");
+            // constant values for variant bit and byte sizings.
+            let v_byte_size = variant.total_bytes();
+            let v_bit_size = variant.total_bits_no_fill();
+            // TokenStream of v_name.
+            let variant_name = quote! {#v_name};
+
+            let thing = variant.gen_struct_fields(&v_name, Some(enum_name), dyn_fns)?;
+            if let Some(gen_read) = &thing.read_fns.dyn_fns {
+                gen.append_checked_struct_impl_fns(&gen_read.checked_struct);
+            }
+            if let Some(gen_write) = &thing.write_fns.dyn_fns {
+                gen.append_checked_struct_impl_fns(&gen_write.checked_struct);
+            }
+            gen.append_impl_fns(&thing.read_fns.non_trait);
+            gen.append_impl_fns(&thing.write_fns.non_trait);
+            gen.append_impl_fns(&quote! {
+                pub const #v_byte_const_name: usize = #v_byte_size;
+                pub const #v_bit_const_name: usize = #v_bit_size;
+            });
+            // make setter for each field.
+            // construct from bytes function. use input_byte_buffer as input name because,
+            // that is what the field quotes expect to extract from.
+            // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+            // because all of the from_bytes field quote store there data in a temporary variable with the same
+            // name as its destination field the list of field names will be just fine.
+
+            let variant_id = if false {
+                // TODO the invalid variant needs this. replace the `if false {` above with proper logic.
+                quote! {_}
+            } else {
+                // COPIED_1 Below code is duplicate, look further below to see other copy.
+                let id = &variant_info.id;
+                if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                    yes
+                } else {
+                    return Err(syn::Error::new(
+                        variant_info.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
+            };
+            let mut variant_value = if variant.contains_captured_id() {
+                quote! {#v_id}
+            } else {
+                // COPIED_1 Below code is duplicate, look above to see other copy.
+                let id = &variant_info.id;
+                if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
+                    yes
+                } else {
+                    return Err(syn::Error::new(
+                        variant_info.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
+            };
+            let variant_constructor = if thing.field_list.is_empty() {
+                quote! {Self::#variant_name}
+            } else if variant_info.tuple {
+                let field_name_list = thing.field_list;
+                quote! {Self::#variant_name ( #field_name_list )}
+            } else {
+                let field_name_list = thing.field_list;
+                quote! {Self::#variant_name { #field_name_list }}
+            };
+            // From Bytes
+            let from_bytes_quote = &thing.read_fns.bitfield_trait;
+            from_bytes_fn = quote! {
+                #from_bytes_fn
+                #variant_id => {
+                    #from_bytes_quote
+                    #variant_constructor
+                }
+            };
+            if let (Some(dyn_fns_thing), Some(dyn_fns_gen)) =
+                (&thing.read_fns.dyn_fns, &mut gen.dyn_fns)
+            {
+                let bitfield_dyn_trait_impl_fns = &dyn_fns_gen.bitfield_dyn_trait;
+                let from_vec_quote = &dyn_fns_thing.bitfield_dyn_trait;
+                dyn_fns_gen.bitfield_dyn_trait = quote! {
+                    #bitfield_dyn_trait_impl_fns
+                    #variant_id => {
+                        #from_vec_quote
+                        #variant_constructor
+                    }
+                };
+                // Check Slice
+                if let Some(slice_info) = thing.slice_info {
+                    // do the match statement stuff
+                    let check_slice_name = &slice_info.func;
+                    let check_slice_struct = &slice_info.structure;
+                    check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            Ok(#checked_ident :: #variant_name (Self::#check_slice_name(buffer)?))
+                        }
+                    };
+                    let check_slice_name_mut = &slice_info.mut_func;
+                    let check_slice_struct_mut = &slice_info.mut_structure;
+                    check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            Ok(#checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer)?))
+                        }
+                    };
+
+                    // do enum stuff
+                    if !lifetime {
+                        lifetime = true;
+                    }
+                    checked_slice_enum = quote! {
+                        #checked_slice_enum
+                        #v_name (#check_slice_struct<'a>),
+                    };
+                    checked_slice_enum_mut = quote! {
+                        #checked_slice_enum_mut
+                        #v_name (#check_slice_struct_mut<'a>),
+                    };
+                } else {
+                    // do the match statement stuff
+                    check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            Ok(#checked_ident :: #variant_name)
+                        }
+                    };
+                    check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            Ok(#checked_ident_mut :: #variant_name)
+                        }
+                    };
+                    // do enum stuff
+                    checked_slice_enum = quote! {
+                        #checked_slice_enum
+                        #v_name,
+                    };
+                    checked_slice_enum_mut = quote! {
+                        #checked_slice_enum_mut
+                        #v_name,
+                    };
+                }
+            }
+            // Into Bytes
+            let into_bytes_quote = &thing.write_fns.bitfield_trait;
+            into_bytes_fn = quote! {
+                #into_bytes_fn
+                #variant_constructor => {
+                    Self::#v_id_write_call(&mut output_byte_buffer, #variant_value);
+                    #into_bytes_quote
+                }
+            };
+            if id.attr_capture_id() {
+                let id_field_name = id.resolver.name();
+                variant_value = quote! {#id_field_name};
+            }
+
+            let mut ignore_fields = if id.attr_capture_id() {
+                let id_field_name = variant_value.clone();
+                variant_value = quote! {*#variant_value};
+                quote! { #id_field_name, }
+            } else {
+                quote! {}
+            };
+            if variant.fields.len() > 1 {
+                ignore_fields = quote! { #ignore_fields .. };
+            } else {
+                ignore_fields = quote! { #ignore_fields };
+            };
+            if variant_info.tuple {
+                ignore_fields = quote! {(#ignore_fields)};
+            } else {
+                ignore_fields = quote! {{#ignore_fields}};
+            }
+            id_fn = quote! {
+                #id_fn
+                Self::#variant_name #ignore_fields => #variant_value,
+            };
+        }
+        // Finish `from_bytes` function.
+        from_bytes_fn = quote! {
+            fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
+                let #v_id = Self::#v_id_read_call(&input_byte_buffer);
+                match #v_id {
+                    #from_bytes_fn
+                }
+            }
+        };
+        if let Some(dyn_fns_gen) = &mut gen.dyn_fns {
+            let from_vec_fn_inner = dyn_fns_gen.bitfield_dyn_trait.clone();
+            let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+            let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+            dyn_fns_gen.bitfield_dyn_trait = quote! {
+                #[doc = #comment]
+                fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
+                    if input_byte_buffer.len() < Self::BYTE_SIZE {
+                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                    }
+                    let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
+                    let out = match #v_id {
+                        #from_vec_fn_inner
+                    };
+                    Ok(out)
+                }
+            };
+            #[cfg(feature = "std")]
+            {
+                let from_vec_fn = &dyn_fns_gen.bitfield_dyn_trait;
+                dyn_fns_gen.bitfield_dyn_trait = quote! {
+                    #from_vec_fn
+                    #[doc = #comment_take]
+                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                        if input_byte_buffer.len() < Self::BYTE_SIZE {
+                            return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                        }
+                        let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
+                        let out = match #v_id {
+                            #from_vec_fn_inner
+                        };
+                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                        Ok(out)
+                    }
+                };
+            }
+            let comment = format!(
+                "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
+            );
+            gen.append_impl_fns(&quote! {
+                #[doc = #comment]
+                pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                    match #v_id {
+                        #check_slice_fn
+                    }
+                }
+            });
+            let comment = format!(
+                "Returns a checked mutable structure which allows you to read/write any field for a `{enum_name}` from provided mut slice.",
+            );
+            gen.append_impl_fns(&quote! {
+                #[doc = #comment]
+                pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                    match #v_id {
+                        #check_slice_mut_fn
+                    }
+                }
+            });
+            let lifetime = if lifetime {
+                quote! {<'a>}
+            } else {
+                quote! {}
+            };
+            gen.append_checked_struct_impl_fns(&quote! {
+                pub enum #checked_ident #lifetime {
+                    #checked_slice_enum
+                }
+                pub enum #checked_ident_mut #lifetime {
+                    #checked_slice_enum_mut
+                }
+            });
+        }
+        // Finish `into_bytes` function.
+        into_bytes_fn = quote! {
+            fn into_bytes(self) -> [u8;#struct_size] {
+                let mut output_byte_buffer = [0u8;#struct_size];
+                match self {
+                    #into_bytes_fn
+                }
+                output_byte_buffer
+            }
+        };
+        // Finish Variant Id function.
+        let id_ident = id.resolver.ty.get_type_quote()?;
+        gen.append_impl_fns(&quote! {
+            pub fn id(&self) -> #id_ident {
+                match self {
+                    #id_fn
+                }
+            }
+        });
+
+        gen.bitfield_trait = quote! {
+            #from_bytes_fn
+            #into_bytes_fn
+        };
+
+        Ok(gen)
+        // todo!("finish enum generation.");
     }
 }
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and

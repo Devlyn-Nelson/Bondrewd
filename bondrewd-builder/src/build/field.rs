@@ -650,10 +650,11 @@ impl DataBuilder {
             id: if let Some(id) = &field.ident {
                 id.into()
             } else {
-                return Err(Error::new(
-                    field.span(),
-                    "Currently unnamed fields are not supported.",
-                ));
+                format_ident!("field_{}", fields.len() + 1).into()
+                // return Err(Error::new(
+                //     field.span(),
+                //     "Currently unnamed fields are not supported.",
+                // ));
             },
             ty: data_type.data_type,
             endianness: attrs.endianness,

@@ -36,15 +36,14 @@ impl GenericBuilder {
         &mut self.ty
     }
     pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
-        let attrs: StructDarlingSimplified = StructDarling::from_derive_input(input)?.try_into()?;
         match &input.data {
             syn::Data::Struct(data_struct) => {
+                let attrs: StructDarlingSimplified =
+                    StructDarling::from_derive_input(input)?.try_into()?;
+                let default_endianness = attrs.default_endianness.unwrap_or_default();
                 let mut fields = Vec::default();
-                let tuple = Self::extract_fields(
-                    &mut fields,
-                    &data_struct.fields,
-                    &attrs.default_endianness,
-                )?;
+                let tuple =
+                    Self::extract_fields(&mut fields, &data_struct.fields, &default_endianness)?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: attrs.ident,
@@ -52,7 +51,7 @@ impl GenericBuilder {
                         fill_bits: attrs.fill_bits,
                         attrs: AttrsBuilder {
                             enforcement: attrs.enforcement,
-                            default_endianness: attrs.default_endianness,
+                            default_endianness: default_endianness,
                         },
                     },
                     attrs: SolvedFieldSetAttributes {
@@ -66,7 +65,11 @@ impl GenericBuilder {
                 })
             }
             syn::Data::Enum(data_enum) => {
-                let enum_attrs = EnumDarling::from_derive_input(input)?.try_into()?;
+                let (enum_attrs, attrs) = {
+                    let thing: ObjectDarlingSimplifiedPackage =
+                        EnumDarling::from_derive_input(input)?.try_into()?;
+                    (thing.enum_attrs, thing.struct_attrs)
+                };
                 Self::parse_enum(data_enum, &attrs, &enum_attrs)
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
@@ -104,8 +107,12 @@ impl GenericBuilder {
             } else {
                 None
             };
-            let () = attrs.merge(StructDarling::from_variant(variant)?)?;
-            let mut variant_attrs = VariantDarling::from_variant(variant)?;
+            let mut variant_attrs = {
+                let vd = VariantDarling::from_variant(variant)?;
+                let out = VariantDarlingSimplified::do_thing(vd, &mut attrs)?;
+                out
+            };
+            let default_endianness = attrs.default_endianness.clone().unwrap_or_default();
             if variant_attrs.id.is_none() {
                 variant_attrs.id = lit_id;
             } else if lit_id.is_some() {
@@ -122,28 +129,35 @@ impl GenericBuilder {
             // TODO currently we always add the id field, but some people might want the id to be a
             // field in the variant. this would no longer need to insert the id as a "fake-field".
             let mut fields = Vec::default();
-            let tuple =
-                Self::extract_fields(&mut fields, &variant.fields, &attrs.default_endianness)?;
+            let tuple = Self::extract_fields(&mut fields, &variant.fields, &default_endianness)?;
             let field_set = FieldSetBuilder {
                 name: variant_name,
                 fields,
                 fill_bits: attrs.fill_bits,
                 attrs: AttrsBuilder {
                     enforcement: attrs.enforcement,
-                    default_endianness: attrs.default_endianness,
+                    default_endianness: default_endianness,
                 },
             };
             let id = variant_attrs.id.into();
-            if variant_attrs.invalid.is_present() {
+            if variant_attrs.invalid {
                 if invalid_variant.is_some() {
                     return Err(Error::new(
                         field_set.name.span(),
                         "second \"invalid\" variant found. This acts as the Enum's default for invalid cases and bondrewd currently only allows 1.",
                     ));
                 }
-                invalid_variant = Some(VariantBuilder { id, field_set });
+                invalid_variant = Some(VariantBuilder {
+                    id,
+                    field_set,
+                    tuple,
+                });
             } else {
-                variants.push(VariantBuilder { id, field_set });
+                variants.push(VariantBuilder {
+                    id,
+                    field_set,
+                    tuple,
+                });
             }
         }
         // detect and fix variants without ids and verify non conflict.
@@ -172,7 +186,7 @@ impl GenericBuilder {
                 payload_bit_length: enum_attrs.payload_bit_length,
                 attrs: AttrsBuilder {
                     enforcement: struct_attrs.enforcement.clone(),
-                    default_endianness: struct_attrs.default_endianness.clone(),
+                    default_endianness: struct_attrs.default_endianness.clone().unwrap_or_default(),
                 },
             })),
         };
@@ -239,7 +253,7 @@ pub struct StructDarling {
 }
 #[derive(Debug, Clone)]
 pub struct StructDarlingSimplified {
-    pub default_endianness: Endianness,
+    pub default_endianness: Option<Endianness>,
     pub reverse: bool,
     pub ident: Ident,
     pub vis: syn::Visibility,
@@ -304,29 +318,20 @@ impl StructDarlingSimplified {
             Ok(FillBits::None)
         }
     }
-    pub fn merge(&mut self, other: StructDarling) -> syn::Result<()> {
-        if let Some(ref val) = other.default_endianness {
-            self.default_endianness = Self::try_solve_endianness(val)?
+    pub fn merge(&mut self, other: StructDarlingSimplified) -> syn::Result<()> {
+        if let Some(val) = other.default_endianness {
+            self.default_endianness = Some(val);
         };
-        let enforcement = Self::try_solve_enforcement(
-            other.enforce_full_bytes,
-            other.enforce_bytes,
-            other.enforce_bits,
-        )?;
-        let fill_bits = Self::try_solve_fill_bits(other.fill_bits, other.fill_bytes, other.fill)?;
-        if !matches!(enforcement, StructEnforcement::NoRules) {
-            self.enforcement = enforcement;
+        if !matches!(other.enforcement, StructEnforcement::NoRules) {
+            self.enforcement = other.enforcement;
         }
-        if !matches!(fill_bits, FillBits::None) {
-            self.fill_bits = fill_bits;
+        if !matches!(other.fill_bits, FillBits::None) {
+            self.fill_bits = other.fill_bits;
         }
-        if other.dump.is_present() {
-            self.dump = true;
-        }
-        if other.reverse.is_present() {
-            self.reverse = true;
-        }
+        self.dump = other.dump;
+        self.reverse = other.reverse;
         self.ident = other.ident;
+        self.vis = other.vis;
         Ok(())
     }
 }
@@ -336,9 +341,9 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
 
     fn try_from(darling: StructDarling) -> Result<Self, Self::Error> {
         let default_endianness = if let Some(ref val) = darling.default_endianness {
-            Self::try_solve_endianness(val)?
+            Some(Self::try_solve_endianness(val)?)
         } else {
-            Endianness::default()
+            None
         };
         // determine byte enforcement if any.
         let enforcement = Self::try_solve_enforcement(
@@ -365,6 +370,56 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
 pub struct VariantDarling {
     pub id: Option<usize>,
     pub invalid: darling::util::Flag,
+    // struct
+    pub default_endianness: Option<LitStr>,
+    pub reverse: darling::util::Flag,
+    pub ident: Ident,
+    pub dump: darling::util::Flag,
+    pub enforce_full_bytes: darling::util::Flag,
+    pub enforce_bytes: Option<usize>,
+    pub enforce_bits: Option<usize>,
+    pub fill_bits: Option<usize>,
+    pub fill_bytes: Option<usize>,
+    pub fill: darling::util::Flag,
+}
+pub struct VariantDarlingSimplified {
+    pub id: Option<usize>,
+    pub invalid: bool,
+}
+impl VariantDarlingSimplified {
+    fn do_thing(
+        value: VariantDarling,
+        attrs: &mut StructDarlingSimplified,
+    ) -> Result<Self, syn::Error> {
+        if let Some(val) = &value.default_endianness {
+            attrs.default_endianness = Some(StructDarlingSimplified::try_solve_endianness(val)?);
+        };
+        // determine byte enforcement if any.
+        let enforcement = StructDarlingSimplified::try_solve_enforcement(
+            value.enforce_full_bytes,
+            value.enforce_bytes,
+            value.enforce_bits,
+        )?;
+        // determine byte filling if any.
+        let fill_bits = StructDarlingSimplified::try_solve_fill_bits(
+            value.fill_bits,
+            value.fill_bytes,
+            value.fill,
+        )?;
+        if !matches!(enforcement, StructEnforcement::NoRules) {
+            attrs.enforcement = enforcement;
+        }
+        if !matches!(fill_bits, FillBits::None) {
+            attrs.fill_bits = fill_bits;
+        }
+        attrs.dump = value.dump.is_present();
+        attrs.reverse = value.reverse.is_present();
+        attrs.ident = value.ident;
+        Ok(VariantDarlingSimplified {
+            id: value.id,
+            invalid: value.invalid.is_present(),
+        })
+    }
 }
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
@@ -378,20 +433,47 @@ pub struct EnumDarling {
     pub payload_byte_length: Option<usize>,
     pub id_bit_length: Option<usize>,
     pub id_byte_length: Option<usize>,
+    // Struct
+    pub default_endianness: Option<LitStr>,
+    pub reverse: darling::util::Flag,
+    pub dump: darling::util::Flag,
+    pub enforce_full_bytes: darling::util::Flag,
+    pub enforce_bytes: Option<usize>,
+    pub enforce_bits: Option<usize>,
+    pub fill_bits: Option<usize>,
+    pub fill_bytes: Option<usize>,
+    pub fill: darling::util::Flag,
+}
+
+pub struct ObjectDarlingSimplifiedPackage {
+    pub enum_attrs: EnumDarlingSimplified,
+    pub struct_attrs: StructDarlingSimplified,
 }
 #[derive(Debug)]
 pub struct EnumDarlingSimplified {
-    pub ident: Ident,
-    pub vis: syn::Visibility,
     pub payload_bit_length: Option<usize>,
     pub id_bit_length: Option<usize>,
 }
 
-impl TryFrom<EnumDarling> for EnumDarlingSimplified {
+impl TryFrom<EnumDarling> for ObjectDarlingSimplifiedPackage {
     type Error = syn::Error;
 
     fn try_from(value: EnumDarling) -> Result<Self, Self::Error> {
-        Ok(EnumDarlingSimplified {
+        let struct_attrs = StructDarling {
+            default_endianness: value.default_endianness,
+            reverse: value.reverse,
+            ident: value.ident.clone(),
+            vis: value.vis.clone(),
+            dump: value.dump,
+            enforce_full_bytes: value.enforce_full_bytes,
+            enforce_bytes: value.enforce_bytes,
+            enforce_bits: value.enforce_bits,
+            fill_bits: value.fill_bits,
+            fill_bytes: value.fill_bytes,
+            fill: value.fill,
+        }
+        .try_into()?;
+        let enum_attrs = EnumDarlingSimplified {
             payload_bit_length: if value.payload_bit_length.is_some()
                 && value.payload_byte_length.is_some()
             {
@@ -412,8 +494,10 @@ impl TryFrom<EnumDarling> for EnumDarlingSimplified {
             } else {
                 value.id_bit_length.or(value.id_byte_length.map(|x| x * 8))
             },
-            ident: value.ident,
-            vis: value.vis,
+        };
+        Ok(ObjectDarlingSimplifiedPackage {
+            enum_attrs,
+            struct_attrs,
         })
     }
 }
@@ -500,6 +584,7 @@ pub struct VariantBuilder {
     pub(crate) id: Option<usize>,
     /// the `field_set`
     pub(crate) field_set: FieldSetBuilder,
+    pub(crate) tuple: bool,
 }
 /// A builder for a single named set of fields used to construct a bitfield model.
 #[derive(Debug)]

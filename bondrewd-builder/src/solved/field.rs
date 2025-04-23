@@ -1,7 +1,7 @@
-use std::ops::Range;
+use std::{ops::Range, str::FromStr};
 
-use proc_macro2::Span;
-use quote::format_ident;
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote};
 use syn::Ident;
 
 use crate::{
@@ -141,19 +141,19 @@ impl SolvedData {
     /// - `StructChecked::read_field`
     ///
     /// More code, and the functions themselves, will be wrapped around this to insure it is safe.
-    pub fn get_quotes(&self, total_bytes: usize) -> syn::Result<GeneratedQuotes> {
+    pub fn get_quotes(&self) -> syn::Result<GeneratedQuotes> {
         match self.resolver.ty.as_ref() {
             ResolverType::Nested {
                 ty_ident,
                 rust_size,
-            } => self.get_ne_quotes(total_bytes),
+            } => self.get_ne_quotes(),
             ResolverType::Primitive {
                 number_ty,
                 resolver_strategy,
                 rust_size,
             } => match resolver_strategy {
-                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(total_bytes),
-                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(total_bytes),
+                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
+                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
             },
             ResolverType::Array {
                 sub_ty,
@@ -165,21 +165,19 @@ impl SolvedData {
                     resolver_strategy,
                     rust_size,
                 } => match resolver_strategy {
-                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(total_bytes),
-                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(total_bytes),
+                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
+                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
                 },
                 ResolverSubType::Nested {
                     ty_ident,
                     rust_size,
-                } => self.get_ne_quotes(total_bytes),
+                } => self.get_ne_quotes(),
             },
         }
     }
-    fn get_le_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_le_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
-            let read = self
-                .resolver
-                .get_read_quote(Resolver::get_read_le_quote, total_bytes)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_le_quote)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_le_quote, false)?;
@@ -191,12 +189,10 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_ne_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_ne_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self
-                .resolver
-                .get_read_quote(Resolver::get_read_ne_quote, total_bytes)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_ne_quote)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_ne_quote, false)?;
@@ -208,12 +204,10 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_be_quotes(&self, total_bytes: usize) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_be_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self
-                .resolver
-                .get_read_quote(Resolver::get_read_be_quote, total_bytes)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_be_quote)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_be_quote, false)?;
@@ -375,21 +369,22 @@ pub enum ResolverType {
     },
 }
 
-pub fn get_number_type_ident(number_ty: &NumberType, bits: usize) -> Ident {
+pub fn get_number_type_ident(number_ty: &NumberType, bits: usize) -> syn::Result<TokenStream> {
     let span = Span::call_site();
     let pre = match number_ty {
         NumberType::Float => "f",
         NumberType::Unsigned => "u",
         NumberType::Signed => "i",
-        NumberType::Char => return Ident::new("char", span),
-        NumberType::Bool => return Ident::new("bool", span),
+        NumberType::Char => return Ok(quote! {char}),
+        NumberType::Bool => return Ok(quote! {bool}),
     };
-    Ident::new(&format!("{pre}{bits}"), span)
+    let thing = format!("{pre}{bits}");
+    Ok(TokenStream::from_str(&thing)?)
 }
 
 impl ResolverType {
     #[must_use]
-    pub fn get_type_ident(&self) -> Ident {
+    pub fn get_type_quote(&self) -> syn::Result<TokenStream> {
         match self {
             ResolverType::Primitive {
                 number_ty,
@@ -399,17 +394,18 @@ impl ResolverType {
             ResolverType::Nested {
                 ty_ident,
                 rust_size,
-            } => format_ident!("{ty_ident}"),
+            } => Ok(quote! {#ty_ident}),
             ResolverType::Array {
                 sub_ty,
                 array_ty,
                 sizings,
             } => {
-                let mut ty = sub_ty.get_type_ident();
+                let ty = sub_ty.get_type_ident();
+                let mut ty = quote! {#ty};
                 for size in sizings {
-                    ty = format_ident!("[{ty};{size}]");
+                    ty = quote! {[#ty;#size]};
                 }
-                ty
+                Ok(ty)
             }
         }
     }
