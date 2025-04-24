@@ -1,8 +1,11 @@
 use std::ops::Range;
 
-use crate::solved::{
-    field::{ResolverData, SolvedData},
-    field_set::SolvedFieldSet,
+use crate::{
+    build::ReserveFieldOption,
+    solved::{
+        field::{ResolverData, SolvedData},
+        field_set::SolvedFieldSet,
+    },
 };
 
 use convert_case::{Case, Casing};
@@ -372,12 +375,16 @@ impl SolvedFieldSet {
         // TODO If we are building code for an enum variant that does not capture the id
         // then we should skip the id field to avoid creating an get_id function for each variant.
         let mut field_name_list = quote! {};
-        let set_add = if let Some(vname) = enum_name {
-            SolvedFieldSetAdditive::new_variant(name, &vname)
+        let set_add = if let Some(ename) = enum_name {
+            SolvedFieldSetAdditive::new_variant(&ename, name)
         } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
         for field in &self.fields {
+            // TODO verify we want to hide all fake_fields.
+            if matches!(field.attr_reserve(), ReserveFieldOption::FakeField) {
+                continue;
+            }
             // TODO capture_id may not need to be run fully, capture id fields will
             // rely on the fact it was already read for the matching process.
             let field_access = field.get_quotes()?;
