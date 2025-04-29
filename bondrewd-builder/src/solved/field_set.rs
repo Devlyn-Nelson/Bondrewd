@@ -461,6 +461,7 @@ impl Solved {
             SolvedType::Struct(solved_field_set) => solved_field_set.total_bits_no_fill(),
         }
     }
+
     pub fn total_bytes_used(&self) -> usize {
         match &self.ty {
             SolvedType::Enum {
@@ -513,7 +514,7 @@ impl Solved {
                 invalid_name,
                 variants,
                 dump,
-            } => Self::gen_enum(struct_name, id, invalid, invalid_name, variants, dyn_fns)?,
+            } => Self::gen_enum(struct_name, id, invalid, invalid_name, variants, struct_size, dyn_fns)?,
             SolvedType::Struct(solved_field_set) => solved_field_set
                 .generate_quotes(struct_name, None, struct_size, dyn_fns)?
                 .finish(),
@@ -825,14 +826,17 @@ impl Solved {
         invalid: &SolvedFieldSet,
         invalid_name: &VariantInfo,
         variants: &BTreeMap<VariantInfo, SolvedFieldSet>,
+        struct_size: usize,
         dyn_fns: bool,
     ) -> syn::Result<GeneratedFunctions> {
         let mut gen_read = GeneratedFunctions::default();
         let mut gen_write = GeneratedFunctions::default();
         let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
         let field_access = id.get_quotes()?;
-        invalid.make_read_fns(id, &None, &mut quote! {}, &mut gen_read, &field_access)?;
-        invalid.make_write_fns(id, &set_add, &mut gen_write, &field_access)?;
+        // TODO pass field list into make read function.
+        invalid.make_read_fns(id, &set_add, &mut quote! {}, &mut gen_read, &field_access, struct_size)?;
+        invalid.make_write_fns(id, &set_add, &mut gen_write, &field_access, struct_size)?;
+        println!("{}", gen_write.non_trait);
         gen_read.merge(&gen_write);
         let mut gen = gen_read;
         // TODO generate slice functions for id field.
@@ -854,18 +858,7 @@ impl Solved {
         //     #id_slice_read
         //     #id_slice_write
         // }
-        let struct_size = {
-            let add_id_field = if let Some(maybe_capture) = invalid.fields.first() {
-                !maybe_capture.attr_capture_id()
-            } else {
-                true
-            };
-            let mut out = invalid.total_bytes();
-            if add_id_field {
-                out += id.bit_length();
-            }
-            out
-        };
+
         // let last_variant = self.variants.len() - 1;
         // stores all of the into/from bytes functions across variants.
         let mut into_bytes_fn: TokenStream = quote! {};
@@ -891,6 +884,7 @@ impl Solved {
         let v_id_write_call = format_ident!("write_{v_id}");
         let v_id_read_slice_call = format_ident!("read_slice_{v_id}");
         for (variant_info, variant) in variants.iter() {
+            
             Self::gen_variant(
                 GenVariant {
                     id: &id,
@@ -912,6 +906,7 @@ impl Solved {
                     lifetime: &mut lifetime,
                     dyn_fns,
                 },
+                struct_size,
                 false,
             )?;
         }
@@ -936,6 +931,7 @@ impl Solved {
                 lifetime: &mut lifetime,
                 dyn_fns,
             },
+            struct_size,
             true,
         )?;
         // Finish `from_bytes` function.
@@ -1049,7 +1045,7 @@ impl Solved {
         Ok(gen)
         // todo!("finish enum generation.");
     }
-    fn gen_variant(package: GenVariant, invalid_variant: bool) -> syn::Result<()> {
+    fn gen_variant(package: GenVariant, struct_size: usize, invalid_variant: bool) -> syn::Result<()> {
         let into_bytes_fn = package.into_bytes_fn;
         let from_bytes_fn = package.from_bytes_fn;
         let gen = package.gen;
@@ -1084,7 +1080,7 @@ impl Solved {
         // TokenStream of v_name.
         let variant_name = quote! {#v_name};
 
-        let thing = variant.gen_struct_fields(&v_name, Some(enum_name), dyn_fns)?;
+        let thing = variant.gen_struct_fields(&v_name, Some(enum_name), struct_size, dyn_fns)?;
         if let Some(gen_read) = &thing.read_fns.dyn_fns {
             gen.append_checked_struct_impl_fns(&gen_read.checked_struct);
         }
