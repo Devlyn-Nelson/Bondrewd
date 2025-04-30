@@ -377,12 +377,8 @@ impl SolvedFieldSet {
         } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
-        let mut gen_read = GeneratedFunctions::default();
-        let mut gen_write = GeneratedFunctions::default();
-        if dyn_fns {
-            gen_read = gen_read.with_dyn_fns();
-            gen_write = gen_write.with_dyn_fns();
-        }
+        let mut gen_read = GeneratedFunctions::new(dyn_fns);
+        let mut gen_write = GeneratedFunctions::new(dyn_fns);
         // TODO If we are building code for an enum variant that does not capture the id
         // then we should skip the id field to avoid creating an get_id function for each variant.
         let mut field_name_list = quote! {};
@@ -517,7 +513,7 @@ impl SolvedFieldSet {
             field_extractor,
             &mut impl_fns,
             checked_struct_impl_fns.as_mut(),
-struct_size
+            struct_size,
         )?;
         gen.append_impl_fns(&impl_fns);
         if let Some(checked_struct_impl_fns) = &checked_struct_impl_fns {
@@ -579,27 +575,20 @@ struct_size
         peek_slice_fns_option: Option<&mut TokenStream>,
         struct_size: usize,
     ) -> syn::Result<()> {
-        *peek_quote = generate_read_field_fn(
-            field_extractor,
-            field,
-            struct_size,
-            prefixed_field_name,
-        )?;
+        *peek_quote =
+            generate_read_field_fn(field_extractor, field, struct_size, prefixed_field_name)?;
         // make the slice functions if applicable.
         if let Some(peek_slice) = peek_slice_fns_option {
-            let peek_slice_quote = generate_read_slice_field_fn(
-                field_extractor,
-                field,
-                prefixed_field_name,
-            )?;
+            let peek_slice_quote =
+                generate_read_slice_field_fn(field_extractor, field, prefixed_field_name)?;
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_quote
             };
             let peek_slice_unchecked_quote =
                 generate_read_slice_field_fn_unchecked(field_extractor, field)?;
-            *peek_quote = quote! {
-                #peek_quote
+            *peek_slice = quote! {
+                #peek_slice
                 #peek_slice_unchecked_quote
             };
         }
@@ -615,11 +604,8 @@ struct_size
     ) -> syn::Result<()> {
         let field_name = field.resolver.ident();
         let prefixed_name = set_add.get_prefixed_name(&field_name);
-        // if field.attr_reserve().is_fake_field() {
-        //     return Ok(());
-        // }
         let (field_setter, clear_quote) = (field_access.write(), field_access.zero());
-        if field.attr_reserve().wants_write_fns() {
+        if field.attr_reserve().wants_write_fns() && !field.attr_capture_id() {
             if set_add.is_variant() {
                 let fn_name = format_ident!("write_{prefixed_name}");
                 gen.append_bitfield_trait_impl_fns(&quote! {
@@ -646,7 +632,7 @@ struct_size
             clear_quote,
             &mut impl_fns,
             checked_struct_impl_fns.as_mut(),
-            struct_size
+            struct_size,
         )?;
 
         gen.append_impl_fns(&impl_fns);
@@ -683,11 +669,8 @@ struct_size
                 #write_quote
                 #set_slice_quote
             };
-            let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
-                field_setter,
-                clear_quote,
-                field,
-            )?;
+            let set_slice_unchecked_quote =
+                generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field)?;
             *write_slice_fns_option = quote! {
                 #write_slice_fns_option
                 #set_slice_unchecked_quote
@@ -713,13 +696,16 @@ struct_size
     pub fn total_bytes(&self) -> usize {
         self.total_bits().div_ceil(8)
     }
-    pub(crate) fn contains_captured_id(&self) -> bool {
+    pub fn total_bytes_no_fill(&self) -> usize {
+        self.total_bits_no_fill().div_ceil(8)
+    }
+    pub(crate) fn get_captured_id_name(&self) -> Option<Ident> {
         for field in &self.fields {
             if field.attr_capture_id() {
-                return true;
+                return Some(field.resolver.name());
             }
         }
-        false
+        None
     }
 }
 /// Generates a `read_field_name()` function.
@@ -829,7 +815,7 @@ pub(crate) fn generate_write_field_fn(
     Ok(quote! {
         #[inline]
         #[doc = #comment]
-        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], mut #field_name: #type_ident) {
+        pub fn #fn_field_name(output_byte_buffer: &mut [u8;#struct_size], #field_name: #type_ident) {
             #clear_quote
             #field_quote
         }

@@ -16,7 +16,7 @@ use crate::{
         ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness, OverlapOptions,
         ReserveFieldOption, Visibility,
     },
-    derive::{quotes::GeneratedFunctions, SolvedFieldSetAdditive},
+    derive::{quotes::{GeneratedDynFunctions, GeneratedFunctions}, SolvedFieldSetAdditive},
 };
 
 use super::field::{DynamicIdent, SolvedData};
@@ -427,7 +427,6 @@ impl Solved {
             let fill = target - (id_bits + bit_length);
             variant.field_set.fill_bits = FillBits::Bits(fill);
         } else if bit_length != largest_bit_size {
-            println!("{largest_bit_size} - {bit_length}");
             variant.field_set.fill_bits = FillBits::Bits(largest_bit_size - bit_length);
         }
         let solved_variant =
@@ -456,57 +455,17 @@ impl Solved {
                         largest = other;
                     }
                 }
-                largest
+                largest + id.bit_length()
             }
             SolvedType::Struct(solved_field_set) => solved_field_set.total_bits_no_fill(),
         }
     }
-
-    pub fn total_bytes_used(&self) -> usize {
-        match &self.ty {
-            SolvedType::Enum {
-                id,
-                invalid,
-                invalid_name,
-                variants,
-                dump,
-            } => {
-                let mut largest = 0;
-                for var in variants {
-                    let other = var.1.total_bytes();
-                    if other > largest {
-                        largest = other;
-                    }
-                }
-                largest
-            }
-            SolvedType::Struct(solved_field_set) => solved_field_set.total_bytes(),
-        }
-    }
-    pub fn total_bits_used(&self) -> usize {
-        match &self.ty {
-            SolvedType::Enum {
-                id,
-                invalid,
-                invalid_name,
-                variants,
-                dump,
-            } => {
-                let mut largest = 0;
-                for var in variants {
-                    let other = var.1.total_bits();
-                    if other > largest {
-                        largest = other;
-                    }
-                }
-                largest
-            }
-            SolvedType::Struct(solved_field_set) => solved_field_set.total_bits(),
-        }
+    pub fn total_bytes_no_fill(&self) -> usize {
+        self.total_bits_no_fill().div_ceil(8)
     }
     pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
-        let struct_size = self.total_bytes_used();
+        let struct_size = self.total_bytes_no_fill();
         let gen = match &self.ty {
             SolvedType::Enum {
                 id,
@@ -514,14 +473,24 @@ impl Solved {
                 invalid_name,
                 variants,
                 dump,
-            } => Self::gen_enum(struct_name, id, invalid, invalid_name, variants, struct_size, dyn_fns)?,
+            } => Self::gen_enum(
+                struct_name,
+                id,
+                invalid,
+                invalid_name,
+                variants,
+                struct_size,
+                dyn_fns,
+            )?,
             SolvedType::Struct(solved_field_set) => solved_field_set
                 .generate_quotes(struct_name, None, struct_size, dyn_fns)?
                 .finish(),
         };
         // get the struct size and name so we can use them in a quote.
         let impl_fns = gen.non_trait;
-        let mut output = match self.ty {
+        // get the bit size of the entire set of fields to fill in trait requirement.
+        let bit_size = self.total_bits_no_fill();
+        let (mut output, bit_size) = match self.ty {
             SolvedType::Struct(..) => {
                 if setters {
                     return Err(syn::Error::new(
@@ -544,24 +513,28 @@ impl Solved {
                     //     }
                     // }
                 } else {
+                    (
+                        quote! {
+                            impl #struct_name {
+                                #impl_fns
+                            }
+                        },
+                        bit_size,
+                    )
+                }
+            }
+            SolvedType::Enum { ref id, .. } => {
+                // TODO implement getters and setters for enums.
+                (
                     quote! {
                         impl #struct_name {
                             #impl_fns
                         }
-                    }
-                }
-            }
-            SolvedType::Enum { .. } => {
-                // TODO implement getters and setters for enums.
-                quote! {
-                    impl #struct_name {
-                        #impl_fns
-                    }
-                }
+                    },
+                    bit_size + id.bit_length(),
+                )
             }
         };
-        // get the bit size of the entire set of fields to fill in trait requirement.
-        let bit_size = self.total_bits_no_fill();
         let trait_impl_fn = gen.bitfield_trait;
         output = quote! {
             #output
@@ -598,7 +571,8 @@ impl Solved {
             let name = self.name.to_string().to_case(Case::Snake);
             match current_dir() {
                 Ok(mut file_name) => {
-                    file_name.push("target");
+                    file_name.push("target/bondrewd_debug");
+                    std::fs::create_dir_all(&file_name);
                     file_name.push(format!("{name}_code_gen.rs"));
                     let _ = std::fs::write(file_name, output.to_string());
                 }
@@ -691,20 +665,21 @@ impl Solved {
                 last_end_bit_index = Some(bit_range.end());
             }
             let ty = value_field.ty.clone();
+            let nested = ty.needs_endianness();
             let field = BuiltData {
-                ty,
-                bit_range,
                 endianness: if let Some(e) = &value_field.endianness {
                     e.clone()
-                } else {
-                    // TODO no endianess is actually valid in the case of nested structs/enums.
-                    // We need to check if the value is a primitive number, then if it is a number and does
-                    // not have endianess we can throw this error.
+                } else if ty.needs_endianness() {
                     return Err(SolvingError::NoEndianness(format!(
                         "{}",
                         value_field.id.ident()
                     )));
+                }else {
+                    // TODO determine if using big endian for nested objects is the correct answer.
+                    Endianness::big()
                 },
+                ty,
+                bit_range,
                 id: value_field.id.clone(),
                 reserve: value_field.reserve.clone(),
                 overlap: value_field.overlap.clone(),
@@ -829,16 +804,25 @@ impl Solved {
         struct_size: usize,
         dyn_fns: bool,
     ) -> syn::Result<GeneratedFunctions> {
-        let mut gen_read = GeneratedFunctions::default();
-        let mut gen_write = GeneratedFunctions::default();
+        let mut gen_read = GeneratedFunctions::new(dyn_fns);
+        let mut gen_write = GeneratedFunctions::new(dyn_fns);
         let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
         let field_access = id.get_quotes()?;
         // TODO pass field list into make read function.
-        invalid.make_read_fns(id, &set_add, &mut quote! {}, &mut gen_read, &field_access, struct_size)?;
+        invalid.make_read_fns(
+            id,
+            &set_add,
+            &mut quote! {},
+            &mut gen_read,
+            &field_access,
+            struct_size,
+        )?;
         invalid.make_write_fns(id, &set_add, &mut gen_write, &field_access, struct_size)?;
-        println!("{}", gen_write.non_trait);
         gen_read.merge(&gen_write);
         let mut gen = gen_read;
+        if let Some(ref mut thing) = gen.dyn_fns{
+            thing.checked_struct = quote!{};
+        }
         // TODO generate slice functions for id field.
         // let id_slice_read = generate_read_slice_field_fn(
         //     access.read(),
@@ -884,7 +868,6 @@ impl Solved {
         let v_id_write_call = format_ident!("write_{v_id}");
         let v_id_read_slice_call = format_ident!("read_slice_{v_id}");
         for (variant_info, variant) in variants.iter() {
-            
             Self::gen_variant(
                 GenVariant {
                     id: &id,
@@ -936,7 +919,7 @@ impl Solved {
         )?;
         // Finish `from_bytes` function.
         from_bytes_fn = quote! {
-            fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
+            fn from_bytes(input_byte_buffer: [u8;#struct_size]) -> Self {
                 let #v_id = Self::#v_id_read_call(&input_byte_buffer);
                 match #v_id {
                     #from_bytes_fn
@@ -1045,7 +1028,11 @@ impl Solved {
         Ok(gen)
         // todo!("finish enum generation.");
     }
-    fn gen_variant(package: GenVariant, struct_size: usize, invalid_variant: bool) -> syn::Result<()> {
+    fn gen_variant(
+        package: GenVariant,
+        struct_size: usize,
+        invalid_variant: bool,
+    ) -> syn::Result<()> {
         let into_bytes_fn = package.into_bytes_fn;
         let from_bytes_fn = package.from_bytes_fn;
         let gen = package.gen;
@@ -1064,6 +1051,11 @@ impl Solved {
         let checked_slice_enum_mut = package.checked_slice_enum_mut;
         let lifetime = package.lifetime;
         let v_id_write_call = package.v_id_write_call;
+
+        if gen.dyn_fns.is_none() {
+            gen.dyn_fns = Some(GeneratedDynFunctions::default());
+        }
+
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
         //
@@ -1114,8 +1106,8 @@ impl Solved {
                 ));
             }
         };
-        let mut variant_value = if variant.contains_captured_id() {
-            quote! {#v_id}
+        let mut variant_value = if let Some(captured_id_field_name) = variant.get_captured_id_name() {
+            quote! {#captured_id_field_name}
         } else {
             // COPIED_1 Below code is duplicate, look above to see other copy.
             let id = &variant_info.id;
@@ -1224,22 +1216,17 @@ impl Solved {
                 #into_bytes_quote
             }
         };
-        if id.attr_capture_id() {
-            let id_field_name = id.resolver.name();
-            variant_value = quote! {#id_field_name};
-        }
 
-        let mut ignore_fields = if id.attr_capture_id() {
-            let id_field_name = variant_value.clone();
+        let mut ignore_fields = if let Some(id_field_name) = variant.get_captured_id_name() {
             variant_value = quote! {*#variant_value};
             quote! { #id_field_name, }
         } else {
             quote! {}
         };
-        if variant.fields.len() > 1 {
-            ignore_fields = quote! { #ignore_fields .. };
-        } else {
+        if variant.fields.is_empty() {
             ignore_fields = quote! { #ignore_fields };
+        } else {
+            ignore_fields = quote! { #ignore_fields .. };
         };
         if variant_info.tuple {
             ignore_fields = quote! {(#ignore_fields)};

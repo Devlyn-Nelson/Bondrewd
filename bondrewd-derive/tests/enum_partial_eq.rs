@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]

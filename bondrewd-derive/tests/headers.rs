@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Clone, Bitfields, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
@@ -17,8 +18,8 @@ pub enum AosFrameVirtualChannelId {
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
-#[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "msb", bit_traversal = "front", enforce_bytes = 8)]
+#[derive(Bitfields, Clone, Debug)]
+#[bondrewd(default_endianness = "be", enforce_bytes = 8)]
 pub struct AosFrameHeaderBe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]
@@ -116,7 +117,7 @@ fn cycle_header_be_slice() {
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
 #[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "le", bit_traversal = "front", enforce_bytes = 8)]
+#[bondrewd(default_endianness = "le", enforce_bytes = 8)]
 pub struct AosFrameHeaderLe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]

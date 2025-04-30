@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
@@ -200,7 +201,6 @@ enum CrazyEnum {
     CrazyBin(#[bondrewd(capture_id)] u8, i8),
 }
 
-#[cfg(dyn_fns)]
 #[test]
 fn crazy_enum() {
     let mut thing = CrazyEnum::Wack {

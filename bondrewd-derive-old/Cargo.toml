@@ -1,0 +1,33 @@
+[package]
+name = "bondrewd-derive-old"
+version = "0.5.0"
+edition = "2021"
+description = "Bit-Level field packing with proc_macros"
+authors = ["Dev <devlynknelson@gmail.com>"]
+license = "MIT OR Apache-2.0"
+keywords = ["bitfields", "serialization", "packing"]
+categories = ["data-structures","development-tools"]
+readme = "../README.md"
+repository = "https://github.com/Devlyn-Nelson/Bondrewd"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+convert_case = "0.7"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full"] }
+
+[features]
+dyn_fns = []
+hex_fns = []
+setters = []
+std = []
+
+[dev-dependencies]
+rand = "0.8"
+anyhow = "1"
+thiserror = "1"
+bondrewd = { path = "../bondrewd", features = ["derive", "std"] }
+bondrewd_1 ={ version = "0.1", package = "bondrewd",  features = ["derive", "slice_fns", "hex_fns"]}

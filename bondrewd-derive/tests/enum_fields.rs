@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
@@ -35,22 +36,20 @@ fn to_bytes_simple_with_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0000_0001);
     assert_eq!(bytes[1], 0b1000_0000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleWithSingleByteSpanningEnum::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleWithSingleByteSpanningEnum::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleWithSingleByteSpanningEnum::read_slice_three(&bytes)?
-        );
-    }
+    
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleWithSingleByteSpanningEnum::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleWithSingleByteSpanningEnum::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleWithSingleByteSpanningEnum::read_slice_three(&bytes)?
+    );
 
     // from_bytes
     let new_simple = SimpleWithSingleByteSpanningEnum::from_bytes(bytes);

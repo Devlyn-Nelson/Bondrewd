@@ -72,6 +72,14 @@ impl From<GeneratedFunctions> for TokenStream {
 }
 
 impl GeneratedFunctions {
+    pub fn new(dyn_fns: bool) -> Self {
+        let out = Self::default();
+        if dyn_fns{
+            out.with_dyn_fns()
+        }else{
+            out
+        }
+    }
     pub fn merge(&mut self, other: &Self) {
         let bitfield_trait_impl_fns = &self.bitfield_trait;
         let other_bitfield_trait_impl_fns = &other.bitfield_trait;

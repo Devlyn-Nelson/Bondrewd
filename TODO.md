@@ -1,3 +1,4 @@
+- [ ] `from_vec` and `from_slice` for generated `BitfieldsDyn` trait impls on enums read the variant id twice instead of reusing the value from the first read to determine variant.
 - [ ] Make sure capture id is not reading twice.
 - [ ] Add non-packed little endian
 - [ ] Make a way for the Id of a enum to be received via another field when using nested enums.

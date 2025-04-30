@@ -58,7 +58,6 @@ where
     }
 }
 
-#[cfg(feature = "dyn_fns")]
 pub trait BitfieldHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
     crate::Bitfields<BYTE_SIZE> + BitfieldHex<HEX_SIZE, BYTE_SIZE>
 where

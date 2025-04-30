@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
@@ -22,13 +23,11 @@ fn to_bytes_simple_with_element_array_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0000_1010);
     assert_eq!(bytes[1], 0b1000_0000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(simple.one, SimpleWithArray::read_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithArray::read_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithArray::read_slice_three(&bytes)?);
-    }
+    
+    //peeks
+    assert_eq!(simple.one, SimpleWithArray::read_slice_one(&bytes)?);
+    assert_eq!(simple.two, SimpleWithArray::read_slice_two(&bytes)?);
+    assert_eq!(simple.three, SimpleWithArray::read_slice_three(&bytes)?);
 
     // from_bytes
     let new_simple = SimpleWithArray::from_bytes(bytes);

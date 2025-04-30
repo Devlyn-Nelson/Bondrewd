@@ -5,11 +5,8 @@
 //! For Derive Docs see [bondrewd-derive](https://docs.rs/bondrewd-derive/latest/bondrewd_derive/)
 
 mod error;
-#[cfg(all(feature = "dyn_fns", feature = "hex_fns"))]
 pub use error::BitfieldHexDynError;
-#[cfg(feature = "hex_fns")]
 pub use error::BitfieldHexError;
-#[cfg(feature = "dyn_fns")]
 pub use error::BitfieldLengthError;
 
 pub trait Bitfields<const SIZE: usize> {
@@ -27,7 +24,6 @@ pub trait Bitfields<const SIZE: usize> {
     fn from_bytes(input_byte_buffer: [u8; SIZE]) -> Self;
 }
 
-#[cfg(feature = "dyn_fns")]
 pub trait BitfieldsDyn<const SIZE: usize>: Bitfields<SIZE>
 where
     Self: Sized,
@@ -47,7 +43,6 @@ where
     fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, BitfieldLengthError>;
 }
 
-#[cfg(feature = "dyn_fns")]
 pub trait BitfieldsSlice<const SIZE: usize>: Bitfields<SIZE> + Sized {
     /// Returns a "checked" slice type for the type. This typically should be a structure that stores a slice of bytes,
     /// that are confirmed to contain enough bytes for all fields. this allows the user to read specific fields
@@ -68,11 +63,8 @@ pub trait BitfieldEnum {
     fn from_primitive(prim: Self::Primitive) -> Self;
     fn into_primitive(self) -> Self::Primitive;
 }
-#[cfg(feature = "hex_fns")]
 mod hex;
-#[cfg(feature = "hex_fns")]
 pub use hex::BitfieldHex;
-#[cfg(all(feature = "hex_fns", feature = "dyn_fns"))]
 pub use hex::BitfieldHexDyn;
 
 // re-export the derive stuff

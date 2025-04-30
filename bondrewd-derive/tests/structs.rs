@@ -1,4 +1,6 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
+
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
@@ -61,13 +63,10 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes[6], 0b1000_0100);
     assert_eq!(bytes[7], 0b0000_1110);
 
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(simple.one, SimpleWithStruct::read_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleWithStruct::read_slice_two(&bytes)?);
-        assert_eq!(simple.three, SimpleWithStruct::read_slice_three(&bytes)?);
-    }
+    //peeks
+    assert_eq!(simple.one, SimpleWithStruct::read_slice_one(&bytes)?);
+    assert_eq!(simple.two, SimpleWithStruct::read_slice_two(&bytes)?);
+    assert_eq!(simple.three, SimpleWithStruct::read_slice_three(&bytes)?);
 
     // from_bytes
     let new_simple = SimpleWithStruct::from_bytes(bytes);
@@ -109,22 +108,21 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     assert_eq!(bytes[2], 0b1100_0010);
     assert_eq!(bytes[1], 0b1000_0100);
     assert_eq!(bytes[0], 0b0000_1110);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleWithStructWithFlip::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleWithStructWithFlip::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleWithStructWithFlip::read_slice_three(&bytes)?
-        );
-    }
+
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleWithStructWithFlip::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleWithStructWithFlip::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleWithStructWithFlip::read_slice_three(&bytes)?
+    );
+
     // from_bytes
     let new_simple = SimpleWithStructWithFlip::from_bytes(bytes);
     assert_eq!(simple, new_simple);
@@ -170,22 +168,20 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0000_1010);
     assert_eq!(bytes[1], 0b1000_0000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleWithSingleByteSpanningStruct::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleWithSingleByteSpanningStruct::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleWithSingleByteSpanningStruct::read_slice_three(&bytes)?
-        );
-    }
+    
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleWithSingleByteSpanningStruct::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleWithSingleByteSpanningStruct::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleWithSingleByteSpanningStruct::read_slice_three(&bytes)?
+    );
 
     // from_bytes
     let new_simple = SimpleWithSingleByteSpanningStruct::from_bytes(bytes);
@@ -220,22 +216,20 @@ fn struct_within_one_byte_shift_required() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0101_0101);
     assert_eq!(bytes[1], 0b0000_1010);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleWithSingleByteNonSpanningStruct::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleWithSingleByteNonSpanningStruct::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleWithSingleByteNonSpanningStruct::read_slice_three(&bytes)?
-        );
-    }
+
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleWithSingleByteNonSpanningStruct::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleWithSingleByteNonSpanningStruct::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleWithSingleByteNonSpanningStruct::read_slice_three(&bytes)?
+    );
 
     // from_bytes
     let new_simple = SimpleWithSingleByteNonSpanningStruct::from_bytes(bytes);

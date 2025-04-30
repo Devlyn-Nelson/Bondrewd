@@ -359,7 +359,7 @@ pub enum ResolverType {
         rust_size: RustByteSize,
     },
     Nested {
-        ty_ident: String,
+        ty_ident: Ident,
         rust_size: usize,
     },
     Array {
@@ -454,7 +454,7 @@ pub enum ResolverSubType {
         rust_size: RustByteSize,
     },
     Nested {
-        ty_ident: String,
+        ty_ident: Ident,
         rust_size: usize,
     },
 }

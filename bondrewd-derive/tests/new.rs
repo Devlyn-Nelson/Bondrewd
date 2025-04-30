@@ -1,10 +1,8 @@
-use bondrewd::Bitfields;
-use bondrewd_builder::Bitfields as BitfieldsDerive;
 use bondrewd_test as bondrewd;
+use bondrewd::Bitfields;
 
 // START_HERE start fixing.
-#[derive(BitfieldsDerive)]
-#[bondrewd(dump)]
+#[derive(Bitfields)]
 pub enum Test {
     One {
         #[bondrewd(bit_length = 5)]
@@ -22,5 +20,7 @@ pub enum Test {
 #[test]
 fn test_fn() {
     let test = Test::One { one: 1 }.into_bytes();
-    assert_eq!(test, [1]);
+    assert_eq!(test, [2]);
+    let test = Test::Two { one: false, two: 4 }.into_bytes();
+    assert_eq!(test, [0b_0100_1000]);
 }

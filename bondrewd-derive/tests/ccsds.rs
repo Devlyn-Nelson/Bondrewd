@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
@@ -51,7 +52,6 @@ fn max_packet() {
     );
 }
 
-#[cfg(feature = "dyn_fns")]
 #[test]
 fn slice_fn_check_slice() {
     let packet = SpacePacketHeader {
@@ -112,7 +112,6 @@ fn slice_fn_check_slice() {
     }
 }
 
-#[cfg(feature = "dyn_fns")]
 fn slice_fns_inner() -> Result<(), bondrewd::BitfieldLengthError> {
     use bondrewd::BitfieldsDyn;
     let packet = SpacePacketHeader {
@@ -208,7 +207,6 @@ fn slice_fns_inner() -> Result<(), bondrewd::BitfieldLengthError> {
     Ok(())
 }
 
-#[cfg(feature = "dyn_fns")]
 #[test]
 fn dyn_fns() {
     if let Err(err) = slice_fns_inner() {

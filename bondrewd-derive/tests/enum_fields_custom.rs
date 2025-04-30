@@ -1,3 +1,4 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
@@ -30,16 +31,14 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b0000_1000);
     assert_eq!(bytes[1], 0b0100_0000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
-        assert_eq!(
-            simple.three,
-            SimpleCustomEnumUsage::read_slice_three(&bytes)?
-        );
-    }
+    
+    //peeks
+    assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
+    assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
+    assert_eq!(
+        simple.three,
+        SimpleCustomEnumUsage::read_slice_three(&bytes)?
+    );
 
     // from_bytes
     let new_simple = SimpleCustomEnumUsage::from_bytes(bytes);
@@ -80,43 +79,40 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     assert_eq!(bytes[0], 0b1000_0000);
     assert_eq!(bytes[1], 0b0000_0001);
     assert_eq!(bytes[2], 0b0000_1000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleCustomContinuationEnumUsage::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleCustomContinuationEnumUsage::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleCustomContinuationEnumUsage::read_slice_three(&bytes)?
-        );
-    }
+
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleCustomContinuationEnumUsage::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleCustomContinuationEnumUsage::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleCustomContinuationEnumUsage::read_slice_three(&bytes)?
+    );
 
     // from bytes
     let new_simple = SimpleCustomContinuationEnumUsage::from_bytes(bytes);
     assert_eq!(simple, new_simple);
 
-    #[cfg(feature = "dyn_fns")]
-    {
-        // Setter too
-        SimpleCustomContinuationEnumUsage::write_slice_two(
-            &mut bytes,
-            TestCustomContinuationEnum::CustomZeroContinued,
-        )?;
-        let expected = SimpleCustomContinuationEnumUsage {
-            one: 0x80,
-            two: TestCustomContinuationEnum::CustomZeroContinued,
-            three: 0x08,
-        };
-        assert_eq!(
-            SimpleCustomContinuationEnumUsage::from_bytes(bytes),
-            expected
-        );
-    }
+
+    // Setter too
+    SimpleCustomContinuationEnumUsage::write_slice_two(
+        &mut bytes,
+        TestCustomContinuationEnum::CustomZeroContinued,
+    )?;
+    let expected = SimpleCustomContinuationEnumUsage {
+        one: 0x80,
+        two: TestCustomContinuationEnum::CustomZeroContinued,
+        three: 0x08,
+    };
+    assert_eq!(
+        SimpleCustomContinuationEnumUsage::from_bytes(bytes),
+        expected
+    );
+    
     Ok(())
 }

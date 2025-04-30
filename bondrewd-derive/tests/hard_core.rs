@@ -1,7 +1,6 @@
+use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
-use current::*;
 
-#[cfg(feature = "dyn_fns")]
 #[test]
 fn hard_core_test() {
     let w = Weird::default();
