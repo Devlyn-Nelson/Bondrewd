@@ -1,7 +1,7 @@
 use crate::solved::field::{DynamicIdent, ResolverArrayType};
 
 use super::{
-    get_lit_int, get_lit_range, ArraySizings, BuilderRange, BuilderRangeArraySize, Endianness,
+    get_lit_int, get_lit_range, ArraySizings, BuilderRange, Endianness,
     OverlapOptions, ReserveFieldOption,
 };
 
@@ -15,7 +15,7 @@ pub struct DataBuilder {
     pub(crate) id: DynamicIdent,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
-    pub(crate) ty: DataType,
+    pub(crate) ty: FullDataType,
     /// Describes the properties of which techniques to use for bit extraction
     /// and modifications the inputs that they can have. When None, we are expecting
     /// either a Nested Type or the get it from the default.
@@ -103,15 +103,26 @@ pub enum DataType {
     Number(NumberType, RustByteSize),
     /// This is a nested structure and does not have a know type. and the name of the struct shall be stored
     /// within.
-    Nested {
-        ident: Ident,
-        rust_byte_size: usize,
-    },
+    Nested { ident: Ident, rust_byte_size: usize },
 }
 
-pub struct ParsedDataType {
+#[derive(Debug, Clone)]
+pub struct FullDataType {
     pub data_type: DataType,
-    pub sizings: Option<Vec<usize>>,
+    pub array_spec: Option<FullDataTypeArraySpec>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FullDataTypeArraySpec{
+    ty: FullDataTypeArraySpecType,
+    sizings: ArraySizings,
+}
+
+#[derive(Debug, Clone)]
+pub enum FullDataTypeArraySpecType{
+    NotSpecified,
+    Block,
+    Element,
 }
 
 impl DataType {
@@ -149,7 +160,7 @@ impl DataType {
         ty: &syn::Type,
         attrs: &mut DataDarlingSimplified,
         default_endianness: &Endianness,
-    ) -> syn::Result<ParsedDataType> {
+    ) -> syn::Result<FullDataType> {
         Self::parse_with_option(ty, attrs, default_endianness, None)
     }
     /// the returned vec<usize> is the sizings for an `ArrayBuilder`
@@ -159,16 +170,20 @@ impl DataType {
         attrs: &mut DataDarlingSimplified,
         default_endianness: &Endianness,
         array_option: Option<Vec<usize>>,
-    ) -> syn::Result<ParsedDataType> {
+    ) -> syn::Result<FullDataType> {
         let data_type = match ty {
             Type::Path(ref path) => {
                 let out = Self::parse_path(&path.path, attrs)?;
-                ParsedDataType {
+                let array_spec = if let Some(mut thing) = array_option {
+                    thing.reverse();
+                    Some(FullDataTypeArraySpec {
+                        ty: FullDataTypeArraySpecType::NotSpecified,
+                        sizings: thing,
+                    })
+                }else{None};
+                FullDataType {
                     data_type: out,
-                    sizings: array_option.map(|mut thing| {
-                        thing.reverse();
-                        thing
-                    }),
+                    array_spec,
                 }
             }
             Type::Array(ref array_path) => {
@@ -181,7 +196,7 @@ impl DataType {
                 let mut array_info = if let Some(info) = array_option {
                     info
                 } else {
-                    vec![lit_int.base10_parse()?]
+                    vec![]
                 };
                 if let Ok(array_length) = lit_int.base10_parse::<usize>() {
                     array_info.push(array_length);
@@ -456,7 +471,7 @@ pub enum IDontExist {
 
 impl DataBuilder {
     #[must_use]
-    pub fn new(name: DynamicIdent, ty: DataType) -> Self {
+    pub fn new(name: DynamicIdent, ty: FullDataType) -> Self {
         Self {
             id: name,
             ty,
@@ -549,7 +564,8 @@ impl DataBuilder {
         } else {
             ReserveFieldOption::NotReserve
         };
-        let bit_range = if let Some(sizings) = data_type.sizings {
+
+        let bit_range = if let Some(spec) = data_type.array_spec {
             if let Some(a_ty) = attrs.array {
                 match a_ty {
                     DataDarlingSimplifiedArrayType::Block(size) => match attrs.bits {
@@ -656,7 +672,7 @@ impl DataBuilder {
                 //     "Currently unnamed fields are not supported.",
                 // ));
             },
-            ty: data_type.data_type,
+            ty: data_type,
             endianness: attrs.endianness,
             bit_range,
             reserve,

@@ -105,6 +105,8 @@ impl From<(Ident, Ident)> for DynamicIdent {
     }
 }
 
+
+#[derive(Debug)]
 pub struct SolvedData {
     pub resolver: Resolver,
 }
@@ -221,6 +223,7 @@ impl SolvedData {
     }
 }
 
+#[derive(Debug)]
 pub struct ResolverData {
     /// Amount of bits in the first byte this field has bits in that are not used by this field.
     pub zeros_on_left: usize,
@@ -234,6 +237,7 @@ pub struct ResolverData {
     pub bit_range: Range<usize>,
 }
 
+#[derive(Debug)]
 pub struct Resolver {
     pub(crate) data: Box<ResolverData>,
     pub(crate) ty: Box<ResolverType>,

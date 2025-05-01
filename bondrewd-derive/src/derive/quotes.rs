@@ -74,9 +74,9 @@ impl From<GeneratedFunctions> for TokenStream {
 impl GeneratedFunctions {
     pub fn new(dyn_fns: bool) -> Self {
         let out = Self::default();
-        if dyn_fns{
+        if dyn_fns {
             out.with_dyn_fns()
-        }else{
+        } else {
             out
         }
     }

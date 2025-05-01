@@ -56,25 +56,7 @@ impl From<syn::Visibility> for Visibility {
 pub type ArraySizings = Vec<usize>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BuilderRangeArraySize {
-    Size(usize),
-    Range(std::ops::Range<usize>),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BuilderRange {
-    ElementArray {
-        sizings: ArraySizings,
-        /// Size is individual element size,
-        /// Range needs calc to determine above size.
-        size: BuilderRangeArraySize,
-    },
-    BlockArray {
-        sizings: ArraySizings,
-        /// Size is total amount of bits consumes for entire array.
-        /// Range needs calc to determine above size.
-        size: BuilderRangeArraySize,
-    },
     /// A range of bits to use. solve this is easy, but note that it is an exclusive range, meaning the
     /// end is NOT included.
     Range(std::ops::Range<usize>),
@@ -87,20 +69,20 @@ pub enum BuilderRange {
 impl BuilderRange {
     pub fn bit_length(&self) -> usize {
         match self {
-            BuilderRange::ElementArray { sizings, size } => match size {
-                BuilderRangeArraySize::Size(element_bit_length) => {
-                    let mut size = *element_bit_length as usize;
-                    for len in sizings {
-                        size *= len;
-                    }
-                    size
-                }
-                BuilderRangeArraySize::Range(range) => range.end - range.start,
-            },
-            BuilderRange::BlockArray { sizings: _, size } => match size {
-                BuilderRangeArraySize::Size(total_bits) => *total_bits,
-                BuilderRangeArraySize::Range(range) => range.end - range.start,
-            },
+            // BuilderRange::ElementArray { sizings, size } => match size {
+            //     BuilderRangeArraySize::Size(element_bit_length) => {
+            //         let mut size = *element_bit_length as usize;
+            //         for len in sizings {
+            //             size *= len;
+            //         }
+            //         size
+            //     }
+            //     BuilderRangeArraySize::Range(range) => range.end - range.start,
+            // },
+            // BuilderRange::BlockArray { sizings: _, size } => match size {
+            //     BuilderRangeArraySize::Size(total_bits) => *total_bits,
+            //     BuilderRangeArraySize::Range(range) => range.end - range.start,
+            // },
             BuilderRange::Range(range) => range.end - range.start,
             BuilderRange::Size(bits) => *bits as usize,
             BuilderRange::None => 0,
