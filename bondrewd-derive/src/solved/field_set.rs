@@ -8,13 +8,15 @@ use thiserror::Error;
 
 use crate::{
     build::{
-        field::{DataType, FullDataType, NumberType, RustByteSize},
+        field::{
+            DataBuilderRange, DataType, FullDataType, FullDataTypeArraySpecType, NumberType,
+            RustByteSize,
+        },
         field_set::{
             EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder,
             StructEnforcement, VariantBuilder,
         },
-        ArraySizings, BuilderRange, Endianness, OverlapOptions,
-        ReserveFieldOption, Visibility,
+        ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
     },
     derive::{
         quotes::{GeneratedDynFunctions, GeneratedFunctions},
@@ -1345,8 +1347,8 @@ impl BuiltRange {
         self.bit_range.end
     }
     fn from_builder(
-        builder: &BuilderRange,
-        ty: &FullDataType,
+        builder: &DataBuilderRange,
+        data_ty: &FullDataType,
         last_field_end: Option<usize>,
     ) -> Self {
         let start = if let Some(prev) = &last_field_end {
@@ -1354,54 +1356,59 @@ impl BuiltRange {
         } else {
             0
         };
+        let ty = if let Some(ref a_spec) = data_ty.array_spec {
+            match a_spec.ty {
+                FullDataTypeArraySpecType::NotSpecified | FullDataTypeArraySpecType::Element => {
+                    BuiltRangeType::ElementArray(a_spec.sizings.clone())
+                }
+                FullDataTypeArraySpecType::Block => {
+                    BuiltRangeType::BlockArray(a_spec.sizings.clone())
+                }
+            }
+        } else {
+            BuiltRangeType::SingleElement
+        };
         match builder {
-            BuilderRange::Range(bit_range) => Self {
+            DataBuilderRange::Range(bit_range) => Self {
                 bit_range: bit_range.clone(),
-                ty: ty.sizings.clone(),
+                ty,
             },
-            BuilderRange::Size(bit_length) => {
+            DataBuilderRange::Size(bit_length) => {
                 let bit_range = start..(start + *bit_length as usize);
-                Self {
-                    bit_range,
-                    ty: ty.sizings.clone(),
-                }
+                Self { bit_range, ty }
             }
-            BuilderRange::None => {
-                let bit_range = start..(start + ty.data_type.default_bit_size());
-                Self {
-                    bit_range,
-                    ty: ty.sizings.clone(),
-                }
-            }
-            // BuilderRange::ElementArray { sizings, size } => {
-            //     let bit_range = match &size {
-            //         BuilderRangeArraySize::Size(element_bit_length) => {
-            //             let mut total_bits = *element_bit_length as usize;
-            //             for size in sizings {
-            //                 total_bits *= size;
-            //             }
-            //             start..(start + total_bits)
-            //         }
-            //         BuilderRangeArraySize::Range(range) => range.clone(),
-            //     };
+            DataBuilderRange::None => {
+                let bit_range = start..(start + data_ty.data_type.default_bit_size());
+                Self { bit_range, ty }
+            } // BuilderRange::ElementArray { sizings, size } => {
+              //     let bit_range = match &size {
+              //         BuilderRangeArraySize::Size(element_bit_length) => {
+              //             let mut total_bits = *element_bit_length as usize;
+              //             for size in sizings {
+              //                 total_bits *= size;
+              //             }
+              //             start..(start + total_bits)
+              //         }
+              //         BuilderRangeArraySize::Range(range) => range.clone(),
+              //     };
 
-            //     Self {
-            //         bit_range,
-            //         ty: BuiltRangeType::ElementArray(sizings.clone()),
-            //     }
-            // }
-            // BuilderRange::BlockArray { sizings, size } => {
-            //     let bit_range = match &size {
-            //         BuilderRangeArraySize::Size(total_bits) => {
-            //             start..(start + *total_bits as usize)
-            //         }
-            //         BuilderRangeArraySize::Range(range) => range.clone(),
-            //     };
-            //     Self {
-            //         bit_range,
-            //         ty: BuiltRangeType::BlockArray(sizings.clone()),
-            //     }
-            // }
+              //     Self {
+              //         bit_range,
+              //         ty: BuiltRangeType::ElementArray(sizings.clone()),
+              //     }
+              // }
+              // BuilderRange::BlockArray { sizings, size } => {
+              //     let bit_range = match &size {
+              //         BuilderRangeArraySize::Size(total_bits) => {
+              //             start..(start + *total_bits as usize)
+              //         }
+              //         BuilderRangeArraySize::Range(range) => range.clone(),
+              //     };
+              //     Self {
+              //         bit_range,
+              //         ty: BuiltRangeType::BlockArray(sizings.clone()),
+              //     }
+              // }
         }
     }
 }

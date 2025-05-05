@@ -105,7 +105,6 @@ impl From<(Ident, Ident)> for DynamicIdent {
     }
 }
 
-
 #[derive(Debug)]
 pub struct SolvedData {
     pub resolver: Resolver,

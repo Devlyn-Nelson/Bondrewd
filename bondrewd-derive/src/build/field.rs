@@ -1,8 +1,7 @@
 use crate::solved::field::{DynamicIdent, ResolverArrayType};
 
 use super::{
-    get_lit_int, get_lit_range, ArraySizings, BuilderRange, Endianness,
-    OverlapOptions, ReserveFieldOption,
+    get_lit_int, get_lit_range, ArraySizings, Endianness, OverlapOptions, ReserveFieldOption,
 };
 
 use darling::FromField;
@@ -22,7 +21,7 @@ pub struct DataBuilder {
     pub(crate) endianness: Option<Endianness>,
     /// The range of bits that this field will use.
     /// TODO this should become a new Range system that allows dynamic start and/or end bit-indices.
-    pub(crate) bit_range: BuilderRange,
+    pub(crate) bit_range: DataBuilderRange,
     /// Describes when the field should be considered.
     pub(crate) reserve: ReserveFieldOption,
     /// How much you care about the field overlapping other fields.
@@ -113,13 +112,13 @@ pub struct FullDataType {
 }
 
 #[derive(Debug, Clone)]
-pub struct FullDataTypeArraySpec{
-    ty: FullDataTypeArraySpecType,
-    sizings: ArraySizings,
+pub struct FullDataTypeArraySpec {
+    pub(crate) ty: FullDataTypeArraySpecType,
+    pub(crate) sizings: ArraySizings,
 }
 
 #[derive(Debug, Clone)]
-pub enum FullDataTypeArraySpecType{
+pub enum FullDataTypeArraySpecType {
     NotSpecified,
     Block,
     Element,
@@ -180,7 +179,9 @@ impl DataType {
                         ty: FullDataTypeArraySpecType::NotSpecified,
                         sizings: thing,
                     })
-                }else{None};
+                } else {
+                    None
+                };
                 FullDataType {
                     data_type: out,
                     array_spec,
@@ -476,7 +477,7 @@ impl DataBuilder {
             id: name,
             ty,
             endianness: None,
-            bit_range: BuilderRange::None,
+            bit_range: DataBuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
             is_captured_id: false,
@@ -565,7 +566,7 @@ impl DataBuilder {
             ReserveFieldOption::NotReserve
         };
 
-        let bit_range = if let Some(spec) = data_type.array_spec {
+        let bit_range = if let Some(ref spec) = data_type.array_spec {
             if let Some(a_ty) = attrs.array {
                 match a_ty {
                     DataDarlingSimplifiedArrayType::Block(size) => match attrs.bits {
@@ -574,10 +575,7 @@ impl DataBuilder {
                                 return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
                             }
 
-                            BuilderRange::BlockArray {
-                                sizings,
-                                size: BuilderRangeArraySize::Range(range.clone()),
-                            }
+                            DataBuilderRange::Range(range)
                         }
                         DataBuilderRange::Size(other_size) => {
                             if other_size != size {
@@ -587,16 +585,13 @@ impl DataBuilder {
                                 ));
                             }
 
-                            BuilderRange::BlockArray {
-                                sizings,
-                                size: BuilderRangeArraySize::Size(size),
-                            }
+                            DataBuilderRange::Size(other_size)
                         }
-                        DataBuilderRange::None => BuilderRange::None,
+                        DataBuilderRange::None => DataBuilderRange::Size(size),
                     },
                     DataDarlingSimplifiedArrayType::Element(size) => {
                         let mut total_size = size;
-                        for s in &sizings {
+                        for s in &spec.sizings {
                             total_size *= s;
                         }
                         match attrs.bits {
@@ -605,10 +600,7 @@ impl DataBuilder {
                                     return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
                                 }
 
-                                BuilderRange::ElementArray {
-                                    sizings,
-                                    size: BuilderRangeArraySize::Range(range.clone()),
-                                }
+                                DataBuilderRange::Range(range)
                             }
                             DataBuilderRange::Size(other_size) => {
                                 if other_size != total_size {
@@ -618,18 +610,15 @@ impl DataBuilder {
                                     ));
                                 }
 
-                                BuilderRange::ElementArray {
-                                    sizings,
-                                    size: BuilderRangeArraySize::Size(size),
-                                }
+                                DataBuilderRange::Size(other_size)
                             }
-                            DataBuilderRange::None => BuilderRange::None,
+                            DataBuilderRange::None => DataBuilderRange::Size(size),
                         }
                     }
                 }
             } else {
                 let mut elements = 1;
-                for s in &sizings {
+                for s in &spec.sizings {
                     elements *= s;
                 }
                 match attrs.bits {
@@ -637,23 +626,15 @@ impl DataBuilder {
                         if (range.end - range.start) % elements != 0 {
                             return Err(Error::new(field.span(), "`bits` attribute's total bit length and does not evenly divide by elements in array."));
                         }
-
-                        BuilderRange::ElementArray {
-                            sizings,
-                            size: BuilderRangeArraySize::Range(range.clone()),
-                        }
+                        DataBuilderRange::Range(range)
                     }
                     DataBuilderRange::Size(size) => {
                         if size % elements != 0 {
                             return Err(Error::new(field.span(), "attributes defined bit length does not evenly divide by elements in array."));
                         }
-
-                        BuilderRange::ElementArray {
-                            sizings,
-                            size: BuilderRangeArraySize::Size(size / elements),
-                        }
+                        DataBuilderRange::Size(size)
                     }
-                    DataBuilderRange::None => BuilderRange::None,
+                    DataBuilderRange::None => DataBuilderRange::None,
                 }
             }
         } else {
@@ -828,6 +809,13 @@ impl DataBuilderRange {
     pub fn range_from_expr(expr: &Expr) -> syn::Result<Self> {
         let lit = get_lit_range(expr)?;
         Ok(Self::Range(lit))
+    }
+    pub fn bit_length(&self) -> usize {
+        match self {
+            Self::Range(range) => range.end - range.start,
+            Self::Size(bits) => *bits as usize,
+            Self::None => 0,
+        }
     }
 }
 
