@@ -29,4 +29,6 @@ derive = ["dep:proc-macro2", "dep:quote" , "dep:syn"]
 [dev-dependencies]
 rand = "0.8"
 anyhow = "1"
-bondrewd_test = {package = "bondrewd", path = "../bondrewd", features = ["full"]}
+bondrewd-old = {package = "bondrewd", registry = "pumpkin-patch", version = "0.2", features = ["dyn_fns", "derive"]}
+bondrewd-derive-old = {path = "../bondrewd-derive-old", features = ["dyn_fns"]}
+bondrewd-test = {package = "bondrewd", path = "../bondrewd", features = ["full"]}
