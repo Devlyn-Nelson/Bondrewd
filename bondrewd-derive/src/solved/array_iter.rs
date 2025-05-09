@@ -9,6 +9,7 @@ use super::field::{
     DynamicIdent, Resolver, ResolverArrayType, ResolverData, ResolverSubType, ResolverType,
 };
 
+#[derive(Debug)]
 pub struct ElementArrayIter {
     outer_ident: DynamicIdent,
     /// An iter that returns the index of the element we are returning information for.
