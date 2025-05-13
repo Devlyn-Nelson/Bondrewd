@@ -178,10 +178,14 @@ impl DataType {
                     Some(FullDataTypeArraySpec {
                         ty: if let Some(ref arr_attr) = attrs.array {
                             match arr_attr {
-                                DataDarlingSimplifiedArrayType::Block(_) => FullDataTypeArraySpecType::Block,
-                                DataDarlingSimplifiedArrayType::Element(_) => FullDataTypeArraySpecType::Element,
+                                DataDarlingSimplifiedArrayType::Block(_) => {
+                                    FullDataTypeArraySpecType::Block
+                                }
+                                DataDarlingSimplifiedArrayType::Element(_) => {
+                                    FullDataTypeArraySpecType::Element
+                                }
                             }
-                        }else{
+                        } else {
                             FullDataTypeArraySpecType::NotSpecified
                         },
                         sizings: thing,
@@ -575,27 +579,25 @@ impl DataBuilder {
         let bit_range = if let Some(ref spec) = data_type.array_spec {
             if let Some(a_ty) = attrs.array {
                 match a_ty {
-                    DataDarlingSimplifiedArrayType::Block(size) => {
-                        match attrs.bits {
-                            DataBuilderRange::Range(range) => {
-                                if range.end - range.start != size {
-                                    return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
-                                }
-
-                                DataBuilderRange::Range(range)
+                    DataDarlingSimplifiedArrayType::Block(size) => match attrs.bits {
+                        DataBuilderRange::Range(range) => {
+                            if range.end - range.start != size {
+                                return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
                             }
-                            DataBuilderRange::Size(other_size) => {
-                                if other_size != size {
-                                    return Err(Error::new(
-                                        field.span(),
-                                        "attributes contain conflicting total bit length.",
-                                    ));
-                                }
 
-                                DataBuilderRange::Size(other_size)
-                            }
-                            DataBuilderRange::None => DataBuilderRange::Size(size),
+                            DataBuilderRange::Range(range)
                         }
+                        DataBuilderRange::Size(other_size) => {
+                            if other_size != size {
+                                return Err(Error::new(
+                                    field.span(),
+                                    "attributes contain conflicting total bit length.",
+                                ));
+                            }
+
+                            DataBuilderRange::Size(other_size)
+                        }
+                        DataBuilderRange::None => DataBuilderRange::Size(size),
                     },
                     DataDarlingSimplifiedArrayType::Element(size) => {
                         let mut total_size = size;

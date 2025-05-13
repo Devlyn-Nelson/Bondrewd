@@ -1,8 +1,9 @@
 use std::{cmp::Ordering, collections::VecDeque};
 
+use darling::FromMeta;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, token::Comma};
+use syn::{punctuated::Punctuated, token::Comma, Ident};
 
 use crate::{
     build::field::NumberType,
@@ -142,7 +143,7 @@ fn add_sign_fix_quote(
                 let sign_bit = quote! {
                     (input_byte_buffer[#sign_index] & #sign_mask)
                 };
-                let mut unused_bits = size - amount_of_bits;
+                let mut unused_bits = (size * 8) - amount_of_bits;
                 let mut buffer: VecDeque<u8> = VecDeque::default();
                 for _i in 0..size {
                     if unused_bits > 7 {
@@ -1054,11 +1055,13 @@ impl Resolver {
                     NumberType::Float =>{
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
+                        let fix_ident_stupid = Ident::from_string(&ty_ident.to_string().replace("f", "u"))?;
                         let apply_field_to_buffer = quote! {
-                            #ty_ident::from_be_bytes({
+                            #fix_ident_stupid::from_be_bytes({
                                 #full_quote
                             })#shift
                         };
+                        println!("--- [{apply_field_to_buffer}]");
                         apply_field_to_buffer
                     }
                     NumberType::Unsigned |
