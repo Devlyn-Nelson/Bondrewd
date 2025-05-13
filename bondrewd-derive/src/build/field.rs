@@ -428,7 +428,7 @@ impl DataType {
                     ident: type_quote.clone(),
                     rust_byte_size: match attrs.bits {
                         DataBuilderRange::Range(ref range) => (range.end - range.start).div_ceil(8),
-                        DataBuilderRange::Size(size) => size,
+                        DataBuilderRange::Size(size) => size.div_ceil(8),
                         DataBuilderRange::None => {
                             return Err(Error::new(
                                 path.span(),

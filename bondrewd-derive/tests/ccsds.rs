@@ -20,7 +20,7 @@ pub enum SpacePacketVersion {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", enforce_bytes = 6, dump)]
+#[bondrewd(default_endianness = "be", enforce_bytes = 6)]
 pub struct SpacePacketHeader {
     #[bondrewd(bit_length = 3)]
     pub(crate) packet_version_number: SpacePacketVersion,

@@ -688,7 +688,8 @@ impl SolvedFieldSet {
     pub fn total_bits_no_fill(&self) -> usize {
         let mut total: usize = 0;
         for field in &self.fields {
-            total += field.resolver.bit_size_no_fill();
+            let field_bits = field.resolver.bit_size_no_fill();
+            total += field_bits;
         }
 
         total

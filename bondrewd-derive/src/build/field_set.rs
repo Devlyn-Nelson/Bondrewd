@@ -100,7 +100,8 @@ impl GenericBuilder {
         // let mut id_hint =
         let mut invalid_variant: Option<VariantBuilder> = None;
         for variant in &data_enum.variants {
-            let mut attrs = struct_attrs.clone();
+            let mut attrs = StructDarlingSimplified::default();
+            attrs.default_endianness = struct_attrs.default_endianness.clone();
             let lit_id = if let Some((_, ref expr)) = variant.discriminant {
                 let parsed = Self::parse_lit_discriminant_expr(expr)?;
                 Some(parsed)
@@ -262,6 +263,20 @@ pub struct StructDarlingSimplified {
     pub fill_bits: FillBits,
 }
 
+impl Default for StructDarlingSimplified {
+    fn default() -> Self {
+        Self {
+            default_endianness: Default::default(),
+            reverse: Default::default(),
+            dump: Default::default(),
+            enforcement: Default::default(),
+            fill_bits: Default::default(),
+            ident: Ident::new("error", Span::call_site()),
+            vis: syn::Visibility::Public(syn::token::Pub(Span::call_site())),
+        }
+    }
+}
+
 impl StructDarlingSimplified {
     pub fn try_solve_endianness(lit_str: &LitStr) -> syn::Result<Endianness> {
         Endianness::from_expr(lit_str)
@@ -382,6 +397,7 @@ pub struct VariantDarling {
     pub fill_bytes: Option<usize>,
     pub fill: darling::util::Flag,
 }
+
 pub struct VariantDarlingSimplified {
     pub id: Option<usize>,
     pub invalid: bool,

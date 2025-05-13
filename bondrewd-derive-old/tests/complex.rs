@@ -38,7 +38,7 @@ enum SimpleEnum {
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(DeriveMe)]
-#[bondrewd(default_endianness = "be", dump)]
+#[bondrewd(default_endianness = "be")]
 struct SimpleExample {
     // fields that are as expected do not require attributes.
     one: bool,
@@ -158,7 +158,7 @@ fn complex_stuff() {
 
 #[derive(DeriveMe)]
 #[repr(u8)]
-#[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
+#[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3c)]
 enum Thing {
     One {
         a: u16,

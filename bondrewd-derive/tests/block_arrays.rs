@@ -5,7 +5,7 @@ use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 // #[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", dump)]
+#[bondrewd(default_endianness = "be")]
 struct SimpleWithBlockArray {
     #[bondrewd(bit_length = 3)]
     one: u8,

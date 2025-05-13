@@ -26,6 +26,7 @@ use crate::{
 
 use super::field::{DynamicIdent, SolvedData};
 
+#[derive(Debug)]
 pub struct Solved {
     /// `DataSet`'s name.
     ///
@@ -33,6 +34,7 @@ pub struct Solved {
     pub(crate) name: Ident,
     pub(crate) ty: SolvedType,
 }
+#[derive(Debug)]
 pub enum SolvedType {
     Enum {
         /// The id field. or the field that determines the variant.
@@ -68,6 +70,7 @@ impl Ord for VariantInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct SolvedFieldSet {
     pub(crate) attrs: SolvedFieldSetAttributes,
     pub(crate) fields: Vec<SolvedData>,
@@ -217,7 +220,7 @@ impl TryFrom<EnumBuilder> for Solved {
         let variants = value.variants;
         // give all variants ids.
         // TODO this code was in the parsing code, but has been moved here.
-        let mut used_ids: Vec<usize> = (&value.invalid.id).map(|f| vec![f]).unwrap_or_default();
+        let mut used_ids: Vec<usize> = Vec::default();
         let mut last = 0;
         let mut built_variants = Vec::<VariantBuilt>::with_capacity(variants.len());
         let mut largest_variant_id = 0;
@@ -284,7 +287,6 @@ impl TryFrom<EnumBuilder> for Solved {
 
         let mut solved_variants: BTreeMap<VariantInfo, SolvedFieldSet> = BTreeMap::default();
         let payload_bit_length = value.payload_bit_length.unwrap_or(largest_bit_size);
-
         for variant in built_variants {
             let (variant_info, solved_variant) = Self::solve_variant(
                 variant,
@@ -295,6 +297,23 @@ impl TryFrom<EnumBuilder> for Solved {
                 id_bits,
             )?;
             solved_variants.insert(variant_info, solved_variant);
+        }
+        let bit_size = largest_bit_size + id_bits;
+        match value.attrs.enforcement {
+            StructEnforcement::NoRules => {}
+            StructEnforcement::EnforceFullBytes => {
+                if bit_size % 8 != 0 {
+                    return Err(SolvingError::EnforceFullBytes);
+                }
+            }
+            StructEnforcement::EnforceBitAmount(expected_total_bits) => {
+                if bit_size != expected_total_bits {
+                    return Err(SolvingError::EnforceBitCount {
+                        actual: bit_size,
+                        user: expected_total_bits,
+                    });
+                }
+            }
         }
         let (invalid_name, invalid) = Self::solve_variant(
             built_invalid,
@@ -460,7 +479,8 @@ impl Solved {
                         largest = other;
                     }
                 }
-                largest + id.bit_length()
+                let id_length = id.bit_length();
+                largest + id_length
             }
             SolvedType::Struct(solved_field_set) => solved_field_set.total_bits_no_fill(),
         }
@@ -536,7 +556,7 @@ impl Solved {
                             #impl_fns
                         }
                     },
-                    bit_size + id.bit_length(),
+                    bit_size,
                 )
             }
         };

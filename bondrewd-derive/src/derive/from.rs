@@ -1061,7 +1061,6 @@ impl Resolver {
                                 #full_quote
                             })#shift
                         };
-                        println!("--- [{apply_field_to_buffer}]");
                         apply_field_to_buffer
                     }
                     NumberType::Unsigned |
