@@ -176,6 +176,21 @@ fn bits_needed(x: usize) -> usize {
     n
 }
 
+fn check_for_id(
+    variant: &VariantBuilder,
+    used_ids: &mut Vec<usize>,
+) -> Result<(), SolvingError> {
+    if let Some(value) = variant.id {
+        if used_ids.contains(&value) {
+            return Err(SolvingError::VariantConflict(
+                variant.field_set.name.clone(),
+            ));
+        }
+        used_ids.push(value);
+    }
+    Ok(())
+}
+
 fn get_built_variant(
     variant: VariantBuilder,
     used_ids: &mut Vec<usize>,
@@ -183,24 +198,19 @@ fn get_built_variant(
     largest_variant_id: &mut usize,
 ) -> Result<VariantBuilt, SolvingError> {
     let id = if let Some(value) = variant.id {
-        if used_ids.contains(&value) {
-            return Err(SolvingError::VariantConflict(
-                variant.field_set.name.clone(),
-            ));
-        }
         value
     } else {
         let mut guess = *next;
         while used_ids.contains(&guess) {
             guess += 1;
         }
+        used_ids.push(guess);
         guess
     };
     *next = id + 1;
     if *largest_variant_id < id {
         *largest_variant_id = id;
     }
-    used_ids.push(id);
     Ok(VariantBuilt {
         id,
         field_set: variant.field_set,
@@ -220,6 +230,13 @@ impl TryFrom<EnumBuilder> for Solved {
         let mut built_variants = Vec::<VariantBuilt>::with_capacity(variants.len());
         let mut largest_variant_id = 0;
         let mut largest_bit_size = 0;
+        // go through variants to get id's that are specified.
+        for variant in &variants {
+            check_for_id(variant, &mut used_ids)?;
+        }
+        check_for_id(&value.invalid, &mut used_ids)?;
+        // go through variants again, assigning id's to the ones that don't have one,
+        // and convert them to BuiltVariants (between Builder and Solved)
         for variant in variants {
             let built =
                 get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id)?;

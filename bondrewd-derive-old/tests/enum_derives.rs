@@ -65,7 +65,7 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
 }
 
 #[derive(DeriveMe, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, default_endianness = "be", dump)]
 enum CenteredInvalid {
     BLue,
     One,
@@ -188,7 +188,7 @@ fn tuple_enum() {
 }
 
 #[derive(DeriveMe, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, default_endianness = "be", dump)]
+#[bondrewd(id_bit_length = 8, default_endianness = "be")]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]

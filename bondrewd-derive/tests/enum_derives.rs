@@ -7,7 +7,7 @@ pub enum SecretFormat {
     Zero = 0x0,
     One = 0x1,
     Two = 0x2,
-    Three = 0x3,
+    Three,
     Invalid,
 }
 
@@ -65,11 +65,11 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
 }
 
 #[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, default_endianness = "be", dump)]
 enum CenteredInvalid {
     BLue,
     One,
-    #[bondrewd(invalid)]
+    #[bondrewd(invalid, id = 2)]
     Invalid,
     Three,
     Four,
@@ -97,7 +97,7 @@ fn enum_centered_catch_all() {
 enum CenteredInvalidPrimitive {
     Zero,
     One,
-    #[bondrewd(invalid)]
+    #[bondrewd(invalid, id = 2)]
     Invalid {
         #[bondrewd(capture_id)]
         id: u8,
