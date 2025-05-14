@@ -65,7 +65,7 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
 }
 
 #[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be", dump)]
+#[bondrewd(id_byte_length = 1, default_endianness = "be")]
 enum CenteredInvalid {
     BLue,
     One,

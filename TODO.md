@@ -20,3 +20,4 @@
       - [ ] When ending index is `dynamic` it is required that a previous field be provided to get a length from. which will make the read and write functions also require a ending index to provided during runtime to determine where it ends.
     - NOTE: When ANY field has a `dynamic` starting or ending bit index, we lose the ability to implement `Bitfields` but `BitfieldsDyn` would still be an option.
 - [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
+- [ ] Try to fix id assignment for test enum_derive::CenteredInvalid, the old system assigned Invalid an id of 2 due to its position in the enum, the new system assigns it 4. the id attribute was added to the test for now to get things working. i want to be able to remove that. My best guess to get things working is doing the id assignment earlier or keep track of the order of variants.
