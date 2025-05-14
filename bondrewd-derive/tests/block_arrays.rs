@@ -1,6 +1,6 @@
 // use bondrewd_old as bondrewd;
-use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
+use bondrewd_test as bondrewd;
 // use bondrewd_derive_old::Bitfields as DeriveMe;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]

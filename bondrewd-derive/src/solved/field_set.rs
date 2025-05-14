@@ -176,10 +176,7 @@ fn bits_needed(x: usize) -> usize {
     n
 }
 
-fn check_for_id(
-    variant: &VariantBuilder,
-    used_ids: &mut Vec<usize>,
-) -> Result<(), SolvingError> {
+fn check_for_id(variant: &VariantBuilder, used_ids: &mut Vec<usize>) -> Result<(), SolvingError> {
     if let Some(value) = variant.id {
         if used_ids.contains(&value) {
             return Err(SolvingError::VariantConflict(

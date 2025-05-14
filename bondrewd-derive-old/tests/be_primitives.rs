@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
@@ -47,7 +47,7 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", reverse)]
 struct SimpleWithFlip {
     one: bool,
@@ -83,7 +83,7 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", bit_traversal = "back")]
 struct SimpleWithReadFromBack {
     one: bool,
@@ -122,7 +122,7 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", bit_traversal = "front")]
 struct SimpleWithReserve {
     #[bondrewd(bit_length = 9)]
@@ -175,7 +175,7 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 #[allow(clippy::struct_excessive_bools)]
 struct SimpleDuplicateData {

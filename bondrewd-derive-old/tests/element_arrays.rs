@@ -1,7 +1,6 @@
 use bondrewd::Bitfields;
-use bondrewd_derive_old::Bitfields as DeriveMe;
 
-#[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithArray {
     #[bondrewd(bit_length = 4)]

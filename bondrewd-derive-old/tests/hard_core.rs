@@ -1,5 +1,5 @@
 use bondrewd::Bitfields;
-use current::*;
+use bondrewd_derive_old::Bitfields as DeriveMe;
 
 #[cfg(feature = "dyn_fns")]
 #[test]
@@ -78,16 +78,15 @@ impl From<One> for old::One {
 
 mod current {
     use bondrewd::Bitfields;
-    use bondrewd_derive::Bitfields as BitfieldsDerive;
 
-    #[derive(BitfieldsDerive, Default)]
+    #[derive(bondrewd_derive_old::Bitfields, Default)]
     #[bondrewd(default_endianness = "msb")]
     pub struct Weird {
         #[bondrewd(bit_length = 7)]
         pub one: u16,
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(bondrewd_derive_old::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", bit_traversal = "back")]
     pub struct One {
         pub one: bool,
@@ -95,7 +94,7 @@ mod current {
         pub two: u8,
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(bondrewd_derive_old::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
         default_endianness = "be",
         bit_traversal = "back",
@@ -118,7 +117,7 @@ mod current {
         Invalid(#[bondrewd(capture_id)] u8, #[bondrewd(bit_length = 5)] u8),
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(bondrewd_derive_old::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
         default_endianness = "be",
         bit_traversal = "back",
@@ -136,7 +135,7 @@ mod current {
         },
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(bondrewd_derive_old::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", bit_traversal = "back", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(bit_length = 4)]

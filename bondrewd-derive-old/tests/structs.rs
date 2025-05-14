@@ -1,5 +1,6 @@
 use bondrewd::Bitfields;
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
@@ -11,7 +12,7 @@ struct Simple {
     four: u8,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithStruct {
     #[bondrewd(bit_length = 3)]
@@ -22,14 +23,14 @@ struct SimpleWithStruct {
     three: u8,
 }
 
-#[derive(Bitfields)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum SimpleInner {
     One { little_payload: [u8; 10] },
     Two { big_payload: [u8; 100] },
 }
 
-#[derive(Bitfields)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[bondrewd(enforce_bytes = 104, default_endianness = "le")]
 struct SimpleEnforced {
     header: [u8; 3],
@@ -75,7 +76,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", reverse)]
 struct SimpleWithStructWithFlip {
     #[bondrewd(bit_length = 3)]
@@ -131,7 +132,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
     Ok(())
 }
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SmallStruct {
     one: bool,
@@ -141,7 +142,7 @@ struct SmallStruct {
     five: bool,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteSpanningStruct {
     #[bondrewd(bit_length = 4)]
@@ -192,7 +193,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
     Ok(())
 }
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleWithSingleByteNonSpanningStruct {
     #[bondrewd(bit_length = 3)]

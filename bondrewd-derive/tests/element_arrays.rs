@@ -1,5 +1,5 @@
-use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
+use bondrewd_test as bondrewd;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -23,7 +23,7 @@ fn to_bytes_simple_with_element_array_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 2);
     assert_eq!(bytes[0], 0b0000_1010);
     assert_eq!(bytes[1], 0b1000_0000);
-    
+
     //peeks
     assert_eq!(simple.one, SimpleWithArray::read_slice_one(&bytes)?);
     assert_eq!(simple.two, SimpleWithArray::read_slice_two(&bytes)?);

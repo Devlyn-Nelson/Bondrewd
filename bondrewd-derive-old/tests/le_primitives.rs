@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
@@ -46,7 +46,7 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le", reverse)]
 struct SimpleWithFlip {
     one: bool,
@@ -86,7 +86,7 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "le", bit_traversal = "back")]
 struct SimpleWithReadFromBack {
     one: bool,
@@ -129,7 +129,7 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Debug)]
 #[bondrewd(default_endianness = "le")]
 struct SimpleWithFloats {
     #[bondrewd(bit_length = 32)]

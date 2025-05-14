@@ -1,5 +1,5 @@
-use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
+use bondrewd_test as bondrewd;
 
 #[derive(Clone, Bitfields, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
 #[bondrewd(id_bit_length = 6, default_endianness = "be")]

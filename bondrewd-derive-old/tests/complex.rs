@@ -1,10 +1,9 @@
 use bondrewd::Bitfields;
-use bondrewd_derive_old::Bitfields as DeriveMe;
 
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.
 // TODO add a functions that get and set the id.
-#[derive(DeriveMe)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {
@@ -27,7 +26,7 @@ enum ComplexEnum {
     },
 }
 
-#[derive(DeriveMe)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 3)]
 enum SimpleEnum {
     Alpha,
@@ -37,7 +36,7 @@ enum SimpleEnum {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(DeriveMe)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleExample {
     // fields that are as expected do not require attributes.
@@ -156,7 +155,7 @@ fn complex_stuff() {
     assert_eq!(3, reconstructed.other_enum_field.id());
 }
 
-#[derive(DeriveMe)]
+#[derive(bondrewd_derive_old::Bitfields)]
 #[repr(u8)]
 #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3c)]
 enum Thing {

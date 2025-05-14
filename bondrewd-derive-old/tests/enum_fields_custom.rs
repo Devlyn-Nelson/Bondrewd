@@ -1,6 +1,6 @@
 use bondrewd::Bitfields;
 
-#[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
+#[derive(Eq, PartialEq, Clone, Debug, bondrewd_derive_old::Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum TestCustomEnum {
     CustomZero = 0x30,
@@ -10,7 +10,7 @@ enum TestCustomEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleCustomEnumUsage {
     one: u8,
@@ -47,8 +47,8 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[derive(Eq, PartialEq, Clone, Debug, bondrewd_derive_old::Bitfields)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8, dump)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -57,7 +57,7 @@ enum TestCustomContinuationEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
 struct SimpleCustomContinuationEnumUsage {
     one: u8,

@@ -1,5 +1,5 @@
-use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
+use bondrewd_test as bondrewd;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 8)]
@@ -31,7 +31,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b0000_1000);
     assert_eq!(bytes[1], 0b0100_0000);
-    
+
     //peeks
     assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
     assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
@@ -47,7 +47,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8, dump)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -98,7 +98,6 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let new_simple = SimpleCustomContinuationEnumUsage::from_bytes(bytes);
     assert_eq!(simple, new_simple);
 
-
     // Setter too
     SimpleCustomContinuationEnumUsage::write_slice_two(
         &mut bytes,
@@ -113,6 +112,6 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
         SimpleCustomContinuationEnumUsage::from_bytes(bytes),
         expected
     );
-    
+
     Ok(())
 }

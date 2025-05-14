@@ -1,7 +1,6 @@
 use bondrewd::Bitfields;
-use bondrewd_derive_old::Bitfields as DeriveMe;
 
-#[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(id_bit_length = 2, default_endianness = "be")]
 pub enum SpacePacketSequenceFlags {
     Continuation,
@@ -11,7 +10,7 @@ pub enum SpacePacketSequenceFlags {
 }
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
-#[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(id_bit_length = 3, default_endianness = "be")]
 pub enum SpacePacketVersion {
     One,
@@ -19,7 +18,7 @@ pub enum SpacePacketVersion {
     Invalid,
 }
 
-#[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
+#[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", enforce_bytes = 6)]
 pub struct SpacePacketHeader {
     #[bondrewd(bit_length = 3)]
