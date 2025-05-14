@@ -390,6 +390,7 @@ impl SolvedFieldSet {
             // TODO capture_id may not need to be run fully, capture id fields will
             // rely on the fact it was already read for the matching process.
             let field_access = field.get_quotes()?;
+            // println!("{}\n", field_access.read());
             self.make_read_fns(
                 field,
                 &set_add,

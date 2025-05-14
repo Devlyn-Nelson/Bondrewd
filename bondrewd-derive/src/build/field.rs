@@ -621,7 +621,7 @@ impl DataBuilder {
 
                                 DataBuilderRange::Size(other_size)
                             }
-                            DataBuilderRange::None => DataBuilderRange::Size(size),
+                            DataBuilderRange::None => DataBuilderRange::Size(total_size),
                         }
                     }
                 }
@@ -652,6 +652,7 @@ impl DataBuilder {
             }
             attrs.bits.into()
         };
+        println!(" ---- {bit_range:?}");
         let new_field = Self {
             id: if let Some(id) = &field.ident {
                 id.into()

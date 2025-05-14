@@ -2,7 +2,7 @@ use bondrewd_test as bondrewd;
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(default_endianness = "be", dump)]
 struct SimpleWithArray {
     #[bondrewd(bit_length = 4)]
     one: u8,

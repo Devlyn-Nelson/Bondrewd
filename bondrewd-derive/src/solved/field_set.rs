@@ -1433,7 +1433,13 @@ impl BuiltRange {
                 Self { bit_range, ty }
             }
             DataBuilderRange::None => {
-                let bit_range = start..(start + data_ty.data_type.default_bit_size());
+                let mut ty_size = data_ty.data_type.default_bit_size();
+                if let BuiltRangeType::ElementArray(items) = &ty {
+                    for i in items {
+                        ty_size *= i;
+                    }
+                }
+                let bit_range = start..(start + ty_size);
                 Self { bit_range, ty }
             } // BuilderRange::ElementArray { sizings, size } => {
               //     let bit_range = match &size {
