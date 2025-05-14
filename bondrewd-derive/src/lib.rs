@@ -53,7 +53,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             return TokenStream::from(err.to_compile_error());
         }
     };
-
     match solved.gen(true, true, false) {
         Ok(gen) => gen.into(),
         Err(err) => TokenStream::from(err.to_compile_error()),

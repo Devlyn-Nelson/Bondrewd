@@ -284,7 +284,7 @@ impl SolvedFieldSet {
     pub fn generate_quotes(
         &self,
         name: &Ident,
-        enum_name: Option<&Ident>,
+        enum_name: Option<GenStructFieldsEnumInfo>,
         struct_size: usize,
         dyn_fns: bool,
     ) -> syn::Result<FieldQuotes> {
@@ -366,14 +366,14 @@ impl SolvedFieldSet {
     pub(crate) fn gen_struct_fields(
         &self,
         name: &Ident,
-        enum_name: Option<&Ident>,
+        enum_name: Option<GenStructFieldsEnumInfo>,
         struct_size: usize,
         dyn_fns: bool,
     ) -> syn::Result<FieldQuotes> {
-        let set_add = if let Some(ename) = enum_name {
+        let set_add = if let Some(ename) = &enum_name {
             // We what to use the name of the struct because enum variants are just StructInfos internally.
             let vn = format_ident!("{}", name.to_string().to_case(Case::Snake));
-            SolvedFieldSetAdditive::new_variant(&ename, vn)
+            SolvedFieldSetAdditive::new_variant(ename.ident, vn)
         } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
@@ -406,8 +406,8 @@ impl SolvedFieldSet {
         } else if let (Some(dyn_fns_read), Some(dyn_fns_write)) =
             (&mut gen_read.dyn_fns, &mut gen_write.dyn_fns)
         {
-            let struct_name = if let Some(e_name) = enum_name {
-                quote::format_ident!("{e_name}{name}")
+            let struct_name = if let Some(e_name) = &enum_name {
+                quote::format_ident!("{}{name}", e_name.ident)
             } else {
                 name.clone()
             };
@@ -451,13 +451,13 @@ impl SolvedFieldSet {
                     }
                 }
             };
-            let ename = if enum_name.is_some() {
-                Some(&struct_name)
+            let (ename, full_byte_size) = if let Some(enum_stuff) = &enum_name {
+                (Some(&struct_name), enum_stuff.full_size)
             } else {
-                None
+                (None, self.total_bytes())
             };
 
-            let check_slice_info = CheckedSliceGen::new(name, self.total_bytes(), ename);
+            let check_slice_info = CheckedSliceGen::new(name, full_byte_size, ename);
 
             let check_slice_fn = check_slice_info.fn_gen;
             let impl_fns = gen_read.non_trait;
@@ -525,7 +525,7 @@ impl SolvedFieldSet {
         if !field.attr_reserve().is_fake_field() {
             // put the name of the field into the list of fields that are needed to create
             // the struct.
-            *field_name_list = quote! {#field_name, #field_name_list};
+            *field_name_list = quote! {#field_name_list #field_name,};
             // TODO line above replaced commented code below, this is old code that i don't think is necessary.
             // field order here shouldn't matter.
             //
@@ -681,7 +681,8 @@ impl SolvedFieldSet {
     pub fn total_bits(&self) -> usize {
         let mut total: usize = 0;
         for field in &self.fields {
-            total += field.bit_length();
+            let bit_length = field.bit_length();
+            total += bit_length;
         }
         total
     }
@@ -708,6 +709,11 @@ impl SolvedFieldSet {
         }
         None
     }
+}
+
+pub struct GenStructFieldsEnumInfo<'a> {
+    pub ident: &'a Ident,
+    pub full_size: usize,
 }
 /// Generates a `read_field_name()` function.
 pub(crate) fn generate_read_field_fn(

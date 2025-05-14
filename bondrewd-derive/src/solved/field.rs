@@ -335,10 +335,11 @@ impl Resolver {
     // this returns how many bits of the fields pertain to total structure bits.
     // where as attrs.bit_length() give you bits the fields actually needs.
     pub fn bit_size_no_fill(&self) -> usize {
-        if !self.reserve.count_bits() {
-            return 0;
+        if self.reserve.count_bits() && !self.is_captured_id {
+            self.bit_size()
+        } else {
+            0
         }
-        self.bit_size()
     }
 }
 

@@ -508,7 +508,6 @@ impl DataBuilder {
         self
     }
     pub fn bit_length(&self) -> usize {
-        // TODO test if this should not include redundant bytes or and verify none of the call sites require that.
         self.bit_range.bit_length()
     }
     pub fn parse(
