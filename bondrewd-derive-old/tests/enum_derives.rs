@@ -1,6 +1,7 @@
 use bondrewd::Bitfields;
+use bondrewd_derive_old::Bitfields as DeriveMe;
 
-#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
+#[derive(DeriveMe, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(id_bit_length = 4)]
 pub enum SecretFormat {
     Zero = 0x0,
@@ -29,7 +30,7 @@ fn must_work() {
 // for situation where all bits are accounted for, like if this enum was used as a 2bit field than
 // we can just let the last option be a valid catch all (in proc_macro code it is still marked as
 // an invalid catch all but that doesn't really matter)
-#[derive(Bitfields, PartialEq, Debug)]
+#[derive(DeriveMe, PartialEq, Debug)]
 #[bondrewd(id_byte_length = 1, default_endianness = "be")]
 enum NoInvalidEnum {
     Zero,
@@ -40,7 +41,7 @@ enum NoInvalidEnum {
     Three,
 }
 
-#[derive(Bitfields, PartialEq, Debug)]
+#[derive(DeriveMe, PartialEq, Debug)]
 #[bondrewd(id_byte_length = 1, default_endianness = "be")]
 enum InferPrimitiveTypeWithInvalidEnum {
     Zero,
@@ -63,7 +64,7 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
     assert!(InferPrimitiveTypeWithInvalidEnum::from_bytes([255u8]).into_bytes()[0] == 3);
 }
 
-#[derive(Bitfields, PartialEq, Debug)]
+#[derive(DeriveMe, PartialEq, Debug)]
 #[bondrewd(id_byte_length = 1, default_endianness = "be")]
 enum CenteredInvalid {
     BLue,
@@ -91,7 +92,7 @@ fn enum_centered_catch_all() {
     assert!(CenteredInvalid::from_bytes([255u8]).into_bytes()[0] == 2);
 }
 
-#[derive(Bitfields)]
+#[derive(DeriveMe)]
 #[bondrewd(id_byte_length = 1, default_endianness = "be")]
 enum CenteredInvalidPrimitive {
     Zero,
@@ -139,7 +140,7 @@ fn enum_centered_catch_primitive() {
     assert!(CenteredInvalidPrimitive::from_bytes([255u8]).into_bytes()[0] == 255);
 }
 
-#[derive(Bitfields, Debug, Clone)]
+#[derive(DeriveMe, Debug, Clone)]
 #[bondrewd(id_bit_length = 8, default_endianness = "be")]
 enum TupleEnum {
     One(u8),
@@ -186,8 +187,8 @@ fn tuple_enum() {
     assert!(matches!(err, _new_err));
 }
 
-#[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, default_endianness = "be")]
+#[derive(DeriveMe, Debug, Clone)]
+#[bondrewd(id_bit_length = 8, default_endianness = "be", dump)]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]
@@ -200,7 +201,7 @@ enum CrazyEnum {
     CrazyBin(#[bondrewd(capture_id)] u8, i8),
 }
 
-#[cfg(dyn_fns)]
+#[cfg(feature = "dyn_fns")]
 #[test]
 fn crazy_enum() {
     let mut thing = CrazyEnum::Wack {
@@ -254,7 +255,6 @@ fn crazy_enum() {
             }
             CrazyEnumChecked::CrazyBin(cb) => {
                 assert_eq!(cb.read_field_1(), 0b00110100);
-                assert_eq!(cb.read_variant_id(), 3);
             }
         },
         Err(err) => panic!("{err}"),

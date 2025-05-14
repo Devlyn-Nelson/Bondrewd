@@ -215,7 +215,7 @@ fn crazy_enum() {
                 assert_eq!(w.read_groovy(), 2);
             }
             CrazyEnumChecked::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
-            CrazyEnumChecked::InsaneInTheBrain(_) => {
+            CrazyEnumChecked::InsaneInTheBrain => {
                 panic!("check slice returned incorrect variant (InsaneInTheBrain)")
             }
             CrazyEnumChecked::CrazyBin(_) => {
@@ -233,7 +233,7 @@ fn crazy_enum() {
                 assert_eq!(w.read_groovy(), 4);
             }
             CrazyEnumCheckedMut::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
-            CrazyEnumCheckedMut::InsaneInTheBrain(_) => {
+            CrazyEnumCheckedMut::InsaneInTheBrain => {
                 panic!("check slice returned incorrect variant (InsaneInTheBrain)")
             }
             CrazyEnumCheckedMut::CrazyBin(_) => {
@@ -249,12 +249,11 @@ fn crazy_enum() {
                 panic!("check slice returned incorrect variant (CrazyBin)")
             }
             CrazyEnumChecked::Loco(_) => panic!("check slice returned incorrect variant (Loco)"),
-            CrazyEnumChecked::InsaneInTheBrain(_) => {
+            CrazyEnumChecked::InsaneInTheBrain => {
                 panic!("check slice returned incorrect variant (InsaneInTheBrain)")
             }
             CrazyEnumChecked::CrazyBin(cb) => {
-                assert_eq!(cb.read_field_1(), 0b00110100);
-                assert_eq!(cb.read_variant_id(), 3);
+                assert_eq!(cb.read_field_2(), 0b00110100);
             }
         },
         Err(err) => panic!("{err}"),

@@ -1119,7 +1119,7 @@ impl Solved {
         let v_bit_const_name = format_ident!("{upper_v_name}_BIT_SIZE");
         // constant values for variant bit and byte sizings.
         let v_bit_size = variant.total_bits_no_fill() + id.bit_length();
-        let v_byte_size = (variant.total_bits() + id.bit_length()).div_ceil(8);
+        let v_byte_size = v_bit_size.div_ceil(8);
         // TokenStream of v_name.
         let variant_name = quote! {#v_name};
 
