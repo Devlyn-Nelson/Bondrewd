@@ -367,11 +367,11 @@ impl DataType {
         };
         // if the type is a number and its endianess is None (numbers should have endianess) then we
         // apply the structs default (which might also be None)
-        if attrs.endianness.is_none() && data_type.data_type.rust_size() == 1 {
-            // currently nested fields that are 1 byte or less are expected to go through big endian logic.
-            attrs.endianness = Some(Endianness::big())
-        }
-        if data_type.data_type.needs_endianness() && attrs.endianness.is_none() {
+        // if attrs.endianness.is_none() && data_type.data_type.rust_size() == 1 {
+        //     // currently nested fields that are 1 byte or less are expected to go through big endian logic.
+        //     attrs.endianness = Some(Endianness::big())
+        // }
+        if attrs.endianness.is_none() {
             attrs.endianness = Some(default_endianness.clone());
         }
 

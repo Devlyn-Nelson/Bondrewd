@@ -1,7 +1,5 @@
 use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
 
-// START_HERE start fixing.
 #[derive(Bitfields)]
 pub enum Test {
     One {

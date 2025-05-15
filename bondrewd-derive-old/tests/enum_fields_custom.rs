@@ -48,7 +48,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, bondrewd_derive_old::Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8, dump)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,

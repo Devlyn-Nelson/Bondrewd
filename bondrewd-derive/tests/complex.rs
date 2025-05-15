@@ -1,5 +1,4 @@
 use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
 
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.

@@ -1,8 +1,7 @@
-use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
-
 #[test]
 fn hard_core_test() {
+    use bondrewd::Bitfields;
+    use current::Weird;
     let w = Weird::default();
     let mut bytes = w.into_bytes();
     if let Ok(checked) = Weird::check_slice(&bytes) {
@@ -20,6 +19,8 @@ fn hard_core_test() {
 
 #[test]
 fn super_hard_code() {
+    use bondrewd::Bitfields;
+    use current::{One, ReallyHardcore, Three, Two};
     // TODO add multi-byte nested structure.
     // make it a changing test like the HAL protocol tests do.
     let thing_1 = ReallyHardcore {
@@ -35,12 +36,13 @@ fn super_hard_code() {
         four: 7,
     };
 
-    let half_bytes_1 = thing_1.two.clone().into_bytes();
+    // let half_bytes_1 = thing_1.two.clone().into_bytes();
 
     let bytes_1 = thing_1.clone().into_bytes();
     let bytes_2 = thing_2.clone().into_bytes();
 
     let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
+    // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
     assert_eq!(bytes_1, correct_bytes_1);
     assert_eq!(
         bytes_2,
@@ -66,27 +68,16 @@ fn super_hard_code() {
 //     print!("]\n");
 // }
 
-impl From<One> for old::One {
-    fn from(value: One) -> Self {
-        Self {
-            one: value.one,
-            two: value.two,
-        }
-    }
-}
-
 mod current {
     use bondrewd::Bitfields;
-    use bondrewd_derive::Bitfields as BitfieldsDerive;
-
-    #[derive(BitfieldsDerive, Default)]
+    #[derive(Bitfields, Default)]
     #[bondrewd(default_endianness = "msb")]
     pub struct Weird {
         #[bondrewd(bit_length = 7)]
         pub one: u16,
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", bit_traversal = "back")]
     pub struct One {
         pub one: bool,
@@ -94,7 +85,7 @@ mod current {
         pub two: u8,
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
         default_endianness = "be",
         bit_traversal = "back",
@@ -117,7 +108,7 @@ mod current {
         Invalid(#[bondrewd(capture_id)] u8, #[bondrewd(bit_length = 5)] u8),
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
         default_endianness = "be",
         bit_traversal = "back",
@@ -135,8 +126,8 @@ mod current {
         },
     }
 
-    #[derive(BitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(default_endianness = "be", bit_traversal = "back", reverse)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
+    #[bondrewd(default_endianness = "be", bit_traversal = "front", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(bit_length = 4)]
         pub one: One,
@@ -147,12 +138,20 @@ mod current {
         #[bondrewd(bit_length = 3)]
         pub four: u8,
     }
+
+    impl From<One> for crate::old::One {
+        fn from(value: One) -> Self {
+            Self {
+                one: value.one,
+                two: value.two,
+            }
+        }
+    }
 }
 mod old {
-    use bondrewd_1 as bondrewd;
-    use bondrewd_1::Bitfields as OldBitfieldsDerive;
-
-    #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    use bondrewd_old as bondrewd;
+    use bondrewd_old::Bitfields;
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0")]
     pub struct One {
         pub one: bool,
@@ -160,16 +159,16 @@ mod old {
         pub two: u8,
     }
 
-    #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0", enforce_bits = 4)]
     pub struct Three {
-        #[bondrewd(capture_id, bit_length = 2)]
+        #[bondrewd(bit_length = 2)]
         pub id: u8,
         #[bondrewd(bit_length = 2)]
         pub other: u8,
     }
 
-    #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0", enforce_bytes = 1)]
     pub struct Two {
         pub one: bool,
@@ -177,7 +176,7 @@ mod old {
         pub two: u8,
     }
 
-    #[derive(OldBitfieldsDerive, Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(default_endianness = "be", read_from = "lsb0", reverse)]
     pub struct ReallyHardcore {
         #[bondrewd(struct_size = 1, bit_length = 4)]

@@ -1,11 +1,13 @@
 pub mod field;
 pub mod field_set;
 
+use darling::FromMeta;
 use field::DataBuilderRange;
 use quote::ToTokens;
 use std::{
     fmt::Debug,
     ops::{Deref, Range},
+    str::FromStr,
 };
 use syn::{spanned::Spanned, token::Pub, Expr, Ident, Lit, LitInt, LitStr};
 
@@ -298,6 +300,12 @@ pub struct Endianness {
     reverse_field_order: UserDefinedReversal,
 }
 
+impl FromMeta for Endianness {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        Self::from_str(value)
+    }
+}
+
 impl Endianness {
     /// Defines if the the order that byte indices shall be assigned in the solving process shall be reversed.
     ///
@@ -419,13 +427,20 @@ impl Endianness {
     }
     pub fn from_expr(val: &LitStr) -> syn::Result<Self> {
         let val = val.value();
-        match val.to_lowercase().as_str() {
+        Ok(Self::from_str(val.as_str())?)
+    }
+}
+
+impl FromStr for Endianness {
+    type Err = darling::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
             "le" | "lsb" | "little" | "lil" => Ok(Endianness::little_packed()),
             "ale" | "little-aliened" | "lilali" => Ok(Endianness::little_aligned()),
             "be" | "msb" | "big" => Ok(Endianness::big()),
-            _ => Err(syn::Error::new(
-                val.span(),
-                "unknown endianness try \"little\", \"big\", or \"little-aliened\"",
+            _ => Err(darling::Error::unknown_value(
+                "Unknown endianness try \"little\", \"big\", or \"little-aliened\"",
             )),
         }
     }

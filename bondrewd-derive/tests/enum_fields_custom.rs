@@ -1,5 +1,4 @@
 use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
 #[bondrewd(default_endianness = "be", id_bit_length = 8)]
@@ -47,7 +46,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8, dump)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -77,7 +76,7 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b1000_0000);
-    assert_eq!(bytes[1], 0b0000_0001);
+    assert_eq!(bytes[1], 0x40);
     assert_eq!(bytes[2], 0b0000_1000);
 
     //peeks

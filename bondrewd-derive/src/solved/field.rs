@@ -220,6 +220,96 @@ impl SolvedData {
             zero: clear,
         })
     }
+    pub fn from_built(mut pre_field: BuiltData, struct_bit_size: usize) -> Self {
+        // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
+        // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
+        // happen before byte_order_reversal and field_order_reversal
+        //
+        // Reverse field order
+        if pre_field.endianness.is_field_order_reversed() {
+            let old_field_range = pre_field.bit_range.range().clone();
+            pre_field.bit_range.bit_range =
+                (struct_bit_size - old_field_range.end)..(struct_bit_size - old_field_range.start);
+        }
+        // get the total number of bits the field uses.
+        let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
+        // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
+        // left)
+        let mut zeros_on_left = pre_field.bit_range.range().start % 8;
+        if 7 < zeros_on_left {
+            // TODO if don't think this error is possible, and im wondering why it is being checked for
+            // in the first place.
+            // return Err(SolvingError::ResolverUnderflow(format!(
+            //     "field \"{}\" would have had left shift underflow, report this at \
+            //         https://github.com/Devlyn-Nelson/Bondrewd",
+            //     pre_field.id.ident(),
+            // )));
+            zeros_on_left %= 8;
+        }
+        let available_bits_in_first_byte = 8 - zeros_on_left;
+        // calculate the starting byte index in the outgoing buffer
+        let starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
+        // NOTE endianness is only for determining how to get the bytes we will apply to the output.
+        // calculate how many of the bits will be inside the most significant byte we are adding to.
+        // if pre_field.endianness.is_byte_order_reversed() {
+        //     let struct_byte_length = bit_size / 8;
+        //     starting_inject_byte = struct_byte_length - starting_inject_byte;
+        // }
+
+        let sub_ty = match &pre_field.ty {
+            DataType::Number(number_type, rust_byte_size) => {
+                let resolver_strategy = if pre_field.endianness.is_alternative() {
+                    ResolverPrimitiveStrategy::Alternate
+                } else {
+                    ResolverPrimitiveStrategy::Standard
+                };
+                ResolverSubType::Primitive {
+                    number_ty: *number_type,
+                    resolver_strategy,
+                    rust_size: *rust_byte_size,
+                }
+            }
+            DataType::Nested {
+                ident,
+                rust_byte_size,
+            } => ResolverSubType::Nested {
+                ty_ident: ident.clone(),
+                rust_size: *rust_byte_size,
+            },
+        };
+        let ty = Box::new(match &pre_field.bit_range.ty {
+            BuiltRangeType::SingleElement => sub_ty.into(),
+            BuiltRangeType::BlockArray(vec) => ResolverType::Array {
+                array_ty: ResolverArrayType::Block,
+                sizings: vec.clone(),
+                sub_ty,
+            },
+            BuiltRangeType::ElementArray(vec) => ResolverType::Array {
+                array_ty: ResolverArrayType::Element,
+                sizings: vec.clone(),
+                sub_ty,
+            },
+        });
+        let resolver = Resolver {
+            data: Box::new(ResolverData {
+                bit_range: pre_field.bit_range.range().clone(),
+                flip: if pre_field.endianness.is_byte_order_reversed() {
+                    Some(pre_field.ty.rust_size() - 1)
+                } else {
+                    None
+                },
+                zeros_on_left,
+                available_bits_in_first_byte,
+                starting_inject_byte,
+                field_name: pre_field.id,
+            }),
+            ty,
+            reserve: pre_field.reserve,
+            is_captured_id: pre_field.is_captured_id,
+            overlap: pre_field.overlap,
+        };
+        SolvedData { resolver }
+    }
 }
 
 #[derive(Debug)]
@@ -510,99 +600,5 @@ impl From<ResolverSubType> for ResolverType {
                 rust_size,
             },
         }
-    }
-}
-
-impl From<BuiltData> for SolvedData {
-    fn from(mut pre_field: BuiltData) -> Self {
-        // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
-        // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
-        // happen before byte_order_reversal and field_order_reversal
-        //
-        // Reverse field order
-        let bit_size = pre_field.bit_range.bit_length();
-        if pre_field.endianness.is_field_order_reversed() {
-            let old_field_range = pre_field.bit_range.range().clone();
-            pre_field.bit_range.bit_range =
-                (bit_size - old_field_range.end)..(bit_size - old_field_range.start);
-        }
-        // get the total number of bits the field uses.
-        let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
-        // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
-        // left)
-        let mut zeros_on_left = pre_field.bit_range.range().start % 8;
-        if 7 < zeros_on_left {
-            // TODO if don't think this error is possible, and im wondering why it is being checked for
-            // in the first place.
-            // return Err(SolvingError::ResolverUnderflow(format!(
-            //     "field \"{}\" would have had left shift underflow, report this at \
-            //         https://github.com/Devlyn-Nelson/Bondrewd",
-            //     pre_field.id.ident(),
-            // )));
-            zeros_on_left %= 8;
-        }
-        let available_bits_in_first_byte = 8 - zeros_on_left;
-        // calculate the starting byte index in the outgoing buffer
-        let starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
-        // NOTE endianness is only for determining how to get the bytes we will apply to the output.
-        // calculate how many of the bits will be inside the most significant byte we are adding to.
-        // if pre_field.endianness.is_byte_order_reversed() {
-        //     let struct_byte_length = bit_size / 8;
-        //     starting_inject_byte = struct_byte_length - starting_inject_byte;
-        // }
-
-        let sub_ty = match &pre_field.ty {
-            DataType::Number(number_type, rust_byte_size) => {
-                let resolver_strategy = if pre_field.endianness.is_alternative() {
-                    ResolverPrimitiveStrategy::Alternate
-                } else {
-                    ResolverPrimitiveStrategy::Standard
-                };
-                ResolverSubType::Primitive {
-                    number_ty: *number_type,
-                    resolver_strategy,
-                    rust_size: *rust_byte_size,
-                }
-            }
-            DataType::Nested {
-                ident,
-                rust_byte_size,
-            } => ResolverSubType::Nested {
-                ty_ident: ident.clone(),
-                rust_size: *rust_byte_size,
-            },
-        };
-        let ty = Box::new(match &pre_field.bit_range.ty {
-            BuiltRangeType::SingleElement => sub_ty.into(),
-            BuiltRangeType::BlockArray(vec) => ResolverType::Array {
-                array_ty: ResolverArrayType::Block,
-                sizings: vec.clone(),
-                sub_ty,
-            },
-            BuiltRangeType::ElementArray(vec) => ResolverType::Array {
-                array_ty: ResolverArrayType::Element,
-                sizings: vec.clone(),
-                sub_ty,
-            },
-        });
-        let resolver = Resolver {
-            data: Box::new(ResolverData {
-                bit_range: pre_field.bit_range.range().clone(),
-                flip: if pre_field.endianness.is_byte_order_reversed() {
-                    Some(pre_field.ty.rust_size() - 1)
-                } else {
-                    None
-                },
-                zeros_on_left,
-                available_bits_in_first_byte,
-                starting_inject_byte,
-                field_name: pre_field.id,
-            }),
-            ty,
-            reserve: pre_field.reserve,
-            is_captured_id: pre_field.is_captured_id,
-            overlap: pre_field.overlap,
-        };
-        SolvedData { resolver }
     }
 }

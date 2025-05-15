@@ -1,5 +1,4 @@
 use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
 use rand::Rng;
 
 #[derive(bondrewd_derive::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,11 +1,11 @@
 use proc_macro2::Span;
-use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit, LitStr};
+use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit};
 
 use crate::solved::field_set::SolvedFieldSetAttributes;
 
 use super::{field::DataBuilder, Endianness};
 
-use darling::{FromDeriveInput, FromVariant};
+use darling::{FromDeriveInput, FromMeta, FromVariant};
 
 /// Builds a bitfield model. This is not the friendliest user facing entry point for `bondrewd-builder`.
 /// please look at either [`FieldSetBuilder`] or [`EnumBuilder`] for a more user friendly builder.
@@ -237,10 +237,30 @@ impl GenericBuilder {
         Ok(tuple)
     }
 }
+
+#[derive(Debug)]
+pub enum BitTraversal {
+    Back,
+    Front,
+}
+
+impl FromMeta for BitTraversal {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        match value.to_lowercase().as_str() {
+            "back" => Ok(Self::Back),
+            "front" => Ok(Self::Front),
+            _ => Err(darling::Error::unknown_value(
+                "unknown bit_traversal value use \"front\", or \"back\"",
+            )),
+        }
+    }
+}
+
 #[derive(Debug, FromDeriveInput, FromVariant)]
 #[darling(attributes(bondrewd))]
 pub struct StructDarling {
-    pub default_endianness: Option<LitStr>,
+    pub default_endianness: Option<Endianness>,
+    pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub ident: Ident,
     pub vis: syn::Visibility,
@@ -255,7 +275,6 @@ pub struct StructDarling {
 #[derive(Debug, Clone)]
 pub struct StructDarlingSimplified {
     pub default_endianness: Option<Endianness>,
-    pub reverse: bool,
     pub ident: Ident,
     pub vis: syn::Visibility,
     pub dump: bool,
@@ -267,7 +286,6 @@ impl Default for StructDarlingSimplified {
     fn default() -> Self {
         Self {
             default_endianness: Default::default(),
-            reverse: Default::default(),
             dump: Default::default(),
             enforcement: Default::default(),
             fill_bits: Default::default(),
@@ -278,9 +296,6 @@ impl Default for StructDarlingSimplified {
 }
 
 impl StructDarlingSimplified {
-    pub fn try_solve_endianness(lit_str: &LitStr) -> syn::Result<Endianness> {
-        Endianness::from_expr(lit_str)
-    }
     pub fn try_solve_enforcement(
         enforce_full_bytes: darling::util::Flag,
         enforce_bytes: Option<usize>,
@@ -344,7 +359,6 @@ impl StructDarlingSimplified {
             self.fill_bits = other.fill_bits;
         }
         self.dump = other.dump;
-        self.reverse = other.reverse;
         self.ident = other.ident;
         self.vis = other.vis;
         Ok(())
@@ -355,8 +369,14 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
     type Error = syn::Error;
 
     fn try_from(darling: StructDarling) -> Result<Self, Self::Error> {
-        let default_endianness = if let Some(ref val) = darling.default_endianness {
-            Some(Self::try_solve_endianness(val)?)
+        let default_endianness = if let Some(mut val) = darling.default_endianness {
+            if let Some(bt) = darling.bit_traversal {
+                val.set_reverse_field_order(matches!(bt, BitTraversal::Back));
+            }
+            if darling.reverse.is_present() {
+                val.set_reverse_byte_order(true);
+            }
+            Some(val)
         } else {
             None
         };
@@ -371,7 +391,6 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
             Self::try_solve_fill_bits(darling.fill_bits, darling.fill_bytes, darling.fill)?;
         Ok(Self {
             default_endianness,
-            reverse: darling.reverse.is_present(),
             ident: darling.ident,
             vis: darling.vis,
             dump: darling.dump.is_present(),
@@ -386,7 +405,8 @@ pub struct VariantDarling {
     pub id: Option<usize>,
     pub invalid: darling::util::Flag,
     // struct
-    pub default_endianness: Option<LitStr>,
+    pub default_endianness: Option<Endianness>,
+    pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub ident: Ident,
     pub dump: darling::util::Flag,
@@ -407,9 +427,17 @@ impl VariantDarlingSimplified {
         value: VariantDarling,
         attrs: &mut StructDarlingSimplified,
     ) -> Result<Self, syn::Error> {
-        if let Some(val) = &value.default_endianness {
-            attrs.default_endianness = Some(StructDarlingSimplified::try_solve_endianness(val)?);
+        if let Some(val) = value.default_endianness {
+            attrs.default_endianness = Some(val);
         };
+        if let Some(val) = &mut attrs.default_endianness {
+            if let Some(bt) = value.bit_traversal {
+                val.set_reverse_field_order(matches!(bt, BitTraversal::Back));
+            }
+            if value.reverse.is_present() {
+                val.set_reverse_field_order(true);
+            }
+        }
         // determine byte enforcement if any.
         let enforcement = StructDarlingSimplified::try_solve_enforcement(
             value.enforce_full_bytes,
@@ -429,7 +457,6 @@ impl VariantDarlingSimplified {
             attrs.fill_bits = fill_bits;
         }
         attrs.dump = value.dump.is_present();
-        attrs.reverse = value.reverse.is_present();
         attrs.ident = value.ident;
         Ok(VariantDarlingSimplified {
             id: value.id,
@@ -450,7 +477,8 @@ pub struct EnumDarling {
     pub id_bit_length: Option<usize>,
     pub id_byte_length: Option<usize>,
     // Struct
-    pub default_endianness: Option<LitStr>,
+    pub default_endianness: Option<Endianness>,
+    pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub dump: darling::util::Flag,
     pub enforce_full_bytes: darling::util::Flag,
@@ -477,6 +505,7 @@ impl TryFrom<EnumDarling> for ObjectDarlingSimplifiedPackage {
     fn try_from(value: EnumDarling) -> Result<Self, Self::Error> {
         let struct_attrs = StructDarling {
             default_endianness: value.default_endianness,
+            bit_traversal: value.bit_traversal,
             reverse: value.reverse,
             ident: value.ident.clone(),
             vis: value.vis.clone(),

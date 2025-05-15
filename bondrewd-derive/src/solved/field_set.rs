@@ -122,9 +122,9 @@ pub enum SolvingError {
     EnforceBitCount { actual: usize, user: usize },
     #[error("Variant name \"{0}\" used twice. Variants must have unique names.")]
     VariantConflict(Ident),
-    #[error("Largest variant id value ({variant_id_bit_length}) is larger than `id_bit_size` ({bit_length})")]
+    #[error("Largest variant id value ({variant_id_max_value}) is larger than `id_bit_size` ({bit_length})")]
     VariantIdBitLength {
-        variant_id_bit_length: usize,
+        variant_id_max_value: usize,
         bit_length: usize,
     },
     #[error("Largest variant payload ({largest_payload_length}) is larger than `payload_bit_size` ({bit_length})")]
@@ -269,7 +269,7 @@ impl TryFrom<EnumBuilder> for Solved {
         // validity checks
         if bits_needed(largest_variant_id) > id_bits {
             return Err(SolvingError::VariantIdBitLength {
-                variant_id_bit_length: largest_variant_id,
+                variant_id_max_value: largest_variant_id,
                 bit_length: id_bits,
             });
         }
@@ -306,14 +306,14 @@ impl TryFrom<EnumBuilder> for Solved {
             )?;
             solved_variants.insert(variant_info, (solved_variant, fill));
         }
+        let bit_size = largest_bit_size + id_bits;
         // after solving the attrs for fill might be set. need to do it here
         // because the largest_payload_size can't be determined until `solve_variant`
         // has been called on all variants.
-        Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true)?;
+        Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true, Some(id_bits))?;
         for (info, (set, fill)) in &mut solved_variants {
-            Self::maybe_add_fill_field(fill, set, true)?;
+            Self::maybe_add_fill_field(fill, set, true, Some(id_bits))?;
         }
-        let bit_size = largest_bit_size + id_bits;
         match value.attrs.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
@@ -330,10 +330,11 @@ impl TryFrom<EnumBuilder> for Solved {
                 }
             }
         }
+        let id = SolvedData::from_built(id_field, bit_size);
         Ok(Solved {
             name: value.name,
             ty: SolvedType::Enum {
-                id: id_field.into(),
+                id,
                 invalid,
                 invalid_name,
                 variants: solved_variants
@@ -495,6 +496,12 @@ impl Solved {
                 dump,
             } => {
                 let mut largest = 0;
+                // check invalid variant
+                let other = invalid.total_bits_no_fill();
+                if other > largest {
+                    largest = other;
+                }
+                // check variants
                 for var in variants {
                     let other = var.1.total_bits_no_fill();
                     if other > largest {
@@ -697,6 +704,11 @@ impl Solved {
         let mut last_end_bit_index: Option<usize> = id_field.map(|f| f.bit_range.bit_length());
         let total_fields = value.fields.len();
         let fields_ref = &value.fields;
+        let mut total_bit_size = if let Some(id) = id_field {
+            id.bit_range.bit_length()
+        } else {
+            0
+        };
         // First stage checks for validity
         for value_field in fields_ref {
             // get resolved range for the field.
@@ -748,6 +760,7 @@ impl Solved {
                 }
             }
             // let name = format!("{}", field.id);
+            total_bit_size += field.bit_range.bit_length();
             pre_fields.push(field);
         }
         let mut fields: Vec<SolvedData> = Vec::default();
@@ -757,7 +770,7 @@ impl Solved {
                     return Err(SolvingError::Overlap);
                 }
             }
-            fields.push(SolvedData::from(pre_field));
+            fields.push(SolvedData::from_built(pre_field, total_bit_size));
         }
         let mut out = SolvedFieldSet {
             fields,
@@ -786,13 +799,14 @@ impl Solved {
         }
 
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        Self::maybe_add_fill_field(&value.fill_bits, &mut out, id_field.is_some())?;
+        Self::maybe_add_fill_field(&value.fill_bits, &mut out, id_field.is_some(), None)?;
         Ok(out)
     }
     fn maybe_add_fill_field(
         fill: &FillBits,
         out: &mut SolvedFieldSet,
         has_id_field: bool,
+        id_bit_size: Option<usize>,
     ) -> Result<(), SolvingError> {
         let bit_size = out.total_bits();
         let auto_fill = match fill {
@@ -856,7 +870,12 @@ impl Solved {
                 overlap: OverlapOptions::None,
                 is_captured_id: false,
             };
-            out.fields.push(fill_field.into());
+            let mut total_bits = out.total_bits_no_fill();
+            if let Some(add_me) = id_bit_size {
+                total_bits += add_me;
+            }
+            out.fields
+                .push(SolvedData::from_built(fill_field, total_bits));
         }
         Ok(())
     }

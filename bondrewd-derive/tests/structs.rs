@@ -1,5 +1,4 @@
 use bondrewd::Bitfields;
-use bondrewd_test as bondrewd;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be")]
@@ -74,6 +73,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 
+// START_HERE fix reverse.
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(default_endianness = "be", reverse)]
 struct SimpleWithStructWithFlip {
