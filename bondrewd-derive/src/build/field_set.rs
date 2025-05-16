@@ -268,8 +268,8 @@ pub struct StructDarling {
     pub enforce_full_bytes: darling::util::Flag,
     pub enforce_bytes: Option<usize>,
     pub enforce_bits: Option<usize>,
-    pub fill_bits: Option<usize>,
-    pub fill_bytes: Option<usize>,
+    pub fill_bits: Option<FillDarling>,
+    pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
 }
 #[derive(Debug, Clone)]
@@ -320,8 +320,8 @@ impl StructDarlingSimplified {
         }
     }
     pub fn try_solve_fill_bits(
-        fill_bits: Option<usize>,
-        fill_bytes: Option<usize>,
+        fill_bits: Option<FillDarling>,
+        fill_bytes: Option<FillDarling>,
         fill: darling::util::Flag,
     ) -> syn::Result<FillBits> {
         if fill.is_present() {
@@ -335,7 +335,11 @@ impl StructDarlingSimplified {
             }
         } else if let Some(bytes) = fill_bytes {
             if fill_bits.is_none() {
-                Ok(FillBits::Bits(bytes * 8))
+                let out = match bytes {
+                    FillDarling::Auto => FillBits::Auto,
+                    FillDarling::Size(bytes) => FillBits::Bits(bytes * 8),
+                };
+                Ok(out)
             } else {
                 Err(Error::new(
                     Span::call_site(),
@@ -343,7 +347,11 @@ impl StructDarlingSimplified {
                 ))
             }
         } else if let Some(bits) = fill_bits {
-            Ok(FillBits::Bits(bits))
+            let out = match bits {
+                FillDarling::Auto => FillBits::Auto,
+                FillDarling::Size(bits) => FillBits::Bits(bits),
+            };
+            Ok(out)
         } else {
             Ok(FillBits::None)
         }
@@ -413,9 +421,29 @@ pub struct VariantDarling {
     pub enforce_full_bytes: darling::util::Flag,
     pub enforce_bytes: Option<usize>,
     pub enforce_bits: Option<usize>,
-    pub fill_bits: Option<usize>,
-    pub fill_bytes: Option<usize>,
+    pub fill_bits: Option<FillDarling>,
+    pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
+}
+
+#[derive(Debug)]
+pub enum FillDarling {
+    Auto,
+    Size(usize),
+}
+
+impl FromMeta for FillDarling {
+    fn from_word() -> darling::Result<Self> {
+        Ok(Self::Auto)
+    }
+    fn from_value(value: &Lit) -> darling::Result<Self> {
+        match value {
+            Lit::Int(lit_int) => Ok(Self::Size(lit_int.base10_parse()?)),
+            _ => Err(darling::Error::unsupported_format(
+                "fill values must be integers",
+            )),
+        }
+    }
 }
 
 pub struct VariantDarlingSimplified {
@@ -484,8 +512,8 @@ pub struct EnumDarling {
     pub enforce_full_bytes: darling::util::Flag,
     pub enforce_bytes: Option<usize>,
     pub enforce_bits: Option<usize>,
-    pub fill_bits: Option<usize>,
-    pub fill_bytes: Option<usize>,
+    pub fill_bits: Option<FillDarling>,
+    pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
 }
 

@@ -114,6 +114,7 @@ impl From<&QuoteInfo> for BigQuoteInfo {
         } else {
             get_left_and_mask(bits_in_last_byte)
         };
+        println!("old - {}", qi.available_bits_in_first_byte());
         Self {
             right_shift,
             first_bit_mask,

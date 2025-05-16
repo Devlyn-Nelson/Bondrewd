@@ -408,7 +408,7 @@ impl Resolver {
         //          to the max_value if its larger. (prevents situations like the 2bit u8 example
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
-        let starting_inject_byte = self.starting_inject_byte();
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let field_buffer_name = self.field_buffer_ident();
         let type_quote = self.ty.get_type_quote()?;
         let output_quote = match self.ty.as_ref() {
@@ -686,7 +686,7 @@ impl Resolver {
                 "calculating ne shift_left failed",
             ));
         }
-        let starting_inject_byte = self.starting_inject_byte();
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let output = match self.ty.as_ref() {
             ResolverType::Primitive {
                 number_ty,
@@ -921,7 +921,7 @@ impl Resolver {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let field_buffer_name = self.field_buffer_ident();
-        let starting_inject_byte = self.starting_inject_byte();
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let type_quote = self.ty.get_type_quote()?;
         let output_quote = match self.ty.as_ref() {
             ResolverType::Array {
@@ -961,7 +961,7 @@ impl Resolver {
                         field_value,
                         self,
                         self.bit_length(),
-                        self.starting_inject_byte(),
+                        starting_inject_byte,
                     );
                     let mut value = quote! {
                         let mut #field_buffer_name = #field_value;
@@ -1115,7 +1115,7 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
     let bits_in_last_byte = stuff.bits_in_last_byte;
     let field_buffer_name = field.field_buffer_ident();
     let size = field.ty.rust_size();
-    let starting_inject_byte = field.starting_inject_byte();
+    let starting_inject_byte = field.data.starting_inject_byte;
     let first_bit_mask = stuff.first_bit_mask;
     let last_bit_mask = stuff.last_bit_mask;
     let right_shift = stuff.right_shift;
@@ -1138,11 +1138,8 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
         }
     };
     // fill in the rest of the bits
-    let mut current_byte_index_in_buffer: usize = if flip.is_none() {
-        starting_inject_byte + 1
-    } else {
-        starting_inject_byte - 1
-    };
+    let mut current_byte_index_in_buffer: usize = field.data.offset_starting_inject_byte(1);
+    // println!("new- {}: {right_shift}", field.data.field_name.name());
     if right_shift > 0 {
         // right shift (this means that the last bits are in the first byte)
         if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {

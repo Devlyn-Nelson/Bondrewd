@@ -101,6 +101,10 @@ pub fn get_be_starting_index(
 }
 
 impl ResolverData {
+    #[must_use]
+    pub fn starting_inject_byte(&self) -> usize {
+        self.starting_inject_byte
+    }
     /// Returns the next byte index in sequence based of the given `index` and whether or not the Structure in has a reverse bytes order.
     #[must_use]
     pub fn next_index(&self, index: usize) -> usize {
@@ -113,10 +117,10 @@ impl ResolverData {
     /// Returns the `starting_inject_byte` plus or minus `offset` depending on if the bytes order is reversed.
     #[must_use]
     pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
-        if self.flip.is_some() {
-            self.starting_inject_byte - offset
+        if let Some(flip) = self.flip {
+            (flip - self.starting_inject_byte()) - offset
         } else {
-            self.starting_inject_byte + offset
+            self.starting_inject_byte() + offset
         }
     }
     #[must_use]
@@ -225,6 +229,7 @@ impl From<&ResolverData> for ResolverDataBigAdditive {
         } else {
             get_left_and_mask(bits_in_last_byte)
         };
+        println!("new - {}", qi.available_bits_in_first_byte);
         Self {
             right_shift,
             first_bit_mask,
@@ -389,6 +394,7 @@ impl SolvedFieldSet {
             }
             // TODO capture_id may not need to be run fully, capture id fields will
             // rely on the fact it was already read for the matching process.
+            println!("{name}::{}", field.resolver.data.field_name.name());
             let field_access = field.get_quotes()?;
             self.make_read_fns(
                 field,
@@ -750,7 +756,7 @@ pub(crate) fn generate_read_slice_field_fn(
     let type_ident = field.resolver.ty.get_type_quote()?;
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("read_slice_{prefixed_field_name}");
-    let min_length = bit_range.end.div_ceil(8);
+    let min_length = field.resolver.data.offset_starting_inject_byte(0) + 1;
     let comment = format!("Returns the value for the `{field_name}` field of a in bitfield form by reading  bits {} through {} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.", bit_range.start, bit_range.end - 1);
     Ok(quote! {
         #[inline]
@@ -839,7 +845,7 @@ pub(crate) fn generate_write_slice_field_fn(
     let type_ident = field.resolver.ty.get_type_quote()?;
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("write_slice_{prefixed_field_name}");
-    let min_length = bit_range.end.div_ceil(8);
+    let min_length = field.resolver.data.offset_starting_inject_byte(0) + 1;
     let comment_bits = if bit_range.end - bit_range.start > 1 {
         format!("bits {} through {}", bit_range.start, bit_range.end - 1)
     } else {

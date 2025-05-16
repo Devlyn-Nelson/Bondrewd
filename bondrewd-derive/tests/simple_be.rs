@@ -32,7 +32,6 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b0001_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);

@@ -31,7 +31,6 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(bytes[5], 0b1000_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -148,7 +147,6 @@ fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
         three: f32::from_bits(0x0001_D45E_u32),
     };
     let bytes = simple.clone().into_bytes();
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFloats::read_slice_one(&bytes)?);

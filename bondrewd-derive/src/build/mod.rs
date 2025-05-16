@@ -232,7 +232,6 @@ impl UserDefinedReversal {
 /// bit are right aligned
 /// > Note that we are using `fill_bits` here otherwise only 9 bits will be considered when flipping the order.
 /// ```
-/// use bondrewd_test as bondrewd;
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "ale", fill_bits)]
@@ -253,10 +252,9 @@ impl UserDefinedReversal {
 /// > if you don't use `fill_bits` in the Aligned example you will actually get the same output as this
 /// > Packed example due to bondrewd handling structures that do not use a multiple of 8 bits.
 /// ```
-/// use bondrewd_test as bondrewd;
 /// use bondrewd::*;
 /// #[derive(Bitfields, Clone)]
-/// #[bondrewd(default_endianness = "ple", fill_bits)]
+/// #[bondrewd(default_endianness = "le", fill_bits)]
 /// struct Packed {
 ///     #[bondrewd(bit_length = 9)]
 ///     number: u16,

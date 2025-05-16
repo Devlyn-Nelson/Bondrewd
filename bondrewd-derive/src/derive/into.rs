@@ -233,7 +233,7 @@ impl Resolver {
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
         let not_mask = !mask;
-        let starting_inject_byte = self.data.starting_inject_byte;
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;
         };
@@ -456,7 +456,7 @@ impl Resolver {
             ));
         }
         let shift_left = (8 - amount_of_bits) - (self.data.bit_range_start() % 8);
-        let starting_inject_byte = self.data.starting_inject_byte;
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -723,7 +723,7 @@ impl Resolver {
             },
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
-        let starting_inject_byte = self.data.starting_inject_byte;
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let not_mask = !mask;
         let clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;

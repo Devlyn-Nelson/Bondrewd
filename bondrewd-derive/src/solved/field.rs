@@ -235,7 +235,12 @@ impl SolvedData {
         let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
-        let mut zeros_on_left = pre_field.bit_range.range().start % 8;
+        let start = if pre_field.endianness.is_field_order_reversed() {
+            pre_field.bit_range.range().end
+        } else {
+            pre_field.bit_range.range().start
+        };
+        let mut zeros_on_left = start % 8;
         if 7 < zeros_on_left {
             // TODO if don't think this error is possible, and im wondering why it is being checked for
             // in the first place.
@@ -246,9 +251,10 @@ impl SolvedData {
             // )));
             zeros_on_left %= 8;
         }
+        // START_HERE available_bits_in_first_byte is incorrect when using Aligned Little Endianness
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
-        let starting_inject_byte: usize = pre_field.bit_range.range().start / 8;
+        let starting_inject_byte: usize = start / 8;
         // NOTE endianness is only for determining how to get the bytes we will apply to the output.
         // calculate how many of the bits will be inside the most significant byte we are adding to.
         // if pre_field.endianness.is_byte_order_reversed() {
@@ -294,7 +300,7 @@ impl SolvedData {
             data: Box::new(ResolverData {
                 bit_range: pre_field.bit_range.range().clone(),
                 flip: if pre_field.endianness.is_byte_order_reversed() {
-                    Some(pre_field.ty.rust_size() - 1)
+                    Some(struct_bit_size.div_ceil(8) - 1)
                 } else {
                     None
                 },
@@ -354,7 +360,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn starting_inject_byte(&self) -> usize {
-        self.data.starting_inject_byte
+        self.data.starting_inject_byte()
     }
     #[must_use]
     pub fn available_bits_in_first_byte(&self) -> usize {
