@@ -45,88 +45,86 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-// #[bondrewd(default_endianness = "le", reverse)]
-// struct SimpleWithFlip {
-//     one: bool,
-//     #[bondrewd(bit_length = 10)]
-//     two: u16,
-//     #[bondrewd(bit_length = 5)]
-//     three: u8,
-// }
-// #[test]
-// fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
-//     let simple = SimpleWithFlip {
-//         one: false,
-//         two: u16::MAX & 0b0000_0011_1111_1111,
-//         three: 0,
-//     };
-//     assert_eq!(SimpleWithFlip::BYTE_SIZE, 2);
-//     let bytes = simple.clone().into_bytes();
-//     assert_eq!(bytes.len(), 2);
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "le", reverse)]
+struct SimpleWithFlip {
+    one: bool,
+    #[bondrewd(bit_length = 10)]
+    two: u16,
+    #[bondrewd(bit_length = 5)]
+    three: u8,
+}
+#[test]
+fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
+    let simple = SimpleWithFlip {
+        one: false,
+        two: u16::MAX & 0b0000_0011_1111_1111,
+        three: 0,
+    };
+    assert_eq!(SimpleWithFlip::BYTE_SIZE, 2);
+    let bytes = simple.clone().into_bytes();
+    assert_eq!(bytes.len(), 2);
 
-//     assert!(
-//         !(bytes[0] != 0b1110_0000 || bytes[1] != 0b0111_1111),
-//         "[{:08b}, {:08b}]!=[0b1110_0000, 0b0111_1111]",
-//         bytes[0],
-//         bytes[1]
-//     );
-//     #[cfg(feature = "dyn_fns")]
-//     {
-//         //peeks
-//         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
-//         assert_eq!(simple.two, SimpleWithFlip::read_slice_two(&bytes)?);
-//         assert_eq!(simple.three, SimpleWithFlip::read_slice_three(&bytes)?);
-//     }
+    assert!(
+        !(bytes[0] != 0b1110_0000 || bytes[1] != 0b0111_1111),
+        "[{:08b}, {:08b}]!=[0b1110_0000, 0b0111_1111]",
+        bytes[0],
+        bytes[1]
+    );
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithFlip::read_slice_two(&bytes)?);
+        assert_eq!(simple.three, SimpleWithFlip::read_slice_three(&bytes)?);
+    }
 
-//     // from_bytes
-//     let new_simple = SimpleWithFlip::from_bytes(bytes);
-//     assert_eq!(simple, new_simple);
-//     Ok(())
-// }
+    // from_bytes
+    let new_simple = SimpleWithFlip::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}
 
-// #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-// #[bondrewd(default_endianness = "le", bit_traversal = "back")]
-// struct SimpleWithReadFromBack {
-//     one: bool,
-//     #[bondrewd(bit_length = 10)]
-//     two: u16,
-//     #[bondrewd(bit_length = 5)]
-//     three: u8,
-// }
-// #[test]
-// fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
-//     let simple = SimpleWithReadFromBack {
-//         one: false,
-//         two: u16::MAX & 0b0000_0011_1111_1111,
-//         three: 0,
-//     };
-//     assert_eq!(SimpleWithReadFromBack::BYTE_SIZE, 2);
-//     let bytes = simple.clone().into_bytes();
-//     assert_eq!(bytes.len(), 2);
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(default_endianness = "le", bit_traversal = "back")]
+struct SimpleWithReadFromBack {
+    one: bool,
+    #[bondrewd(bit_length = 10)]
+    two: u16,
+    #[bondrewd(bit_length = 5)]
+    three: u8,
+}
+#[test]
+fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
+    let simple = SimpleWithReadFromBack {
+        one: false,
+        two: u16::MAX & 0b0000_0011_1111_1111,
+        three: 0,
+    };
+    assert_eq!(SimpleWithReadFromBack::BYTE_SIZE, 2);
+    let bytes = simple.clone().into_bytes();
+    assert_eq!(bytes.len(), 2);
 
-//     assert!(
-//         !(bytes[0] != 0b0000_0111 || bytes[1] != 0b1111_1110),
-//         "[{:08b}, {:08b}]!=[0b0000_0111, 0b1111_1110]",
-//         bytes[0],
-//         bytes[1]
-//     );
-//     #[cfg(feature = "dyn_fns")]
-//     {
-//         //peeks
-//         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
-//         assert_eq!(simple.two, SimpleWithReadFromBack::read_slice_two(&bytes)?);
-//         assert_eq!(
-//             simple.three,
-//             SimpleWithReadFromBack::read_slice_three(&bytes)?
-//         );
-//     }
+    assert!(
+        !(bytes[0] != 0b0000_0111 || bytes[1] != 0b1111_1110),
+        "[{:08b}, {:08b}]!=[0b0000_0111, 0b1111_1110]",
+        bytes[0],
+        bytes[1]
+    );
+    {
+        //peeks
+        assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
+        assert_eq!(simple.two, SimpleWithReadFromBack::read_slice_two(&bytes)?);
+        assert_eq!(
+            simple.three,
+            SimpleWithReadFromBack::read_slice_three(&bytes)?
+        );
+    }
 
-//     // from_bytes
-//     let new_simple = SimpleWithReadFromBack::from_bytes(bytes);
-//     assert_eq!(simple, new_simple);
-//     Ok(())
-// }
+    // from_bytes
+    let new_simple = SimpleWithReadFromBack::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}
 
 #[derive(Bitfields, Clone, PartialEq, Debug)]
 #[bondrewd(default_endianness = "le")]

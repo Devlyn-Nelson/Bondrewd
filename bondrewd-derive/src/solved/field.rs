@@ -222,11 +222,7 @@ impl SolvedData {
     }
     pub fn from_built(mut pre_field: BuiltData, struct_bit_size: usize) -> Self {
         let flip = if pre_field.endianness.is_byte_order_reversed() {
-            Some(if struct_bit_size < 9 {
-                struct_bit_size.div_ceil(8) - 1
-            } else {
-                1
-            })
+            Some(struct_bit_size.div_ceil(8) - 1)
         } else {
             None
         };

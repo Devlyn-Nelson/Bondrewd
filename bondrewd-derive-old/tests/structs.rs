@@ -77,7 +77,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
 }
 
 #[derive(bondrewd_derive_old::Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", reverse, dump)]
+#[bondrewd(default_endianness = "be", reverse)]
 struct SimpleWithStructWithFlip {
     #[bondrewd(bit_length = 3)]
     one: u8,
