@@ -63,7 +63,6 @@ fn build_be_number_quote(
     } else {
         starting_inject_byte - 1
     };
-    // println!("old- {}: {right_shift}", field.ident().name());
     if right_shift > 0 {
         // right shift (this means that the last bits are in the first byte)
         if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
@@ -1039,7 +1038,6 @@ impl FieldInfo {
                 },
             )
         };
-        // println!("old- {}:{first_bits_index}", self.ident().name());
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let output = match self.ty {
             DataType::Number{size, ref type_quote, ..} |

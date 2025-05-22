@@ -24,11 +24,6 @@ pub struct Magnetometers {
 }
 
 fn main() {
-    println!(
-        "overall bits/bytes used: {}/{}",
-        Magnetometers::BIT_SIZE,
-        Magnetometers::BYTE_SIZE
-    );
     let og = Magnetometers {
         timestamp: 168_324,
         status: StatusMagnetometer {

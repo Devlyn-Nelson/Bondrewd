@@ -28,7 +28,6 @@ fn main() {
     };
     let bytes = testy.clone().into_bytes();
     for b in &bytes {
-        println!("{b:02X}, ");
     }
     let new_testy = SimpleWithReserve::from_bytes(bytes);
     assert_eq!(testy, new_testy);

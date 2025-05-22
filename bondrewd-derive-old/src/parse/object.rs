@@ -93,7 +93,6 @@ impl ObjectInfo {
         // get the struct, error out if not a struct
         let mut attrs = AttrInfo::default();
         let name = input.ident.clone();
-        // println!("===={name}====");
         match input.data {
             syn::Data::Struct(ref data) => {
                 let tuple = matches!(data.fields, syn::Fields::Unnamed(_));
@@ -413,7 +412,6 @@ impl ObjectInfo {
                     attrs: enum_attrs,
                     vis: crate::common::Visibility(input.vis.clone()),
                 });
-                // println!("enum - {out:?}");
                 Ok(out)
             }
             syn::Data::Union(_) => Err(Error::new(Span::call_site(), "input can not be a union")),
