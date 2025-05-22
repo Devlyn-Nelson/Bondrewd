@@ -117,10 +117,11 @@ impl ResolverData {
     /// Returns the `starting_inject_byte` plus or minus `offset` depending on if the bytes order is reversed.
     #[must_use]
     pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
+        let sib = self.starting_inject_byte();
         if let Some(flip) = self.flip {
-            (flip - self.starting_inject_byte()) - offset
+            (flip - sib) - offset
         } else {
-            self.starting_inject_byte() + offset
+            sib + offset
         }
     }
     #[must_use]

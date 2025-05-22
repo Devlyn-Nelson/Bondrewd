@@ -208,7 +208,9 @@ impl QuoteInfo {
         }
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
-        let mut starting_inject_byte: usize = field_info.attrs.bit_range.start / 8;
+        let start = field_info.attrs.bit_range.start;
+        let mut starting_inject_byte: usize = start / 8;
+        // println!("old - {}; start {start}, sib {starting_inject_byte}", field_info.ident().name());
         if let Some(flip) = &flip {
             starting_inject_byte = *flip - starting_inject_byte;
             Some(flip)
@@ -253,10 +255,11 @@ impl QuoteInfo {
     }
     /// Returns the `starting_inject_byte` plus or minus `offset` depending on if the bytes order is reversed.
     pub fn offset_starting_inject_byte(&self, offset: usize) -> usize {
+        let sib = self.starting_inject_byte;
         if self.flip.is_some() {
-            self.starting_inject_byte - offset
+            sib - offset
         } else {
-            self.starting_inject_byte + offset
+            sib + offset
         }
     }
     pub fn fields_last_bits_index(&self) -> usize {
