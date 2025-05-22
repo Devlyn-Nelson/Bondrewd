@@ -16,7 +16,6 @@ fn aligned() {
     assert_eq!(bytes, [0b11111111, 0b00000001]);
 }
 
-
 // the original ale problem was structs passing in total bit length for the
 // structure's fields instead of the total bits used (including fill) because
 // thats what flip is based on. Need same test with enum type.

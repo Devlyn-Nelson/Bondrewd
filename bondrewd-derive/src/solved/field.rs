@@ -222,8 +222,12 @@ impl SolvedData {
     }
     pub fn from_built(mut pre_field: BuiltData, struct_bit_size: usize) -> Self {
         let flip = if pre_field.endianness.is_byte_order_reversed() {
-            Some(if struct_bit_size < 9 {struct_bit_size.div_ceil(8) - 1} else{1})
-        }else{
+            Some(if struct_bit_size < 9 {
+                struct_bit_size.div_ceil(8) - 1
+            } else {
+                1
+            })
+        } else {
             None
         };
         // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a

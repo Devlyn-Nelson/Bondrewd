@@ -1,12 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(bondrewd_derive_old::Bitfields)]
-#[bondrewd(
-    default_endianness = "be",
-    bit_traversal = "back",
-    reverse,
-    fill_bits,
-)]
+#[bondrewd(default_endianness = "be", bit_traversal = "back", reverse, fill_bits)]
 struct Aligned {
     #[bondrewd(bit_length = 9)]
     number: u16,

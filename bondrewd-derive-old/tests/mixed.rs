@@ -19,7 +19,6 @@
 //     let one: u32 = r.gen_range(0..2u32.pow(20));
 //     let two: u32 = r.gen_range(0..2u32.pow(29));
 //     let three: u32 = r.gen_range(0..2u32.pow(23));
-//     println!("{one}");
 //     let correct = Mixed { one, two, three };
 
 //     let bytes = correct.into_bytes();

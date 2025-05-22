@@ -801,7 +801,13 @@ impl Solved {
         }
 
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        Self::maybe_add_fill_field(&value.fill_bits, &mut out, id_field.is_some(), None, flip_bits)?;
+        Self::maybe_add_fill_field(
+            &value.fill_bits,
+            &mut out,
+            id_field.is_some(),
+            None,
+            flip_bits,
+        )?;
         Ok(out)
     }
     fn maybe_add_fill_field(
