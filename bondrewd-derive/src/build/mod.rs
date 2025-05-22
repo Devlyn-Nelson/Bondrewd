@@ -115,6 +115,13 @@ pub enum FieldOrder {
     FirstToLast,
     LastToFirst,
 }
+
+impl FieldOrder {
+    #[must_use]
+    pub fn is_reversed(&self) -> bool {
+        matches!(self, Self::LastToFirst)
+    }
+}
 #[derive(Clone, Debug, Copy)]
 pub enum EndiannessMode {
     Alternative,
@@ -340,13 +347,15 @@ impl Endianness {
     /// `field_order`, and should be avoided by users. Just build it right without checking, you got this.
     #[must_use]
     pub fn is_field_order_reversed(&self) -> bool {
-        let r =
-            self.reverse_field_order.get() ^ matches!(self.field_order, FieldOrder::LastToFirst);
-        if self.is_alternative() {
-            !r
-        } else {
-            r
-        }
+        // let r =
+        //     self.reverse_field_order.get() ^ matches!(self.field_order, FieldOrder::LastToFirst);
+        // if self.is_alternative() {
+        //     !r
+        // } else {
+        //     r
+        // }
+        // self.is_alternative() ^ (self.reverse_field_order.get() ^ self.field_order.is_reversed())
+        true
     }
     /// Reverses the current order that fields will receive bit indices during the solving process.
     ///

@@ -6,7 +6,6 @@ use bondrewd::Bitfields;
     bit_traversal = "back",
     reverse,
     fill_bits,
-    dump
 )]
 struct Aligned {
     #[bondrewd(bit_length = 9)]

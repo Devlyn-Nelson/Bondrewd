@@ -158,7 +158,7 @@ pub struct ResolverDataLittleAdditive {
 impl From<&ResolverData> for ResolverDataLittleAdditive {
     fn from(qi: &ResolverData) -> Self {
         let amount_of_bits = qi.bit_length();
-        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte) % 8;
+        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte()) % 8;
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOTE if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -170,13 +170,13 @@ impl From<&ResolverData> for ResolverDataLittleAdditive {
         }
         #[expect(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
-            (bits_needed_in_msb as i8) - ((qi.available_bits_in_first_byte % 8) as i8);
+            (bits_needed_in_msb as i8) - ((qi.available_bits_in_first_byte() % 8) as i8);
         if right_shift == 8 {
             right_shift = 0;
         }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
-        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte);
+        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte());
         let last_bit_mask = if bits_in_last_byte == 0 {
             get_left_and_mask(8)
         } else {
@@ -195,7 +195,7 @@ pub struct ResolverDataNestedAdditive {
 impl From<&ResolverData> for ResolverDataNestedAdditive {
     fn from(quote_info: &ResolverData) -> Self {
         #[expect(clippy::cast_possible_truncation)]
-        let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte % 8) as i8);
+        let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
         Self { right_shift }
     }
 }
@@ -209,7 +209,7 @@ pub struct ResolverDataBigAdditive {
 impl From<&ResolverData> for ResolverDataBigAdditive {
     fn from(qi: &ResolverData) -> Self {
         let amount_of_bits = qi.bit_length();
-        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte) % 8;
+        let bits_in_last_byte = (amount_of_bits - qi.available_bits_in_first_byte()) % 8;
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -217,19 +217,18 @@ impl From<&ResolverData> for ResolverDataBigAdditive {
         // used byte in the buffer.
         #[allow(clippy::cast_possible_truncation)]
         let mut right_shift: i8 =
-            ((amount_of_bits % 8) as i8) - ((qi.available_bits_in_first_byte % 8) as i8);
+            ((amount_of_bits % 8) as i8) - ((qi.available_bits_in_first_byte() % 8) as i8);
         if right_shift < 0 {
             right_shift += 8;
         }
         // because we are applying bits in place we need masks in insure we don't effect other fields
         // data. we need one for the first byte and the last byte.
-        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte);
+        let first_bit_mask = get_right_and_mask(qi.available_bits_in_first_byte());
         let last_bit_mask = if bits_in_last_byte == 0 {
             get_left_and_mask(8)
         } else {
             get_left_and_mask(bits_in_last_byte)
         };
-        println!("new - {}", qi.available_bits_in_first_byte);
         Self {
             right_shift,
             first_bit_mask,
@@ -394,7 +393,6 @@ impl SolvedFieldSet {
             }
             // TODO capture_id may not need to be run fully, capture id fields will
             // rely on the fact it was already read for the matching process.
-            println!("{name}::{}", field.resolver.data.field_name.name());
             let field_access = field.get_quotes()?;
             self.make_read_fns(
                 field,

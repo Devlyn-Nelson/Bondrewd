@@ -221,6 +221,11 @@ impl SolvedData {
         })
     }
     pub fn from_built(mut pre_field: BuiltData, struct_bit_size: usize) -> Self {
+        let flip = if pre_field.endianness.is_byte_order_reversed() {
+            Some(if struct_bit_size < 9 {struct_bit_size.div_ceil(8) - 1} else{1})
+        }else{
+            None
+        };
         // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
         // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
         // happen before byte_order_reversal and field_order_reversal
@@ -235,11 +240,7 @@ impl SolvedData {
         let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
-        let start = if pre_field.endianness.is_field_order_reversed() {
-            pre_field.bit_range.range().end
-        } else {
-            pre_field.bit_range.range().start
-        };
+        let start = pre_field.bit_range.range().start;
         let mut zeros_on_left = start % 8;
         if 7 < zeros_on_left {
             // TODO if don't think this error is possible, and im wondering why it is being checked for
@@ -251,7 +252,6 @@ impl SolvedData {
             // )));
             zeros_on_left %= 8;
         }
-        // START_HERE available_bits_in_first_byte is incorrect when using Aligned Little Endianness
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
         let starting_inject_byte: usize = start / 8;
@@ -261,7 +261,6 @@ impl SolvedData {
         //     let struct_byte_length = bit_size / 8;
         //     starting_inject_byte = struct_byte_length - starting_inject_byte;
         // }
-
         let sub_ty = match &pre_field.ty {
             DataType::Number(number_type, rust_byte_size) => {
                 let resolver_strategy = if pre_field.endianness.is_alternative() {
@@ -299,11 +298,7 @@ impl SolvedData {
         let resolver = Resolver {
             data: Box::new(ResolverData {
                 bit_range: pre_field.bit_range.range().clone(),
-                flip: if pre_field.endianness.is_byte_order_reversed() {
-                    Some(struct_bit_size.div_ceil(8) - 1)
-                } else {
-                    None
-                },
+                flip,
                 zeros_on_left,
                 available_bits_in_first_byte,
                 starting_inject_byte,
@@ -330,6 +325,13 @@ pub struct ResolverData {
     pub flip: Option<usize>,
     pub field_name: DynamicIdent,
     pub bit_range: Range<usize>,
+}
+
+impl ResolverData {
+    #[must_use]
+    pub fn available_bits_in_first_byte(&self) -> usize {
+        self.available_bits_in_first_byte
+    }
 }
 
 #[derive(Debug)]
@@ -364,7 +366,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn available_bits_in_first_byte(&self) -> usize {
-        self.data.available_bits_in_first_byte
+        self.data.available_bits_in_first_byte()
     }
     #[must_use]
     pub fn zeros_on_left(&self) -> usize {
@@ -376,7 +378,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn spans_multiple_bytes(&self) -> bool {
-        self.bit_length() > self.data.available_bits_in_first_byte
+        self.bit_length() > self.data.available_bits_in_first_byte()
     }
     #[must_use]
     pub fn field_buffer_name(&self) -> String {

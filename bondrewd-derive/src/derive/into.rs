@@ -193,7 +193,7 @@ impl Resolver {
         // right mask because param is amount of 1's on the side specified (right), and
         // available_bytes is (8 - zeros_on_left) which is equal to ones_on_right.
         let bit_range_start = self.data.bit_range_start();
-        let mask = get_right_and_mask(self.data.available_bits_in_first_byte)
+        let mask = get_right_and_mask(self.data.available_bits_in_first_byte())
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
@@ -278,16 +278,16 @@ impl Resolver {
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
         let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
-        let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte);
+        let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
         #[allow(clippy::cast_possible_truncation)]
-        let mid_shift: u32 = 8 - self.data.available_bits_in_first_byte as u32;
+        let mid_shift: u32 = 8 - self.data.available_bits_in_first_byte() as u32;
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
         let mut clear_quote = quote! {};
         while i != fields_last_bits_index {
             let start = self.data.offset_starting_inject_byte(i);
             let not_current_bit_mask = !current_bit_mask;
-            if self.data.available_bits_in_first_byte == 0 && right_shift == 0 {
+            if self.data.available_bits_in_first_byte() == 0 && right_shift == 0 {
                 full_quote = quote! {
                     #full_quote
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
@@ -307,7 +307,7 @@ impl Resolver {
                         #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#mid_shift);
                     };
                 }
-                if self.data.available_bits_in_first_byte + (8 * i) < amount_of_bits
+                if self.data.available_bits_in_first_byte() + (8 * i) < amount_of_bits
                     && current_bit_mask != 0
                 {
                     if current_bit_mask == u8::MAX {
@@ -338,7 +338,7 @@ impl Resolver {
             i += 1;
         }
         // bits used after applying the first_bit_mask one more time.
-        let used_bits = self.data.available_bits_in_first_byte + (8 * i);
+        let used_bits = self.data.available_bits_in_first_byte() + (8 * i);
         let start = self.data.offset_starting_inject_byte(i);
         if right_shift > 0 {
             let right_shift: u32 = u32::from(right_shift.unsigned_abs());
@@ -408,13 +408,13 @@ impl Resolver {
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
-        if self.data.bit_length() > self.data.available_bits_in_first_byte {
+        if self.data.bit_length() > self.data.available_bits_in_first_byte() {
             // how many times to shift the number right.
             // NOTE if negative shift left.
             // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
             // for a f32) then use the last byte in the fields byte array after shifting for the first
             // used byte in the buffer.
-            if 8 < self.data.available_bits_in_first_byte % 8 {
+            if 8 < self.data.available_bits_in_first_byte() % 8 {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "calculating ne right_shift failed",
@@ -445,7 +445,7 @@ impl Resolver {
         // have in the position we need them to be in for this byte. we use available_bytes for
         // right mask because param is amount of 1's on the side specified (right), and
         // available_bytes is (8 - zeros_on_left) which is equal to ones_on_right.
-        let mask = get_right_and_mask(self.data.available_bits_in_first_byte)
+        let mask = get_right_and_mask(self.data.available_bits_in_first_byte())
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
@@ -497,7 +497,7 @@ impl Resolver {
                 ty_ident,
                 rust_size,
             } => {
-                let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte;
+                let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte();
                 quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
                 // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
                 // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}
@@ -552,8 +552,8 @@ impl Resolver {
                 // right shift (this means that the last bits are in the first byte)
                 // because we are applying bits in place we need masks in insure we don't effect other fields
                 // data. we need one for the first byte and the last byte.
-                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte);
-                let next_bit_mask = get_left_and_mask(8 - self.data.available_bits_in_first_byte);
+                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
+                let next_bit_mask = get_left_and_mask(8 - self.data.available_bits_in_first_byte());
                 let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                 for i in 0usize..size {
                     let start = self.data.offset_starting_inject_byte(i);
@@ -569,7 +569,7 @@ impl Resolver {
                         output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
                     };
                     let next_index = self.data.next_index(start);
-                    if self.data.available_bits_in_first_byte + (8 * i) < self.data.bit_length() {
+                    if self.data.available_bits_in_first_byte() + (8 * i) < self.data.bit_length() {
                         if not_next_bit_mask != u8::MAX {
                             clear_quote = quote! {
                                 #clear_quote
@@ -612,7 +612,7 @@ impl Resolver {
             }
             Ordering::Equal => {
                 // no shift can be more faster.
-                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte);
+                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
 
                 for i in 0usize..size {
                     let start = self.data.offset_starting_inject_byte(i);
@@ -649,11 +649,11 @@ impl Resolver {
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
-        if amount_of_bits > self.data.available_bits_in_first_byte {
+        if amount_of_bits > self.data.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
             // our bytes for the buffer.
-            if amount_of_bits < self.data.available_bits_in_first_byte {
+            if amount_of_bits < self.data.available_bits_in_first_byte() {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "calculating be bits_in_last_bytes failed",
@@ -684,7 +684,7 @@ impl Resolver {
         // have in the position we need them to be in for this byte. we use available_bytes for
         // right mask because param is amount of 1's on the side specified (right), and
         // available_bytes is (8 - zeros_on_left) which is equal to ones_on_right.
-        let mask = get_right_and_mask(self.data.available_bits_in_first_byte)
+        let mask = get_right_and_mask(self.data.available_bits_in_first_byte())
             & get_left_and_mask(8 - zeros_on_right);
         // calculate how many left shifts need to occur to the number in order to position the bytes
         // we want to keep in the position we want.
@@ -814,7 +814,7 @@ impl Resolver {
             },
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
-        let starting_inject_byte = self.data.starting_inject_byte;
+        let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let not_first_bit_mask = !first_bit_mask;
         let mut clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_first_bit_mask;
@@ -835,7 +835,7 @@ impl Resolver {
         let not_last_bit_mask = !last_bit_mask;
         if right_shift > 0 {
             // right shift (this means that the last bits are in the first byte)
-            if self.data.available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+            if self.data.available_bits_in_first_byte() + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1usize..self.ty.rust_size() {
                     clear_quote = quote! {
                         #clear_quote
@@ -859,7 +859,7 @@ impl Resolver {
             };
         } else {
             // no shift
-            if self.data.available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {
+            if self.data.available_bits_in_first_byte() + bits_in_last_byte != amount_of_bits {
                 for i in first_bits_index + 1..self.ty.rust_size() - 1 {
                     clear_quote = quote! {
                         #clear_quote

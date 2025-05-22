@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "ale", dump)]
+#[bondrewd(default_endianness = "ale")]
 struct Aligned {
     #[bondrewd(bit_length = 9)]
     number: u16,
@@ -15,3 +15,17 @@ fn aligned() {
     let bytes = ex.into_bytes();
     assert_eq!(bytes, [0b11111111, 0b00000001]);
 }
+
+
+// the original ale problem was structs passing in total bit length for the
+// structure's fields instead of the total bits used (including fill) because
+// thats what flip is based on. Need same test with enum type.
+
+// #[derive(Bitfields)]
+// #[bondrewd(default_endianness = "ale", dump)]
+// enum Aligned {
+//  Thing {
+//     #[bondrewd(bit_length = 9)]
+//     number: u16,
+//  }
+// }

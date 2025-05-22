@@ -1115,7 +1115,7 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
     let bits_in_last_byte = stuff.bits_in_last_byte;
     let field_buffer_name = field.field_buffer_ident();
     let size = field.ty.rust_size();
-    let starting_inject_byte = field.data.starting_inject_byte;
+    let starting_inject_byte = field.data.offset_starting_inject_byte(0);
     let first_bit_mask = stuff.first_bit_mask;
     let last_bit_mask = stuff.last_bit_mask;
     let right_shift = stuff.right_shift;
@@ -1139,7 +1139,6 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
     };
     // fill in the rest of the bits
     let mut current_byte_index_in_buffer: usize = field.data.offset_starting_inject_byte(1);
-    // println!("new- {}: {right_shift}", field.data.field_name.name());
     if right_shift > 0 {
         // right shift (this means that the last bits are in the first byte)
         if available_bits_in_first_byte + bits_in_last_byte != amount_of_bits {

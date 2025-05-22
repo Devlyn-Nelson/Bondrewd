@@ -307,12 +307,13 @@ impl TryFrom<EnumBuilder> for Solved {
             solved_variants.insert(variant_info, (solved_variant, fill));
         }
         let bit_size = largest_bit_size + id_bits;
+        let flip_size = (bit_size / 8) * 8;
         // after solving the attrs for fill might be set. need to do it here
         // because the largest_payload_size can't be determined until `solve_variant`
         // has been called on all variants.
-        Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true, Some(id_bits))?;
+        Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true, Some(id_bits), flip_size)?;
         for (info, (set, fill)) in &mut solved_variants {
-            Self::maybe_add_fill_field(fill, set, true, Some(id_bits))?;
+            Self::maybe_add_fill_field(fill, set, true, Some(id_bits), flip_size)?;
         }
         match value.attrs.enforcement {
             StructEnforcement::NoRules => {}
@@ -764,13 +765,14 @@ impl Solved {
             pre_fields.push(field);
         }
         let mut fields: Vec<SolvedData> = Vec::default();
+        let flip_bits = (total_bit_size.div_ceil(8)) * 8;
         for pre_field in pre_fields {
             if let Some(field) = id_field {
                 if field.conflict(&pre_field) {
                     return Err(SolvingError::Overlap);
                 }
             }
-            fields.push(SolvedData::from_built(pre_field, total_bit_size));
+            fields.push(SolvedData::from_built(pre_field, flip_bits));
         }
         let mut out = SolvedFieldSet {
             fields,
@@ -799,7 +801,7 @@ impl Solved {
         }
 
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        Self::maybe_add_fill_field(&value.fill_bits, &mut out, id_field.is_some(), None)?;
+        Self::maybe_add_fill_field(&value.fill_bits, &mut out, id_field.is_some(), None, flip_bits)?;
         Ok(out)
     }
     fn maybe_add_fill_field(
@@ -807,6 +809,7 @@ impl Solved {
         out: &mut SolvedFieldSet,
         has_id_field: bool,
         id_bit_size: Option<usize>,
+        total_bits: usize,
     ) -> Result<(), SolvingError> {
         let bit_size = out.total_bits();
         let auto_fill = match fill {
@@ -870,10 +873,10 @@ impl Solved {
                 overlap: OverlapOptions::None,
                 is_captured_id: false,
             };
-            let mut total_bits = out.total_bits_no_fill();
-            if let Some(add_me) = id_bit_size {
-                total_bits += add_me;
-            }
+            // let mut total_bits = out.total_bits_no_fill();
+            // if let Some(add_me) = id_bit_size {
+            //     total_bits += add_me;
+            // }
             out.fields
                 .push(SolvedData::from_built(fill_field, total_bits));
         }
