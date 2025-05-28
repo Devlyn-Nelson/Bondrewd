@@ -37,3 +37,63 @@ fn aligned_enum() {
     let bytes = ex.into_bytes();
     assert_eq!(bytes, [0b11111100, 0b0000111]);
 }
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", bit_traversal = "back")]
+struct BugInducer {
+    one: bool,
+    two: bool,
+    #[bondrewd(bit_length = 3)]
+    three: u8,
+}
+
+// TODO this causes a zero bit shift
+// TODO one and two are effecting the same bits
+#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "ale", dump)]
+struct NestedBugInducer {
+    #[bondrewd(bit_length = 3)]
+    one: u8,
+    #[bondrewd(bit_length = 5)]
+    two: BugInducer,
+    three: u8,
+}
+#[test]
+fn bug_of_my_nightmares() -> anyhow::Result<()> {
+    let small = BugInducer {
+        one: true,
+        two: false,
+        three: 0,
+    };
+    let simple = NestedBugInducer {
+        one: 0b00000111,
+        two: small,
+        three: 0,
+    };
+    assert_eq!(NestedBugInducer::BYTE_SIZE, 2);
+    let bytes = simple.clone().into_bytes();
+    assert_eq!(bytes.len(), 2);
+    println!("{:08b}", bytes[0]);
+    assert_eq!(bytes[0], 0b0000_0000);
+    assert_eq!(bytes[1], 0b0000_0000);
+
+    //peeks
+    assert_eq!(
+        simple.one,
+        NestedBugInducer::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        NestedBugInducer::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        NestedBugInducer::read_slice_three(&bytes)?
+    );
+
+    // from_bytes
+    let new_simple = NestedBugInducer::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}
