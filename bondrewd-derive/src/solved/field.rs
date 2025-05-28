@@ -255,7 +255,6 @@ impl SolvedData {
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
         let starting_inject_byte: usize = start / 8;
-        // println!("new - {}; start {start}, sib {starting_inject_byte}", pre_field.id.name());
         // NOTE endianness is only for determining how to get the bytes we will apply to the output.
         // calculate how many of the bits will be inside the most significant byte we are adding to.
         // if pre_field.endianness.is_byte_order_reversed() {

@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, ops::Range};
 use proc_macro2::Span;
 use quote::format_ident;
 use syn::Ident;
-use thiserror::Error;
 
 use crate::build::{
     field::{
@@ -11,8 +10,7 @@ use crate::build::{
         RustByteSize,
     },
     field_set::{
-        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcement,
-        VariantBuilder,
+        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcementTy, VariantBuilder
     },
     ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
 };
@@ -86,59 +84,8 @@ impl Default for SolvedFieldSetAttributes {
     }
 }
 
-#[derive(Debug, Error)]
-pub enum SolvingError {
-    /// Fields overlaps
-    #[error("Fields overlap")]
-    Overlap,
-    /// Tried to solve a field without a type.
-    ///
-    /// # Field
-    /// the `String` provided should be the id or name of the field.
-    #[error("No data type was provided for field with id {0}")]
-    NoTypeProvided(String),
-    /// Tried to solve a number field without endianness.
-    ///
-    /// # Field
-    /// the `String` provided should be the id or name of the field.
-    #[error("No endianness was provided for field with id {0}")]
-    NoEndianness(String),
-    /// [`Resolver::new`] had a left shift underflow.
-    ///
-    /// # Field
-    /// the `String` provided should be the id or name of the field.
-    #[error("Failed solving the `left_shift` due to underflow.")]
-    ResolverUnderflow(String),
-    #[error("Final bit count was not evenly divisible by 0.")]
-    EnforceFullBytes,
-    #[error("Final bit count does not match enforcement size.[user = {user}, actual = {actual}]")]
-    EnforceBitCount { actual: usize, user: usize },
-    #[error("Variant name \"{0}\" used twice. Variants must have unique names.")]
-    VariantConflict(Ident),
-    #[error("Largest variant id value ({variant_id_max_value}) is larger than `id_bit_size` ({bit_length})")]
-    VariantIdBitLength {
-        variant_id_max_value: usize,
-        bit_length: usize,
-    },
-    #[error("Largest variant payload ({largest_payload_length}) is larger than `payload_bit_size` ({bit_length})")]
-    VariantPayloadBitLength {
-        largest_payload_length: usize,
-        bit_length: usize,
-    },
-    #[error("The variant id must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {0} and bondrewd doesn't know which type use.")]
-    VariantIdType(usize),
-    #[error("A feature you are trying to use in not yet supported. complain to the Bondrewd maintainer about \"{0}\"")]
-    Unfinished(String),
-}
-
-impl From<SolvingError> for syn::Error {
-    fn from(value: SolvingError) -> Self {
-        syn::Error::new(Span::call_site(), format!("{value}"))
-    }
-}
-
 impl TryFrom<GenericBuilder> for Solved {
-    type Error = SolvingError;
+    type Error = syn::Error;
 
     fn try_from(value: GenericBuilder) -> Result<Self, Self::Error> {
         match value.ty {
@@ -169,12 +116,11 @@ fn bits_needed(x: usize) -> usize {
     n
 }
 
-fn check_for_id(variant: &VariantBuilder, used_ids: &mut Vec<usize>) -> Result<(), SolvingError> {
+fn check_for_id(variant: &VariantBuilder, used_ids: &mut Vec<usize>) -> Result<(), syn::Error> {
     if let Some(value) = variant.id {
         if used_ids.contains(&value) {
-            return Err(SolvingError::VariantConflict(
-                variant.field_set.name.clone(),
-            ));
+            let vname = &variant.field_set.name;
+            return Err(syn::Error::new(vname.span(), "Variant name used twice. Variants must have unique names."));
         }
         used_ids.push(value);
     }
@@ -186,7 +132,7 @@ fn get_built_variant(
     used_ids: &mut Vec<usize>,
     next: &mut usize,
     largest_variant_id: &mut usize,
-) -> Result<VariantBuilt, SolvingError> {
+) -> VariantBuilt {
     let id = if let Some(value) = variant.id {
         value
     } else {
@@ -201,15 +147,15 @@ fn get_built_variant(
     if *largest_variant_id < id {
         *largest_variant_id = id;
     }
-    Ok(VariantBuilt {
+    VariantBuilt {
         id,
         field_set: variant.field_set,
         tuple: variant.tuple,
-    })
+    }
 }
 
 impl TryFrom<EnumBuilder> for Solved {
-    type Error = SolvingError;
+    type Error = syn::Error;
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
         let variants = value.variants;
@@ -229,7 +175,7 @@ impl TryFrom<EnumBuilder> for Solved {
         // and convert them to BuiltVariants (between Builder and Solved)
         for variant in variants {
             let built =
-                get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id)?;
+                get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id);
             built_variants.push(built);
         }
         let built_invalid = get_built_variant(
@@ -237,13 +183,13 @@ impl TryFrom<EnumBuilder> for Solved {
             &mut used_ids,
             &mut last,
             &mut largest_variant_id,
-        )?;
+        );
         // determine id field.
         let (id_field_type, id_bits) = {
             let id_bits = if let Some(id_bits) = value.id_bit_length {
                 id_bits
-            } else if let (Some(payload_size), StructEnforcement::EnforceBitAmount(total_size)) =
-                (&value.payload_bit_length, &value.attrs.enforcement)
+            } else if let (Some(payload_size), StructEnforcementTy::EnforceBitAmount(total_size)) =
+                (&value.payload_bit_length, &value.attrs.enforcement.ty)
             {
                 total_size - payload_size
             } else {
@@ -255,16 +201,25 @@ impl TryFrom<EnumBuilder> for Solved {
                 3..=4 => RustByteSize::Four,
                 5..=8 => RustByteSize::Eight,
                 9..=16 => RustByteSize::Sixteen,
-                invalid => return Err(SolvingError::VariantIdType(invalid)),
+                invalid => return Err(syn::Error::new(Span::call_site(), format!("The variant id must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."))),
             };
             (DataType::Number(NumberType::Unsigned, bytes), id_bits)
         };
         // validity checks
         if bits_needed(largest_variant_id) > id_bits {
-            return Err(SolvingError::VariantIdBitLength {
-                variant_id_max_value: largest_variant_id,
-                bit_length: id_bits,
-            });
+            let mut span = None;
+            for v in built_variants {
+                if v.id == largest_variant_id {
+                    span = Some(v.field_set.name.span());
+                    break;
+                }
+            }
+            let span = if let Some(s) = span {
+                s
+            }else{
+                Span::call_site()
+            };
+            return Err(syn::Error::new(span, format!("Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})")));
         }
 
         // TODO try to enhance id field detection, use any hints given such as `capture_id` fields.
@@ -282,7 +237,7 @@ impl TryFrom<EnumBuilder> for Solved {
         };
 
         let mut solved_variants = BTreeMap::default();
-        let (invalid_name, mut invalid, invalid_fill) = Self::solve_variant(
+        let (invalid_name, invalid, invalid_fill) = Self::solve_variant(
             built_invalid,
             &id_field,
             &value.solved_attrs,
@@ -300,27 +255,43 @@ impl TryFrom<EnumBuilder> for Solved {
             solved_variants.insert(variant_info, (solved_variant, fill));
         }
         let bit_size = largest_bit_size + id_bits;
-        let flip_size = (bit_size / 8) * 8;
         // after solving the attrs for fill might be set. need to do it here
         // because the largest_payload_size can't be determined until `solve_variant`
         // has been called on all variants.
-        Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true, Some(id_bits), flip_size)?;
-        for (info, (set, fill)) in &mut solved_variants {
-            Self::maybe_add_fill_field(fill, set, true, Some(id_bits), flip_size)?;
-        }
-        match value.attrs.enforcement {
-            StructEnforcement::NoRules => {}
-            StructEnforcement::EnforceFullBytes => {
+        // Self::maybe_add_fill_field(&invalid_fill, &mut invalid, true, Some(id_bits), bit_size)?;
+        // for (info, (set, fill)) in &mut solved_variants {
+        //     Self::maybe_add_fill_field(fill, set, true, Some(id_bits), bit_size)?;
+        // }
+        match &value.attrs.enforcement.ty {
+            StructEnforcementTy::NoRules => {}
+            StructEnforcementTy::EnforceFullBytes => {
                 if bit_size % 8 != 0 {
-                    return Err(SolvingError::EnforceFullBytes);
+                    return Err(syn::Error::new(value.attrs.enforcement.span, "Final bit count was not evenly divisible by 0."));
                 }
             }
-            StructEnforcement::EnforceBitAmount(expected_total_bits) => {
-                if bit_size != expected_total_bits {
-                    return Err(SolvingError::EnforceBitCount {
-                        actual: bit_size,
-                        user: expected_total_bits,
-                    });
+            StructEnforcementTy::EnforceBitAmount(expected_total_bits) => {
+                if bit_size != *expected_total_bits {
+                    let mut span = None;
+                    let expected = bit_size - id_bits;
+                    for (key, v) in &solved_variants {
+                        // TODO test to see that the struct enforcement error are nice and accurate.
+                        if v.0.total_bits_no_fill() >= expected {
+                            span = Some(key.name.span());
+                            break;
+                        }
+                    }
+                    let (span, message) = if let Some(s) = span {
+                        (
+                            s,
+                            format!("Final bit count does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]"),
+                        )
+                    }else{
+                        (
+                            value.attrs.enforcement.span,
+                            format!("Final bit count of a variant does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]")
+                        )
+                    };
+                    return Err(syn::Error::new(span, message));
                 }
             }
         }
@@ -414,17 +385,15 @@ impl TryFrom<EnumBuilder> for Solved {
     }
 }
 
+// TODO determine if this is needed. also fix Span of error if it is needed.
 fn detect_variant_fill(
     variant_payload_length: usize,
     largest_bit_size: usize,
     id_bits: usize,
     fill_bits: &FillBits,
-) -> Result<FillBits, SolvingError> {
+) -> Result<FillBits, syn::Error> {
     if largest_bit_size < variant_payload_length {
-        return Err(SolvingError::VariantPayloadBitLength {
-            largest_payload_length: largest_bit_size,
-            bit_length: variant_payload_length,
-        });
+        return Err(syn::Error::new(Span::call_site(), format!("Largest variant payload ({largest_bit_size}) is larger than `payload_bit_size` ({variant_payload_length})")));
     }
     Ok(
         if matches!(fill_bits, FillBits::Auto) || variant_payload_length < largest_bit_size {
@@ -439,7 +408,7 @@ fn detect_variant_fill(
 }
 
 impl TryFrom<StructBuilder> for Solved {
-    type Error = SolvingError;
+    type Error = syn::Error;
 
     fn try_from(value: StructBuilder) -> Result<Self, Self::Error> {
         Self::try_from(&value)
@@ -447,7 +416,7 @@ impl TryFrom<StructBuilder> for Solved {
 }
 
 impl TryFrom<&StructBuilder> for Solved {
-    type Error = SolvingError;
+    type Error = syn::Error;
 
     fn try_from(value: &StructBuilder) -> Result<Self, Self::Error> {
         let fs = Self::try_from_field_set(&value.field_set, &value.attrs, None)?;
@@ -465,7 +434,7 @@ impl Solved {
         solved_attrs: &SolvedFieldSetAttributes,
         largest_bit_size: &mut usize,
         id_bits: usize,
-    ) -> Result<(VariantInfo, SolvedFieldSet, FillBits), SolvingError> {
+    ) -> Result<(VariantInfo, SolvedFieldSet, FillBits), syn::Error> {
         let solved_variant =
             Self::try_from_field_set(&variant.field_set, solved_attrs, Some(id_field))?;
 
@@ -527,45 +496,8 @@ impl Solved {
         value: &FieldSetBuilder,
         attrs: &SolvedFieldSetAttributes,
         id_field: Option<&BuiltData>,
-    ) -> Result<SolvedFieldSet, SolvingError> {
+    ) -> Result<SolvedFieldSet, syn::Error> {
         // TODO verify captured id fields match the generated id field using below commented code.
-        // if let Some(bondrewd_field) = id_field {
-        //     if i == 0 {
-        //         match (&bondrewd_field.ty, &mut parsed_field.ty) {
-        //             (
-        //                 DataType::Number(number_ty_bon, rust_size_bon),
-        //                 DataType::Number(number_ty, rust_size)
-        //             ) => {
-        //                 let ty_ident = get_number_type_ident(number_ty, rust_size.bits());
-        //                 let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
-        //                 // TODO this if statements actions could cause confusing behavior
-        //                 if bondrewd_field.bit_range != parsed_field.bit_range {
-        //                     parsed_field.bit_range = bondrewd_field.bit_range.clone();
-        //                 }
-        //                 if number_ty_bon != number_ty {
-        //                     return Err(Error::new(field.span(), format!("`capture_id` field must be unsigned. bondrewd will enforce the type as {ty_ident_bon}")));
-        //                 }else if ty_ident_bon != ty_ident {
-        //                     return Err(Error::new(field.span(), format!("`capture_id` field currently must be {ty_ident_bon} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
-        //                 }
-        //             }
-        //             (DataType::Number(number_ty_bon, rust_size_bon), _) => {
-        //                 let ty_ident_bon = get_number_type_ident(number_ty_bon, rust_size_bon.bits());
-        //                 return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {ty_ident_bon}.")))
-        //             }
-        //             _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
-        //         }
-        //     } else {
-        //         return Err(Error::new(
-        //             field.span(),
-        //             "`capture_id` attribute must be the first field.",
-        //         ));
-        //     }
-        // } else {
-        //     return Err(Error::new(
-        //         field.span(),
-        //         "`capture_id` attribute is intended for enum variants only.",
-        //     ));
-        // }
         let mut pre_fields: Vec<BuiltData> = Vec::default();
         let mut last_end_bit_index: Option<usize> = id_field.map(|f| f.bit_range.bit_length());
         let total_fields = value.fields.len();
@@ -582,8 +514,8 @@ impl Solved {
                 if let Some(id) = id_field {
                     id.bit_range.clone()
                 } else {
-                    return Err(SolvingError::Unfinished(
-                        "Field was marked as capture_id, but is not an enum variant".to_string(),
+                    return Err(syn::Error::new(value_field.id.span(),
+                        "Field was marked as `capture_id`, but is not in an enum variant",
                     ));
                 }
             } else {
@@ -612,88 +544,93 @@ impl Solved {
             let field_range = field.bit_range.range();
             for other in &pre_fields {
                 if field.conflict(other) {
-                    return Err(SolvingError::Overlap);
+                    return Err(syn::Error::new(field.id.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", other.id.name())));
                 }
             }
-            total_bit_size += field.bit_range.bit_length();
+            if !value_field.is_captured_id {
+                total_bit_size += field.bit_range.bit_length();
+            }
             pre_fields.push(field);
         }
+        let mut total_bits_without_id = total_bit_size;
+        if let Some(id_field) = id_field {
+            total_bits_without_id -= id_field.bit_range.bit_length();
+        }
+        // verify and add fill
+        match &value.attrs.enforcement.ty {
+            StructEnforcementTy::NoRules => {}
+            StructEnforcementTy::EnforceFullBytes => {
+                if total_bits_without_id % 8 != 0 {
+                    return Err(syn::Error::new(value.attrs.enforcement.span, "Final bit count was not evenly divisible by 0."));
+                }
+            }
+            StructEnforcementTy::EnforceBitAmount(expected_total_bits) => {
+                if total_bits_without_id != *expected_total_bits {
+                    let message = if id_field.is_some() {
+                       format!("Variant `{}` final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]", value.name)
+                    }else{
+                        format!("Final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]")
+                    };
+                    return Err(syn::Error::new(value.attrs.enforcement.span, message));
+                }
+            }
+        }
+        // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
+        let maybe_fill = Self::maybe_add_fill_field(
+            &value.fill_bits,
+            &mut pre_fields,
+            id_field.is_some(),
+            None,
+            &mut total_bit_size,
+        );
+        // finalize 
         let mut fields: Vec<SolvedData> = Vec::default();
-        let flip_bits = (total_bit_size.div_ceil(8)) * 8;
+        let flip_bits = total_bit_size;
         for pre_field in pre_fields {
             if let Some(field) = id_field {
                 if field.conflict(&pre_field) {
-                    return Err(SolvingError::Overlap);
+                    return Err(syn::Error::new(pre_field.id.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", field.id.name())));
                 }
             }
             fields.push(SolvedData::from_built(pre_field, flip_bits));
         }
-        let mut out = SolvedFieldSet {
+        if let Some(fill) = maybe_fill {
+            fields.push(fill);
+        }
+        let out = SolvedFieldSet {
             fields,
             attrs: attrs.clone(),
         };
-        let bit_size = out.total_bits();
-        match value.attrs.enforcement {
-            StructEnforcement::NoRules => {}
-            StructEnforcement::EnforceFullBytes => {
-                if bit_size % 8 != 0 {
-                    return Err(SolvingError::EnforceFullBytes);
-                }
-            }
-            StructEnforcement::EnforceBitAmount(expected_total_bits) => {
-                if bit_size != expected_total_bits {
-                    return Err(SolvingError::EnforceBitCount {
-                        actual: bit_size,
-                        user: expected_total_bits,
-                    });
-                }
-            }
-        }
-
-        // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        Self::maybe_add_fill_field(
-            &value.fill_bits,
-            &mut out,
-            id_field.is_some(),
-            None,
-            flip_bits,
-        )?;
         Ok(out)
     }
     fn maybe_add_fill_field(
         fill: &FillBits,
-        out: &mut SolvedFieldSet,
+        fields: &mut Vec<BuiltData>,
         has_id_field: bool,
         id_bit_size: Option<usize>,
-        total_bits: usize,
-    ) -> Result<(), SolvingError> {
-        let bit_size = out.total_bits();
+        total_bits: &mut usize,
+    ) -> Option<SolvedData> {
         let auto_fill = match fill {
             FillBits::None => None,
             FillBits::Bits(bits) => Some(*bits),
             FillBits::Auto => {
-                if has_id_field {
-                    return Err(SolvingError::Unfinished(
-                        "Auto fill_bits is currently not finished for enums.".to_string(),
-                    ));
-                }
-                let unused_bits = bit_size % 8;
+                let unused_bits = (8 - (*total_bits % 8)) % 8;
                 if unused_bits == 0 {
                     None
                 } else {
-                    Some(8 - unused_bits)
+                    Some(unused_bits)
                     // None
                 }
             }
         };
-        if let Some(fill_bits) = auto_fill {
-            let first_bit = if let Some(last_range) = out.fields.iter().last() {
-                last_range.bit_range().end
+        let thing = if let Some(fill_bits) = auto_fill {
+            *total_bits += fill_bits;
+            let first_bit = if let Some(last_range) = fields.iter().last() {
+                last_range.bit_range.end()
             } else {
                 0_usize
             };
             let end_bit = first_bit + fill_bits;
-            // bit_size += fill_bits;
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
             // fields.push(FieldInfo {
@@ -733,10 +670,11 @@ impl Solved {
             // if let Some(add_me) = id_bit_size {
             //     total_bits += add_me;
             // }
-            out.fields
-                .push(SolvedData::from_built(fill_field, total_bits));
-        }
-        Ok(())
+            Some(SolvedData::from_built(fill_field, *total_bits))
+        }else{
+            None
+        };
+        thing
     }
 }
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and

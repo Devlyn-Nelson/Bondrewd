@@ -18,6 +18,10 @@ use super::{
 };
 
 impl Resolver {
+    pub fn get_left_shift(&self) -> usize {
+        let left_shift = (8 - self.bit_length()) - (self.bit_range().start % 8);
+        left_shift
+    }
     /// This function is kind of funny. it is essentially a function that gets called by either
     /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
     /// as a parameter `gen_write_fn`. and example of a function that can be used as `gen_write_fn` would
@@ -207,7 +211,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = (8 - amount_of_bits) - (bit_range_start % 8);
+        let shift_left = self.get_left_shift();
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -455,7 +459,7 @@ impl Resolver {
                 "calculating ne shift_left failed",
             ));
         }
-        let shift_left = (8 - amount_of_bits) - (self.data.bit_range_start() % 8);
+        let shift_left = self.get_left_shift();
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
@@ -498,7 +502,12 @@ impl Resolver {
                 rust_size,
             } => {
                 let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte();
-                quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
+                let mut out = quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0])};
+                if used_bits_in_byte != 0 {
+                    out = quote!{#out >> #used_bits_in_byte;}
+                }
+                out = quote!{#out ;};
+                out
                 // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
                 // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}
             }
@@ -698,7 +707,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = (8 - amount_of_bits) - (self.data.bit_range_start() % 8);
+        let shift_left = self.get_left_shift();
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the

@@ -210,7 +210,6 @@ impl QuoteInfo {
         // calculate the starting byte index in the outgoing buffer
         let start = field_info.attrs.bit_range.start;
         let mut starting_inject_byte: usize = start / 8;
-        // println!("old - {}; start {start}, sib {starting_inject_byte}", field_info.ident().name());
         if let Some(flip) = &flip {
             starting_inject_byte = *flip - starting_inject_byte;
             Some(flip)

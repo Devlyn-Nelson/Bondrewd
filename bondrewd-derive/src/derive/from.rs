@@ -393,7 +393,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = (8 - self.bit_length()) - (self.data.bit_range_start() % 8);
+        let shift_left = self.get_left_shift();
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -905,7 +905,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = (8 - self.bit_length()) - (self.data.bit_range_start() % 8);
+        let shift_left = self.get_left_shift();
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the

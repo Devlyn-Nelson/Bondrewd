@@ -280,12 +280,12 @@ fn big_enum() {
     let invalid = BigEnum::Invalid(4);
     let invalid_5 = BigEnum::Invalid(5);
 
-    assert_eq!(zero.clone().into_bytes(), [0,0,0,0]);
-    assert_eq!(one.clone().into_bytes(), [0,0,0,1]);
-    assert_eq!(two.clone().into_bytes(), [0,0,0,2]);
-    assert_eq!(three.clone().into_bytes(), [0,0,0,3]);
-    assert_eq!(invalid.clone().into_bytes(), [0,0,0,4]);
-    assert_eq!(invalid_5.clone().into_bytes(), [0,0,0,5]);
+    assert_eq!(zero.clone().into_bytes(), [0, 0, 0, 0]);
+    assert_eq!(one.clone().into_bytes(), [0, 0, 0, 1]);
+    assert_eq!(two.clone().into_bytes(), [0, 0, 0, 2]);
+    assert_eq!(three.clone().into_bytes(), [0, 0, 0, 3]);
+    assert_eq!(invalid.clone().into_bytes(), [0, 0, 0, 4]);
+    assert_eq!(invalid_5.clone().into_bytes(), [0, 0, 0, 5]);
 
     assert_eq!(zero.id(), 0);
     assert_eq!(one.id(), 1);

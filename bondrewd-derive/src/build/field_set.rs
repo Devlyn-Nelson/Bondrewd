@@ -42,8 +42,7 @@ impl GenericBuilder {
                     StructDarling::from_derive_input(input)?.try_into()?;
                 let endianness = attrs.endianness.unwrap_or_default();
                 let mut fields = Vec::default();
-                let tuple =
-                    Self::extract_fields(&mut fields, &data_struct.fields, &endianness)?;
+                let tuple = Self::extract_fields(&mut fields, &data_struct.fields, &endianness)?;
                 let s = StructBuilder {
                     field_set: FieldSetBuilder {
                         name: attrs.ident,
@@ -266,8 +265,8 @@ pub struct StructDarling {
     pub vis: syn::Visibility,
     pub dump: darling::util::Flag,
     pub enforce_full_bytes: darling::util::Flag,
-    pub enforce_bytes: Option<usize>,
-    pub enforce_bits: Option<usize>,
+    pub enforce_bytes: Option<darling::util::SpannedValue<usize>>,
+    pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
@@ -298,25 +297,37 @@ impl Default for StructDarlingSimplified {
 impl StructDarlingSimplified {
     pub fn try_solve_enforcement(
         enforce_full_bytes: darling::util::Flag,
-        enforce_bytes: Option<usize>,
-        enforce_bits: Option<usize>,
+        enforce_bytes: Option<darling::util::SpannedValue<usize>>,
+        enforce_bits: Option<darling::util::SpannedValue<usize>>,
     ) -> syn::Result<StructEnforcement> {
         if enforce_full_bytes.is_present() {
             if enforce_bytes.is_none() && enforce_bits.is_none() {
-                Ok(StructEnforcement::EnforceFullBytes)
+                Ok(StructEnforcement{ 
+                    ty:StructEnforcementTy::EnforceFullBytes,
+                    span: enforce_full_bytes.span()
+                })
             } else {
                 Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
             }
         } else if let Some(bytes) = enforce_bytes {
             if enforce_bits.is_none() {
-                Ok(StructEnforcement::EnforceBitAmount(bytes * 8))
+                Ok(StructEnforcement{ 
+                    ty: StructEnforcementTy::EnforceBitAmount(*bytes * 8),
+                    span: bytes.span()
+                })
             } else {
                 Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
             }
         } else if let Some(bits) = enforce_bits {
-            Ok(StructEnforcement::EnforceBitAmount(bits))
+            Ok(StructEnforcement{ 
+                    ty: StructEnforcementTy::EnforceBitAmount(*bits),
+                    span: bits.span(),
+            })
         } else {
-            Ok(StructEnforcement::NoRules)
+            Ok(StructEnforcement{ 
+                    ty: StructEnforcementTy::NoRules,
+                    span: Span::call_site(),
+            })
         }
     }
     pub fn try_solve_fill_bits(
@@ -360,7 +371,7 @@ impl StructDarlingSimplified {
         if let Some(val) = other.endianness {
             self.endianness = Some(val);
         };
-        if !matches!(other.enforcement, StructEnforcement::NoRules) {
+        if !matches!(other.enforcement.ty, StructEnforcementTy::NoRules) {
             self.enforcement = other.enforcement;
         }
         if !matches!(other.fill_bits, FillBits::None) {
@@ -419,8 +430,8 @@ pub struct VariantDarling {
     pub ident: Ident,
     pub dump: darling::util::Flag,
     pub enforce_full_bytes: darling::util::Flag,
-    pub enforce_bytes: Option<usize>,
-    pub enforce_bits: Option<usize>,
+    pub enforce_bytes: Option<darling::util::SpannedValue<usize>>,
+    pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
@@ -478,7 +489,7 @@ impl VariantDarlingSimplified {
             value.fill_bytes,
             value.fill,
         )?;
-        if !matches!(enforcement, StructEnforcement::NoRules) {
+        if !matches!(enforcement.ty, StructEnforcementTy::NoRules) {
             attrs.enforcement = enforcement;
         }
         if !matches!(fill_bits, FillBits::None) {
@@ -510,8 +521,8 @@ pub struct EnumDarling {
     pub reverse: darling::util::Flag,
     pub dump: darling::util::Flag,
     pub enforce_full_bytes: darling::util::Flag,
-    pub enforce_bytes: Option<usize>,
-    pub enforce_bits: Option<usize>,
+    pub enforce_bytes: Option<darling::util::SpannedValue<usize>>,
+    pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
     pub fill: darling::util::Flag,
@@ -733,8 +744,19 @@ impl FillBits {
 }
 
 /// Tells bondrewd to enforce specific rules about the amount of bits used by the entire `field_set`
+#[derive(Debug, Clone)]
+pub struct StructEnforcement {
+    pub ty: StructEnforcementTy,
+    pub span: Span,
+}
+impl Default for StructEnforcement {
+    fn default() -> Self {
+        Self { ty: Default::default(), span: Span::call_site() }
+    }
+}
+/// Tells bondrewd to enforce specific rules about the amount of bits used by the entire `field_set`
 #[derive(Debug, Clone, Default)]
-pub enum StructEnforcement {
+pub enum StructEnforcementTy {
     /// No enforcement on the amount of bits used by the entire `field_set`
     #[default]
     NoRules,

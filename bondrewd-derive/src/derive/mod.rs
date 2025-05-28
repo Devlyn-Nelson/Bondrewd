@@ -782,10 +782,10 @@ impl Solved {
         // get the bit size of the entire set of fields to fill in trait requirement.
         let bit_size = self.total_bits_no_fill();
         let mut output = quote! {
-                        impl #struct_name {
-                            #impl_fns
-                        }
-                    };
+            impl #struct_name {
+                #impl_fns
+            }
+        };
         let trait_impl_fn = gen.bitfield_trait;
         output = quote! {
             #output
