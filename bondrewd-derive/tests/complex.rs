@@ -4,7 +4,7 @@ use bondrewd::Bitfields;
 // be ignored as a field of the struct.
 // TODO add a functions that get and set the id.
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 14)]
+#[bondrewd(endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {
         test: u32,
@@ -27,7 +27,7 @@ enum ComplexEnum {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 3)]
+#[bondrewd(endianness = "be", id_bit_length = 3)]
 enum SimpleEnum {
     Alpha,
     Beta,
@@ -37,7 +37,7 @@ enum SimpleEnum {
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleExample {
     // fields that are as expected do not require attributes.
     one: bool,
@@ -157,7 +157,7 @@ fn complex_stuff() {
 
 #[derive(Bitfields)]
 #[repr(u8)]
-#[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bits = 18)]
+#[bondrewd(endianness = "be", id_bit_length = 2, enforce_bits = 18)]
 enum Thing {
     #[bondrewd(enforce_bits = 16)]
     One { a: u16 } = 1,

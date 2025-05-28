@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(id_bit_length = 2, default_endianness = "be")]
+#[bondrewd(id_bit_length = 2, endianness = "be")]
 pub enum SpacePacketSequenceFlags {
     Continuation,
     Start,
@@ -11,7 +11,7 @@ pub enum SpacePacketSequenceFlags {
 
 /// 3 bitt field describing the version number of Ccsds standard to use.
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(id_bit_length = 3, default_endianness = "be")]
+#[bondrewd(id_bit_length = 3, endianness = "be")]
 pub enum SpacePacketVersion {
     One,
     Two,
@@ -19,7 +19,7 @@ pub enum SpacePacketVersion {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", enforce_bytes = 6)]
+#[bondrewd(endianness = "be", enforce_bytes = 6)]
 pub struct SpacePacketHeader {
     #[bondrewd(bit_length = 3)]
     pub(crate) packet_version_number: SpacePacketVersion,

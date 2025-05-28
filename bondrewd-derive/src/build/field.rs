@@ -6,7 +6,7 @@ use super::{
 
 use darling::FromField;
 use quote::format_ident;
-use syn::{spanned::Spanned, Error, Expr, Field, Ident, LitStr, Type};
+use syn::{spanned::Spanned, Error, Expr, Field, Ident, Type};
 
 #[derive(Debug)]
 pub struct DataBuilder {
@@ -15,10 +15,6 @@ pub struct DataBuilder {
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     pub(crate) ty: FullDataType,
-    /// Describes the properties of which techniques to use for bit extraction
-    /// and modifications the inputs that they can have. When None, we are expecting
-    /// either a Nested Type or the get it from the default.
-    pub(crate) endianness: Option<Endianness>,
     /// The range of bits that this field will use.
     /// TODO this should become a new Range system that allows dynamic start and/or end bit-indices.
     pub(crate) bit_range: DataBuilderRange,
@@ -158,16 +154,16 @@ impl DataType {
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut DataDarlingSimplified,
-        default_endianness: &Endianness,
+        endianness: &Endianness,
     ) -> syn::Result<FullDataType> {
-        Self::parse_with_option(ty, attrs, default_endianness, None)
+        Self::parse_with_option(ty, attrs, endianness, None)
     }
     /// the returned vec<usize> is the sizings for an `ArrayBuilder`
     #[allow(clippy::too_many_lines)]
     fn parse_with_option(
         ty: &syn::Type,
         attrs: &mut DataDarlingSimplified,
-        default_endianness: &Endianness,
+        endianness: &Endianness,
         array_option: Option<Vec<usize>>,
     ) -> syn::Result<FullDataType> {
         let data_type = match ty {
@@ -215,145 +211,9 @@ impl DataType {
                     Self::parse_with_option(
                         array_path.elem.as_ref(),
                         attrs,
-                        default_endianness,
+                        endianness,
                         Some(array_info),
                     )?
-                    // match attrs.ty {
-                    //     AttrBuilderType::ElementArray(ref element_bit_size, ref sub) => {
-                    //         attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                    //             BuilderRange::Range(ref range) => {
-                    //                 if range.end < range.start {
-                    //                     return Err(syn::Error::new(
-                    //                         ty.span(),
-                    //                         "range end is less than range start",
-                    //                     ));
-                    //                 }
-                    //                 if range.end - range.start != *element_bit_size * array_length {
-                    //                     return Err(
-                    //                                 syn::Error::new(
-                    //                                     ty.span(),
-                    //                                     "Element arrays bit range didn't match (element bit size * array length)"
-                    //                                 )
-                    //                             );
-                    //                 }
-                    //                 BuilderRange::Range(range.clone())
-                    //             }
-                    //             BuilderRange::LastEnd(ref last_end) => BuilderRange::Range(
-                    //                 *last_end..last_end + (array_length * *element_bit_size),
-                    //             ),
-                    //             BuilderRange::None => {
-                    //                 return Err(syn::Error::new(
-                    //                     ty.span(),
-                    //                     "failed getting Range for element array",
-                    //                 ));
-                    //             }
-                    //         };
-                    //         let mut sub_attrs = attrs.clone();
-                    //         if let Type::Array(_) = array_path.elem.as_ref() {
-                    //         } else if let Some(ref ty) = sub.as_ref() {
-                    //             sub_attrs.ty = ty.clone();
-                    //         } else {
-                    //             sub_attrs.ty = AttrBuilderType::None;
-                    //         }
-                    //         let mut sub_ty =
-                    //             Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
-
-                    //         match sub_ty {
-                    //             DataType::Enum { ref mut size, .. }
-                    //             | DataType::Struct { ref mut size, .. } => {
-                    //                 *size = size.div_ceil(array_length);
-                    //             }
-                    //             _ => {}
-                    //         }
-
-                    //         let type_ident = &sub_ty.type_quote();
-                    //         DataType::ElementArray {
-                    //             sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                    //             length: array_length,
-                    //             type_quote: quote! {[#type_ident;#array_length]},
-                    //         }
-                    //     }
-                    //     AttrBuilderType::BlockArray(_) => {
-                    //         let mut sub_attrs = attrs.clone();
-                    //         if let Type::Array(_) = array_path.elem.as_ref() {
-                    //         } else {
-                    //             sub_attrs.ty = AttrBuilderType::None;
-                    //         }
-
-                    //         let sub_ty =
-                    //             Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
-                    //         attrs.endianness = sub_attrs.endianness;
-                    //         let type_ident = &sub_ty.type_quote();
-                    //         DataType::BlockArray {
-                    //             sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                    //             length: array_length,
-                    //             type_quote: quote! {[#type_ident;#array_length]},
-                    //         }
-                    //     }
-                    //     AttrBuilderType::Enum(_, _) | AttrBuilderType::Struct(_) => {
-                    //         let mut sub_attrs = attrs.clone();
-                    //         if let Type::Array(_) = array_path.elem.as_ref() {
-                    //         } else {
-                    //             sub_attrs.ty = attrs.ty.clone();
-                    //         }
-
-                    //         let sub_ty =
-                    //             Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
-                    //         attrs.endianness = sub_attrs.endianness;
-                    //         let type_ident = &sub_ty.type_quote();
-                    //         DataType::BlockArray {
-                    //             sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                    //             length: array_length,
-                    //             type_quote: quote! {[#type_ident;#array_length]},
-                    //         }
-                    //     }
-                    //     AttrBuilderType::None => {
-                    //         let mut sub_attrs = attrs.clone();
-                    //         if let Type::Array(_) = array_path.elem.as_ref() {
-                    //         } else {
-                    //             sub_attrs.ty = AttrBuilderType::None;
-                    //         }
-                    //         let sub_ty =
-                    //             Self::parse(&array_path.elem, &mut sub_attrs, default_endianness)?;
-                    //         attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
-                    //             BuilderRange::Range(ref range) => {
-                    //                 if range.end < range.start {
-                    //                     return Err(syn::Error::new(
-                    //                         ty.span(),
-                    //                         "range end is less than range start",
-                    //                     ));
-                    //                 }
-                    //                 if range.end - range.start % array_length != 0 {
-                    //                     return Err(
-                    //                                 syn::Error::new(
-                    //                                     ty.span(),
-                    //                                     "Array Inference failed because given total bit_length does not split up evenly between elements, perhaps try using `element_bit_length` attribute"
-                    //                                 )
-                    //                             );
-                    //                 }
-                    //                 BuilderRange::Range(range.clone())
-                    //             }
-                    //             BuilderRange::LastEnd(ref last_end) => {
-                    //                 let element_bit_length = sub_ty.get_element_bit_length();
-                    //                 BuilderRange::Range(
-                    //                     *last_end..last_end + (array_length * element_bit_length),
-                    //                 )
-                    //             }
-                    //             BuilderRange::None => {
-                    //                 return Err(syn::Error::new(
-                    //                     ty.span(),
-                    //                     "failed getting Range for element array",
-                    //                 ));
-                    //             }
-                    //         };
-                    //         let type_ident = &sub_ty.type_quote();
-                    //         DataType::ElementArray {
-                    //             sub_type: Box::new(SubFieldInfo { ty: sub_ty }),
-                    //             length: array_length,
-                    //             type_quote: quote! {[#type_ident;#array_length]},
-                    //         }
-                    //     }
-                    // }
                 } else {
                     return Err(Error::new(
                         array_path.bracket_token.span.span(),
@@ -371,9 +231,6 @@ impl DataType {
         //     // currently nested fields that are 1 byte or less are expected to go through big endian logic.
         //     attrs.endianness = Some(Endianness::big())
         // }
-        if attrs.endianness.is_none() {
-            attrs.endianness = Some(default_endianness.clone());
-        }
 
         Ok(data_type)
     }
@@ -487,7 +344,6 @@ impl DataBuilder {
         Self {
             id: name,
             ty,
-            endianness: None,
             bit_range: DataBuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
@@ -498,22 +354,13 @@ impl DataBuilder {
     pub fn id(&self) -> &DynamicIdent {
         &self.id
     }
-
-    pub fn set_endianess(&mut self, e: Endianness) {
-        self.endianness = Some(e);
-    }
-
-    pub fn with_endianess(mut self, e: Endianness) -> Self {
-        self.endianness = Some(e);
-        self
-    }
     pub fn bit_length(&self) -> usize {
         self.bit_range.bit_length()
     }
     pub fn parse(
         field: &syn::Field,
         fields: &[DataBuilder],
-        default_endianness: &Endianness,
+        endianness: &Endianness,
     ) -> syn::Result<Self> {
         let ident: DynamicIdent = if let Some(ref name) = field.ident {
             name.clone().into()
@@ -528,7 +375,7 @@ impl DataBuilder {
         // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
         let mut attrs = DataDarling::from_field(field)?.simplify(field)?;
         // check the field for supported types.
-        let data_type = DataType::parse(&field.ty, &mut attrs, default_endianness)?;
+        let data_type = DataType::parse(&field.ty, &mut attrs, endianness)?;
         // TODO make sure fields that don't have a solved range here get solved during the solve process.
         // let attrs: Attributes = match attrs_builder.try_into() {
         //     Ok(attr) => attr,
@@ -663,7 +510,6 @@ impl DataBuilder {
                 // ));
             },
             ty: data_type,
-            endianness: attrs.endianness,
             bit_range,
             reserve,
             overlap,
@@ -687,7 +533,6 @@ impl DataBuilder {
 #[derive(Debug, FromField)]
 #[darling(attributes(bondrewd))]
 pub struct DataDarling {
-    endianness: Option<LitStr>,
     bit_length: Option<usize>,
     byte_length: Option<usize>,
     bits: Option<syn::Expr>,
@@ -709,12 +554,6 @@ impl DataDarling {
         } else {
             Ok(None)
         }
-    }
-    fn endianness(&self, field: &Field) -> syn::Result<Option<Endianness>> {
-        let Some(val) = &self.endianness else {
-            return Ok(None);
-        };
-        Ok(Some(Endianness::from_expr(val)?))
     }
     fn simplify(self, field: &Field) -> Result<DataDarlingSimplified, syn::Error> {
         let mut bit_defs = 0;
@@ -761,7 +600,6 @@ impl DataDarling {
             };
 
         Ok(DataDarlingSimplified {
-            endianness: self.endianness(field)?,
             array: if let Some(bit_len) = element_bit_length {
                 if block_bit_length.is_some() {
                     return Err(syn::Error::new(
@@ -788,7 +626,6 @@ impl DataDarling {
 
 #[derive(Debug)]
 pub struct DataDarlingSimplified {
-    endianness: Option<Endianness>,
     bits: DataBuilderRange,
     array: Option<DataDarlingSimplifiedArrayType>,
     overlapping_bits: Option<usize>,

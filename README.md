@@ -26,7 +26,7 @@ bondrewd = { version = "0.2", features = ["derive"] }
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(id_bit_length = 3, default_endianness = "be")]
+#[bondrewd(id_bit_length = 3, endianness = "be")]
 enum EyeColor {
     Blue,
     Green,
@@ -38,7 +38,7 @@ enum EyeColor {
 }
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct PersonParts {
     head: bool,
     #[bondrewd(bit_length = 2)]
@@ -50,7 +50,7 @@ struct PersonParts {
 }
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
-#[bondrewd(default_endianness = "be", reverse)]
+#[bondrewd(endianness = "be", reverse)]
 struct Person {
     // Name is english only?
     #[bondrewd(element_byte_length = 2)]

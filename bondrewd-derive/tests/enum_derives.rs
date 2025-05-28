@@ -30,7 +30,7 @@ fn must_work() {
 // we can just let the last option be a valid catch all (in proc_macro code it is still marked as
 // an invalid catch all but that doesn't really matter)
 #[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum NoInvalidEnum {
     Zero,
     One,
@@ -41,7 +41,7 @@ enum NoInvalidEnum {
 }
 
 #[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum InferPrimitiveTypeWithInvalidEnum {
     Zero,
     One,
@@ -64,7 +64,7 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
 }
 
 #[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum CenteredInvalid {
     BLue,
     One,
@@ -92,7 +92,7 @@ fn enum_centered_catch_all() {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum CenteredInvalidPrimitive {
     Zero,
     One,
@@ -140,7 +140,7 @@ fn enum_centered_catch_primitive() {
 }
 
 #[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, default_endianness = "be")]
+#[bondrewd(id_bit_length = 8, endianness = "be")]
 enum TupleEnum {
     One(u8),
     Two(u8),
@@ -187,7 +187,7 @@ fn tuple_enum() {
 }
 
 #[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, default_endianness = "be")]
+#[bondrewd(id_bit_length = 8, endianness = "be")]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]
@@ -257,4 +257,40 @@ fn crazy_enum() {
         },
         Err(err) => panic!("{err}"),
     }
+}
+
+#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
+#[bondrewd(id_byte_length = 4, endianness = "be")]
+#[repr(u32)]
+pub enum BigEnum {
+    Zero = 0,
+    One = 1,
+    Two = 2,
+    Three,
+    Invalid(#[bondrewd(capture_id)] u32),
+}
+
+#[test]
+/// this must work for secret reasons.
+fn big_enum() {
+    let zero = BigEnum::Zero;
+    let one = BigEnum::One;
+    let two = BigEnum::Two;
+    let three = BigEnum::Three;
+    let invalid = BigEnum::Invalid(4);
+    let invalid_5 = BigEnum::Invalid(5);
+
+    assert_eq!(zero.clone().into_bytes(), [0,0,0,0]);
+    assert_eq!(one.clone().into_bytes(), [0,0,0,1]);
+    assert_eq!(two.clone().into_bytes(), [0,0,0,2]);
+    assert_eq!(three.clone().into_bytes(), [0,0,0,3]);
+    assert_eq!(invalid.clone().into_bytes(), [0,0,0,4]);
+    assert_eq!(invalid_5.clone().into_bytes(), [0,0,0,5]);
+
+    assert_eq!(zero.id(), 0);
+    assert_eq!(one.id(), 1);
+    assert_eq!(two.id(), 2);
+    assert_eq!(three.id(), 3);
+    assert_eq!(invalid.id(), 4);
+    assert_eq!(invalid_5.id(), 5);
 }

@@ -4,7 +4,7 @@ mod hex_tests {
     use bondrewd::BitfieldHexDyn;
     use bondrewd::{BitfieldHex, Bitfields};
     #[derive(Bitfields, Clone, Debug, PartialEq)]
-    #[bondrewd(default_endianness = "msb", bit_traversal = "back", enforce_bits = 3)]
+    #[bondrewd(endianness = "msb", bit_traversal = "back", enforce_bits = 3)]
     pub struct StatusMagnetometer {
         int_mtm1: bool,
         int_mtm2: bool,
@@ -14,7 +14,7 @@ mod hex_tests {
     /// Response to a Get Mtm Reading command - returns data in the `Telemetry::Magnetometer` format (separate as non-unit enums are not supported by GraphQL)
     /// This includes status and readings for all magnetometers
     #[derive(Bitfields, Clone, Debug, PartialEq)]
-    #[bondrewd(default_endianness = "msb")]
+    #[bondrewd(endianness = "msb")]
     pub struct Magnetometer {
         pub timestamp: u64,
         #[bondrewd(byte_length = 1)]

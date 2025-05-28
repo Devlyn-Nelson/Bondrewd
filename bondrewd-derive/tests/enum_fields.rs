@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 3)]
+#[bondrewd(endianness = "be", id_bit_length = 3)]
 enum TestEnum {
     Zero,
     One,
@@ -14,7 +14,7 @@ enum TestEnum {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleWithSingleByteSpanningEnum {
     #[bondrewd(bit_length = 6)]
     one: u8,

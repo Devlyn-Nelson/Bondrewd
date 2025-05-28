@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -13,7 +13,7 @@ struct Simple {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleWithStruct {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -24,14 +24,14 @@ struct SimpleWithStruct {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(endianness = "be", id_bit_length = 8)]
 enum SimpleInner {
     One { little_payload: [u8; 10] },
     Two { big_payload: [u8; 100] },
 }
 
 #[derive(Bitfields)]
-#[bondrewd(enforce_bytes = 104, default_endianness = "le")]
+#[bondrewd(enforce_bytes = 104, endianness = "le")]
 struct SimpleEnforced {
     header: [u8; 3],
     #[bondrewd(byte_length = 101)]
@@ -75,7 +75,7 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
 
 // START_HERE fix reverse.
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", reverse)]
+#[bondrewd(endianness = "be", reverse)]
 struct SimpleWithStructWithFlip {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -130,7 +130,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
 }
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SmallStruct {
     one: bool,
     two: bool,
@@ -140,7 +140,7 @@ struct SmallStruct {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleWithSingleByteSpanningStruct {
     #[bondrewd(bit_length = 4)]
     one: u8,
@@ -189,7 +189,7 @@ fn struct_spanning_two_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleWithSingleByteNonSpanningStruct {
     #[bondrewd(bit_length = 3)]
     one: u8,

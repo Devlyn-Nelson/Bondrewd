@@ -1,7 +1,7 @@
 // use bondrewd::Bitfields;
 
 // #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-// #[bondrewd(id_byte_length = 1, default_endianness = "be")]
+// #[bondrewd(id_byte_length = 1, endianness = "be")]
 // enum TestPartialEqEnum {
 //     Zero,
 //     One,
@@ -11,7 +11,7 @@
 // }
 
 // #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-// #[bondrewd(id_byte_length = 1, default_endianness = "be")]
+// #[bondrewd(id_byte_length = 1, endianness = "be")]
 // enum TestPartialEqCustomEnum {
 //     CustomZero = 0x10,
 //     CustomOne = 0x20,
@@ -21,7 +21,7 @@
 // }
 
 // #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-// #[bondrewd(id_byte_length = 1, default_endianness = "be")]
+// #[bondrewd(id_byte_length = 1, endianness = "be")]
 // enum TestNoPartialEqCustomEnum {
 //     CustomZero = 0x10,
 //     CustomOne = 0x20,

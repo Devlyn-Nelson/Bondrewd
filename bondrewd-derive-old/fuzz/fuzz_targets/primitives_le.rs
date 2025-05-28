@@ -4,7 +4,7 @@ use bondrewd_derive::Bitfields as BitfieldsDerive;
 use libfuzzer_sys::fuzz_target;
 
 #[derive(BitfieldsDerive, Clone, Debug)]
-#[bondrewd(default_endianness = "le")]
+#[bondrewd(endianness = "le")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -61,7 +61,7 @@ pub struct TestInnerArb {
 }
 
 #[derive(BitfieldsDerive, PartialEq, Clone)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 366, default_endianness = "le")]
+#[bondrewd(id_bit_length = 3, enforce_bits = 366, endianness = "le")]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]
@@ -402,7 +402,7 @@ impl Default for TestEnum {
 
 // 593
 #[derive(BitfieldsDerive, Clone, PartialEq, Debug)]
-#[bondrewd(default_endianness = "le", enforce_bits = 959)]
+#[bondrewd(endianness = "le", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,

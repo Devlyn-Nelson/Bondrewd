@@ -241,7 +241,7 @@ impl UserDefinedReversal {
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "ale", fill_bits)]
+/// #[bondrewd(endianness = "ale", fill_bits)]
 /// struct Aligned {
 ///     #[bondrewd(bit_length = 9)]
 ///     number: u16,
@@ -261,7 +261,7 @@ impl UserDefinedReversal {
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields, Clone)]
-/// #[bondrewd(default_endianness = "le", fill_bits)]
+/// #[bondrewd(endianness = "le", fill_bits)]
 /// struct Packed {
 ///     #[bondrewd(bit_length = 9)]
 ///     number: u16,
@@ -425,7 +425,7 @@ impl Endianness {
 
     /// Basically because of `reverse_byte` and `reverse_field` order things can get funny when applying
     /// multiple to the same strategy. we need to find out if we can just merge the endianess with
-    /// the outer most (struct/enum) `default_endianness` with the field endianness to simulate correct
+    /// the outer most (struct/enum) `endianness` with the field endianness to simulate correct
     /// behavior.
     ///
     ///

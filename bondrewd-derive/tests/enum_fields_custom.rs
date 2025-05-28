@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(endianness = "be", id_bit_length = 8)]
 enum TestCustomEnum {
     CustomZero = 0x30,
     CustomOne = 0x10,
@@ -11,7 +11,7 @@ enum TestCustomEnum {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleCustomEnumUsage {
     one: u8,
     #[bondrewd(bit_length = 8)]
@@ -46,7 +46,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(endianness = "be", id_bit_length = 8)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -56,7 +56,7 @@ enum TestCustomContinuationEnum {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
 struct SimpleCustomContinuationEnumUsage {
     one: u8,
     #[bondrewd(bit_length = 8)]
