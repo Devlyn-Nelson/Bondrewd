@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd-derive"
-version = "0.5.0"
+version = "0.5.0-alpha.0"
 edition = "2021"
 description = "Bit-Level field packing with builder"
 authors = ["Dev <devlynknelson@gmail.com>"]
