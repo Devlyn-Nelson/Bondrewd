@@ -281,7 +281,7 @@ impl<'a> SolvedFieldSetAdditive<'a> {
 
 struct GenVariant<'a> {
     id: &'a SolvedData,
-    gen: &'a mut GeneratedFunctions,
+    flavor: &'a mut crate::GenerationFlavor,
     variant_info: &'a VariantInfo,
     variant: &'a SolvedFieldSet,
     checked_ident: &'a Ident,
@@ -297,7 +297,6 @@ struct GenVariant<'a> {
     from_bytes_fn: &'a mut TokenStream,
     id_fn: &'a mut TokenStream,
     lifetime: &'a mut bool,
-    dyn_fns: bool,
 }
 
 impl Solved {
@@ -308,10 +307,8 @@ impl Solved {
         invalid_name: &VariantInfo,
         variants: &BTreeMap<VariantInfo, SolvedFieldSet>,
         struct_size: usize,
-        dyn_fns: bool,
-    ) -> syn::Result<GeneratedFunctions> {
-        let mut gen_read = GeneratedFunctions::new(dyn_fns);
-        let mut gen_write = GeneratedFunctions::new(dyn_fns);
+        flavor: &mut crate::GenerationFlavor,
+    ) -> syn::Result<()> {
         let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
         let field_access = id.get_quotes()?;
         // TODO pass field list into make read function.
@@ -319,16 +316,22 @@ impl Solved {
             id,
             &set_add,
             &mut quote! {},
-            &mut gen_read,
+            flavor,
             &field_access,
             struct_size,
         )?;
-        invalid.make_write_fns(id, &set_add, &mut gen_write, &field_access, struct_size)?;
-        gen_read.merge(&gen_write);
-        let mut gen = gen_read;
-        if let Some(ref mut thing) = gen.dyn_fns {
-            thing.checked_struct = quote! {};
-        }
+        invalid.make_write_fns(id, &set_add, flavor, &field_access, struct_size)?;
+
+        // match flavor {
+        //     crate::GenerationFlavor::Standard { trait_fns, impl_fns } => todo!(),
+        //     crate::GenerationFlavor::Dynamic { trait_fns, impl_fns } => todo!(),
+        //     crate::GenerationFlavor::Slice { trait_fns, impl_fns, struct_fns } => {
+        //         tfn = trait_fns.read;
+        //         *tfn = quote!{}
+        //     }
+        //     crate::GenerationFlavor::Hex { trait_fns } => todo!(),
+        //     crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
+        // }
         // TODO generate slice functions for id field.
         // let id_slice_read = generate_read_slice_field_fn(
         //     access.read(),
@@ -377,7 +380,7 @@ impl Solved {
             Self::gen_variant(
                 GenVariant {
                     id: &id,
-                    gen: &mut gen,
+                    flavor,
                     variant_info: &variant_info,
                     variant: &variant,
                     checked_ident: &checked_ident,
@@ -393,7 +396,6 @@ impl Solved {
                     from_bytes_fn: &mut from_bytes_fn,
                     id_fn: &mut id_fn,
                     lifetime: &mut lifetime,
-                    dyn_fns,
                 },
                 struct_size,
                 false,
@@ -402,7 +404,7 @@ impl Solved {
         Self::gen_variant(
             GenVariant {
                 id: &id,
-                gen: &mut gen,
+                flavor,
                 variant_info: &invalid_name,
                 variant: &invalid,
                 checked_ident: &checked_ident,
@@ -418,44 +420,59 @@ impl Solved {
                 from_bytes_fn: &mut from_bytes_fn,
                 id_fn: &mut id_fn,
                 lifetime: &mut lifetime,
-                dyn_fns,
             },
             struct_size,
             true,
         )?;
-        // Finish `from_bytes` function.
-        from_bytes_fn = quote! {
-            fn from_bytes(input_byte_buffer: [u8;#struct_size]) -> Self {
-                let #v_id = Self::#v_id_read_call(&input_byte_buffer);
-                match #v_id {
-                    #from_bytes_fn
-                }
-            }
-        };
-        if let Some(dyn_fns_gen) = &mut gen.dyn_fns {
-            let from_vec_fn_inner = dyn_fns_gen.bitfield_dyn_trait.clone();
-            let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
-            let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
-            dyn_fns_gen.bitfield_dyn_trait = quote! {
-                #[doc = #comment]
-                fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
-                    if input_byte_buffer.len() < Self::BYTE_SIZE {
-                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+
+        match flavor {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => {
+                // Finish `from_bytes` function.
+                from_bytes_fn = quote! {
+                    fn from_bytes(input_byte_buffer: [u8;#struct_size]) -> Self {
+                        let #v_id = Self::#v_id_read_call(&input_byte_buffer);
+                        match #v_id {
+                            #from_bytes_fn
+                        }
                     }
-                    let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
-                    let out = match #v_id {
-                        #from_vec_fn_inner
-                    };
-                    Ok(out)
-                }
-            };
-            #[cfg(feature = "std")]
-            {
-                let from_vec_fn = &dyn_fns_gen.bitfield_dyn_trait;
-                dyn_fns_gen.bitfield_dyn_trait = quote! {
-                    #from_vec_fn
-                    #[doc = #comment_take]
-                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                };
+                // Finish `into_bytes` function.
+                into_bytes_fn = quote! {
+                    fn into_bytes(self) -> [u8;#struct_size] {
+                        let mut output_byte_buffer = [0u8;#struct_size];
+                        match self {
+                            #into_bytes_fn
+                        }
+                        output_byte_buffer
+                    }
+                };
+                // Finish Variant Id function.
+                let id_ident = id.resolver.ty.get_type_quote()?;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    pub fn id(&self) -> #id_ident {
+                        match self {
+                            #id_fn
+                        }
+                    }
+                };
+                trait_fns.read = from_bytes_fn;
+                trait_fns.write = into_bytes_fn;
+            }
+            crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
+                let from_vec_fn_inner = trait_fns.read.clone();
+                let comment_take = "Creates a new instance of `Self` by copying field from the bitfields, removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+                let comment = "Creates a new instance of `Self` by copying field from the bitfields. \n # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+                trait_fns.read = quote! {
+                    #[doc = #comment]
+                    fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
                         if input_byte_buffer.len() < Self::BYTE_SIZE {
                             return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
                         }
@@ -463,75 +480,87 @@ impl Solved {
                         let out = match #v_id {
                             #from_vec_fn_inner
                         };
-                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
                         Ok(out)
                     }
                 };
+                #[cfg(feature = "std")]
+                {
+                    let from_vec_fn = &mut trait_fns.read;
+                    *from_vec_fn = quote! {
+                        #from_vec_fn
+                        #[doc = #comment_take]
+                        fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                            if input_byte_buffer.len() < Self::BYTE_SIZE {
+                                return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                            }
+                            let #v_id = Self::#v_id_read_slice_call(&input_byte_buffer)?;
+                            let out = match #v_id {
+                                #from_vec_fn_inner
+                            };
+                            let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                            Ok(out)
+                        }
+                    };
+                }
             }
-            let comment = format!(
-                "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
-            );
-            gen.append_impl_fns(&quote! {
-                #[doc = #comment]
-                pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
-                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
-                    match #v_id {
-                        #check_slice_fn
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                let comment = format!(
+                    "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
+                );
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #[doc = #comment]
+                    pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+                        let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                        match #v_id {
+                            #check_slice_fn
+                        }
                     }
-                }
-            });
-            let comment = format!(
-                "Returns a checked mutable structure which allows you to read/write any field for a `{enum_name}` from provided mut slice.",
-            );
-            gen.append_impl_fns(&quote! {
-                #[doc = #comment]
-                pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
-                    let #v_id = Self::#v_id_read_slice_call(&buffer)?;
-                    match #v_id {
-                        #check_slice_mut_fn
+                };
+                let comment = format!(
+                    "Returns a checked mutable structure which allows you to read/write any field for a `{enum_name}` from provided mut slice.",
+                );
+                let impl_write_fns = &mut impl_fns.write;
+                *impl_write_fns = quote! {
+                    #impl_write_fns
+                    #[doc = #comment]
+                    pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+                        let #v_id = Self::#v_id_read_slice_call(&buffer)?;
+                        match #v_id {
+                            #check_slice_mut_fn
+                        }
                     }
-                }
-            });
-            let lifetime = if lifetime {
-                quote! {<'a>}
-            } else {
-                quote! {}
-            };
-            gen.append_checked_struct_impl_fns(&quote! {
-                pub enum #checked_ident #lifetime {
-                    #checked_slice_enum
-                }
-                pub enum #checked_ident_mut #lifetime {
-                    #checked_slice_enum_mut
-                }
-            });
+                };
+                let lifetime = if lifetime {
+                    quote! {<'a>}
+                } else {
+                    quote! {}
+                };
+                let struct_read_fns = &mut struct_fns.read;
+                let struct_write_fns = &mut struct_fns.write;
+                *struct_read_fns = quote! {
+                    #struct_read_fns
+                    pub enum #checked_ident #lifetime {
+                        #checked_slice_enum
+                    }
+                };
+                *struct_write_fns = quote! {
+                    #struct_write_fns
+                    pub enum #checked_ident_mut #lifetime {
+                        #checked_slice_enum_mut
+                    }
+                };
+            }
+            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
+            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
         }
-        // Finish `into_bytes` function.
-        into_bytes_fn = quote! {
-            fn into_bytes(self) -> [u8;#struct_size] {
-                let mut output_byte_buffer = [0u8;#struct_size];
-                match self {
-                    #into_bytes_fn
-                }
-                output_byte_buffer
-            }
-        };
-        // Finish Variant Id function.
-        let id_ident = id.resolver.ty.get_type_quote()?;
-        gen.append_impl_fns(&quote! {
-            pub fn id(&self) -> #id_ident {
-                match self {
-                    #id_fn
-                }
-            }
-        });
 
-        gen.bitfield_trait = quote! {
-            #from_bytes_fn
-            #into_bytes_fn
-        };
-
-        Ok(gen)
+        Ok(())
         // todo!("finish enum generation.");
     }
     fn gen_variant(
@@ -541,12 +570,11 @@ impl Solved {
     ) -> syn::Result<()> {
         let into_bytes_fn = package.into_bytes_fn;
         let from_bytes_fn = package.from_bytes_fn;
-        let gen = package.gen;
+        let flavor = package.flavor;
         let variant_info = package.variant_info;
         let variant = package.variant;
         let enum_name = package.enum_name;
         let v_id = package.v_id;
-        let dyn_fns = package.dyn_fns;
         let id = package.id;
         let id_fn = package.id_fn;
         let check_slice_fn = package.check_slice_fn;
@@ -557,10 +585,6 @@ impl Solved {
         let checked_slice_enum_mut = package.checked_slice_enum_mut;
         let lifetime = package.lifetime;
         let v_id_write_call = package.v_id_write_call;
-
-        if gen.dyn_fns.is_none() {
-            gen.dyn_fns = Some(GeneratedDynFunctions::default());
-        }
 
         // this is the slice indexing that will fool the set function code into thinking
         // it is looking at a smaller array.
@@ -585,20 +609,8 @@ impl Solved {
                 full_size: v_byte_size,
             }),
             struct_size,
-            dyn_fns,
+            flavor,
         )?;
-        if let Some(gen_read) = &thing.read_fns.dyn_fns {
-            gen.append_checked_struct_impl_fns(&gen_read.checked_struct);
-        }
-        if let Some(gen_write) = &thing.write_fns.dyn_fns {
-            gen.append_checked_struct_impl_fns(&gen_write.checked_struct);
-        }
-        gen.append_impl_fns(&thing.read_fns.non_trait);
-        gen.append_impl_fns(&thing.write_fns.non_trait);
-        gen.append_impl_fns(&quote! {
-            pub const #v_byte_const_name: usize = #v_byte_size;
-            pub const #v_bit_const_name: usize = #v_bit_size;
-        });
         // make setter for each field.
         // construct from bytes function. use input_byte_buffer as input name because,
         // that is what the field quotes expect to extract from.
@@ -644,93 +656,117 @@ impl Solved {
             let field_name_list = thing.field_list;
             quote! {Self::#variant_name { #field_name_list }}
         };
-        // From Bytes
-        let from_bytes_quote = &thing.read_fns.bitfield_trait;
-        *from_bytes_fn = quote! {
-            #from_bytes_fn
-            #variant_id => {
-                #from_bytes_quote
-                #variant_constructor
+        match flavor {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => {
+                // Into Bytes
+                // TODO this may get funny, due to the transition to flavor instead of generated quote (the great
+                // proc_macro separation) this function may need to get reset trait_fns before calling `variant.gen_struct_fields`
+                let into_bytes_quote = &mut trait_fns.write;
+                *into_bytes_fn = quote! {
+                    #into_bytes_fn
+                    #variant_constructor => {
+                        Self::#v_id_write_call(&mut output_byte_buffer, #variant_value);
+                        #into_bytes_quote
+                    }
+                };
+                // From Bytes
+                let from_bytes_quote = &mut trait_fns.read;
+                *from_bytes_fn = quote! {
+                    #from_bytes_fn
+                    #variant_id => {
+                        #from_bytes_quote
+                        #variant_constructor
+                    }
+                };
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    pub const #v_byte_const_name: usize = #v_byte_size;
+                    pub const #v_bit_const_name: usize = #v_bit_size;
+                };
             }
-        };
-        if let (Some(dyn_fns_thing), Some(dyn_fns_gen)) =
-            (&thing.read_fns.dyn_fns, &mut gen.dyn_fns)
-        {
-            let bitfield_dyn_trait_impl_fns = &dyn_fns_gen.bitfield_dyn_trait;
-            let from_vec_quote = &dyn_fns_thing.bitfield_dyn_trait;
-            dyn_fns_gen.bitfield_dyn_trait = quote! {
-                #bitfield_dyn_trait_impl_fns
-                #variant_id => {
-                    #from_vec_quote
-                    #variant_constructor
-                }
-            };
-            // Check Slice
-            if let Some(slice_info) = thing.slice_info {
-                // do the match statement stuff
-                let check_slice_name = &slice_info.func;
-                let check_slice_struct = &slice_info.structure;
-                *check_slice_fn = quote! {
-                    #check_slice_fn
+            crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
+                let from_vec_quote = &trait_fns.read;
+                *from_bytes_fn = quote! {
+                    #from_bytes_fn
                     #variant_id => {
-                        Ok(#checked_ident :: #variant_name (Self::#check_slice_name(buffer)?))
+                        #from_vec_quote
+                        #variant_constructor
                     }
                 };
-                let check_slice_name_mut = &slice_info.mut_func;
-                let check_slice_struct_mut = &slice_info.mut_structure;
-                *check_slice_mut_fn = quote! {
-                    #check_slice_mut_fn
-                    #variant_id => {
-                        Ok(#checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer)?))
-                    }
-                };
+            }
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                // TODO below confuses me greatly, probably not quite right.
+                // Check Slice
+                if let Some(slice_info) = thing.slice_info {
+                    // do the match statement stuff
+                    let check_slice_name = &slice_info.func;
+                    let check_slice_struct = &slice_info.structure;
+                    *check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            Ok(#checked_ident :: #variant_name (Self::#check_slice_name(buffer)?))
+                        }
+                    };
+                    let check_slice_name_mut = &slice_info.mut_func;
+                    let check_slice_struct_mut = &slice_info.mut_structure;
+                    *check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            Ok(#checked_ident_mut :: #variant_name (Self::#check_slice_name_mut(buffer)?))
+                        }
+                    };
 
-                // do enum stuff
-                if !(*lifetime) {
-                    *lifetime = true;
+                    // do enum stuff
+                    if !(*lifetime) {
+                        *lifetime = true;
+                    }
+                    *checked_slice_enum = quote! {
+                        #checked_slice_enum
+                        #v_name (#check_slice_struct<'a>),
+                    };
+                    *checked_slice_enum_mut = quote! {
+                        #checked_slice_enum_mut
+                        #v_name (#check_slice_struct_mut<'a>),
+                    };
+                } else {
+                    // do the match statement stuff
+                    *check_slice_fn = quote! {
+                        #check_slice_fn
+                        #variant_id => {
+                            Ok(#checked_ident :: #variant_name)
+                        }
+                    };
+                    *check_slice_mut_fn = quote! {
+                        #check_slice_mut_fn
+                        #variant_id => {
+                            Ok(#checked_ident_mut :: #variant_name)
+                        }
+                    };
+                    // do enum stuff
+                    *checked_slice_enum = quote! {
+                        #checked_slice_enum
+                        #v_name,
+                    };
+                    *checked_slice_enum_mut = quote! {
+                        #checked_slice_enum_mut
+                        #v_name,
+                    };
                 }
-                *checked_slice_enum = quote! {
-                    #checked_slice_enum
-                    #v_name (#check_slice_struct<'a>),
-                };
-                *checked_slice_enum_mut = quote! {
-                    #checked_slice_enum_mut
-                    #v_name (#check_slice_struct_mut<'a>),
-                };
-            } else {
-                // do the match statement stuff
-                *check_slice_fn = quote! {
-                    #check_slice_fn
-                    #variant_id => {
-                        Ok(#checked_ident :: #variant_name)
-                    }
-                };
-                *check_slice_mut_fn = quote! {
-                    #check_slice_mut_fn
-                    #variant_id => {
-                        Ok(#checked_ident_mut :: #variant_name)
-                    }
-                };
-                // do enum stuff
-                *checked_slice_enum = quote! {
-                    #checked_slice_enum
-                    #v_name,
-                };
-                *checked_slice_enum_mut = quote! {
-                    #checked_slice_enum_mut
-                    #v_name,
-                };
             }
+            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
+            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
         }
-        // Into Bytes
-        let into_bytes_quote = &thing.write_fns.bitfield_trait;
-        *into_bytes_fn = quote! {
-            #into_bytes_fn
-            #variant_constructor => {
-                Self::#v_id_write_call(&mut output_byte_buffer, #variant_value);
-                #into_bytes_quote
-            }
-        };
 
         let mut ignore_fields = if let Some(id_field_name) = variant.get_captured_id_name() {
             variant_value = quote! {*#variant_value};
@@ -754,10 +790,10 @@ impl Solved {
         };
         Ok(())
     }
-    pub fn gen(&self, dyn_fns: bool, hex_fns: bool, setters: bool) -> syn::Result<TokenStream> {
+    pub fn gen(&self, mut flavor: crate::GenerationFlavor) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
         let struct_size = self.total_bytes_no_fill();
-        let gen = match &self.ty {
+        match &self.ty {
             SolvedType::Enum {
                 id,
                 invalid,
@@ -771,53 +807,74 @@ impl Solved {
                 invalid_name,
                 variants,
                 struct_size,
-                dyn_fns,
+                &mut flavor,
             )?,
-            SolvedType::Struct(solved_field_set) => solved_field_set
-                .generate_quotes(struct_name, None, struct_size, dyn_fns)?
-                .finish(),
-        };
-        // get the struct size and name so we can use them in a quote.
-        let impl_fns = gen.non_trait;
+            SolvedType::Struct(solved_field_set) => {
+                solved_field_set.generate_quotes(struct_name, None, struct_size, &mut flavor)?
+            }
+        }
         // get the bit size of the entire set of fields to fill in trait requirement.
         let bit_size = self.total_bits_no_fill();
-        let mut output = quote! {
-            impl #struct_name {
-                #impl_fns
-            }
-        };
-        let trait_impl_fn = gen.bitfield_trait;
-        output = quote! {
-            #output
-            impl bondrewd::Bitfields<#struct_size> for #struct_name {
-                const BIT_SIZE: usize = #bit_size;
-                #trait_impl_fn
-            }
-        };
-        if hex_fns {
-            let hex_size = struct_size * 2;
-            output = quote! {
-                #output
-                impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
-            };
-            if dyn_fns {
-                output = quote! {
-                    #output
-                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
-                };
-            }
-        }
-        if let Some(dyn_fns) = gen.dyn_fns {
-            let checked_structs = dyn_fns.checked_struct;
-            let from_vec_quote = dyn_fns.bitfield_dyn_trait;
-            output = quote! {
-                #output
-                #checked_structs
-                impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
-                    #from_vec_quote
+        let output = match flavor {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => {
+                let impl_fns = impl_fns.merge();
+                let trait_fns = trait_fns.merge();
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                    impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                        const BIT_SIZE: usize = #bit_size;
+                        #trait_fns
+                    }
                 }
             }
-        }
+            crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
+                let from_vec_quote = trait_fns.merge();
+                quote! {
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
+                    }
+                }
+            }
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                let impl_fns = impl_fns.merge();
+                let trait_fns = trait_fns.merge();
+                let struct_fns = struct_fns.merge();
+                let checked_structs = struct_fns;
+                quote! {
+                    impl #struct_name {
+                        #impl_fns
+                    }
+                    #checked_structs
+                    impl BitfieldsSlice<#struct_size> for #struct_name {
+                        #trait_fns
+                    }
+                }
+            }
+            crate::GenerationFlavor::Hex { trait_fns } => {
+                let hex_size = struct_size * 2;
+                quote! {
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+                }
+            }
+            crate::GenerationFlavor::HexDynamic { trait_fns } => {
+                let hex_size = struct_size * 2;
+                quote! {
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                }
+            }
+        };
         if self.dump() {
             let name = self.name.to_string().to_case(Case::Snake);
             match current_dir() {
@@ -848,90 +905,107 @@ impl SolvedFieldSet {
         name: &Ident,
         enum_name: Option<GenStructFieldsEnumInfo>,
         struct_size: usize,
-        dyn_fns: bool,
-    ) -> syn::Result<FieldQuotes> {
+        flavor: &mut crate::GenerationFlavor,
+    ) -> syn::Result<()> {
         // generate basic generated code for field access functions.
-        let mut quotes = self.gen_struct_fields(name, enum_name, struct_size, dyn_fns)?;
+        let quotes = self.gen_struct_fields(name, enum_name, struct_size, flavor)?;
         // Gather information to finish [`Bitfields::from_bytes`]
-        let from_bytes_quote = &quotes.read_fns.bitfield_trait;
         let fields_list = &quotes.field_list;
-        // construct from bytes function. use input_byte_buffer as input name because,
-        // that is what the field quotes expect to extract from.
-        // wrap our list of field names with commas with Self{} so we it instantiate our struct,
-        // because all of the from_bytes field quote store there data in a temporary variable with the same
-        // name as its destination field the list of field names will be just fine.
-        quotes.read_fns.bitfield_trait = quote! {
-            fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
-                #from_bytes_quote
-                Self{
-                    #fields_list
-                }
-            }
-        };
-        if let Some(dyn_fns) = quotes.read_fns.dyn_fns.as_mut() {
-            // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
-            let from_bytes_dyn_quote_inner = dyn_fns.bitfield_dyn_trait.clone();
-            let comment_take =
-                "Creates a new instance of `Self` by copying field from the bitfields, \
-            removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have \
-            enough bytes an error will be returned."
-                    .to_string();
-            let comment = "Creates a new instance of `Self` by copying field from the bitfields. 
-             # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
-            dyn_fns.bitfield_dyn_trait = quote! {
-                #[doc = #comment]
-                fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
-                    if input_byte_buffer.len() < Self::BYTE_SIZE {
-                        return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
-                    }
-                    let out = {
-                        #from_bytes_dyn_quote_inner
-                        Self {
+        match flavor {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => {
+                // construct from bytes function. use input_byte_buffer as input name because,
+                // that is what the field quotes expect to extract from.
+                // wrap our list of field names with commas with Self{} so we it instantiate our struct,
+                // because all of the from_bytes field quote store there data in a temporary variable with the same
+                // name as its destination field the list of field names will be just fine.
+                let trait_read_fns = &mut trait_fns.read;
+                *trait_read_fns = quote! {
+                    fn from_bytes(mut input_byte_buffer: [u8;#struct_size]) -> Self {
+                        #trait_read_fns
+                        Self{
                             #fields_list
                         }
-                    };
-                    Ok(out)
-                }
-            };
-            #[cfg(feature = "std")]
-            {
-                let from_bytes_dyn_quote = &dyn_fns.bitfield_dyn_trait;
-                dyn_fns.bitfield_dyn_trait = quote! {
-                    #from_bytes_dyn_quote
-                    #[doc = #comment_take]
-                    fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                    }
+                };
+                let trait_write_fns = &mut trait_fns.write;
+                *trait_write_fns = quote! {
+                    fn into_bytes(self) -> [u8;#struct_size] {
+                        let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
+                        #trait_write_fns
+                        output_byte_buffer
+                    }
+                };
+            }
+            crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => todo!(),
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
+                let trait_read_fns = trait_fns.read.clone();
+                let comment_take =
+                    "Creates a new instance of `Self` by copying field from the bitfields, \
+                removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have \
+                enough bytes an error will be returned."
+                        .to_string();
+                let comment = "Creates a new instance of `Self` by copying field from the bitfields. 
+                # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
+                trait_fns.read = quote! {
+                    #[doc = #comment]
+                    fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> {
                         if input_byte_buffer.len() < Self::BYTE_SIZE {
                             return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
                         }
                         let out = {
-                            #from_bytes_dyn_quote_inner
+                            #trait_read_fns
                             Self {
                                 #fields_list
                             }
                         };
-                        let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
                         Ok(out)
                     }
                 };
+                #[cfg(feature = "std")]
+                {
+                    let trf = &mut trait_fns.read;
+                    *trf = quote! {
+                        #trf
+                        #[doc = #comment_take]
+                        fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> {
+                            if input_byte_buffer.len() < Self::BYTE_SIZE {
+                                return Err(bondrewd::BitfieldLengthError(input_byte_buffer.len(), Self::BYTE_SIZE));
+                            }
+                            let out = {
+                                #trait_read_fns
+                                Self {
+                                    #fields_list
+                                }
+                            };
+                            let _ = input_byte_buffer.drain(..Self::BYTE_SIZE);
+                            Ok(out)
+                        }
+                    };
+                }
             }
+            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
+            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
         }
-        let into_bytes_quote = &quotes.write_fns.bitfield_trait;
-        quotes.write_fns.bitfield_trait = quote! {
-            fn into_bytes(self) -> [u8;#struct_size] {
-                let mut output_byte_buffer: [u8;#struct_size] = [0u8;#struct_size];
-                #into_bytes_quote
-                output_byte_buffer
-            }
-        };
-        Ok(quotes)
+        Ok(())
     }
     pub(crate) fn gen_struct_fields(
         &self,
         name: &Ident,
         enum_name: Option<GenStructFieldsEnumInfo>,
         struct_size: usize,
-        dyn_fns: bool,
-    ) -> syn::Result<FieldQuotes> {
+        flavor: &mut crate::GenerationFlavor,
+    ) -> syn::Result<FieldQuotesNew> {
         let set_add = if let Some(ename) = &enum_name {
             // We what to use the name of the struct because enum variants are just StructInfos internally.
             let vn = format_ident!("{}", name.to_string().to_case(Case::Snake));
@@ -939,8 +1013,6 @@ impl SolvedFieldSet {
         } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
-        let mut gen_read = GeneratedFunctions::new(dyn_fns);
-        let mut gen_write = GeneratedFunctions::new(dyn_fns);
         // TODO If we are building code for an enum variant that does not capture the id
         // then we should skip the id field to avoid creating an get_id function for each variant.
         let mut field_name_list = quote! {};
@@ -956,96 +1028,99 @@ impl SolvedFieldSet {
                 field,
                 &set_add,
                 &mut field_name_list,
-                &mut gen_read,
+                flavor,
                 &field_access,
                 struct_size,
             )?;
-            self.make_write_fns(field, &set_add, &mut gen_write, &field_access, struct_size)?;
+            self.make_write_fns(field, &set_add, flavor, &field_access, struct_size)?;
         }
-        // Do checked struct of this type
-        let checked = if self.fields.is_empty() {
-            None
-        } else if let (Some(dyn_fns_read), Some(dyn_fns_write)) =
-            (&mut gen_read.dyn_fns, &mut gen_write.dyn_fns)
+        let checked = if let crate::GenerationFlavor::Slice {
+            trait_fns,
+            impl_fns,
+            struct_fns,
+        } = flavor
         {
-            let struct_name = if let Some(e_name) = &enum_name {
-                quote::format_ident!("{}{name}", e_name.ident)
+            // Do checked struct of this type
+            if self.fields.is_empty() {
+                None
             } else {
-                name.clone()
-            };
-            let vis = self.vis();
-            let checked_ident = quote::format_ident!("{struct_name}Checked");
-            let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
-            let unchecked_functions = &dyn_fns_read.checked_struct;
-            let unchecked_mut_functions = &dyn_fns_write.checked_struct;
-            let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
-            let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
-            let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
-            let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
-            dyn_fns_write.checked_struct = quote! {
-                #[doc = #comment_mut]
-                #vis struct #checked_mut_ident<'a> {
-                    buffer: &'a mut [u8],
-                }
-                impl<'a> #checked_mut_ident<'a> {
-                    #unchecked_functions
-                    #unchecked_mut_functions
-                    #[doc = #unchecked_comment_mut]
-                    pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
-                        Self{
-                            buffer: data
+                let struct_name = if let Some(e_name) = &enum_name {
+                    quote::format_ident!("{}{name}", e_name.ident)
+                } else {
+                    name.clone()
+                };
+                let vis = self.vis();
+                let checked_ident = quote::format_ident!("{struct_name}Checked");
+                let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
+                let unchecked_functions = &mut struct_fns.read;
+                let unchecked_mut_functions = &mut struct_fns.write;
+                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                *unchecked_mut_functions = quote! {
+                    #[doc = #comment_mut]
+                    #vis struct #checked_mut_ident<'a> {
+                        buffer: &'a mut [u8],
+                    }
+                    impl<'a> #checked_mut_ident<'a> {
+                        #unchecked_functions
+                        #unchecked_mut_functions
+                        #[doc = #unchecked_comment_mut]
+                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
                         }
                     }
-                }
-            };
-            dyn_fns_read.checked_struct = quote! {
-                #[doc = #comment]
-                #vis struct #checked_ident<'a> {
-                    buffer: &'a [u8],
-                }
-                impl<'a> #checked_ident<'a> {
-                    #unchecked_functions
-                    #[doc = #unchecked_comment]
-                    pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
-                        Self{
-                            buffer: data
+                };
+                *unchecked_functions = quote! {
+                    #[doc = #comment]
+                    #vis struct #checked_ident<'a> {
+                        buffer: &'a [u8],
+                    }
+                    impl<'a> #checked_ident<'a> {
+                        #unchecked_functions
+                        #[doc = #unchecked_comment]
+                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
                         }
                     }
-                }
-            };
-            let (ename, full_byte_size) = if let Some(enum_stuff) = &enum_name {
-                (Some(&struct_name), enum_stuff.full_size)
-            } else {
-                (None, self.total_bytes())
-            };
+                };
+                let (ename, full_byte_size) = if let Some(enum_stuff) = &enum_name {
+                    (Some(&struct_name), enum_stuff.full_size)
+                } else {
+                    (None, self.total_bytes())
+                };
 
-            let check_slice_info = CheckedSliceGen::new(name, full_byte_size, ename);
+                let check_slice_info = CheckedSliceGen::new(name, full_byte_size, ename);
 
-            let check_slice_fn = check_slice_info.fn_gen;
-            let impl_fns = gen_read.non_trait;
-            gen_read.non_trait = quote! {
-                #impl_fns
-                #check_slice_fn
-            };
+                let check_slice_fn = check_slice_info.fn_gen;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #check_slice_fn
+                };
 
-            let check_slice_mut_fn = check_slice_info.mut_fn_gen;
-            let impl_fns = gen_write.non_trait;
-            gen_write.non_trait = quote! {
-                #impl_fns
-                #check_slice_mut_fn
-            };
-            Some(CheckSliceNames {
-                func: check_slice_info.fn_name,
-                mut_func: check_slice_info.mut_fn_name,
-                structure: checked_ident,
-                mut_structure: checked_mut_ident,
-            })
+                let check_slice_mut_fn = check_slice_info.mut_fn_gen;
+                let impl_write_fns = &mut impl_fns.write;
+                *impl_write_fns = quote! {
+                    #impl_write_fns
+                    #check_slice_mut_fn
+                };
+                Some(CheckSliceNames {
+                    func: check_slice_info.fn_name,
+                    mut_func: check_slice_info.mut_fn_name,
+                    structure: checked_ident,
+                    mut_structure: checked_mut_ident,
+                })
+            }
         } else {
             None
         };
-        Ok(FieldQuotes {
-            read_fns: gen_read,
-            write_fns: gen_write,
+        Ok(FieldQuotesNew {
             field_list: field_name_list,
             slice_info: checked,
         })
@@ -1055,76 +1130,124 @@ impl SolvedFieldSet {
         field: &SolvedData,
         set_add: &SolvedFieldSetAdditive,
         field_name_list: &mut TokenStream,
-        gen: &mut GeneratedFunctions,
+        gen: &mut crate::GenerationFlavor,
         field_access: &GeneratedQuotes,
         struct_size: usize,
     ) -> syn::Result<()> {
         let field_name = field.resolver.ident();
         let prefixed_name = set_add.get_prefixed_name(&field_name);
 
-        let mut impl_fns = quote! {};
-        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {
-            Some(quote! {})
-        } else {
-            None
-        };
         let field_extractor = field_access.read();
-        self.make_read_fns_inner(
-            field,
-            &prefixed_name,
-            field_extractor,
-            &mut impl_fns,
-            checked_struct_impl_fns.as_mut(),
-            struct_size,
-        )?;
-        gen.append_impl_fns(&impl_fns);
-        if let Some(checked_struct_impl_fns) = &checked_struct_impl_fns {
-            gen.append_checked_struct_impl_fns(checked_struct_impl_fns);
-        }
-
-        // fake fields do not exist in the actual structure and should only have functions
-        // that read or write values into byte arrays.
-        if !field.attr_reserve().is_fake_field() {
-            // put the name of the field into the list of fields that are needed to create
-            // the struct.
-            *field_name_list = quote! {#field_name_list #field_name,};
-            // TODO line above replaced commented code below, this is old code that i don't think is necessary.
-            // field order here shouldn't matter.
-            //
-            // if field.is_field_order_reversed() {
-            //     *field_name_list = quote! {#field_name, #field_name_list}
-            // } else {
-            //     *field_name_list = quote! {#field_name_list #field_name,}
-            // };
-            let peek_call = if field.attr_capture_id() {
-                // put the field extraction in the actual from bytes.
-                if field.attr_reserve().wants_read_fns() {
-                    let id_name = format_ident!("{}", Self::VARIANT_ID_NAME);
-                    quote! {
-                        let #field_name = #id_name;
-                    }
-                } else {
-                    return Err(syn::Error::new(
-                        field.resolver.ident().span(),
-                        "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
-                    ));
+        match gen {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => {
+                let read_fns =
+                    generate_read_field_fn(field_extractor, field, struct_size, &prefixed_name)?;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #read_fns
+                };
+                // fake fields do not exist in the actual structure and should only have functions
+                // that read or write values into byte arrays.
+                if !field.attr_reserve().is_fake_field() {
+                    // put the name of the field into the list of fields that are needed to create
+                    // the struct.
+                    *field_name_list = quote! {#field_name_list #field_name,};
+                    // TODO line above replaced commented code below, this is old code that i don't think is necessary.
+                    // field order here shouldn't matter.
+                    //
+                    // if field.is_field_order_reversed() {
+                    //     *field_name_list = quote! {#field_name, #field_name_list}
+                    // } else {
+                    //     *field_name_list = quote! {#field_name_list #field_name,}
+                    // };
+                    let peek_call = if field.attr_capture_id() {
+                        // put the field extraction in the actual from bytes.
+                        if field.attr_reserve().wants_read_fns() {
+                            let id_name = format_ident!("{}", Self::VARIANT_ID_NAME);
+                            quote! {
+                                let #field_name = #id_name;
+                            }
+                        } else {
+                            return Err(syn::Error::new(
+                                field.resolver.ident().span(),
+                                "fields with attribute 'capture_id' are automatically considered 'read_only', meaning it can not have the 'reserve' attribute.",
+                            ));
+                        }
+                    } else {
+                        // put the field extraction in the actual from bytes.
+                        if field.attr_reserve().wants_read_fns() {
+                            quote! {
+                                let #field_name = #field_extractor;
+                            }
+                        } else {
+                            quote! { let #field_name = Default::default(); }
+                        }
+                    };
+                    let trait_read_fns = &mut trait_fns.read;
+                    *trait_read_fns = quote! {
+                        #trait_read_fns
+                        #peek_call
+                    };
                 }
-            } else {
-                // put the field extraction in the actual from bytes.
-                let read_stuff = field_access.read();
-                if field.attr_reserve().wants_read_fns() {
-                    // let fn_field_name = format_ident!("read_{prefixed_name}");
-                    quote! {
-                        let #field_name = #read_stuff;
-                    }
-                } else {
-                    quote! { let #field_name = Default::default(); }
+            }
+            crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
+                let read_fns =
+                    generate_read_field_fn(field_extractor, field, struct_size, &prefixed_name)?;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #read_fns
+                };
+                // fake fields do not exist in the actual structure and should only have functions
+                // that read or write values into byte arrays.
+                if !field.attr_reserve().is_fake_field() {
+                    // put the name of the field into the list of fields that are needed to create
+                    // the struct.
+                    *field_name_list = quote! {#field_name_list #field_name,};
+                    // TODO line above replaced commented code below, this is old code that i don't think is necessary.
+                    // field order here shouldn't matter.
+                    //
+                    // if field.is_field_order_reversed() {
+                    //     *field_name_list = quote! {#field_name, #field_name_list}
+                    // } else {
+                    //     *field_name_list = quote! {#field_name_list #field_name,}
+                    // };
+                    let trait_read_fns = &mut trait_fns.read;
+                    *trait_read_fns = quote! {
+                        #trait_read_fns
+                        let #field_name = #field_extractor;
+                    };
                 }
-            };
-            gen.append_bitfield_trait_impl_fns(&peek_call);
-            gen.append_bitfield_dyn_trait_impl_fns(&quote! {
-                let #field_name = #field_extractor;
-            });
+            }
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                let peek_slice_quote =
+                    generate_read_slice_field_fn(field_extractor, field, &prefixed_name)?;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #peek_slice_quote
+                };
+                let peek_slice_unchecked_quote =
+                    generate_read_slice_field_fn_unchecked(field_extractor, field)?;
+                let struct_read_fns = &mut struct_fns.read;
+                *struct_read_fns = quote! {
+                    #struct_read_fns
+                    #peek_slice_unchecked_quote
+                };
+            }
+            crate::GenerationFlavor::Hex { trait_fns }
+            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
         }
         Ok(())
     }
@@ -1160,46 +1283,83 @@ impl SolvedFieldSet {
         &self,
         field: &SolvedData,
         set_add: &SolvedFieldSetAdditive,
-        gen: &mut GeneratedFunctions,
+        gen: &mut crate::GenerationFlavor,
         field_access: &GeneratedQuotes,
         struct_size: usize,
     ) -> syn::Result<()> {
         let field_name = field.resolver.ident();
         let prefixed_name = set_add.get_prefixed_name(&field_name);
         let (field_setter, clear_quote) = (field_access.write(), field_access.zero());
-        if field.attr_reserve().wants_write_fns() && !field.attr_capture_id() {
-            if set_add.is_variant() {
-                let fn_name = format_ident!("write_{prefixed_name}");
-                gen.append_bitfield_trait_impl_fns(&quote! {
-                    Self::#fn_name(&mut output_byte_buffer, #field_name);
-                });
-            } else {
-                gen.append_bitfield_trait_impl_fns(&quote! {
-                    let #field_name = self.#field_name;
-                    #field_setter
-                });
+        match gen {
+            crate::GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
             }
-        }
-
-        let mut impl_fns = quote! {};
-        let mut checked_struct_impl_fns = if gen.dyn_fns.is_some() {
-            Some(quote! {})
-        } else {
-            None
-        };
-        self.make_write_fns_inner(
-            field,
-            &prefixed_name,
-            field_setter,
-            clear_quote,
-            &mut impl_fns,
-            checked_struct_impl_fns.as_mut(),
-            struct_size,
-        )?;
-
-        gen.append_impl_fns(&impl_fns);
-        if let Some(checked_struct_impl_fns) = checked_struct_impl_fns {
-            gen.append_checked_struct_impl_fns(&checked_struct_impl_fns);
+            | crate::GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
+                if field.attr_reserve().wants_write_fns() && !field.attr_capture_id() {
+                    let trait_write_fns = &mut trait_fns.write;
+                    // *trait_write_fns = quote! {
+                    //     #trait_write_fns
+                    //     let #field_name = self.#field_name;
+                    //     #field_setter
+                    // };
+                    // TODO below was replaced by above. check that `into_bytes` still works.
+                    if set_add.is_variant() {
+                        let fn_name = format_ident!("write_{prefixed_name}");
+                        *trait_write_fns = quote! {
+                            #trait_write_fns
+                            Self::#fn_name(&mut output_byte_buffer, #field_name);
+                        };
+                    } else {
+                        *trait_write_fns = quote! {
+                            #trait_write_fns
+                            let #field_name = self.#field_name;
+                            #field_setter
+                        };
+                    }
+                }
+                let write_quote = generate_write_field_fn(
+                    field_setter,
+                    clear_quote,
+                    field,
+                    struct_size,
+                    &prefixed_name,
+                )?;
+                let impl_write_fns = &mut impl_fns.write;
+                *impl_write_fns = quote! {
+                    #impl_write_fns
+                    #write_quote
+                }
+            }
+            crate::GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
+                let set_slice_quote = generate_write_slice_field_fn(
+                    field_setter,
+                    clear_quote,
+                    field,
+                    &prefixed_name,
+                )?;
+                let impl_write_fns = &mut impl_fns.write;
+                *impl_write_fns = quote! {
+                    #impl_write_fns
+                    #set_slice_quote
+                };
+                let set_slice_unchecked_quote =
+                    generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field)?;
+                let struct_write_fns = &mut struct_fns.write;
+                *struct_write_fns = quote! {
+                    #struct_write_fns
+                    #set_slice_unchecked_quote
+                };
+            }
+            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
+            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
         }
         Ok(())
     }

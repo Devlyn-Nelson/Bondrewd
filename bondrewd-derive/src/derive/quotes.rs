@@ -20,6 +20,12 @@ impl FieldQuotes {
     }
 }
 
+pub struct FieldQuotesNew {
+    /// A list of field names to be used in initializing a new struct from bytes.
+    pub field_list: TokenStream,
+    pub slice_info: Option<CheckSliceNames>,
+}
+
 pub struct CheckSliceNames {
     /// describes the check slice function name
     pub func: Ident,
