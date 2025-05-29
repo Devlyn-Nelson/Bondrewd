@@ -2,7 +2,7 @@
 // use rand::Rng;
 
 // #[derive(bondrewd_derive_old::Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-// #[bondrewd(bit_traversal = "back", reverse, dump)]
+// #[bondrewd(bit_traversal = "back", reverse)]
 // pub struct Mixed {
 //     #[bondrewd(bit_length = 20, endianness = "le")]
 //     pub one: u32,

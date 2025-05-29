@@ -485,6 +485,15 @@ pub fn get_number_type_ident(number_ty: &NumberType, bits: usize) -> syn::Result
 }
 
 impl ResolverType {
+    pub fn is_nested(&self) -> bool {
+        matches!(
+            self,
+            Self::Nested {
+                ty_ident: _,
+                rust_size: _
+            }
+        )
+    }
     #[must_use]
     pub fn get_type_quote(&self) -> syn::Result<TokenStream> {
         match self {

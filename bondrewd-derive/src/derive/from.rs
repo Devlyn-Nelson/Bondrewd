@@ -741,6 +741,10 @@ impl Resolver {
             let thing: ResolverDataNestedAdditive = self.data.as_ref().into();
             thing.right_shift
         };
+        // TODO `byte_effected` may need to include bits already taken in its starting byte because a 4 byte number could
+        // effect 5 bytes if it is not aligned with the start of a byte. just add zeros on left to bit length before div.
+        // this change would be required in `into.rs` as well.
+        let bytes_effected = self.bit_length().div_ceil(8);
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let full_quote = match self.ty.as_ref() {
             ResolverType::Primitive { .. } => {
@@ -765,7 +769,9 @@ impl Resolver {
                             get_left_and_mask(8 - self.available_bits_in_first_byte());
                         let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                         for i in 0..*size {
-                            let start = self.data.offset_starting_inject_byte(i);
+                            let start = self
+                                .data
+                                .offset_starting_inject_byte((bytes_effected - 1) - i);
                             let mut first = if current_bit_mask == u8::MAX {
                                 quote! {
                                     #buffer_ident[#i] = input_byte_buffer[#start];
@@ -778,7 +784,8 @@ impl Resolver {
                             if self.available_bits_in_first_byte() + (8 * i) < self.bit_length()
                                 && next_bit_mask != 0
                             {
-                                let next_index = self.data.next_index(start);
+                                // let next_index = self.data.next_index(start);
+                                let next_index = start + 1;
                                 first = quote! {
                                     #first
                                     #buffer_ident[#i] |= input_byte_buffer[#next_index] & #next_bit_mask;
@@ -826,7 +833,9 @@ impl Resolver {
                         let current_bit_mask =
                             get_right_and_mask(self.available_bits_in_first_byte());
                         for i in 0..*size {
-                            let start = self.data.offset_starting_inject_byte(i);
+                            let start = self
+                                .data
+                                .offset_starting_inject_byte((bytes_effected - 1) - i);
                             if i == 0 {
                                 quote_builder = quote! {
                                     #quote_builder

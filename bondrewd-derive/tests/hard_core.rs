@@ -86,11 +86,7 @@ mod current {
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(
-        endianness = "ale",
-        id_bit_length = 3,
-        enforce_bytes = 1
-    )]
+    #[bondrewd(endianness = "ale", id_bit_length = 3, enforce_bytes = 1)]
     pub enum Two {
         One {
             one: bool,
@@ -108,11 +104,7 @@ mod current {
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(
-        endianness = "ale",
-        id_bit_length = 2,
-        enforce_bits = 9
-    )]
+    #[bondrewd(endianness = "ale", id_bit_length = 2, enforce_bits = 9)]
     pub enum Three {
         One(bool, bool),
         Two,
