@@ -504,9 +504,9 @@ impl Resolver {
                 let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte();
                 let mut out = quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0])};
                 if used_bits_in_byte != 0 {
-                    out = quote!{#out >> #used_bits_in_byte;}
+                    out = quote! {#out >> #used_bits_in_byte;}
                 }
-                out = quote!{#out ;};
+                out = quote! {#out ;};
                 out
                 // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
                 // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}

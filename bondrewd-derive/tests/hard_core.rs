@@ -78,7 +78,7 @@ mod current {
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "be", bit_traversal = "back")]
+    #[bondrewd(endianness = "ale")]
     pub struct One {
         pub one: bool,
         #[bondrewd(bit_length = 3)]
@@ -87,8 +87,7 @@ mod current {
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
-        endianness = "be",
-        bit_traversal = "back",
+        endianness = "ale",
         id_bit_length = 3,
         enforce_bytes = 1
     )]
@@ -110,8 +109,7 @@ mod current {
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(
-        endianness = "be",
-        bit_traversal = "back",
+        endianness = "ale",
         id_bit_length = 2,
         enforce_bits = 9
     )]
@@ -126,18 +124,18 @@ mod current {
         },
     }
 
-    // #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    // #[bondrewd(endianness = "be", bit_traversal = "front", reverse)]
-    // pub struct ReallyHardcore {
-    //     #[bondrewd(bit_length = 4)]
-    //     pub one: One,
-    //     #[bondrewd(bit_length = 8)]
-    //     pub two: Two,
-    //     #[bondrewd(bit_length = 9)]
-    //     pub three: Three,
-    //     #[bondrewd(bit_length = 3)]
-    //     pub four: u8,
-    // }
+    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
+    #[bondrewd(endianness = "ale")]
+    pub struct ReallyHardcore {
+        #[bondrewd(bit_length = 4)]
+        pub one: One,
+        #[bondrewd(bit_length = 8)]
+        pub two: Two,
+        #[bondrewd(bit_length = 9)]
+        pub three: Three,
+        #[bondrewd(bit_length = 3)]
+        pub four: u8,
+    }
 
     impl From<One> for crate::old::One {
         fn from(value: One) -> Self {

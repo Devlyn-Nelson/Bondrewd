@@ -10,7 +10,8 @@ use crate::build::{
         RustByteSize,
     },
     field_set::{
-        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcementTy, VariantBuilder
+        EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcementTy,
+        VariantBuilder,
     },
     ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
 };
@@ -120,7 +121,10 @@ fn check_for_id(variant: &VariantBuilder, used_ids: &mut Vec<usize>) -> Result<(
     if let Some(value) = variant.id {
         if used_ids.contains(&value) {
             let vname = &variant.field_set.name;
-            return Err(syn::Error::new(vname.span(), "Variant name used twice. Variants must have unique names."));
+            return Err(syn::Error::new(
+                vname.span(),
+                "Variant name used twice. Variants must have unique names.",
+            ));
         }
         used_ids.push(value);
     }
@@ -216,7 +220,7 @@ impl TryFrom<EnumBuilder> for Solved {
             }
             let span = if let Some(s) = span {
                 s
-            }else{
+            } else {
                 Span::call_site()
             };
             return Err(syn::Error::new(span, format!("Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})")));
@@ -266,7 +270,10 @@ impl TryFrom<EnumBuilder> for Solved {
             StructEnforcementTy::NoRules => {}
             StructEnforcementTy::EnforceFullBytes => {
                 if bit_size % 8 != 0 {
-                    return Err(syn::Error::new(value.attrs.enforcement.span, "Final bit count was not evenly divisible by 0."));
+                    return Err(syn::Error::new(
+                        value.attrs.enforcement.span,
+                        "Final bit count was not evenly divisible by 0.",
+                    ));
                 }
             }
             StructEnforcementTy::EnforceBitAmount(expected_total_bits) => {
@@ -285,7 +292,7 @@ impl TryFrom<EnumBuilder> for Solved {
                             s,
                             format!("Final bit count does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]"),
                         )
-                    }else{
+                    } else {
                         (
                             value.attrs.enforcement.span,
                             format!("Final bit count of a variant does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]")
@@ -514,7 +521,8 @@ impl Solved {
                 if let Some(id) = id_field {
                     id.bit_range.clone()
                 } else {
-                    return Err(syn::Error::new(value_field.id.span(),
+                    return Err(syn::Error::new(
+                        value_field.id.span(),
                         "Field was marked as `capture_id`, but is not in an enum variant",
                     ));
                 }
@@ -561,14 +569,17 @@ impl Solved {
             StructEnforcementTy::NoRules => {}
             StructEnforcementTy::EnforceFullBytes => {
                 if total_bits_without_id % 8 != 0 {
-                    return Err(syn::Error::new(value.attrs.enforcement.span, "Final bit count was not evenly divisible by 0."));
+                    return Err(syn::Error::new(
+                        value.attrs.enforcement.span,
+                        "Final bit count was not evenly divisible by 0.",
+                    ));
                 }
             }
             StructEnforcementTy::EnforceBitAmount(expected_total_bits) => {
                 if total_bits_without_id != *expected_total_bits {
                     let message = if id_field.is_some() {
-                       format!("Variant `{}` final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]", value.name)
-                    }else{
+                        format!("Variant `{}` final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]", value.name)
+                    } else {
                         format!("Final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]")
                     };
                     return Err(syn::Error::new(value.attrs.enforcement.span, message));
@@ -583,7 +594,7 @@ impl Solved {
             None,
             &mut total_bit_size,
         );
-        // finalize 
+        // finalize
         let mut fields: Vec<SolvedData> = Vec::default();
         let flip_bits = total_bit_size;
         for pre_field in pre_fields {
@@ -671,7 +682,7 @@ impl Solved {
             //     total_bits += add_me;
             // }
             Some(SolvedData::from_built(fill_field, *total_bits))
-        }else{
+        } else {
             None
         };
         thing

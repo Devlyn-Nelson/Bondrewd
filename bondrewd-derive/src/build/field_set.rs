@@ -302,31 +302,31 @@ impl StructDarlingSimplified {
     ) -> syn::Result<StructEnforcement> {
         if enforce_full_bytes.is_present() {
             if enforce_bytes.is_none() && enforce_bits.is_none() {
-                Ok(StructEnforcement{ 
-                    ty:StructEnforcementTy::EnforceFullBytes,
-                    span: enforce_full_bytes.span()
+                Ok(StructEnforcement {
+                    ty: StructEnforcementTy::EnforceFullBytes,
+                    span: enforce_full_bytes.span(),
                 })
             } else {
                 Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
             }
         } else if let Some(bytes) = enforce_bytes {
             if enforce_bits.is_none() {
-                Ok(StructEnforcement{ 
+                Ok(StructEnforcement {
                     ty: StructEnforcementTy::EnforceBitAmount(*bytes * 8),
-                    span: bytes.span()
+                    span: bytes.span(),
                 })
             } else {
                 Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
             }
         } else if let Some(bits) = enforce_bits {
-            Ok(StructEnforcement{ 
-                    ty: StructEnforcementTy::EnforceBitAmount(*bits),
-                    span: bits.span(),
+            Ok(StructEnforcement {
+                ty: StructEnforcementTy::EnforceBitAmount(*bits),
+                span: bits.span(),
             })
         } else {
-            Ok(StructEnforcement{ 
-                    ty: StructEnforcementTy::NoRules,
-                    span: Span::call_site(),
+            Ok(StructEnforcement {
+                ty: StructEnforcementTy::NoRules,
+                span: Span::call_site(),
             })
         }
     }
@@ -751,7 +751,10 @@ pub struct StructEnforcement {
 }
 impl Default for StructEnforcement {
     fn default() -> Self {
-        Self { ty: Default::default(), span: Span::call_site() }
+        Self {
+            ty: Default::default(),
+            span: Span::call_site(),
+        }
     }
 }
 /// Tells bondrewd to enforce specific rules about the amount of bits used by the entire `field_set`

@@ -96,8 +96,6 @@ fn bug_of_my_nightmares() -> anyhow::Result<()> {
     Ok(())
 }
 
-
-
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "ale")]
@@ -132,7 +130,10 @@ fn bug_of_my_nightmares_but_bigger() -> anyhow::Result<()> {
     };
 
     let small_bytes = small.clone().into_bytes();
-    assert_eq!(&small_bytes, &[0b0001_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000]);
+    assert_eq!(
+        &small_bytes,
+        &[0b0001_1000, 0b0000_0000, 0b0000_0000, 0b0000_0000]
+    );
     assert_eq!(small, BigBugInducer::from_bytes(small_bytes));
 
     assert_eq!(BigNestedBugInducer::BYTE_SIZE, 5);
