@@ -115,7 +115,6 @@ struct BigNestedBugInducer {
     two: BigBugInducer,
     three: u8,
 }
-// Maybe flip needs to not used total byte count, but rather the total amount of bits used. currently
 #[test]
 fn bug_of_my_nightmares_but_bigger() -> anyhow::Result<()> {
     let small = BigBugInducer {
