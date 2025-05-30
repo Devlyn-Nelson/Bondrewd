@@ -565,10 +565,13 @@ impl Resolver {
                 let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
                 let next_bit_mask = get_left_and_mask(8 - self.data.available_bits_in_first_byte());
                 let right_shift: u32 = u32::from(right_shift.unsigned_abs());
+                println!("test: {}", self.data.available_bits_in_first_byte());
                 for i in 0usize..size {
+                    // START_HERE index things be happenin
                     let start = self
                         .data
                         .offset_starting_inject_byte((bytes_effected - 1) - i);
+                    let next_index = self.data.next_index(start);
                     let not_current_bit_mask = !current_bit_mask;
                     let not_next_bit_mask = !next_bit_mask;
                     clear_quote = quote! {
@@ -580,8 +583,7 @@ impl Resolver {
                         #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
                         output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
                     };
-                    // let next_index = self.data.next_index(start);
-                    let next_index = start + 1;
+                    // let next_index = start + 1;
                     if self.data.available_bits_in_first_byte() + (8 * i) < self.data.bit_length() {
                         if not_next_bit_mask != u8::MAX {
                             clear_quote = quote! {
@@ -636,18 +638,11 @@ impl Resolver {
                         #clear_quote
                         output_byte_buffer[#start] &= #not_current_bit_mask;
                     };
-                    if i == 0 {
-                        if current_bit_mask == u8::MAX {
-                            full_quote = quote! {
-                                #full_quote
-                                output_byte_buffer[#start] |= #field_buffer_name[#i];
-                            };
-                        } else {
-                            full_quote = quote! {
-                                #full_quote
-                                output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
-                            };
-                        }
+                    if i == 0 && current_bit_mask != u8::MAX {
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        };
                     } else {
                         full_quote = quote! {
                             #full_quote

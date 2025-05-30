@@ -772,6 +772,7 @@ impl Resolver {
                             let start = self
                                 .data
                                 .offset_starting_inject_byte((bytes_effected - 1) - i);
+                            let next_index = self.data.next_index(start);
                             let mut first = if current_bit_mask == u8::MAX {
                                 quote! {
                                     #buffer_ident[#i] = input_byte_buffer[#start];
@@ -784,8 +785,7 @@ impl Resolver {
                             if self.available_bits_in_first_byte() + (8 * i) < self.bit_length()
                                 && next_bit_mask != 0
                             {
-                                // let next_index = self.data.next_index(start);
-                                let next_index = start + 1;
+                                // let next_index = start + 1;
                                 first = quote! {
                                     #first
                                     #buffer_ident[#i] |= input_byte_buffer[#next_index] & #next_bit_mask;
@@ -836,7 +836,7 @@ impl Resolver {
                             let start = self
                                 .data
                                 .offset_starting_inject_byte((bytes_effected - 1) - i);
-                            if i == 0 {
+                            if i == 0 && current_bit_mask != u8::MAX {
                                 quote_builder = quote! {
                                     #quote_builder
                                     #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;

@@ -213,8 +213,9 @@ fn get_check_mut_slice_fn(
     );
     (
         quote! {
+            type CheckedMut<'a> = #checked_ident_mut<'a>;
             #[doc = #comment_mut]
-            pub fn #fn_name(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+            fn #fn_name<'a>(buffer: &'a mut [u8]) -> Result<#checked_ident_mut<'a>, bondrewd::BitfieldLengthError> {
                 let buf_len = buffer.len();
                 if buf_len >= #check_size {
                     Ok(#checked_ident_mut {
@@ -261,8 +262,9 @@ fn get_check_slice_fn(
     );
     (
         quote! {
+            type Checked<'a> = #checked_ident<'a>;
             #[doc = #comment]
-            pub fn #fn_name(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+            fn #fn_name<'a>(buffer: &'a [u8]) -> Result<#checked_ident<'a>, bondrewd::BitfieldLengthError> {
                 let buf_len = buffer.len();
                 if buf_len >= #check_size {
                     Ok(#checked_ident {

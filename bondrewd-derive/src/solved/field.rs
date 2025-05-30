@@ -241,6 +241,7 @@ impl SolvedData {
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
         let start = pre_field.bit_range.range().start;
+        println!("{start}");
         let mut zeros_on_left = start % 8;
         if 7 < zeros_on_left {
             // TODO if don't think this error is possible, and im wondering why it is being checked for

@@ -44,14 +44,16 @@ where
 }
 
 pub trait BitfieldsSlice<const SIZE: usize>: Bitfields<SIZE> + Sized {
+    type Checked<'a>;
+    type CheckedMut<'a>;
     /// Returns a "checked" slice type for the type. This typically should be a structure that stores a slice of bytes,
     /// that are confirmed to contain enough bytes for all fields. this allows the user to read specific fields
     /// from the byte slice rather than getting all fields with `from_bytes`.
-    fn check_slice(slice: &[u8]) -> Result<Self, BitfieldLengthError>;
+    fn check_slice<'a>(slice: &'a [u8]) -> Result<Self::Checked<'a>, BitfieldLengthError>;
     /// Returns a mutable "checked" slice type for the type. This typically should be a structure that stores a slice of bytes,
     /// that are confirmed to contain enough bytes for all fields. this allows the user to read/write specific fields
     /// from/to the byte slice rather getting all fields with `from_bytes` and or outputting the new bytes with `into_bytes`.
-    fn check_slice_mut(slice: &mut [u8]) -> Result<Self, BitfieldLengthError>;
+    fn check_slice_mut<'a>(slice: &'a mut [u8]) -> Result<Self::CheckedMut<'a>, BitfieldLengthError>;
 }
 
 #[deprecated(

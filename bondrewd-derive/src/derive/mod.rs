@@ -196,7 +196,7 @@ pub struct ResolverDataNestedAdditive {
 impl From<&ResolverData> for ResolverDataNestedAdditive {
     fn from(quote_info: &ResolverData) -> Self {
         #[expect(clippy::cast_possible_truncation)]
-        let right_shift: i8 = 8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8);
+        let right_shift: i8 = (8_i8 - ((quote_info.available_bits_in_first_byte() % 8) as i8)) % 8;
         Self { right_shift }
     }
 }
@@ -511,11 +511,11 @@ impl Solved {
                 let comment = format!(
                     "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
                 );
-                let impl_read_fns = &mut impl_fns.read;
+                let impl_read_fns = &mut trait_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
                     #[doc = #comment]
-                    pub fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
+                    fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
                         match #v_id {
                             #check_slice_fn
@@ -525,11 +525,11 @@ impl Solved {
                 let comment = format!(
                     "Returns a checked mutable structure which allows you to read/write any field for a `{enum_name}` from provided mut slice.",
                 );
-                let impl_write_fns = &mut impl_fns.write;
+                let impl_write_fns = &mut trait_fns.write;
                 *impl_write_fns = quote! {
                     #impl_write_fns
                     #[doc = #comment]
-                    pub fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
+                    fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
                         match #v_id {
                             #check_slice_mut_fn
@@ -571,6 +571,7 @@ impl Solved {
         let into_bytes_fn = package.into_bytes_fn;
         let from_bytes_fn = package.from_bytes_fn;
         let flavor = package.flavor;
+        flavor.clear();
         let variant_info = package.variant_info;
         let variant = package.variant;
         let enum_name = package.enum_name;
@@ -810,11 +811,12 @@ impl Solved {
                 &mut flavor,
             )?,
             SolvedType::Struct(solved_field_set) => {
-                solved_field_set.generate_quotes(struct_name, None, struct_size, &mut flavor)?
+                solved_field_set.generate_quotes(struct_name, None, struct_size, &mut flavor)?;
             }
         }
         // get the bit size of the entire set of fields to fill in trait requirement.
         let bit_size = self.total_bits_no_fill();
+        let dump_flavor = flavor.new_from_type();
         let output = match flavor {
             crate::GenerationFlavor::Standard {
                 trait_fns,
@@ -881,7 +883,7 @@ impl Solved {
                 Ok(mut file_name) => {
                     file_name.push("target/bondrewd_debug");
                     let _ = std::fs::create_dir_all(&file_name);
-                    file_name.push(format!("{name}_code_gen.rs"));
+                    file_name.push(format!("{name}_code_gen_{}.rs", dump_flavor));
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {
@@ -942,11 +944,6 @@ impl SolvedFieldSet {
             crate::GenerationFlavor::Dynamic {
                 trait_fns,
                 impl_fns,
-            } => todo!(),
-            crate::GenerationFlavor::Slice {
-                trait_fns,
-                impl_fns,
-                struct_fns,
             } => {
                 // do what we did for `Bitfields` impl for `BitfieldsDyn` impl
                 let trait_read_fns = trait_fns.read.clone();
@@ -994,8 +991,13 @@ impl SolvedFieldSet {
                     };
                 }
             }
-            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
-            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
+            crate::GenerationFlavor::Slice {
+                trait_fns: _,
+                impl_fns: _,
+                struct_fns: _,
+            } |
+            crate::GenerationFlavor::Hex { trait_fns: _ } |
+            crate::GenerationFlavor::HexDynamic { trait_fns: _ } => {}
         }
         Ok(())
     }
@@ -1098,14 +1100,14 @@ impl SolvedFieldSet {
                 let check_slice_info = CheckedSliceGen::new(name, full_byte_size, ename);
 
                 let check_slice_fn = check_slice_info.fn_gen;
-                let impl_read_fns = &mut impl_fns.read;
+                let impl_read_fns = &mut trait_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
                     #check_slice_fn
                 };
 
                 let check_slice_mut_fn = check_slice_info.mut_fn_gen;
-                let impl_write_fns = &mut impl_fns.write;
+                let impl_write_fns = &mut trait_fns.write;
                 *impl_write_fns = quote! {
                     #impl_write_fns
                     #check_slice_mut_fn

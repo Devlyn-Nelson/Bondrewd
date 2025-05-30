@@ -1,5 +1,7 @@
 #![allow(unreachable_code, dead_code, unused_variables)]
 
+use std::fmt::Display;
+
 use build::field_set::GenericBuilder;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -77,7 +79,48 @@ pub(crate) enum GenerationFlavor {
     },
 }
 
+impl Display for GenerationFlavor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            } => "standard",
+            GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => "dynamic",
+            GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => "slice",
+            GenerationFlavor::Hex { trait_fns } => "hex",
+            GenerationFlavor::HexDynamic { trait_fns } => "hex_dynamic",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 impl GenerationFlavor {
+    pub(crate) fn clear(&mut self) {
+        match self {
+            GenerationFlavor::Standard { trait_fns, impl_fns } |
+            GenerationFlavor::Dynamic { trait_fns, impl_fns } => {
+                *trait_fns = SplitTokenStream::default();
+                // *impl_fns = SplitTokenStream::default();
+            }
+            GenerationFlavor::Slice { trait_fns, impl_fns, struct_fns } => {
+                *trait_fns = SplitTokenStream::default();
+                // *impl_fns = SplitTokenStream::default();
+                // *struct_fns = SplitTokenStream::default();
+            }
+            GenerationFlavor::Hex { trait_fns } |
+            GenerationFlavor::HexDynamic { trait_fns } => {
+                *trait_fns = TokenStream::new();
+            }
+        }
+    }
     pub(crate) fn new_from_type(&self) -> Self {
         match self {
             GenerationFlavor::Standard {
@@ -279,4 +322,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::standard())
+}
+
+#[proc_macro_derive(BitfieldsSlice, attributes(bondrewd,))]
+pub fn derive_bitfields_slice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_thing(input, GenerationFlavor::slice())
 }
