@@ -1,8 +1,8 @@
 // use bondrewd_old as bondrewd;
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 // use bondrewd_derive_old::Bitfields as DeriveMe;
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 // #[derive(DeriveMe, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be")]
 struct SimpleWithBlockArray {

@@ -113,7 +113,7 @@ struct BigBugInducer {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale", dump)]
+#[bondrewd(endianness = "ale")]
 struct BigNestedBugInducer {
     #[bondrewd(bit_length = 11)]
     one: u16,
@@ -190,7 +190,7 @@ struct AlignedBugInducer {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale")]
+#[bondrewd(endianness = "ale", dump)]
 struct AlignedNestedBugInducer {
     one: u16,
     #[bondrewd(byte_length = 4)]

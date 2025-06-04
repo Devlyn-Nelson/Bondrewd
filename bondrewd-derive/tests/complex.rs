@@ -3,7 +3,7 @@ use bondrewd::Bitfields;
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.
 // TODO add a functions that get and set the id.
-#[derive(Bitfields)]
+#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {
@@ -26,7 +26,7 @@ enum ComplexEnum {
     },
 }
 
-#[derive(Bitfields)]
+#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(endianness = "be", id_bit_length = 3)]
 enum SimpleEnum {
     Alpha,
@@ -36,7 +36,7 @@ enum SimpleEnum {
 }
 
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Bitfields)]
+#[derive(Bitfields, Clone, Debug, PartialEq)]
 #[bondrewd(endianness = "be")]
 struct SimpleExample {
     // fields that are as expected do not require attributes.
@@ -92,7 +92,7 @@ fn complex_stuff() {
     // not support nested `Bitfields` to use bit sizing. read TODO above the declaration
     // of the `SimpleExample::enum_field` field.
     assert_eq!(53 + 46 + 3, SimpleExample::BIT_SIZE);
-    let mut bytes = SimpleExample {
+    let og = SimpleExample {
         one: false,
         two: -4.25,
         three: -1034,
@@ -108,28 +108,40 @@ fn complex_stuff() {
             test_two: 3,
         },
         other_enum_field: SimpleEnum::Charley,
-    }
-    .into_bytes();
+    };
+    let enum_field_bytes = og.enum_field.clone().into_bytes();
+    assert_eq!(
+        enum_field_bytes,
+        [
+            0b00000000,
+            0b000001_00,
+            0b000011_00,
+            0b000011_00,
+            0b00000000,
+            0b00000000,
+        ]
+    );
+    let mut bytes = og.clone().into_bytes();
     // check the output binary is correct. (i did math by hand
     // to get the binary). each field is separated by a underscore
     // in the binary assert to make it easy to see.
     assert_eq!(
+        bytes,
         [
-            0b0_1100000, // one - two,
-            0b0100_0100, // two,
-            0b0000_0000, // two,
-            0b0000_0000, // two,
-            0b0_1110111, // two - three,
-            0b1110_1101, // three - flags,
-            0b1111_1000, // flags - enum_field_id
-            0b0000_0000, // enum_field_id
-            0b001_00000, // enum_field_id - enum_field_TWO_test
-            0b011_00000, // enum_field_TWO_test - enum_field_TWO_test_two
-            0b011_00000, // enum_field_TWO_test_two - unused
-            0b0000_0000, // unused
-            0b0000_1100, // unused - other_enum_field -- unused
+            0b0_1100000,  // one - two,
+            0b01000100,   // two,
+            0b00000000,   // two,
+            0b00000000,   // two,
+            0b0_1110111,  // two - three,
+            0b1110110_1,  // three - flags,
+            0b11111_000,  // flags - enum_field_id
+            0b00000000,   // enum_field.id
+            0b001_00000,  // enum_field.id - enum_field::Two.test
+            0b011_00000,  // enum_field::Two.test - enum_field::Two.test_two
+            0b011_00000,  // enum_field::Two.test_two - enum_field::Two.fill
+            0b00000000,   // enum_field::Two.fill
+            0b000_011_00, // enum_field::Two.fill - other_enum_field -- unused
         ],
-        bytes
     );
     // use read functions to get the fields value without
     // doing a from_bytes call.

@@ -1,4 +1,4 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(id_bit_length = 4)]
@@ -186,8 +186,8 @@ fn tuple_enum() {
     assert!(matches!(err, _new_err));
 }
 
-#[derive(Bitfields, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, endianness = "be")]
+#[derive(Bitfields, BitfieldsSlice, Debug, Clone)]
+#[bondrewd(id_bit_length = 8, endianness = "be", dump)]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]

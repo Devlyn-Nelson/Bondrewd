@@ -1,6 +1,6 @@
 #[test]
 fn hard_core_test() {
-    use bondrewd::Bitfields;
+    use bondrewd::{Bitfields, BitfieldsSlice};
     use current::Weird;
     let w = Weird::default();
     let mut bytes = w.into_bytes();
@@ -69,8 +69,8 @@ fn hard_core_test() {
 // }
 
 mod current {
-    use bondrewd::Bitfields;
-    #[derive(Bitfields, Default)]
+    use bondrewd::{Bitfields, BitfieldsSlice};
+    #[derive(Bitfields, BitfieldsSlice, Default)]
     #[bondrewd(endianness = "msb")]
     pub struct Weird {
         #[bondrewd(bit_length = 7)]

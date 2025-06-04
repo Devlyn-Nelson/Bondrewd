@@ -769,17 +769,24 @@ impl Resolver {
                             get_left_and_mask(8 - self.available_bits_in_first_byte());
                         let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                         for i in 0..*size {
-                            let start = self
-                                .data
-                                .offset_starting_inject_byte((bytes_effected - 1) - i);
+                            let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
+                                let fbi = (flip - 1) - i;
+                                let start = self
+                                    .data
+                                    .offset_starting_inject_byte((bytes_effected - 1) - i);
+                                (fbi, start)
+                            } else {
+                                let start = self.data.offset_starting_inject_byte(i);
+                                (i, start)
+                            };
                             let next_index = self.data.next_index(start);
                             let mut first = if current_bit_mask == u8::MAX {
                                 quote! {
-                                    #buffer_ident[#i] = input_byte_buffer[#start];
+                                    #buffer_ident[#field_buffer_index] = input_byte_buffer[#start];
                                 }
                             } else {
                                 quote! {
-                                    #buffer_ident[#i] = input_byte_buffer[#start] & #current_bit_mask;
+                                    #buffer_ident[#field_buffer_index] = input_byte_buffer[#start] & #current_bit_mask;
                                 }
                             };
                             if self.available_bits_in_first_byte() + (8 * i) < self.bit_length()
@@ -788,13 +795,13 @@ impl Resolver {
                                 // let next_index = start + 1;
                                 first = quote! {
                                     #first
-                                    #buffer_ident[#i] |= input_byte_buffer[#next_index] & #next_bit_mask;
+                                    #buffer_ident[#field_buffer_index] |= input_byte_buffer[#next_index] & #next_bit_mask;
                                 };
                             }
                             quote_builder = quote! {
                                 #quote_builder
                                 #first
-                                #buffer_ident[#i] = #buffer_ident[#i].rotate_left(#right_shift);
+                                #buffer_ident[#field_buffer_index] = #buffer_ident[#field_buffer_index].rotate_left(#right_shift);
                             };
                         }
                     }

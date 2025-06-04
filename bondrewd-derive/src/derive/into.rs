@@ -562,16 +562,28 @@ impl Resolver {
                 // right shift (this means that the last bits are in the first byte)
                 // because we are applying bits in place we need masks in insure we don't effect other fields
                 // data. we need one for the first byte and the last byte.
-                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
-                let next_bit_mask = get_left_and_mask(8 - self.data.available_bits_in_first_byte());
+                let abifb = self.data.available_bits_in_first_byte();
+                let current_bit_mask = get_right_and_mask(abifb);
+                let next_bit_mask = get_left_and_mask(8 - abifb);
                 let right_shift: u32 = u32::from(right_shift.unsigned_abs());
-                println!("test: {}", self.data.available_bits_in_first_byte());
+                // println!("{}:\n\tabifb = {abifb}", self.name());
+                // if self.data.flip().is_some() {
+                //     println!("\tflipped");
+                // }
                 for i in 0usize..size {
-                    // START_HERE index things be happenin
-                    let start = self
-                        .data
-                        .offset_starting_inject_byte((bytes_effected - 1) - i);
+                    let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
+                        let fbi = (flip - 1) - i;
+                        let start = self
+                            .data
+                            .offset_starting_inject_byte((bytes_effected - 1) - i);
+                        (fbi, start)
+                    } else {
+                        let start = self.data.offset_starting_inject_byte(i);
+                        (i, start)
+                    };
                     let next_index = self.data.next_index(start);
+                    // println!("\ti = {field_buffer_index}");
+                    // START_HERE index things be happenin
                     let not_current_bit_mask = !current_bit_mask;
                     let not_next_bit_mask = !next_bit_mask;
                     clear_quote = quote! {
@@ -580,11 +592,11 @@ impl Resolver {
                     };
                     full_quote = quote! {
                         #full_quote
-                        #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
-                        output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        #field_buffer_name[#field_buffer_index] = #field_buffer_name[#field_buffer_index].rotate_right(#right_shift);
+                        output_byte_buffer[#start] |= #field_buffer_name[#field_buffer_index] & #current_bit_mask;
                     };
                     // let next_index = start + 1;
-                    if self.data.available_bits_in_first_byte() + (8 * i) < self.data.bit_length() {
+                    if abifb + (8 * i) < self.data.bit_length() {
                         if not_next_bit_mask != u8::MAX {
                             clear_quote = quote! {
                                 #clear_quote
@@ -594,7 +606,7 @@ impl Resolver {
                         if next_bit_mask != 0 {
                             full_quote = quote! {
                                 #full_quote
-                                output_byte_buffer[#next_index] |= #field_buffer_name[#i] & #next_bit_mask;
+                                output_byte_buffer[#next_index] |= #field_buffer_name[#field_buffer_index] & #next_bit_mask;
                             };
                         }
                     }

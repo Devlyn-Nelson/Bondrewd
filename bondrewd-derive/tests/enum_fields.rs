@@ -1,4 +1,4 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
 #[bondrewd(endianness = "be", id_bit_length = 3)]
@@ -13,7 +13,7 @@ enum TestEnum {
     },
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be")]
 struct SimpleWithSingleByteSpanningEnum {
     #[bondrewd(bit_length = 6)]

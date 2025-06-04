@@ -6,6 +6,7 @@ use crate::{
         field::{ResolverData, SolvedData},
         field_set::{Solved, SolvedFieldSet, SolvedType, VariantInfo},
     },
+    GenerationFlavor, SplitTokenStream,
 };
 
 use convert_case::{Case, Casing};
@@ -322,6 +323,15 @@ impl Solved {
         )?;
         invalid.make_write_fns(id, &set_add, flavor, &field_access, struct_size)?;
 
+        if let GenerationFlavor::Slice {
+            trait_fns,
+            impl_fns,
+            struct_fns,
+        } = flavor
+        {
+            struct_fns.clear();
+        }
+
         // match flavor {
         //     crate::GenerationFlavor::Standard { trait_fns, impl_fns } => todo!(),
         //     crate::GenerationFlavor::Dynamic { trait_fns, impl_fns } => todo!(),
@@ -508,12 +518,14 @@ impl Solved {
                 impl_fns,
                 struct_fns,
             } => {
+                // println!("{}",struct_fns.read);
                 let comment = format!(
                     "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
                 );
                 let impl_read_fns = &mut trait_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
+                    type Checked<'a> = #checked_ident<'a>;
                     #[doc = #comment]
                     fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -528,6 +540,7 @@ impl Solved {
                 let impl_write_fns = &mut trait_fns.write;
                 *impl_write_fns = quote! {
                     #impl_write_fns
+                    type CheckedMut<'a> = #checked_ident_mut<'a>;
                     #[doc = #comment]
                     fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -838,7 +851,7 @@ impl Solved {
                 trait_fns,
                 impl_fns,
             } => {
-                let from_vec_quote = trait_fns.merge();
+                let from_vec_quote = trait_fns.read;
                 quote! {
                     impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
                         #from_vec_quote
@@ -995,9 +1008,9 @@ impl SolvedFieldSet {
                 trait_fns: _,
                 impl_fns: _,
                 struct_fns: _,
-            } |
-            crate::GenerationFlavor::Hex { trait_fns: _ } |
-            crate::GenerationFlavor::HexDynamic { trait_fns: _ } => {}
+            }
+            | crate::GenerationFlavor::Hex { trait_fns: _ }
+            | crate::GenerationFlavor::HexDynamic { trait_fns: _ } => {}
         }
         Ok(())
     }
@@ -1008,6 +1021,16 @@ impl SolvedFieldSet {
         struct_size: usize,
         flavor: &mut crate::GenerationFlavor,
     ) -> syn::Result<FieldQuotesNew> {
+        // because `flavor.struct_fns` contains complete stuff, we need to temporary move it then re-add it later.
+        let mut temp_struct_fns = SplitTokenStream::default();
+        if let GenerationFlavor::Slice {
+            trait_fns,
+            impl_fns,
+            struct_fns,
+        } = flavor
+        {
+            std::mem::swap(&mut temp_struct_fns, struct_fns);
+        }
         let set_add = if let Some(ename) = &enum_name {
             // We what to use the name of the struct because enum variants are just StructInfos internally.
             let vn = format_ident!("{}", name.to_string().to_case(Case::Snake));
@@ -1036,14 +1059,14 @@ impl SolvedFieldSet {
             )?;
             self.make_write_fns(field, &set_add, flavor, &field_access, struct_size)?;
         }
-        let checked = if let crate::GenerationFlavor::Slice {
+        let checked = if let GenerationFlavor::Slice {
             trait_fns,
             impl_fns,
             struct_fns,
         } = flavor
         {
             // Do checked struct of this type
-            if self.fields.is_empty() {
+            let out = if self.fields.is_empty() {
                 None
             } else {
                 let struct_name = if let Some(e_name) = &enum_name {
@@ -1058,39 +1081,41 @@ impl SolvedFieldSet {
                 let unchecked_mut_functions = &mut struct_fns.write;
                 let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
                 let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
-                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
-                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
-                *unchecked_mut_functions = quote! {
-                    #[doc = #comment_mut]
-                    #vis struct #checked_mut_ident<'a> {
-                        buffer: &'a mut [u8],
-                    }
-                    impl<'a> #checked_mut_ident<'a> {
-                        #unchecked_functions
-                        #unchecked_mut_functions
-                        #[doc = #unchecked_comment_mut]
-                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
-                            Self{
-                                buffer: data
+                {
+                    let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                    let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                    *unchecked_mut_functions = quote! {
+                        #[doc = #comment_mut]
+                        #vis struct #checked_mut_ident<'a> {
+                            buffer: &'a mut [u8],
+                        }
+                        impl<'a> #checked_mut_ident<'a> {
+                            #unchecked_functions
+                            #unchecked_mut_functions
+                            #[doc = #unchecked_comment_mut]
+                            pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                                Self{
+                                    buffer: data
+                                }
                             }
                         }
-                    }
-                };
-                *unchecked_functions = quote! {
-                    #[doc = #comment]
-                    #vis struct #checked_ident<'a> {
-                        buffer: &'a [u8],
-                    }
-                    impl<'a> #checked_ident<'a> {
-                        #unchecked_functions
-                        #[doc = #unchecked_comment]
-                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
-                            Self{
-                                buffer: data
+                    };
+                    *unchecked_functions = quote! {
+                        #[doc = #comment]
+                        #vis struct #checked_ident<'a> {
+                            buffer: &'a [u8],
+                        }
+                        impl<'a> #checked_ident<'a> {
+                            #unchecked_functions
+                            #[doc = #unchecked_comment]
+                            pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                                Self{
+                                    buffer: data
+                                }
                             }
                         }
-                    }
-                };
+                    };
+                }
                 let (ename, full_byte_size) = if let Some(enum_stuff) = &enum_name {
                     (Some(&struct_name), enum_stuff.full_size)
                 } else {
@@ -1099,26 +1124,48 @@ impl SolvedFieldSet {
 
                 let check_slice_info = CheckedSliceGen::new(name, full_byte_size, ename);
 
-                let check_slice_fn = check_slice_info.fn_gen;
-                let impl_read_fns = &mut trait_fns.read;
-                *impl_read_fns = quote! {
-                    #impl_read_fns
-                    #check_slice_fn
-                };
+                if enum_name.is_some() {
+                    let check_slice_fn = check_slice_info.read.fn_gen;
+                    let impl_read_fns = &mut impl_fns.read;
 
-                let check_slice_mut_fn = check_slice_info.mut_fn_gen;
-                let impl_write_fns = &mut trait_fns.write;
-                *impl_write_fns = quote! {
-                    #impl_write_fns
-                    #check_slice_mut_fn
-                };
+                    let check_slice_mut_fn = check_slice_info.write.fn_gen;
+                    let impl_write_fns = &mut impl_fns.write;
+                    *impl_read_fns = quote! {
+                        #impl_read_fns
+                        #check_slice_fn
+                    };
+                    *impl_write_fns = quote! {
+                        #impl_write_fns
+                        #check_slice_mut_fn
+                    };
+                } else {
+                    let check_slice_fn = check_slice_info.read.fn_gen;
+                    let impl_read_fns = &mut trait_fns.read;
+                    let check_slice_mut_fn = check_slice_info.write.fn_gen;
+                    let impl_write_fns = &mut trait_fns.write;
+                    let check_slice_ty = check_slice_info.read.trait_type;
+                    let check_slice_mut_ty = check_slice_info.write.trait_type;
+                    *impl_read_fns = quote! {
+                        #impl_read_fns
+                        #check_slice_ty
+                        #check_slice_fn
+                    };
+                    *impl_write_fns = quote! {
+                        #impl_write_fns
+                        #check_slice_mut_ty
+                        #check_slice_mut_fn
+                    };
+                }
                 Some(CheckSliceNames {
-                    func: check_slice_info.fn_name,
-                    mut_func: check_slice_info.mut_fn_name,
+                    func: check_slice_info.read.fn_name,
+                    mut_func: check_slice_info.write.fn_name,
                     structure: checked_ident,
                     mut_structure: checked_mut_ident,
                 })
-            }
+            };
+            // re-add old `struct_fns`.
+            struct_fns.insert(temp_struct_fns);
+            out
         } else {
             None
         };

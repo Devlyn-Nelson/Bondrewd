@@ -18,6 +18,12 @@ pub struct GenericBuilder {
 }
 
 impl GenericBuilder {
+    pub fn name(&self) -> Ident {
+        match &self.ty {
+            BuilderType::Enum(enum_builder) => enum_builder.name.clone(),
+            BuilderType::Struct(struct_builder) => struct_builder.field_set.name.clone(),
+        }
+    }
     pub fn from_struct_builder(s: Box<StructBuilder>) -> Self {
         Self {
             ty: BuilderType::Struct(s),

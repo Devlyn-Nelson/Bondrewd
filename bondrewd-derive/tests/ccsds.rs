@@ -1,4 +1,4 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsDyn, BitfieldsSlice};
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(id_bit_length = 2, endianness = "be")]
@@ -18,7 +18,7 @@ pub enum SpacePacketVersion {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, BitfieldsDyn, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be", enforce_bytes = 6)]
 pub struct SpacePacketHeader {
     #[bondrewd(bit_length = 3)]

@@ -1,4 +1,4 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
 #[bondrewd(endianness = "be", id_bit_length = 8)]
@@ -10,7 +10,7 @@ enum TestCustomEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be")]
 struct SimpleCustomEnumUsage {
     one: u8,
@@ -55,7 +55,7 @@ enum TestCustomContinuationEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be")]
 struct SimpleCustomContinuationEnumUsage {
     one: u8,

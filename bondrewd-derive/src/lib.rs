@@ -36,6 +36,24 @@ impl SplitTokenStream {
             #write
         }
     }
+    pub fn insert(&mut self, other: Self) {
+        let my_read = &mut self.read;
+        let my_write = &mut self.write;
+        let other_read = other.read;
+        let other_write = other.write;
+        *my_read = quote! {
+            #other_read
+            #my_read
+        };
+        *my_write = quote! {
+            #other_write
+            #my_write
+        };
+    }
+    pub fn clear(&mut self) {
+        self.read = TokenStream::default();
+        self.write = TokenStream::default();
+    }
 }
 
 impl Default for SplitTokenStream {
@@ -105,18 +123,27 @@ impl Display for GenerationFlavor {
 impl GenerationFlavor {
     pub(crate) fn clear(&mut self) {
         match self {
-            GenerationFlavor::Standard { trait_fns, impl_fns } |
-            GenerationFlavor::Dynamic { trait_fns, impl_fns } => {
+            GenerationFlavor::Standard {
+                trait_fns,
+                impl_fns,
+            }
+            | GenerationFlavor::Dynamic {
+                trait_fns,
+                impl_fns,
+            } => {
                 *trait_fns = SplitTokenStream::default();
                 // *impl_fns = SplitTokenStream::default();
             }
-            GenerationFlavor::Slice { trait_fns, impl_fns, struct_fns } => {
+            GenerationFlavor::Slice {
+                trait_fns,
+                impl_fns,
+                struct_fns,
+            } => {
                 *trait_fns = SplitTokenStream::default();
                 // *impl_fns = SplitTokenStream::default();
                 // *struct_fns = SplitTokenStream::default();
             }
-            GenerationFlavor::Hex { trait_fns } |
-            GenerationFlavor::HexDynamic { trait_fns } => {
+            GenerationFlavor::Hex { trait_fns } | GenerationFlavor::HexDynamic { trait_fns } => {
                 *trait_fns = TokenStream::new();
             }
         }
@@ -307,12 +334,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
+    // println!("Solving: {}", struct_info.name());
     let solved: Solved = match struct_info.try_into() {
         Ok(s) => s,
         Err(err) => {
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
+    // println!("Generating: {}", solved.name);
     match solved.gen(flavor) {
         Ok(gen) => gen.into(),
         Err(err) => proc_macro::TokenStream::from(err.to_compile_error()),
@@ -327,4 +356,9 @@ pub fn derive_bitfields(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 #[proc_macro_derive(BitfieldsSlice, attributes(bondrewd,))]
 pub fn derive_bitfields_slice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::slice())
+}
+
+#[proc_macro_derive(BitfieldsDyn, attributes(bondrewd,))]
+pub fn derive_bitfields_dyn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_thing(input, GenerationFlavor::dynamic())
 }

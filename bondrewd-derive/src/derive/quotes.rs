@@ -154,12 +154,19 @@ impl GeneratedFunctions {
         self
     }
 }
-
-pub(crate) struct CheckedSliceGen {
+pub struct CheckedSliceGenQuotes {
     pub fn_gen: TokenStream,
-    pub mut_fn_gen: TokenStream,
+    pub trait_type: TokenStream,
     pub fn_name: Ident,
-    pub mut_fn_name: Ident,
+}
+
+// START_HERE currently enums will break because the `Checked` and `CheckedMut` type
+// definitions for the `BitfieldsSlice` trait impl are put into the token stream here
+// meaning each `check_slice` function for each variant will have a type def that
+// shouldn't exist.
+pub struct CheckedSliceGen {
+    pub read: CheckedSliceGenQuotes,
+    pub write: CheckedSliceGenQuotes,
 }
 impl CheckedSliceGen {
     pub fn new(
@@ -168,14 +175,9 @@ impl CheckedSliceGen {
         check_size: usize,
         enum_name: Option<&Ident>,
     ) -> Self {
-        let (fn_gen, fn_name) = get_check_slice_fn(name, check_size, enum_name);
-        let (mut_fn_gen, mut_fn_name) = get_check_mut_slice_fn(name, check_size, enum_name);
-        Self {
-            fn_gen,
-            mut_fn_gen,
-            fn_name,
-            mut_fn_name,
-        }
+        let read = get_check_slice_fn(name, check_size, enum_name);
+        let write = get_check_mut_slice_fn(name, check_size, enum_name);
+        Self { read, write }
     }
 }
 
@@ -191,7 +193,7 @@ fn get_check_mut_slice_fn(
     // total_bytes
     check_size: usize,
     enum_name: Option<&Ident>,
-) -> (TokenStream, Ident) {
+) -> CheckedSliceGenQuotes {
     let (checked_ident_mut, fn_name) = if let Some(ename) = enum_name {
         (
             format_ident!("{ename}CheckedMut"),
@@ -211,9 +213,8 @@ fn get_check_mut_slice_fn(
             name.to_string()
         }
     );
-    (
-        quote! {
-            type CheckedMut<'a> = #checked_ident_mut<'a>;
+    CheckedSliceGenQuotes {
+        fn_gen: quote! {
             #[doc = #comment_mut]
             fn #fn_name<'a>(buffer: &'a mut [u8]) -> Result<#checked_ident_mut<'a>, bondrewd::BitfieldLengthError> {
                 let buf_len = buffer.len();
@@ -226,8 +227,9 @@ fn get_check_mut_slice_fn(
                 }
             }
         },
+        trait_type: quote! {type CheckedMut<'a> = #checked_ident_mut<'a>;},
         fn_name,
-    )
+    }
 }
 
 /// generates the `check_slice` fn. please do not use, use `CheckedSliceGen`.
@@ -243,7 +245,7 @@ fn get_check_slice_fn(
     // total_bytes
     check_size: usize,
     enum_name: Option<&Ident>,
-) -> (TokenStream, Ident) {
+) -> CheckedSliceGenQuotes {
     let (checked_ident, fn_name) = if let Some(ename) = enum_name {
         (
             format_ident!("{ename}Checked"),
@@ -260,9 +262,8 @@ fn get_check_slice_fn(
             name.to_string()
         }
     );
-    (
-        quote! {
-            type Checked<'a> = #checked_ident<'a>;
+    CheckedSliceGenQuotes {
+        fn_gen: quote! {
             #[doc = #comment]
             fn #fn_name<'a>(buffer: &'a [u8]) -> Result<#checked_ident<'a>, bondrewd::BitfieldLengthError> {
                 let buf_len = buffer.len();
@@ -275,6 +276,7 @@ fn get_check_slice_fn(
                 }
             }
         },
+        trait_type: quote! {type Checked<'a> = #checked_ident<'a>;},
         fn_name,
-    )
+    }
 }
