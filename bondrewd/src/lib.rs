@@ -53,21 +53,14 @@ pub trait BitfieldsSlice<const SIZE: usize>: Bitfields<SIZE> + Sized {
     /// Returns a mutable "checked" slice type for the type. This typically should be a structure that stores a slice of bytes,
     /// that are confirmed to contain enough bytes for all fields. this allows the user to read/write specific fields
     /// from/to the byte slice rather getting all fields with `from_bytes` and or outputting the new bytes with `into_bytes`.
-    fn check_slice_mut<'a>(slice: &'a mut [u8]) -> Result<Self::CheckedMut<'a>, BitfieldLengthError>;
+    fn check_slice_mut<'a>(
+        slice: &'a mut [u8],
+    ) -> Result<Self::CheckedMut<'a>, BitfieldLengthError>;
 }
 
-#[deprecated(
-    since = "0.1.15",
-    note = "please use `Bitfields` instead of `BitfieldEnum`"
-)]
-pub trait BitfieldEnum {
-    type Primitive;
-    fn from_primitive(prim: Self::Primitive) -> Self;
-    fn into_primitive(self) -> Self::Primitive;
-}
 mod hex;
-pub use hex::BitfieldHex;
-pub use hex::BitfieldHexDyn;
+pub use hex::BitfieldsHex;
+pub use hex::BitfieldsHexDyn;
 
 // re-export the derive stuff
 #[cfg(feature = "derive")]

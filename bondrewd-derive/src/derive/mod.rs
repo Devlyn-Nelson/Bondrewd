@@ -569,8 +569,8 @@ impl Solved {
                     }
                 };
             }
-            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
-            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
+            crate::GenerationFlavor::Hex { trait_fns }
+            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
         }
 
         Ok(())
@@ -778,8 +778,8 @@ impl Solved {
                     };
                 }
             }
-            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
-            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
+            crate::GenerationFlavor::Hex { trait_fns }
+            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
         }
 
         let mut ignore_fields = if let Some(id_field_name) = variant.get_captured_id_name() {
@@ -880,13 +880,13 @@ impl Solved {
             crate::GenerationFlavor::Hex { trait_fns } => {
                 let hex_size = struct_size * 2;
                 quote! {
-                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+                    impl bondrewd::BitfieldsHex<#hex_size, #struct_size> for #struct_name {}
                 }
             }
             crate::GenerationFlavor::HexDynamic { trait_fns } => {
                 let hex_size = struct_size * 2;
                 quote! {
-                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                    impl bondrewd::BitfieldsHexDyn<#hex_size, #struct_size> for #struct_name {}
                 }
             }
         };
@@ -1407,8 +1407,8 @@ impl SolvedFieldSet {
                     #set_slice_unchecked_quote
                 };
             }
-            crate::GenerationFlavor::Hex { trait_fns } => todo!(),
-            crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
+            crate::GenerationFlavor::Hex { trait_fns }
+            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
         }
         Ok(())
     }

@@ -362,3 +362,13 @@ pub fn derive_bitfields_slice(input: proc_macro::TokenStream) -> proc_macro::Tok
 pub fn derive_bitfields_dyn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::dynamic())
 }
+
+#[proc_macro_derive(BitfieldsHex, attributes(bondrewd,))]
+pub fn derive_bitfields_hex(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_thing(input, GenerationFlavor::hex())
+}
+
+#[proc_macro_derive(BitfieldsHexDyn, attributes(bondrewd,))]
+pub fn derive_bitfields_hex_dyn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    do_thing(input, GenerationFlavor::hex_dynamic())
+}

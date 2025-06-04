@@ -1,4 +1,4 @@
-pub trait BitfieldHex<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
+pub trait BitfieldsHex<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
     crate::Bitfields<BYTE_SIZE>
 where
     Self: Sized,
@@ -58,8 +58,8 @@ where
     }
 }
 
-pub trait BitfieldHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
-    crate::Bitfields<BYTE_SIZE> + BitfieldHex<HEX_SIZE, BYTE_SIZE>
+pub trait BitfieldsHexDyn<const HEX_SIZE: usize, const BYTE_SIZE: usize>:
+    crate::Bitfields<BYTE_SIZE> + BitfieldsHex<HEX_SIZE, BYTE_SIZE>
 where
     Self: Sized,
 {
