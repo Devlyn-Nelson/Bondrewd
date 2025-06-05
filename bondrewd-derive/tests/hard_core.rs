@@ -17,6 +17,7 @@ fn hard_core_test() {
     }
 }
 
+// TODO redo this test
 // #[test]
 // fn super_hard_code() {
 //     use bondrewd::Bitfields;
@@ -124,56 +125,6 @@ mod current {
         #[bondrewd(bit_length = 8)]
         pub two: Two,
         #[bondrewd(bit_length = 9)]
-        pub three: Three,
-        #[bondrewd(bit_length = 3)]
-        pub four: u8,
-    }
-
-    impl From<One> for crate::old::One {
-        fn from(value: One) -> Self {
-            Self {
-                one: value.one,
-                two: value.two,
-            }
-        }
-    }
-}
-mod old {
-    use bondrewd_old as bondrewd;
-    use bondrewd_old::Bitfields;
-    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "be", read_from = "lsb0")]
-    pub struct One {
-        pub one: bool,
-        #[bondrewd(bit_length = 3)]
-        pub two: u8,
-    }
-
-    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "be", read_from = "lsb0", enforce_bits = 4)]
-    pub struct Three {
-        #[bondrewd(bit_length = 2)]
-        pub id: u8,
-        #[bondrewd(bit_length = 2)]
-        pub other: u8,
-    }
-
-    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "be", read_from = "lsb0", enforce_bytes = 1)]
-    pub struct Two {
-        pub one: bool,
-        #[bondrewd(bit_length = 7)]
-        pub two: u8,
-    }
-
-    #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "be", read_from = "lsb0", reverse)]
-    pub struct ReallyHardcore {
-        #[bondrewd(struct_size = 1, bit_length = 4)]
-        pub one: One,
-        #[bondrewd(struct_size = 1, bit_length = 8)]
-        pub two: Two,
-        #[bondrewd(struct_size = 1, bit_length = 9)]
         pub three: Three,
         #[bondrewd(bit_length = 3)]
         pub four: u8,

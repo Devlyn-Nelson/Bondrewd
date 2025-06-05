@@ -10,9 +10,8 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-arbitrary = { version = "1", features = ["derive"] }
-bondrewd = { path = "../../bondrewd", features = ["dyn_fns"] }
-bondrewd-derive = { path = "../", features = ["setters", "dyn_fns"] }
+arbitrary = { version = "1.4", features = ["derive"] }
+bondrewd = { path = "../../bondrewd", features = ["derive"] }
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -20,12 +19,18 @@ members = ["."]
 
 [[bin]]
 name = "le-test"
-path = "fuzz_targets/primitives_le.rs"
+path = "fuzz_targets/test_le.rs"
 test = false
 doc = false
 
 [[bin]]
 name = "be-test"
-path = "fuzz_targets/primitives_be.rs"
+path = "fuzz_targets/test_be.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ale-test"
+path = "fuzz_targets/test_ale.rs"
 test = false
 doc = false

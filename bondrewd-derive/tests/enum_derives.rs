@@ -187,7 +187,7 @@ fn tuple_enum() {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Debug, Clone)]
-#[bondrewd(id_bit_length = 8, endianness = "be", dump)]
+#[bondrewd(id_bit_length = 8, endianness = "be")]
 enum CrazyEnum {
     Wack {
         #[bondrewd(bit_length = 4)]

@@ -3,5 +3,4 @@ resolver = "2"
 members = [
     "bondrewd",
     "bondrewd-derive",
-    # "bondrewd-derive-old",
 ]

@@ -288,9 +288,12 @@ impl Resolver {
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
         let mut clear_quote = quote! {};
+        println!("{}: ", self.name());
         while i != fields_last_bits_index {
             let start = self.data.offset_starting_inject_byte(i);
             let not_current_bit_mask = !current_bit_mask;
+            // START_HERE make sure clear bytes always works, we had a bug in else statement, fixed by combining the
+            // mask for current and next to make a full clear bit mask.
             if self.data.available_bits_in_first_byte() == 0 && right_shift == 0 {
                 full_quote = quote! {
                     #full_quote
