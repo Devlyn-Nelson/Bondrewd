@@ -160,10 +160,6 @@ pub struct CheckedSliceGenQuotes {
     pub fn_name: Ident,
 }
 
-// START_HERE currently enums will break because the `Checked` and `CheckedMut` type
-// definitions for the `BitfieldsSlice` trait impl are put into the token stream here
-// meaning each `check_slice` function for each variant will have a type def that
-// shouldn't exist.
 pub struct CheckedSliceGen {
     pub read: CheckedSliceGenQuotes,
     pub write: CheckedSliceGenQuotes,

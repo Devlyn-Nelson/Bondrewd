@@ -30,5 +30,4 @@ derive = ["dep:proc-macro2", "dep:quote" , "dep:syn"]
 rand = "0.8"
 anyhow = "1"
 bondrewd-old = {package = "bondrewd", registry = "pumpkin-patch", version = "0.2", features = ["dyn_fns", "derive"]}
-bondrewd-derive-old = {path = "../bondrewd-derive-old", features = ["dyn_fns"]}
 bondrewd = { path = "../bondrewd", features = ["full"]}

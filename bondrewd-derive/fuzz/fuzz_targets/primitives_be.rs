@@ -351,7 +351,7 @@ impl TestEnum {
     }
 }
 
-impl From<&TestInnerArb> for TestEnum {
+impl TryFrom<&TestInnerArb> for TestEnum {
     fn from(src: &TestInnerArb) -> Self {
         if src.b_one {
             Self::One {

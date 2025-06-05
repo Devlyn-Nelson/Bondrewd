@@ -566,10 +566,6 @@ impl Resolver {
                 let current_bit_mask = get_right_and_mask(abifb);
                 let next_bit_mask = get_left_and_mask(8 - abifb);
                 let right_shift: u32 = u32::from(right_shift.unsigned_abs());
-                // println!("{}:\n\tabifb = {abifb}", self.name());
-                // if self.data.flip().is_some() {
-                //     println!("\tflipped");
-                // }
                 for i in 0usize..size {
                     let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
                         let fbi = (flip - 1) - i;
@@ -582,8 +578,6 @@ impl Resolver {
                         (i, start)
                     };
                     let next_index = self.data.next_index(start);
-                    // println!("\ti = {field_buffer_index}");
-                    // START_HERE index things be happenin
                     let not_current_bit_mask = !current_bit_mask;
                     let not_next_bit_mask = !next_bit_mask;
                     clear_quote = quote! {
@@ -595,7 +589,6 @@ impl Resolver {
                         #field_buffer_name[#field_buffer_index] = #field_buffer_name[#field_buffer_index].rotate_right(#right_shift);
                         output_byte_buffer[#start] |= #field_buffer_name[#field_buffer_index] & #current_bit_mask;
                     };
-                    // let next_index = start + 1;
                     if abifb + (8 * i) < self.data.bit_length() {
                         if not_next_bit_mask != u8::MAX {
                             clear_quote = quote! {

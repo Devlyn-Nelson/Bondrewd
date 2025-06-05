@@ -79,7 +79,6 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 
-// START_HERE the nested struct is doing stuff out of bounds.
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "be", reverse, fill_bits)]
 struct SimpleWithStructWithFlip {
