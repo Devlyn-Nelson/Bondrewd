@@ -4,7 +4,7 @@ use bondrewd::{Bitfields, BitfieldsSlice};
 use rand::random;
 
 #[derive(Bitfields, Clone, Debug)]
-#[bondrewd(endianness = "le")]
+#[bondrewd(endianness = "ale")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -44,7 +44,7 @@ impl std::cmp::PartialEq<TestInner> for TestInner {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
-#[bondrewd(endianness = "le", enforce_bits = 959, dump)]
+#[bondrewd(endianness = "ale", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -83,7 +83,6 @@ impl Test {
     const TEN_MAX: i128 = 2_i128.pow(111 - 1);
 
     pub fn fix(&self) -> Self {
-        println!("--- {}", Self::TWO_MAX);
         Self {
             one: self.one.clamp(0, Self::ONE_MAX - 1),
             two: self.two.clamp(-Self::TWO_MAX, Self::TWO_MAX - 1),
@@ -170,7 +169,7 @@ impl TestInnerArb {
 }
 
 #[derive(Bitfields, BitfieldsSlice, PartialEq, Clone, Debug)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "le")]
+#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "ale")]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]
@@ -447,38 +446,24 @@ impl From<&TestInnerArb> for TestEnum {
     }
 }
 
-// START_HERE this is not writing 0 correctly. its likely the masks used on full bytes.
-#[test]
-fn fuzz_test() {
-    let mut full = [0xff; Test::BYTE_SIZE];
-    Test::write_three(&mut full, 0);
-    for b in full {
-        print!("{b:08b}, ");
-    }
-    println!("");
-    let mut thing: u8 = 0xFF;
-    thing = thing.rotate_right(7);
-    panic!("ahhh - {thing}");
-}
-
 #[test]
 fn fuzz() {
     let input = TestInnerArb::random();
-    let input = TestInnerArb {
-        one: 0,
-        two: 0,
-        three: 0,
-        four: 0,
-        five: 0,
-        six: 33554432,
-        seven: 0,
-        eight: 1302123033472794624,
-        nine: 10384593717069655257060992641662994,
-        ten: -9444733241716708999168,
-        f_one: f32::NAN,
-        f_two: f64::NAN,
-        b_one: true,
-    };
+    // let input = TestInnerArb {
+    //     one: 0,
+    //     two: 0,
+    //     three: 0,
+    //     four: 0,
+    //     five: 0,
+    //     six: 33554432,
+    //     seven: 0,
+    //     eight: 1302123033472794624,
+    //     nine: 10384593717069655257060992641662994,
+    //     ten: -9444733241716708999168,
+    //     f_one: f32::NAN,
+    //     f_two: f64::NAN,
+    //     b_one: true,
+    // };
     // Struct test
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);

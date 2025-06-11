@@ -241,7 +241,6 @@ impl SolvedData {
         // amount of zeros to have for the right mask. (right mask meaning a mask to keep data on the
         // left)
         let start = pre_field.bit_range.range().start;
-        // println!("{}: \n\tstart = {start}, ", pre_field.id.name());
         let mut zeros_on_left = start % 8;
         if 7 < zeros_on_left {
             // TODO if don't think this error is possible, and im wondering why it is being checked for
@@ -253,7 +252,6 @@ impl SolvedData {
             // )));
             zeros_on_left %= 8;
         }
-        // println!("\tzeros_on_left = {zeros_on_left}");
         let available_bits_in_first_byte = 8 - zeros_on_left;
         // calculate the starting byte index in the outgoing buffer
         let starting_inject_byte: usize = start / 8;

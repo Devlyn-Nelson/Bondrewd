@@ -518,7 +518,6 @@ impl Solved {
                 impl_fns,
                 struct_fns,
             } => {
-                // println!("{}",struct_fns.read);
                 let comment = format!(
                     "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
                 );

@@ -43,7 +43,7 @@ impl std::cmp::PartialEq<TestInner> for TestInner {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
-#[bondrewd(endianness = "ale", enforce_bits = 959, dump)]
+#[bondrewd(endianness = "ale", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,

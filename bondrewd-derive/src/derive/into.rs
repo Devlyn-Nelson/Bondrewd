@@ -288,25 +288,19 @@ impl Resolver {
         let next_bit_mask = get_left_and_mask(mid_shift as usize);
         let mut i = 0;
         let mut clear_quote = quote! {};
-        println!("{}: ", self.name());
+        let mut next_clear_mask = 0;
         while i != fields_last_bits_index {
             let start = self.data.offset_starting_inject_byte(i);
-            let not_current_bit_mask = !current_bit_mask;
-            // START_HERE make sure clear bytes always works. the else statement is problematic.
+            let mut clear_mask = 0;
+            std::mem::swap(&mut clear_mask, &mut next_clear_mask);
             if self.data.available_bits_in_first_byte() == 0 && right_shift == 0 {
+                let not_current_bit_mask = !current_bit_mask;
                 full_quote = quote! {
                     #full_quote
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
                 };
-                clear_quote = quote! {
-                    #clear_quote
-                    output_byte_buffer[#start] &= #not_current_bit_mask;
-                };
+                clear_mask |= current_bit_mask;
             } else {
-                clear_quote = quote! {
-                    #clear_quote
-                    output_byte_buffer[#start] &= #not_current_bit_mask;
-                };
                 if mid_shift != 0 {
                     full_quote = quote! {
                         #full_quote
@@ -322,11 +316,13 @@ impl Resolver {
                             output_byte_buffer[#start] |= #field_buffer_name[#i];
                         };
                     } else {
+                        let not_current_bit_mask = !current_bit_mask;
                         full_quote = quote! {
                             #full_quote
                             output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
                         };
                     }
+                    clear_mask |= current_bit_mask;
                 }
                 let next_index = self.data.next_index(start);
                 if next_bit_mask == u8::MAX {
@@ -340,9 +336,16 @@ impl Resolver {
                         output_byte_buffer[#next_index] |= #field_buffer_name[#i] & #next_bit_mask;
                     };
                 }
+                next_clear_mask |= next_bit_mask;
             }
+            let clear_mask = !clear_mask;
+            clear_quote = quote! {
+                #clear_quote
+                output_byte_buffer[#start] &= #clear_mask;
+            };
             i += 1;
         }
+        // START_HERE make sure clear bytes always works. may need to use the `next_clear_mask` in the below code.
         // bits used after applying the first_bit_mask one more time.
         let used_bits = self.data.available_bits_in_first_byte() + (8 * i);
         let start = self.data.offset_starting_inject_byte(i);
@@ -356,26 +359,24 @@ impl Resolver {
                 #field_buffer_name[#i] = #field_buffer_name[#i].rotate_right(#right_shift);
             };
             if used_bits < amount_of_bits {
-                clear_quote = quote! {
-                    #clear_quote
-                    output_byte_buffer[#start] &= 0;
-                };
                 let next_index = self.data.next_index(start);
                 full_quote = quote! {
                     #full_quote
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #first_bit_mask;
                     output_byte_buffer[#next_index] |= #field_buffer_name[#i] & #last_bit_mask;
                 };
+                next_clear_mask |= first_bit_mask;
+                let not_last_bit_mask = !last_bit_mask;
+                clear_quote = quote! {
+                    #clear_quote
+                    output_byte_buffer[#next_index] &= #not_last_bit_mask;
+                };
             } else {
                 let mut last_mask = first_bit_mask;
                 if amount_of_bits <= used_bits {
                     last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
                 }
-                let not_last_mask = !last_mask;
-                clear_quote = quote! {
-                    #clear_quote
-                    output_byte_buffer[#start] &= #not_last_mask;
-                };
+                next_clear_mask |= last_mask;
                 full_quote = quote! {
                     #full_quote
                     output_byte_buffer[#start] |= #field_buffer_name[#i] & #last_mask;
@@ -388,11 +389,6 @@ impl Resolver {
             if amount_of_bits <= used_bits {
                 last_mask &= !get_right_and_mask(used_bits - amount_of_bits);
             }
-            let not_last_mask = !last_mask;
-            clear_quote = quote! {
-                #clear_quote
-                output_byte_buffer[#start] &= #not_last_mask;
-            };
             let mut finalize = quote! {#field_buffer_name[#i]};
             if left_shift != 0 && left_shift != 8 {
                 finalize = quote! {(#finalize.rotate_left(#left_shift))};
@@ -401,12 +397,18 @@ impl Resolver {
                 finalize = quote! {#finalize & #last_mask};
             }
             if last_mask != 0 {
+                next_clear_mask |= last_mask;
                 full_quote = quote! {
                     #full_quote
                     output_byte_buffer[#start] |= #finalize;
                 };
             }
         }
+        next_clear_mask = !next_clear_mask;
+        clear_quote = quote! {
+            #clear_quote
+            output_byte_buffer[#start] &= #next_clear_mask;
+        };
 
         Ok((full_quote, clear_quote))
     }

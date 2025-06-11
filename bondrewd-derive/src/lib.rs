@@ -334,14 +334,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
-    // println!("Solving: {}", struct_info.name());
     let solved: Solved = match struct_info.try_into() {
         Ok(s) => s,
         Err(err) => {
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
-    // println!("Generating: {}", solved.name);
     match solved.gen(flavor) {
         Ok(gen) => gen.into(),
         Err(err) => proc_macro::TokenStream::from(err.to_compile_error()),

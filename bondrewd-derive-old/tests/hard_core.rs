@@ -59,14 +59,6 @@
 //     assert_eq!(thing_2, new_2);
 // }
 
-// // fn print_bytes(bytes: &[u8]) {
-// //     print!("[");
-// //     for b in bytes {
-// //         print!("0b{b:08b}, ")
-// //     }
-// //     print!("]\n");
-// // }
-
 // impl From<One> for old::One {
 //     fn from(value: One) -> Self {
 //         Self {

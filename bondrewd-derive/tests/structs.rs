@@ -111,9 +111,6 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
         two_bytes,
         [0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000]
     );
-    for b in two_bytes {
-        print!("{:08b}, ", b);
-    }
     assert_eq!(bytes[7], 0b011_010_00);
     assert_eq!(bytes[6], 0b00000000);
     assert_eq!(bytes[5], 0b00001100);
