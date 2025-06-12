@@ -560,6 +560,10 @@ impl Resolver {
             #field_byte_buffer;
         };
         let bytes_effected = self.bit_length().div_ceil(8);
+        // START_HERE the masks are not correct. currently i can confirm the `Ordering::Equal`
+        // does not consider the fact that no right shift does not mean that the entire byte
+        // belongs to the field.
+        // 
         // fill in the rest of the bits
         match right_shift.cmp(&0) {
             Ordering::Greater => {
@@ -637,7 +641,11 @@ impl Resolver {
             Ordering::Equal => {
                 // no shift can be more faster.
                 let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
-
+                println!(
+                    "cbm: {current_bit_mask}, abifb: {}, zol: {}",
+                    self.data.available_bits_in_first_byte(),
+                    self.data.zeros_on_left,
+                );
                 for i in 0usize..size {
                     let start = self
                         .data
@@ -699,6 +707,7 @@ impl Resolver {
             ));
         }
         let zeros_on_right = 8 - (self.data.zeros_on_left + amount_of_bits);
+        // println!("{} - {}", self.name(), self.data.zeros_on_left);
         // combining the left and right masks will give us a mask that keeps the amount og bytes we
         // have in the position we need them to be in for this byte. we use available_bytes for
         // right mask because param is amount of 1's on the side specified (right), and

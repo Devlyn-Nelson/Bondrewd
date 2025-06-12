@@ -4,7 +4,7 @@ use bondrewd::{Bitfields, BitfieldsSlice};
 use rand::random;
 
 #[derive(Bitfields, Clone, Debug)]
-#[bondrewd(endianness = "be")]
+#[bondrewd(endianness = "ale")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -44,7 +44,7 @@ impl std::cmp::PartialEq<TestInner> for TestInner {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
-#[bondrewd(endianness = "be", enforce_bits = 959)]
+#[bondrewd(endianness = "ale", enforce_bits = 959, dump)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -169,7 +169,7 @@ impl TestInnerArb {
 }
 
 #[derive(Bitfields, BitfieldsSlice, PartialEq, Clone, Debug)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "be")]
+#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "ale")]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]
@@ -447,23 +447,47 @@ impl From<&TestInnerArb> for TestEnum {
 }
 
 #[test]
+fn nothing(){
+    let mut full = [0xff;Test::BYTE_SIZE];
+    // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
+    // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
+    Test::write_test_struct(&mut full, TestInner::from_bytes([0;TestInner::BYTE_SIZE]));
+    for byte in full {
+        print!("{byte:08b}, ");
+    }
+    panic!("");
+}
+
+#[test]
+fn nothing_2(){
+    let mut full = [0xff;Test::BYTE_SIZE];
+    // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
+    // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
+    Test::write_ten(&mut full, 0);
+    for byte in full {
+        print!("{byte:08b}, ");
+    }
+    panic!("");
+}
+
+#[test]
 fn fuzz() {
-    let input = TestInnerArb::random();
-    // let input = TestInnerArb {
-    //     one: 0,
-    //     two: 0,
-    //     three: 0,
-    //     four: 0,
-    //     five: 0,
-    //     six: 33554432,
-    //     seven: 0,
-    //     eight: 1302123033472794624,
-    //     nine: 10384593717069655257060992641662994,
-    //     ten: -9444733241716708999168,
-    //     f_one: f32::NAN,
-    //     f_two: f64::NAN,
-    //     b_one: true,
-    // };
+    // let input = TestInnerArb::random();
+    let input = TestInnerArb {
+        one: 0,
+        two: 0,
+        three: 0,
+        four: 0,
+        five: 0,
+        six: 33554432,
+        seven: 0,
+        eight: 1302123033472794624,
+        nine: 10384593717069655257060992641662994,
+        ten: -9444733241716708999168,
+        f_one: f32::NAN,
+        f_two: f64::NAN,
+        b_one: true,
+    };
     // Struct test
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);

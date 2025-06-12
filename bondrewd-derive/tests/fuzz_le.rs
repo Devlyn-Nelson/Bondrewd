@@ -4,7 +4,7 @@ use bondrewd::{Bitfields, BitfieldsSlice};
 use rand::random;
 
 #[derive(Bitfields, Clone, Debug)]
-#[bondrewd(endianness = "be")]
+#[bondrewd(endianness = "le")]
 pub struct TestInner {
     one: u8,
     two: i8,
@@ -44,7 +44,7 @@ impl std::cmp::PartialEq<TestInner> for TestInner {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
-#[bondrewd(endianness = "be", enforce_bits = 959)]
+#[bondrewd(endianness = "le", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -169,7 +169,7 @@ impl TestInnerArb {
 }
 
 #[derive(Bitfields, BitfieldsSlice, PartialEq, Clone, Debug)]
-#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "be")]
+#[bondrewd(id_bit_length = 3, enforce_bits = 363, endianness = "le")]
 pub enum TestEnum {
     Zero {
         #[bondrewd(bit_length = 3)]

@@ -231,10 +231,14 @@ impl SolvedData {
         // happen before byte_order_reversal and field_order_reversal
         //
         // Reverse field order
-        if pre_field.endianness.is_field_order_reversed() {
+        if pre_field.endianness.is_field_order_reversed() && struct_bit_size != 0 {
+            let reverse_val = struct_bit_size;
             let old_field_range = pre_field.bit_range.range().clone();
-            pre_field.bit_range.bit_range =
-                (struct_bit_size - old_field_range.end)..(struct_bit_size - old_field_range.start);
+            let new_start = reverse_val - old_field_range.end;
+            let new_end = reverse_val - old_field_range.start;
+            // println!("{struct_bit_size} start {}, end {}", old_field_range.start, old_field_range.end);
+            // println!("\tstart {new_start}, end {new_end}");
+            pre_field.bit_range.bit_range = new_start..new_end;
         }
         // get the total number of bits the field uses.
         let amount_of_bits = pre_field.bit_range.range().end - pre_field.bit_range.range().start;
