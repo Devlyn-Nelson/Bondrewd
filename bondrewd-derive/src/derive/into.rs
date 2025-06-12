@@ -563,7 +563,7 @@ impl Resolver {
         // START_HERE the masks are not correct. currently i can confirm the `Ordering::Equal`
         // does not consider the fact that no right shift does not mean that the entire byte
         // belongs to the field.
-        // 
+        //
         // fill in the rest of the bits
         match right_shift.cmp(&0) {
             Ordering::Greater => {
@@ -640,30 +640,67 @@ impl Resolver {
             }
             Ordering::Equal => {
                 // no shift can be more faster.
-                let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
+                // TODO the code here needs more testings.
                 println!(
-                    "cbm: {current_bit_mask}, abifb: {}, zol: {}",
+                    "abifb: {}, zol: {}",
                     self.data.available_bits_in_first_byte(),
                     self.data.zeros_on_left,
                 );
-                for i in 0usize..size {
-                    let start = self
-                        .data
-                        .offset_starting_inject_byte((bytes_effected - 1) - i);
-                    let not_current_bit_mask = !current_bit_mask;
-                    clear_quote = quote! {
-                        #clear_quote
-                        output_byte_buffer[#start] &= #not_current_bit_mask;
+                let bit_length = self.bit_length();
+                // indices used for `output_byte_buffer`
+                let mut buffer_indices = (0..bytes_effected)
+                    .into_iter()
+                    .map(|i| self.data.offset_starting_inject_byte(i));
+                let itr: Vec<(usize, usize)> = if self.data.flip().is_some() {
+                    buffer_indices.rev().enumerate().rev().collect()
+                }else{
+                    buffer_indices.enumerate().collect()
+                };
+                let mut used = 0;
+                for (i, start) in itr {
+                    // println!("==== {i}, {start}");
+                    let current_bit_mask = if used == 0 {
+                        let mut bits = self.data.available_bits_in_first_byte();
+                        let mask = if bits == 0 {
+                            bits = 8;
+                            u8::MAX
+                        }else{
+                            get_right_and_mask(bits)
+                        };
+                        used += bits;
+                        mask
+                    } else {
+                        let remaining = bit_length - used;
+                        match remaining {
+                            0 => continue,
+                            1..8 => {
+                                used += remaining;
+                                get_left_and_mask(remaining)
+                            }
+                            _ => {
+                                used += 8;
+                                u8::MAX
+                            }
+                        }
                     };
-                    if i == 0 && current_bit_mask != u8::MAX {
+                    if current_bit_mask != u8::MAX {
                         full_quote = quote! {
                             #full_quote
                             output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
+                        };
+                        let not_current_bit_mask = !current_bit_mask;
+                        clear_quote = quote! {
+                            #clear_quote
+                            output_byte_buffer[#start] &= #not_current_bit_mask;
                         };
                     } else {
                         full_quote = quote! {
                             #full_quote
                             output_byte_buffer[#start] |= #field_buffer_name[#i];
+                        };
+                        clear_quote = quote! {
+                            #clear_quote
+                            output_byte_buffer[#start] = 0;
                         };
                     }
                 }

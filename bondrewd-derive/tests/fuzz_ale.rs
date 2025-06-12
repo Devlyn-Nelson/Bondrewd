@@ -447,11 +447,11 @@ impl From<&TestInnerArb> for TestEnum {
 }
 
 #[test]
-fn nothing(){
-    let mut full = [0xff;Test::BYTE_SIZE];
+fn nothing() {
+    let mut full = [0xff; Test::BYTE_SIZE];
     // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
     // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
-    Test::write_test_struct(&mut full, TestInner::from_bytes([0;TestInner::BYTE_SIZE]));
+    Test::write_test_struct(&mut full, TestInner::from_bytes([0; TestInner::BYTE_SIZE]));
     for byte in full {
         print!("{byte:08b}, ");
     }
@@ -459,8 +459,8 @@ fn nothing(){
 }
 
 #[test]
-fn nothing_2(){
-    let mut full = [0xff;Test::BYTE_SIZE];
+fn nothing_2() {
+    let mut full = [0xff; Test::BYTE_SIZE];
     // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
     // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
     Test::write_ten(&mut full, 0);
