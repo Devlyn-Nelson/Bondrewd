@@ -127,7 +127,7 @@ fn add_sign_fix_quote(
         let size = rust_size.bytes();
         if amount_of_bits != size {
             if let NumberType::Signed = number_ty {
-                let (bit_to_isolate, sign_index) = match resolver_strategy {
+                let (bit_to_isolate, mut sign_index) = match resolver_strategy {
                     ResolverPrimitiveStrategy::Standard => (
                         field.data.bit_range_start() % 8,
                         field.data.bit_range_start() / 8,
@@ -139,6 +139,9 @@ fn add_sign_fix_quote(
                         (sign_bit_index % 8, sign_bit_index / 8)
                     }
                 };
+                if let Some(flip) = field.data.flip() {
+                    sign_index = flip - sign_index;
+                }
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
                 let sign_bit = quote! {
                     (input_byte_buffer[#sign_index] & #sign_mask)
@@ -215,6 +218,7 @@ fn add_sign_fix_quote_single_bit(
     amount_of_bits: usize,
     byte_index: usize,
 ) -> TokenStream {
+    // TODO I don't think these sign_fix fns can handle least significant bit first ordering.
     if let ResolverType::Primitive {
         number_ty,
         resolver_strategy,
@@ -225,12 +229,21 @@ fn add_sign_fix_quote_single_bit(
             if let NumberType::Signed = number_ty {
                 let bit_to_isolate = field.data.bit_range_start() % 8;
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
-                let neg_mask = get_left_and_mask(bit_to_isolate + 1);
+                let mut neg_mask_zero_count = 8 - amount_of_bits;
+                let neg_mask = get_left_and_mask(neg_mask_zero_count);
                 let sign_bit = quote! {
                     (input_byte_buffer[#byte_index] & #sign_mask)
                 };
-                let add_me = quote! {
-                    if #sign_bit == #sign_mask {#neg_mask | #field_access} else {0u8 | #field_access}
+                let add_me = if neg_mask == 0 {
+                    field_access
+                }else{
+                    quote! {
+                        if #sign_bit == #sign_mask {
+                            #neg_mask | #field_access
+                        } else {
+                            #field_access
+                        }
+                    }
                 };
                 return add_me;
             }

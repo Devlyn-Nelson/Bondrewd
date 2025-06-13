@@ -641,19 +641,14 @@ impl Resolver {
             Ordering::Equal => {
                 // no shift can be more faster.
                 // TODO the code here needs more testings.
-                println!(
-                    "abifb: {}, zol: {}",
-                    self.data.available_bits_in_first_byte(),
-                    self.data.zeros_on_left,
-                );
                 let bit_length = self.bit_length();
                 // indices used for `output_byte_buffer`
-                let mut buffer_indices = (0..bytes_effected)
+                let buffer_indices = (0..bytes_effected)
                     .into_iter()
                     .map(|i| self.data.offset_starting_inject_byte(i));
                 let itr: Vec<(usize, usize)> = if self.data.flip().is_some() {
                     buffer_indices.rev().enumerate().rev().collect()
-                }else{
+                } else {
                     buffer_indices.enumerate().collect()
                 };
                 let mut used = 0;
@@ -664,7 +659,7 @@ impl Resolver {
                         let mask = if bits == 0 {
                             bits = 8;
                             u8::MAX
-                        }else{
+                        } else {
                             get_right_and_mask(bits)
                         };
                         used += bits;

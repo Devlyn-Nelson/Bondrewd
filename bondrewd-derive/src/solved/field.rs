@@ -299,11 +299,6 @@ impl SolvedData {
                 sub_ty,
             },
         });
-        println!(
-            "{}: {:?}",
-            pre_field.id.name(),
-            pre_field.bit_range.bit_range
-        );
         let resolver = Resolver {
             data: Box::new(ResolverData {
                 bit_range: pre_field.bit_range.range().clone(),

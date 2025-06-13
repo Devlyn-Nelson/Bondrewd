@@ -449,27 +449,11 @@ impl From<&TestInnerArb> for TestEnum {
 #[test]
 fn fuzz() {
     let input = TestInnerArb::random();
-    // let input = TestInnerArb {
-    //     one: 0,
-    //     two: 0,
-    //     three: 0,
-    //     four: 0,
-    //     five: 0,
-    //     six: 33554432,
-    //     seven: 0,
-    //     eight: 1302123033472794624,
-    //     nine: 10384593717069655257060992641662994,
-    //     ten: -9444733241716708999168,
-    //     f_one: f32::NAN,
-    //     f_two: f64::NAN,
-    //     b_one: true,
-    // };
     // Struct test
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
     let test = Into::<Test>::into(&input).fix();
     let test_bytes = test.clone().into_bytes();
-    // let test = test.fix();
     if let Ok(checked) = Test::check_slice(&test_bytes) {
         assert_eq!(checked.read_one(), test.one);
         assert_eq!(checked.read_two(), test.two);
