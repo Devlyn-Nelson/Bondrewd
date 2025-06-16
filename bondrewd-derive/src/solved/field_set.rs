@@ -644,27 +644,6 @@ impl Solved {
             let end_bit = first_bit + fill_bits;
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
-            // fields.push(FieldInfo {
-            //     ident: Box::new(ident.into()),
-            //     attrs: Attributes {
-            //         bit_range: first_bit..end_bit,
-            //         endianness: Box::new(endian),
-            //         reserve: ReserveFieldOption::FakeField,
-            //         overlap: OverlapOptions::None,
-            //         capture_id: false,
-            //     },
-            //     ty: DataType::BlockArray {
-            //         sub_type: Box::new(SubFieldInfo {
-            //             ty: DataType::Number {
-            //                 size: 1,
-            //                 sign: NumberSignage::Unsigned,
-            //                 type_quote: quote! {u8},
-            //             },
-            //         }),
-            //         length: fill_bytes_size,
-            //         type_quote: quote! {[u8;#fill_bytes_size]},
-            //     },
-            // });
             let fill_field = BuiltData {
                 id: ident.into(),
                 ty: DataType::Number(NumberType::Unsigned, RustByteSize::One),
@@ -673,14 +652,11 @@ impl Solved {
                     ty: BuiltRangeType::BlockArray(vec![fill_bytes_size]),
                 },
                 endianness: Endianness::default(),
+                // START_HERE this should be a reserve field so it gets accounted for.
                 reserve: ReserveFieldOption::FakeField,
                 overlap: OverlapOptions::None,
                 is_captured_id: false,
             };
-            // let mut total_bits = out.total_bits_no_fill();
-            // if let Some(add_me) = id_bit_size {
-            //     total_bits += add_me;
-            // }
             Some(SolvedData::from_built(fill_field, *total_bits))
         } else {
             None

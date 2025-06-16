@@ -1478,18 +1478,19 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14)]
+/// #[bondrewd(endianness = "be", fill_bits = 13, enforce_bits = 14)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
 ///     #[bondrewd(bit_length = 7)]
 ///     two: u8,
 /// }
-/// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+/// let _ = FilledBytesEnforced::from_bytes([0,0,0]);
 /// // we are enforcing 14 bits but fill_bytes is creating
 /// // an imaginary reserve field from bit index 14 to
 /// // index 23
 /// assert_eq!(14, FilledBytesEnforced::BIT_SIZE);
+/// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// ```
 /// # Enforce Full Bytes Example
 /// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
