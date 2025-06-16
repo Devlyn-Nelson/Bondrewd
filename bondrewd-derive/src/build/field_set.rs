@@ -1,7 +1,7 @@
 use proc_macro2::Span;
 use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit};
 
-use crate::solved::field_set::SolvedFieldSetAttributes;
+use crate::{build::EndiannessFn, solved::field_set::SolvedFieldSetAttributes};
 
 use super::{field::DataBuilder, Endianness};
 
@@ -265,6 +265,7 @@ impl FromMeta for BitTraversal {
 #[darling(attributes(bondrewd))]
 pub struct StructDarling {
     pub endianness: Option<Endianness>,
+    pub endianness_fn: Option<EndiannessFn>,
     pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub ident: Ident,
@@ -401,6 +402,13 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
             if darling.reverse.is_present() {
                 val.set_reverse_byte_order(true);
             }
+            if let Some(ef) = darling.endianness_fn {
+                val.set_endianness_fn(ef);
+            }
+            Some(val)
+        } else if let Some(ef) = darling.endianness_fn {
+            let mut val = Endianness::default();
+            val.set_endianness_fn(ef);
             Some(val)
         } else {
             None
@@ -431,6 +439,7 @@ pub struct VariantDarling {
     pub invalid: darling::util::Flag,
     // struct
     pub endianness: Option<Endianness>,
+    pub endianness_fn: Option<EndiannessFn>,
     pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub ident: Ident,
@@ -482,6 +491,9 @@ impl VariantDarlingSimplified {
             if value.reverse.is_present() {
                 val.set_reverse_field_order(true);
             }
+            if let Some(ef) = value.endianness_fn {
+                val.set_endianness_fn(ef);
+            }
         }
         // determine byte enforcement if any.
         let enforcement = StructDarlingSimplified::try_solve_enforcement(
@@ -523,6 +535,7 @@ pub struct EnumDarling {
     pub id_byte_length: Option<usize>,
     // Struct
     pub endianness: Option<Endianness>,
+    pub endianness_fn: Option<EndiannessFn>,
     pub bit_traversal: Option<BitTraversal>,
     pub reverse: darling::util::Flag,
     pub dump: darling::util::Flag,
@@ -550,6 +563,7 @@ impl TryFrom<EnumDarling> for ObjectDarlingSimplifiedPackage {
     fn try_from(value: EnumDarling) -> Result<Self, Self::Error> {
         let struct_attrs = StructDarling {
             endianness: value.endianness,
+            endianness_fn: value.endianness_fn,
             bit_traversal: value.bit_traversal,
             reverse: value.reverse,
             ident: value.ident.clone(),

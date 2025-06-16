@@ -1,16 +1,19 @@
-- [ ] `from_vec` and `from_slice` for generated `BitfieldsDyn` trait impls on enums read the variant id twice instead of reusing the value from the first read to determine variant.
+- [ ] Add way to force the endianness used when creating the Rust type. currently the endianness is either big for standard and little for Alternative. aligned-little-endian currently uses `from_be_byte` (not an issue), but it would be cool if the actually endianness could be defined separately from the resolving method.
+- [ ] Ale endianness currently outputs the bit locations in the fn-doc incorrectly.
+- [ ] Add functions that run the clearing code from the write functions. this would be cool because writing a field as zero actually sets it to 0 twice, once to clear old bits and again setting it to provided value. providing a set_to_zero function that preforms only the clearing code would be lots faster due to no masks calculations and at least half the write calls to he buffer.
+- [x] `from_vec` and `from_slice` for generated `BitfieldsDyn` trait impls on enums read the variant id twice instead of reusing the value from the first read to determine variant.
 - [ ] Make sure capture id is not reading twice.
-- [ ] Add non-packed little endian
+- [x] Add non-packed little endian
 - [ ] Make a way for the Id of a enum to be received via another field when using nested enums.
 - [ ] Make field attributes applied to an enum apply the id_field
-- [ ] Fix nested structs/enums. Currently if you want Aligned Little Endian your nested struct must NOT reverse byte-order.
+- [x] Fix nested structs/enums. Currently if you want Aligned Little Endian your nested struct must NOT reverse byte-order.
 - [ ] Zero shifts happen still. Please insure these don't get output.
-- [ ] Make bondrewd builder
-  - [ ] Create `Solved` layer that solves the builder into basic pre-bitfield-derive information.
+- [x] Make bondrewd builder
+  - [x] Create `Solved` layer that solves the builder into basic pre-bitfield-derive information.
     - [ ] this could be used to calculate final masks then create the derive code.
     - [ ] this could also be used to generate the same mask data and use it at runtime.
   - [ ] Create `SolvedMasks` layer that is just the calculated data needed to create the derive functions but could also be used at runtime or make derive functions. the functions in the solved layer would simple utilize this layer as convenance and to reduce memory usage while not using the built model.
-  - [ ] Separate the fields start and end indices and have them be an enum type with allows for `dynamic` or `static` values. 
+  - [ ] Separate the fields start and end indices and have them be an enum type with allows for `dynamic` or `static` values.
     - [ ] When the starting and ending bit indices are `static` we can use the standard bondrewd systems we that have always existed which create infallible bit extraction and can have a `Bitfields` implementation.
     - [ ] We need to create a runtime version of the derive function that don't use pre-calculated values, but rather feed in at least the starting index then either calculate the end or also pass it in. then do runtime bitfield extraction. this is for `dynamic` fields
       - NOTE: Any `static` fields before a `dynamic` should still use compile time calculated extraction.
@@ -21,6 +24,3 @@
     - NOTE: When ANY field has a `dynamic` starting or ending bit index, we lose the ability to implement `Bitfields` but `BitfieldsDyn` would still be an option.
 - [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
 - [ ] Try to fix id assignment for test enum_derive::CenteredInvalid, the old system assigned Invalid an id of 2 due to its position in the enum, the new system assigns it 4. the id attribute was added to the test for now to get things working. i want to be able to remove that. My best guess to get things working is doing the id assignment earlier or keep track of the order of variants.
-- [ ] Add way to force the endianness used when creating the Rust type. currently the endianness is either big for standard and little for Alternative. aligned-little-endian currently uses `from_be_byte` (not an issue), but it would be cool if the actually endianness could be defined separately from the resolving method.
-- [ ] Ale endianness currently outputs the bit locations in the fn-doc incorrectly.
-- [ ] Add functions that run the clearing code from the write functions. this would be cool because writing a field as zero actually sets it to 0 twice, once to clear old bits and again setting it to provided value. providing a set_to_zero function that preforms only the clearing code would be lots faster due to no masks calculations and at least half the write calls to he buffer.

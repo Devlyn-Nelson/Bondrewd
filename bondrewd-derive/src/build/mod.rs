@@ -3,7 +3,8 @@ pub mod field_set;
 
 use darling::FromMeta;
 use field::DataBuilderRange;
-use quote::ToTokens;
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
 use std::{
     fmt::Debug,
     ops::{Deref, Range},
@@ -178,6 +179,34 @@ impl UserDefinedReversal {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum EndiannessFn {
+    Le,
+    Be,
+    Ne,
+}
+
+impl EndiannessFn {
+    pub fn get_from_fn_quote(&self) -> TokenStream {
+        match self {
+            EndiannessFn::Le => quote!{from_le_bytes},
+            EndiannessFn::Be => quote!{from_be_bytes},
+            EndiannessFn::Ne => quote!{from_ne_bytes},
+        }
+    }
+}
+
+impl FromMeta for EndiannessFn {
+    fn from_string(value: &str) -> darling::Result<Self> {
+        match value.to_lowercase().as_str() {
+            "le" | "lsb" | "little-endian" | "little_endian" | "little" => Ok(Self::Le),
+            "be" | "msb" | "big-endian" | "big_endian" | "big" => Ok(Self::Be),
+            "ne" | "native" => Ok(Self::Ne),
+            err => Err(syn::Error::new(value.span(), "\"{err}\" is not a valid options for field endianness").into()),
+        }
+    }
+}
+
 /// This mess determines the endianness of a field.
 ///
 /// # Bit and Byte order
@@ -303,6 +332,8 @@ pub struct Endianness {
     field_order: FieldOrder,
     /// This is a user defined field order reversal
     reverse_field_order: UserDefinedReversal,
+    /// Specifies the rust primitive type function to use for from/into bytes.
+    endianness_fn: EndiannessFn,
 }
 
 impl FromMeta for Endianness {
@@ -388,6 +419,7 @@ impl Endianness {
             reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::FirstToLast,
             reverse_field_order: UserDefinedReversal::default(),
+            endianness_fn: EndiannessFn::Be,
         }
     }
     /// Returns a new `Self` that is packed little endian.
@@ -404,6 +436,7 @@ impl Endianness {
             reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::LastToFirst,
             reverse_field_order: UserDefinedReversal::default(),
+            endianness_fn: EndiannessFn::Le,
         }
     }
     /// Returns a new `Self` that is packed little endian.
@@ -420,6 +453,7 @@ impl Endianness {
             reverse_byte_order: UserDefinedReversal::default(),
             field_order: FieldOrder::LastToFirst,
             reverse_field_order: UserDefinedReversal::default(),
+            endianness_fn: EndiannessFn::Be,
         }
     }
 
@@ -435,6 +469,18 @@ impl Endianness {
     pub fn from_expr(val: &LitStr) -> syn::Result<Self> {
         let val = val.value();
         Ok(Self::from_str(val.as_str())?)
+    }
+    pub fn from_byte_endianness_fn_quote(&self) -> TokenStream {
+        self.endianness_fn.get_from_fn_quote()
+    }
+    /// Returns the `mode`.
+    #[must_use]
+    pub fn endianness_fn(&self) -> EndiannessFn {
+        self.endianness_fn
+    }
+    /// Sets the `mode`.
+    pub fn set_endianness_fn(&mut self, endianness_fn: EndiannessFn) {
+        self.endianness_fn = endianness_fn;
     }
 }
 

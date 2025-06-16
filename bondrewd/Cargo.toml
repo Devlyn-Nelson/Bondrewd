@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd"
-version = "0.3.0-alpha.2"
+version = "0.3.0-beta.0"
 edition = "2021"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Dev <devlynknelson@gmail.com>"]

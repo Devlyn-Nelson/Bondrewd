@@ -152,9 +152,9 @@ impl SolvedData {
                 number_ty,
                 resolver_strategy,
                 rust_size,
-            } => match resolver_strategy {
-                ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
-                ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+            } => match resolver_strategy.ty {
+                ResolverPrimitiveStrategyTy::Standard => self.get_be_quotes(),
+                ResolverPrimitiveStrategyTy::Alternate => self.get_le_quotes(),
             },
             ResolverType::Array {
                 sub_ty,
@@ -165,9 +165,9 @@ impl SolvedData {
                     number_ty,
                     resolver_strategy,
                     rust_size,
-                } => match resolver_strategy {
-                    ResolverPrimitiveStrategy::Standard => self.get_be_quotes(),
-                    ResolverPrimitiveStrategy::Alternate => self.get_le_quotes(),
+                } => match resolver_strategy.ty {
+                    ResolverPrimitiveStrategyTy::Standard => self.get_be_quotes(),
+                    ResolverPrimitiveStrategyTy::Alternate => self.get_le_quotes(),
                 },
                 ResolverSubType::Nested {
                     ty_ident,
@@ -267,10 +267,12 @@ impl SolvedData {
         // }
         let sub_ty = match &pre_field.ty {
             DataType::Number(number_type, rust_byte_size) => {
-                let resolver_strategy = if pre_field.endianness.is_alternative() {
-                    ResolverPrimitiveStrategy::Alternate
+                let resolver_strategy = ResolverPrimitiveStrategy {
+                    ty: if pre_field.endianness.is_alternative() {
+                    ResolverPrimitiveStrategyTy::Alternate
                 } else {
-                    ResolverPrimitiveStrategy::Standard
+                    ResolverPrimitiveStrategyTy::Standard
+                }, fn_quote: pre_field.endianness.from_byte_endianness_fn_quote(),
                 };
                 ResolverSubType::Primitive {
                     number_ty: *number_type,
@@ -446,7 +448,13 @@ impl Resolver {
 }
 
 #[derive(Debug, Clone)]
-pub enum ResolverPrimitiveStrategy {
+pub struct ResolverPrimitiveStrategy {
+    pub ty: ResolverPrimitiveStrategyTy,
+    pub fn_quote: TokenStream,
+}
+
+#[derive(Debug, Clone)]
+pub enum ResolverPrimitiveStrategyTy {
     Standard,
     Alternate,
 }

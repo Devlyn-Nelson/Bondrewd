@@ -9,7 +9,7 @@ use crate::{
     build::field::NumberType,
     solved::{
         array_iter::{BlockArrayIter, ElementArrayIter},
-        field::{Resolver, ResolverArrayType, ResolverPrimitiveStrategy, ResolverType},
+        field::{Resolver, ResolverArrayType, ResolverPrimitiveStrategyTy, ResolverType},
     },
 };
 
@@ -127,12 +127,12 @@ fn add_sign_fix_quote(
         let size = rust_size.bytes();
         if amount_of_bits != size {
             if let NumberType::Signed = number_ty {
-                let (bit_to_isolate, mut sign_index) = match resolver_strategy {
-                    ResolverPrimitiveStrategy::Standard => (
+                let (bit_to_isolate, mut sign_index) = match resolver_strategy.ty {
+                    ResolverPrimitiveStrategyTy::Standard => (
                         field.data.bit_range_start() % 8,
                         field.data.bit_range_start() / 8,
                     ),
-                    ResolverPrimitiveStrategy::Alternate => {
+                    ResolverPrimitiveStrategyTy::Alternate => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
                         let sign_bit_index = field.data.bit_range_start() + skip_bytes;
                         // TODO fix bit isolators to fix signed numbers.
@@ -160,8 +160,8 @@ fn add_sign_fix_quote(
                     }
                 }
                 let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
-                match resolver_strategy {
-                    ResolverPrimitiveStrategy::Standard => {
+                match resolver_strategy.ty {
+                    ResolverPrimitiveStrategyTy::Standard => {
                         buffer = VecDeque::from(rotate_primitive_vec(
                             buffer.into(),
                             right_shift,
@@ -176,7 +176,7 @@ fn add_sign_fix_quote(
                             }
                         } {}
                     }
-                    ResolverPrimitiveStrategy::Alternate => {
+                    ResolverPrimitiveStrategyTy::Alternate => {
                         match right_shift.cmp(&0) {
                             Ordering::Greater => {
                                 buffer = buffer
@@ -612,41 +612,44 @@ impl Resolver {
         };
         // generate code to transform buffer into rust type.
         let output = match self.ty.as_ref() {
-            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float => {
-                    let alt_type_quote = if rust_type_size == 4 {
-                        quote!{u32}
-                    }else if rust_type_size == 8 {
-                        quote!{u64}
-                    }else{
-                        return Err(syn::Error::new(self.ident().span(), "unsupported floating type"))
-                    };
-                    let apply_field_to_buffer = quote! {
-                        #alt_type_quote::from_le_bytes({
-                            #full_quote
-                        })
-                    };
-                    apply_field_to_buffer
+            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
+                let from_endianness_fn_quote = &resolver_strategy.fn_quote;
+                match number_ty {
+                    NumberType::Float => {
+                        let alt_type_quote = if rust_type_size == 4 {
+                            quote!{u32}
+                        }else if rust_type_size == 8 {
+                            quote!{u64}
+                        }else{
+                            return Err(syn::Error::new(self.ident().span(), "unsupported floating type"))
+                        };
+                        let apply_field_to_buffer = quote! {
+                            #alt_type_quote::#from_endianness_fn_quote({
+                                #full_quote
+                            })
+                        };
+                        apply_field_to_buffer
+                    }
+                    NumberType::Unsigned |
+                    NumberType::Signed => {
+                        let type_quote = self.ty.as_ref().get_type_quote()?;
+                        let apply_field_to_buffer = quote! {
+                            #type_quote::#from_endianness_fn_quote({
+                                #full_quote
+                            })
+                        };
+                        apply_field_to_buffer
+                    }
+                    NumberType::Char => {
+                        let apply_field_to_buffer = quote! {
+                            u32::#from_endianness_fn_quote({
+                                #full_quote
+                            })
+                        };
+                        apply_field_to_buffer
+                    }
+                    NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
                 }
-                NumberType::Unsigned |
-                NumberType::Signed => {
-                    let type_quote = self.ty.as_ref().get_type_quote()?;
-                    let apply_field_to_buffer = quote! {
-                        #type_quote::from_le_bytes({
-                            #full_quote
-                        })
-                    };
-                    apply_field_to_buffer
-                }
-                NumberType::Char => {
-                    let apply_field_to_buffer = quote! {
-                        u32::from_le_bytes({
-                            #full_quote
-                        })
-                    };
-                    apply_field_to_buffer
-                }
-                NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
             }
             ResolverType::Nested { .. } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             ResolverType::Array { .. } => return Err(syn::Error::new(self.ident().span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
@@ -1080,13 +1083,14 @@ impl Resolver {
                 resolver_strategy,
                 rust_size,
             } => {
+                let from_endianness_fn_quote = &resolver_strategy.fn_quote;
                 match number_ty {
                     NumberType::Float =>{
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let fix_ident_stupid = Ident::from_string(&ty_ident.to_string().replace("f", "u"))?;
                         let apply_field_to_buffer = quote! {
-                            #fix_ident_stupid::from_be_bytes({
+                            #fix_ident_stupid::#from_endianness_fn_quote({
                                 #full_quote
                             })#shift
                         };
@@ -1097,7 +1101,7 @@ impl Resolver {
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
-                            #ty_ident::from_be_bytes({
+                            #ty_ident::#from_endianness_fn_quote({
                                 #full_quote
                             })#shift
                         };
@@ -1107,7 +1111,7 @@ impl Resolver {
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
-                            u32::from_be_bytes({
+                            u32::#from_endianness_fn_quote({
                                 #full_quote
                             })#shift
                         };
