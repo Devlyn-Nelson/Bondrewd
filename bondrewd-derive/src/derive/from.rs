@@ -229,7 +229,7 @@ fn add_sign_fix_quote_single_bit(
             if let NumberType::Signed = number_ty {
                 let bit_to_isolate = field.data.bit_range_start() % 8;
                 let sign_mask = isolate_bit_index_mask(bit_to_isolate);
-                let mut neg_mask_zero_count = 8 - amount_of_bits;
+                let neg_mask_zero_count = 8 - amount_of_bits;
                 let neg_mask = get_left_and_mask(neg_mask_zero_count);
                 let sign_bit = quote! {
                     (input_byte_buffer[#byte_index] & #sign_mask)

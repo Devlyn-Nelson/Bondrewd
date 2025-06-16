@@ -44,7 +44,7 @@ impl std::cmp::PartialEq<TestInner> for TestInner {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
-#[bondrewd(endianness = "ale", enforce_bits = 959, dump)]
+#[bondrewd(endianness = "ale", enforce_bits = 959)]
 pub struct Test {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -541,7 +541,7 @@ fn nothing_two() {
 
 #[test]
 fn fuzz() {
-    let mut input = TestInnerArb::random();
+    let input = TestInnerArb::random();
     // Struct test
     assert_eq!(959, Test::BIT_SIZE);
     assert_eq!(120, Test::BYTE_SIZE);
