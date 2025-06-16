@@ -269,10 +269,11 @@ impl SolvedData {
             DataType::Number(number_type, rust_byte_size) => {
                 let resolver_strategy = ResolverPrimitiveStrategy {
                     ty: if pre_field.endianness.is_alternative() {
-                    ResolverPrimitiveStrategyTy::Alternate
-                } else {
-                    ResolverPrimitiveStrategyTy::Standard
-                }, fn_quote: pre_field.endianness.from_byte_endianness_fn_quote(),
+                        ResolverPrimitiveStrategyTy::Alternate
+                    } else {
+                        ResolverPrimitiveStrategyTy::Standard
+                    },
+                    fn_quote: pre_field.endianness.from_byte_endianness_fn_quote(),
                 };
                 ResolverSubType::Primitive {
                     number_ty: *number_type,

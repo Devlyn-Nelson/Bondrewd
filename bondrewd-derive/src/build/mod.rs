@@ -189,9 +189,9 @@ pub enum EndiannessFn {
 impl EndiannessFn {
     pub fn get_from_fn_quote(&self) -> TokenStream {
         match self {
-            EndiannessFn::Le => quote!{from_le_bytes},
-            EndiannessFn::Be => quote!{from_be_bytes},
-            EndiannessFn::Ne => quote!{from_ne_bytes},
+            EndiannessFn::Le => quote! {from_le_bytes},
+            EndiannessFn::Be => quote! {from_be_bytes},
+            EndiannessFn::Ne => quote! {from_ne_bytes},
         }
     }
 }
@@ -202,7 +202,11 @@ impl FromMeta for EndiannessFn {
             "le" | "lsb" | "little-endian" | "little_endian" | "little" => Ok(Self::Le),
             "be" | "msb" | "big-endian" | "big_endian" | "big" => Ok(Self::Be),
             "ne" | "native" => Ok(Self::Ne),
-            err => Err(syn::Error::new(value.span(), "\"{err}\" is not a valid options for field endianness").into()),
+            err => Err(syn::Error::new(
+                value.span(),
+                "\"{err}\" is not a valid options for field endianness",
+            )
+            .into()),
         }
     }
 }

@@ -236,7 +236,7 @@ fn add_sign_fix_quote_single_bit(
                 };
                 let add_me = if neg_mask == 0 {
                     field_access
-                }else{
+                } else {
                     quote! {
                         if #sign_bit == #sign_mask {
                             #neg_mask | #field_access
