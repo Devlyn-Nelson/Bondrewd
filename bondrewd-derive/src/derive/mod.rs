@@ -17,7 +17,7 @@ use syn::{Ident, Visibility};
 mod from;
 mod into;
 pub mod quotes;
-use quotes::*;
+use quotes::{CheckSliceNames, CheckedSliceGen, FieldQuotesNew};
 /// Stores [`TokenStream`] that contain the access (write/read/clear) code for a field.
 pub struct GeneratedQuotes {
     pub(crate) read: proc_macro2::TokenStream,
@@ -386,16 +386,16 @@ impl Solved {
         let v_id_read_call = format_ident!("read_{v_id}");
         let v_id_write_call = format_ident!("write_{v_id}");
         let v_id_read_slice_call = format_ident!("read_slice_{v_id}");
-        for (variant_info, variant) in variants.iter() {
+        for (variant_info, variant) in variants {
             Self::gen_variant(
                 GenVariant {
-                    id: &id,
+                    id,
                     flavor,
-                    variant_info: &variant_info,
-                    variant: &variant,
+                    variant_info,
+                    variant,
                     checked_ident: &checked_ident,
                     checked_ident_mut: &checked_ident_mut,
-                    enum_name: &enum_name,
+                    enum_name,
                     v_id: &v_id,
                     v_id_write_call: &v_id_write_call,
                     check_slice_fn: &mut check_slice_fn,
@@ -413,13 +413,13 @@ impl Solved {
         }
         Self::gen_variant(
             GenVariant {
-                id: &id,
+                id,
                 flavor,
-                variant_info: &invalid_name,
-                variant: &invalid,
+                variant_info: invalid_name,
+                variant: invalid,
                 checked_ident: &checked_ident,
                 checked_ident_mut: &checked_ident_mut,
-                enum_name: &enum_name,
+                enum_name,
                 v_id: &v_id,
                 v_id_write_call: &v_id_write_call,
                 check_slice_fn: &mut check_slice_fn,
@@ -616,7 +616,7 @@ impl Solved {
         let variant_name = quote! {#v_name};
 
         let thing = variant.gen_struct_fields(
-            &v_name,
+            v_name,
             Some(GenStructFieldsEnumInfo {
                 ident: enum_name,
                 full_size: v_byte_size,
@@ -791,7 +791,7 @@ impl Solved {
             ignore_fields = quote! { #ignore_fields };
         } else {
             ignore_fields = quote! { #ignore_fields .. };
-        };
+        }
         if variant_info.tuple {
             ignore_fields = quote! {(#ignore_fields)};
         } else {
@@ -895,7 +895,7 @@ impl Solved {
                 Ok(mut file_name) => {
                     file_name.push("target/bondrewd_debug");
                     let _ = std::fs::create_dir_all(&file_name);
-                    file_name.push(format!("{name}_code_gen_{}.rs", dump_flavor));
+                    file_name.push(format!("{name}_code_gen_{dump_flavor}.rs"));
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {

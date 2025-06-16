@@ -447,7 +447,7 @@ impl Solved {
 
         let bit_length = solved_variant.total_bits_no_fill();
         if *largest_bit_size < bit_length {
-            *largest_bit_size = bit_length
+            *largest_bit_size = bit_length;
         }
         let variant_info = VariantInfo {
             id: variant.id,
@@ -796,7 +796,7 @@ impl BuiltRange {
                 ty,
             },
             DataBuilderRange::Size(bit_length) => {
-                let bit_range = start..(start + *bit_length as usize);
+                let bit_range = start..(start + { *bit_length });
                 Self { bit_range, ty }
             }
             DataBuilderRange::None => {

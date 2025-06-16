@@ -44,7 +44,7 @@
 //! // Users code
 //! use bondrewd::*;
 //! #[derive(Bitfields)]
-//! #[bondrewd(default_endianness = "be")]
+//! #[bondrewd(endianness = "be")]
 //! struct SimpleExample {
 //!     // fields that are as expected do not require attributes.
 //!     one: bool,
@@ -142,8 +142,8 @@
 //! - `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array
 //!     that has the exact `Bitfield::BYTE_SIZE`.
 //!   
-//! Example Cargo.toml Bondrewd dependency  
-//! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`  
+//! Example Cargo.toml Bondrewd dependency\
+//! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`\
 //! `SimpleExample` Generated Slice Api:
 //! ```compile_fail
 //! impl SimpleExample {
@@ -555,7 +555,7 @@ impl Display for GenerationFlavor {
             GenerationFlavor::Hex { trait_fns } => "hex",
             GenerationFlavor::HexDynamic { trait_fns } => "hex_dynamic",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -803,7 +803,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// #### Common Attributes
 /// These attributes can be used on a struct, enum or enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
-/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
+/// - `endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
 ///     `0.3.27` the endianness will default to Little Endianness. [example](#endianness-examples)
 /// - `bit_traversal = {"front" or "back"}` Defines which end of the byte array to start at. This is a bit
 ///     index reversal across the entire array from grabbing fields from. [example](#bit-positioning-examples)
@@ -895,7 +895,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleExample {
 ///     // fields that are as expected do not require attributes.
 ///     one: bool,
@@ -1082,7 +1082,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
 /// // tell bondrewd to default to Big Endian
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleExample {
 ///     // this field will be given the default endianness
 ///     one: u16,
@@ -1098,7 +1098,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // check that each field are in the correct endianness
 /// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000]);
 /// ```
-/// If you define the endianness of all values that require it `default_endianness` is not required.
+/// If you define the endianness of all values that require it `endianness` is not required.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1128,7 +1128,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct Simple {
 ///     #[bondrewd(bit_length = 3)]
 ///     one: u8,
@@ -1140,7 +1140,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleWithStruct {
 ///     #[bondrewd(byte_length = 7)]
 ///     one: Simple,
@@ -1157,7 +1157,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // this struct uses 4 total bits which means the total BYTE_SIZE is 1.
 /// use bondrewd::*;
 /// #[derive(Bitfields, Clone)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct Simple {
 ///     #[bondrewd(bit_length = 2)]
 ///     one: u8,
@@ -1166,7 +1166,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleWithStruct {
 ///     #[bondrewd(bit_length = 4)]
 ///     one: Simple,
@@ -1190,7 +1190,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleWithArray {
 ///     // each u8 in the array contains 4 bits of useful information.
 ///     #[bondrewd(element_bit_length = 4)]
@@ -1235,7 +1235,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // BYTE_SIZE is 7.
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleStruct {
 ///     #[bondrewd(bit_length = 3)]
 ///     one: u8,
@@ -1249,7 +1249,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // this enum has 4 variants therefore only uses 2 bits
 /// // out of 8 in the primitive type.
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -1258,7 +1258,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct ArraysWithStructsAndEnums {
 ///     #[bondrewd(element_bit_length = 8)]
 ///     four_byte_four_values: [SimpleEnum; 4],
@@ -1288,7 +1288,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct ReserveExample {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1321,7 +1321,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct ReserveExample {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1355,7 +1355,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bits = 2)]
+/// #[bondrewd(endianness = "be", fill_bits = 2)]
 /// struct FilledBits {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1371,7 +1371,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bits)]
+/// #[bondrewd(endianness = "be", fill_bits)]
 /// struct FilledBits {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1388,7 +1388,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "ale", fill_bits)]
+/// #[bondrewd(endianness = "ale", fill_bits)]
 /// struct FilledBits {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1396,7 +1396,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "ale")]
+/// #[bondrewd(endianness = "ale")]
 /// struct UnfilledBits {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1411,7 +1411,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(UnfilledBits {one: 127, two: 127}.into_bytes(), [0b11111100,0b11111111]);
 /// ```
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "ale")]
+/// #[`bondrewd(endianness` = "ale")]
 /// struct Unfilled {
 ///     one
 /// }
@@ -1421,7 +1421,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 1)]
+/// #[bondrewd(endianness = "be", fill_bytes = 1)]
 /// struct FilledBytes {
 ///     one: u8,
 ///     two: u8,
@@ -1436,7 +1436,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct ReservedBytes {
 ///     one: u8,
 ///     two: u8,
@@ -1448,7 +1448,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// # Enforce Bits Examples
 /// Enforce Bits/Bytes Main purpose is to act as a compile time check to ensure how many bit you think
-/// are being use is the actual amount of bits being used.  
+/// are being use is the actual amount of bits being used.\
 /// Here i have 2 fields with a total defined bit-length of 6, and then an undecorated boolean field. I
 /// also have trust issues so i want to verify that the bool is only using 1 bit making the total bit
 /// length of the struct 7 bits. Adding `enforce_bits = 7` will force a compiler error if the calculated
@@ -1456,7 +1456,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_bits = 7)]
+/// #[bondrewd(endianness = "be", enforce_bits = 7)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 4)]
 ///     one: u8,
@@ -1472,7 +1472,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_bits = 7)]
+/// #[bondrewd(endianness = "be", enforce_bits = 7)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 5)]
 ///     one: u8,
@@ -1492,7 +1492,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_bytes = 3)]
+/// #[bondrewd(endianness = "be", enforce_bytes = 3)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1513,7 +1513,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bytes = 1, enforce_bytes = 3)]
+/// #[bondrewd(endianness = "be", fill_bytes = 1, enforce_bytes = 3)]
 /// struct FilledBytesEnforced {
 ///     one: u8,
 ///     two: u8,
@@ -1526,7 +1526,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", fill_bits = 3, enforce_bits = 14)]
+/// #[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1546,7 +1546,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_full_bytes)]
+/// #[bondrewd(endianness = "be", enforce_full_bytes)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1559,7 +1559,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", enforce_full_bytes)]
+/// #[bondrewd(endianness = "be", enforce_full_bytes)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1576,7 +1576,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -1584,7 +1584,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     Three,
 /// }
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "le")]
+/// #[bondrewd(endianness = "le")]
 /// struct StructWithEnumExample {
 ///     #[bondrewd(bit_length = 3)]
 ///     one: u8,
@@ -1598,7 +1598,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum Simple {
 ///     One,
 ///     Two,
@@ -1607,7 +1607,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// }
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleWithStruct {
 ///     // bit length is not required for enums but in this case where only 4 possible variants are in
 ///     // our enums 2 bits is all that is needed. also note using more bits than possible variants is
@@ -1623,7 +1623,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleExample {
 ///     // fields that are as expected do not require attributes.
 ///     // #[bondrewd(bits = "0..1")] this could be used but is not needed.
@@ -1685,7 +1685,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleExample {
 ///     // fields that are as expected do not require attributes.
 ///     one: bool,
@@ -1769,7 +1769,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be")]
+/// #[bondrewd(endianness = "be")]
 /// struct SimpleExample {
 ///     // fields that are as expected do not require attributes.
 ///     one: bool,
@@ -1859,8 +1859,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// use bondrewd::*;
 ///
 /// #[derive(Bitfields)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
-///
+/// #[bondrewd(endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
 /// enum Thing {
 ///     One {
 ///         a: u16,
@@ -2101,7 +2100,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///
 /// #[derive(Bitfields)]
 /// #[repr(u8)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
 /// enum Thing {
 ///     Three {
 ///         #[bondrewd(bit_length = 7)]
@@ -2134,7 +2133,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///
 /// #[derive(Bitfields)]
 /// #[repr(u8)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bits = 18)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2, enforce_bits = 18)]
 /// enum Thing {
 ///     One {
 ///         a: u16,
@@ -2194,7 +2193,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// use bondrewd::*;
 ///
 /// #[derive(Bitfields, Debug, PartialEq, Eq)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum Thing {
 ///     Zero, // value of 0
 ///     One, // value of 1
@@ -2218,7 +2217,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// use bondrewd::*;
 ///
 /// #[derive(Bitfields, Debug, PartialEq, Eq)]
-/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum Thing {
 ///     Zero, // value of 0
 ///     #[bondrewd(invalid)]

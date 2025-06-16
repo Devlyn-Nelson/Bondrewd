@@ -145,7 +145,7 @@ impl Resolver {
                 }
             },
         };
-        gen_write_fn(&self, &field_access)
+        gen_write_fn(self, &field_access)
     }
     pub(crate) fn get_write_le_quote(
         &self,
@@ -643,9 +643,8 @@ impl Resolver {
                 // TODO the code here needs more testings.
                 let bit_length = self.bit_length();
                 // indices used for `output_byte_buffer`
-                let buffer_indices = (0..bytes_effected)
-                    .into_iter()
-                    .map(|i| self.data.offset_starting_inject_byte(i));
+                let buffer_indices =
+                    (0..bytes_effected).map(|i| self.data.offset_starting_inject_byte(i));
                 let itr: Vec<(usize, usize)> = if self.data.flip().is_some() {
                     buffer_indices.rev().enumerate().rev().collect()
                 } else {
@@ -678,7 +677,16 @@ impl Resolver {
                             }
                         }
                     };
-                    if current_bit_mask != u8::MAX {
+                    if current_bit_mask == u8::MAX {
+                        full_quote = quote! {
+                            #full_quote
+                            output_byte_buffer[#start] |= #field_buffer_name[#i];
+                        };
+                        clear_quote = quote! {
+                            #clear_quote
+                            output_byte_buffer[#start] = 0;
+                        };
+                    } else {
                         full_quote = quote! {
                             #full_quote
                             output_byte_buffer[#start] |= #field_buffer_name[#i] & #current_bit_mask;
@@ -687,15 +695,6 @@ impl Resolver {
                         clear_quote = quote! {
                             #clear_quote
                             output_byte_buffer[#start] &= #not_current_bit_mask;
-                        };
-                    } else {
-                        full_quote = quote! {
-                            #full_quote
-                            output_byte_buffer[#start] |= #field_buffer_name[#i];
-                        };
-                        clear_quote = quote! {
-                            #clear_quote
-                            output_byte_buffer[#start] = 0;
                         };
                     }
                 }

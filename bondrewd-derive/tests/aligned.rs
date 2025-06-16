@@ -156,7 +156,7 @@ fn bug_of_my_nightmares_but_bigger() -> anyhow::Result<()> {
     assert_eq!(simple.three, BigNestedBugInducer::read_slice_three(&bytes)?);
 
     // from_bytes
-    let new_simple = BigNestedBugInducer::from_bytes(bytes.clone());
+    let new_simple = BigNestedBugInducer::from_bytes(bytes);
     assert_eq!(simple, new_simple);
 
     //write
@@ -236,7 +236,7 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
     );
 
     // from_bytes
-    let new_simple = AlignedNestedBugInducer::from_bytes(bytes.clone());
+    let new_simple = AlignedNestedBugInducer::from_bytes(bytes);
     assert_eq!(simple, new_simple);
 
     //write

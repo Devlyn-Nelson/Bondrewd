@@ -87,7 +87,7 @@ impl BuilderRange {
             //     BuilderRangeArraySize::Range(range) => range.end - range.start,
             // },
             BuilderRange::Range(range) => range.end - range.start,
-            BuilderRange::Size(bits) => *bits as usize,
+            BuilderRange::Size(bits) => *bits,
             BuilderRange::None => 0,
         }
     }

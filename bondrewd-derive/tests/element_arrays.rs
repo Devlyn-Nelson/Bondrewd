@@ -33,3 +33,45 @@ fn to_bytes_simple_with_element_array_spanning() -> anyhow::Result<()> {
     assert_eq!(simple, new_simple);
     Ok(())
 }
+
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", id_byte_length = 3)]
+enum Inner {
+    NoRightAnswers(#[bondrewd(capture_id)] u32),
+}
+
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be")]
+struct ElementArrayTester {
+    #[bondrewd(bit_length = 3)]
+    one: u8,
+    #[bondrewd(element_byte_length = 3)]
+    two: [Inner; 5],
+    #[bondrewd(bit_length = 5)]
+    three: u8,
+}
+#[test]
+fn element_array_bytes() -> anyhow::Result<()> {
+    let simple = ElementArrayTester {
+        one: 2,
+        two: [
+            Inner::NoRightAnswers(234),
+            Inner::NoRightAnswers(847),
+            Inner::NoRightAnswers(135),
+            Inner::NoRightAnswers(69),
+            Inner::NoRightAnswers(78),
+        ],
+        three: 9,
+    };
+    let bytes = simple.clone().into_bytes();
+
+    //peeks
+    assert_eq!(simple.one, ElementArrayTester::read_slice_one(&bytes)?);
+    assert_eq!(simple.two, ElementArrayTester::read_slice_two(&bytes)?);
+    assert_eq!(simple.three, ElementArrayTester::read_slice_three(&bytes)?);
+
+    // from_bytes
+    let new_simple = ElementArrayTester::from_bytes(bytes);
+    assert_eq!(simple, new_simple);
+    Ok(())
+}

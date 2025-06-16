@@ -58,7 +58,8 @@ impl From<GeneratedFunctions> for TokenStream {
     fn from(val: GeneratedFunctions) -> Self {
         let trait_fns = val.bitfield_trait;
         let impl_fns = val.non_trait;
-        let quote = if let Some(dyn_fns) = val.dyn_fns {
+
+        if let Some(dyn_fns) = val.dyn_fns {
             let unchecked = dyn_fns.checked_struct;
             let dyn_trait_fns = dyn_fns.bitfield_dyn_trait;
             quote! {
@@ -72,8 +73,7 @@ impl From<GeneratedFunctions> for TokenStream {
                 #trait_fns
                 #impl_fns
             }
-        };
-        quote
+        }
     }
 }
 

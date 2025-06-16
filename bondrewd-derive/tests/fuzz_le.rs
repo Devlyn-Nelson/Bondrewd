@@ -82,6 +82,7 @@ impl Test {
     const NINE_MAX: u128 = 2_u128.pow(69) - 1;
     const TEN_MAX: i128 = 2_i128.pow(111 - 1) - 1;
 
+    #[must_use]
     pub fn fix(&self) -> Self {
         Self {
             one: self.one.clamp(0, Self::ONE_MAX),
@@ -149,6 +150,7 @@ pub struct TestInnerArb {
 }
 
 impl TestInnerArb {
+    #[must_use]
     pub fn random() -> Self {
         Self {
             one: 1,
@@ -228,66 +230,77 @@ impl TestEnum {
     const EIGHT_MAX: i64 = 2_i64.pow(43 - 1);
     const NINE_MAX: u128 = 2_u128.pow(69);
     const TEN_MAX: i128 = 2_i128.pow(105 - 1);
+    #[must_use]
     pub fn one(&self) -> u8 {
         match self {
             Self::One { one, .. } => *one,
             Self::Zero { one, .. } => *one,
         }
     }
+    #[must_use]
     pub fn two(&self) -> i8 {
         match self {
             Self::One { two, .. } => *two,
             Self::Zero { two, .. } => *two,
         }
     }
+    #[must_use]
     pub fn three(&self) -> u16 {
         match self {
             Self::One { three, .. } => *three,
             Self::Zero { three, .. } => *three,
         }
     }
+    #[must_use]
     pub fn four(&self) -> i16 {
         match self {
             Self::One { four, .. } => *four,
             Self::Zero { four, .. } => *four,
         }
     }
+    #[must_use]
     pub fn five(&self) -> u32 {
         match self {
             Self::One { five, .. } => *five,
             Self::Zero { five, .. } => *five,
         }
     }
+    #[must_use]
     pub fn six(&self) -> i32 {
         match self {
             Self::One { six, .. } => *six,
             Self::Zero { six, .. } => *six,
         }
     }
+    #[must_use]
     pub fn seven(&self) -> u64 {
         match self {
             Self::One { seven, .. } => *seven,
             Self::Zero { seven, .. } => *seven,
         }
     }
+    #[must_use]
     pub fn eight(&self) -> i64 {
         match self {
             Self::One { eight, .. } => *eight,
             Self::Zero { eight, .. } => *eight,
         }
     }
+    #[must_use]
     pub fn nine(&self) -> u128 {
         match self {
             Self::One { nine, .. } => *nine,
             Self::Zero { nine, .. } => *nine,
         }
     }
+    #[must_use]
     pub fn ten(&self) -> i128 {
         match self {
             Self::One { ten, .. } => *ten,
             Self::Zero { ten, .. } => *ten,
         }
     }
+    #[must_use]
     pub fn reverse(&self) -> Self {
         match self {
             TestEnum::Zero {

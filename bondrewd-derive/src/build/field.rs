@@ -201,11 +201,7 @@ impl DataType {
                     &Ident::new("array_length", ty.span()),
                     None,
                 )?;
-                let mut array_info = if let Some(info) = array_option {
-                    info
-                } else {
-                    vec![]
-                };
+                let mut array_info = array_option.unwrap_or_default();
                 if let Ok(array_length) = lit_int.base10_parse::<usize>() {
                     array_info.push(array_length);
                     Self::parse_with_option(
@@ -287,10 +283,17 @@ impl DataType {
                         DataBuilderRange::Range(ref range) => (range.end - range.start).div_ceil(8),
                         DataBuilderRange::Size(size) => size.div_ceil(8),
                         DataBuilderRange::None => {
-                            return Err(Error::new(
-                                path.span(),
-                                format!("Can not determine size of field type. If the type is a struct or enum that implements the Bondrewd::Bitfield traits you need to define the `bit_length` via attribute of the same name, because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
-                            ));
+                            if let Some(a) = &attrs.array {
+                                match a {
+                                    DataDarlingSimplifiedArrayType::Block(total) => *total,
+                                    DataDarlingSimplifiedArrayType::Element(e) => e.div_ceil(8),
+                                }
+                            } else {
+                                return Err(Error::new(
+                                    path.span(),
+                                    format!("Can not determine size of field type. If the type is a struct or enum that implements the Bondrewd::Bitfield traits you need to define the `bit_length` via attribute of the same name, because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
+                                ));
+                            }
                         }
                     },
                 }),
@@ -370,7 +373,10 @@ impl DataBuilder {
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = fields.iter().filter(|x| !x.overlap.is_redundant()).last();
+        let last_relevant_field = fields
+            .iter()
+            .filter(|x| !x.overlap.is_redundant())
+            .next_back();
 
         // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
         let mut attrs = DataDarling::from_field(field)?.simplify(field)?;
@@ -405,17 +411,15 @@ impl DataBuilder {
         } else {
             attrs
                 .overlapping_bits
-                .map(|bits| OverlapOptions::Allow(bits))
-                .unwrap_or(OverlapOptions::None)
+                .map_or(OverlapOptions::None, OverlapOptions::Allow)
         };
         let reserve = if attrs.read_only {
             if attrs.reserve {
                 return Err(Error::new(field.span(), "Field has `read_only` and `reserve` defined. \
                 Only 1 of these is allowed on a single field, if there is no need to read the values \
                 during a `from_bytes` call use `reserve`, if you want the value to be read use `read_only`."));
-            } else {
-                ReserveFieldOption::ReadOnly
             }
+            ReserveFieldOption::ReadOnly
         } else if attrs.reserve {
             ReserveFieldOption::ReserveField
         } else {
@@ -497,7 +501,7 @@ impl DataBuilder {
             if attrs.array.is_some() {
                 return Err(Error::new(field.span(), "The attributes provided imply this is an array but bondrewd's type determination says it is not. if the type is not an array verify you are not using an attribute starting with `element` or `block`."));
             }
-            attrs.bits.into()
+            attrs.bits
         };
         let new_field = Self {
             id: if let Some(id) = &field.ident {
@@ -573,7 +577,7 @@ impl DataDarling {
             let thing = self.bits()?.or(self
                 .bit_length
                 .or(self.byte_length.map(|bytes| bytes * 8))
-                .map(|bits| DataBuilderRange::Size(bits)));
+                .map(DataBuilderRange::Size));
             // let Some(out) = thing else{
             //     return Err(syn::Error::new(field.span(), "Could not determine amount of bits to use for field, either `element_bit_length` or `element_byte_length` attributes"));
             // };
@@ -598,22 +602,19 @@ impl DataDarling {
                 self.block_bit_length
                     .or(self.block_byte_length.map(|bytes| bytes * 8))
             };
-
+        let array = if let Some(bit_len) = element_bit_length {
+            if block_bit_length.is_some() {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "Array type can not be both element and block, check field attributes.",
+                ));
+            }
+            Some(DataDarlingSimplifiedArrayType::Element(bit_len))
+        } else {
+            block_bit_length.map(DataDarlingSimplifiedArrayType::Block)
+        };
         Ok(DataDarlingSimplified {
-            array: if let Some(bit_len) = element_bit_length {
-                if block_bit_length.is_some() {
-                    return Err(syn::Error::new(
-                        field.span(),
-                        "Array type can not be both element and block, check field attributes.",
-                    ));
-                } else {
-                    Some(DataDarlingSimplifiedArrayType::Element(bit_len))
-                }
-            } else if let Some(block_len) = block_bit_length {
-                Some(DataDarlingSimplifiedArrayType::Block(block_len))
-            } else {
-                None
-            },
+            array,
             bits,
             overlapping_bits: self.overlapping_bits,
             reserve: self.reserve.is_present(),
@@ -659,7 +660,7 @@ impl DataBuilderRange {
     pub fn bit_length(&self) -> usize {
         match self {
             Self::Range(range) => range.end - range.start,
-            Self::Size(bits) => *bits as usize,
+            Self::Size(bits) => *bits,
             Self::None => 0,
         }
     }
@@ -669,6 +670,6 @@ impl DataBuilderRange {
 pub enum DataDarlingSimplifiedArrayType {
     /// Value is total bits to use for block.
     Block(usize),
-    /// Value is total bits to use for each element.
+    /// Value is bits to use for each element.
     Element(usize),
 }

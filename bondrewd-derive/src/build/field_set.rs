@@ -115,15 +115,15 @@ impl GenericBuilder {
             };
             let mut variant_attrs = {
                 let vd = VariantDarling::from_variant(variant)?;
-                let out = VariantDarlingSimplified::do_thing(vd, &mut attrs)?;
-                out
+
+                VariantDarlingSimplified::do_thing(vd, &mut attrs)?
             };
             let endianness = attrs.endianness.clone().unwrap_or_default();
             if variant_attrs.id.is_none() {
                 variant_attrs.id = lit_id;
             } else if lit_id.is_some() {
                 return Err(syn::Error::new(variant.span(), "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id."));
-            };
+            }
             let variant_name = variant.ident.clone();
             // let fields = Self::parse_fields(
             //     &variant_name,
@@ -145,7 +145,7 @@ impl GenericBuilder {
                     endianness,
                 },
             };
-            let id = variant_attrs.id.into();
+            let id = variant_attrs.id;
             if variant_attrs.invalid {
                 if invalid_variant.is_some() {
                     return Err(Error::new(
@@ -234,8 +234,8 @@ impl GenericBuilder {
         };
         // figure out what the field are and what/where they should be in byte form.
         if let Some(fields) = stripped_fields {
-            for (i, ref field) in fields.iter().enumerate() {
-                let parsed_field = DataBuilder::parse(field, &bondrewd_fields, endianness)?;
+            for (i, field) in fields.iter().enumerate() {
+                let parsed_field = DataBuilder::parse(field, bondrewd_fields, endianness)?;
                 bondrewd_fields.push(parsed_field);
             }
         }
@@ -377,7 +377,7 @@ impl StructDarlingSimplified {
     pub fn merge(&mut self, other: StructDarlingSimplified) -> syn::Result<()> {
         if let Some(val) = other.endianness {
             self.endianness = Some(val);
-        };
+        }
         if !matches!(other.enforcement.ty, StructEnforcementTy::NoRules) {
             self.enforcement = other.enforcement;
         }
@@ -483,7 +483,7 @@ impl VariantDarlingSimplified {
     ) -> Result<Self, syn::Error> {
         if let Some(val) = value.endianness {
             attrs.endianness = Some(val);
-        };
+        }
         if let Some(val) = &mut attrs.endianness {
             if let Some(bt) = value.bit_traversal {
                 val.set_reverse_field_order(matches!(bt, BitTraversal::Back));

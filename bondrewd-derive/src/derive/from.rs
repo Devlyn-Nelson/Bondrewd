@@ -263,7 +263,7 @@ impl Resolver {
                 array_ty,
                 sizings,
             } => match array_ty {
-                ResolverArrayType::Element { .. } => {
+                ResolverArrayType::Element => {
                     let mut buffer = quote! {};
                     let Some(sub) =
                         ElementArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
@@ -285,7 +285,7 @@ impl Resolver {
                     let buffer = quote! { [#buffer] };
                     buffer
                 }
-                ResolverArrayType::Block { .. } => {
+                ResolverArrayType::Block => {
                     let mut buffer = quote! {};
                     let Some(sub) =
                         BlockArrayIter::from_values(&self.data, sub_ty, array_ty, sizings)
@@ -1088,7 +1088,7 @@ impl Resolver {
                     NumberType::Float =>{
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
-                        let fix_ident_stupid = Ident::from_string(&ty_ident.to_string().replace("f", "u"))?;
+                        let fix_ident_stupid = Ident::from_string(&ty_ident.to_string().replace('f', "u"))?;
                         let apply_field_to_buffer = quote! {
                             #fix_ident_stupid::#from_endianness_fn_quote({
                                 #full_quote

@@ -402,16 +402,16 @@ impl Resolver {
                 resolver_strategy,
                 rust_size,
             } => ResolverSubType::Primitive {
-                number_ty: number_ty.clone(),
+                number_ty: *number_ty,
                 resolver_strategy: resolver_strategy.clone(),
-                rust_size: rust_size.clone(),
+                rust_size: *rust_size,
             },
             ResolverType::Nested {
                 ty_ident,
                 rust_size,
             } => ResolverSubType::Nested {
                 ty_ident: ty_ident.clone(),
-                rust_size: rust_size.clone(),
+                rust_size: *rust_size,
             },
             ResolverType::Array {
                 sub_ty,
