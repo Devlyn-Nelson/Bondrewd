@@ -406,9 +406,17 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
                 val.set_endianness_fn(ef);
             }
             Some(val)
-        } else if let Some(ef) = darling.endianness_fn {
+        } else if darling.bit_traversal.is_some() || darling.reverse.is_present() || darling.endianness_fn.is_some() {
             let mut val = Endianness::default();
-            val.set_endianness_fn(ef);
+            if let Some(bt) = darling.bit_traversal {
+                val.set_reverse_field_order(matches!(bt, BitTraversal::Back));
+            }
+            if darling.reverse.is_present() {
+                val.set_reverse_byte_order(true);
+            }
+            if let Some(ef) = darling.endianness_fn {
+                val.set_endianness_fn(ef);
+            }
             Some(val)
         } else {
             None

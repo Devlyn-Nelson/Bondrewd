@@ -989,6 +989,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// 2 fields with 3 bits each, bit positioning will define the direction in which it traverses bit indices,
 /// so in our example if 0 is the least significant bit the first field would be the least significant bit
 /// in the last index in the byte array. `msb0` is the default.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1023,10 +1024,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: 5,
 ///     three: 0,
 /// };
-/// // in msb0 field one is the first 2 bits followed by field two
+/// // in `bit_traversal = "front"` field one is the first 2 bits followed by field two
 /// // then field three is the last 3 bits.
 /// assert_eq!(test_front.into_bytes(), [0b00_101_000]);
-/// // in msb0 field three is the first 3 bits followed by field
+/// // in `bit_traversal = "back"` field three is the first 3 bits followed by field
 /// // 2 then field one being the last 2 bits
 /// assert_eq!(test_back.into_bytes(), [0b000_101_00]);
 /// ```
@@ -1071,54 +1072,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(test_front.into_bytes(), [0b10000000, 0b00000111]);
 /// assert_eq!(test_back.into_bytes(), [0b11100000, 0b00000001]);
 /// ```
-/// # Endianness Examples
-/// There are 2 ways to define endianess of fields that require endianness (multi-byte numbers, char, ...)
-/// - Default endianness which will give provided endianness to all fields that require endianness but
-///     do not have it defined.
-/// - Per field endianess which defines the endianness of a particular field.
-///
-/// Default endianness and per fields endianness can also be used in the same struct
-/// ```
-/// use bondrewd::*;
-/// #[derive(Bitfields)]
-/// // tell bondrewd to default to Big Endian
-/// #[bondrewd(endianness = "be")]
-/// struct SimpleExample {
-///     // this field will be given the default endianness
-///     one: u16,
-///     // here we give the field endianness which means it will not use default endianness.
-///     #[bondrewd(endianness = "le")]
-///     two: u16,
-/// }
-///
-/// let test = SimpleExample {
-///     one: 5,
-///     two: 5,
-/// };
-/// // check that each field are in the correct endianness
-/// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000]);
-/// ```
-/// If you define the endianness of all values that require it `endianness` is not required.
-/// ```
-/// use bondrewd::*;
-/// #[derive(Bitfields)]
-/// struct SimpleExample {
-///     #[bondrewd(endianness = "be")]
-///     one: u16,
-///     #[bondrewd(endianness = "le")]
-///     two: u16,
-///     // because this field does not use more than 1 byte, endianness is not required.
-///     three: bool,
-/// }
-///
-/// let test = SimpleExample {
-///     one: 5,
-///     two: 5,
-///     three: true,
-/// };
-/// // check that each field are in the correct endianness
-/// assert_eq!(test.into_bytes(),[0b00000000, 0b00000101, 0b00000101, 0b00000000, 0b10000000]);
-/// ```
+/// 
 /// # Bitfield Struct as Field Examples
 /// Nested structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
@@ -1268,9 +1222,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     // bytes to store 4 SimpleEnums, we can use 1 byte.
 ///     #[bondrewd(element_bit_length = 2)]
 ///     one_byte_four_values: [SimpleEnum; 4],
-///     // again if the size doesn't need to change, no array attribute
-///     // is needed.
-///     #[bondrewd(struct_size = 7)]
+///     #[bondrewd(element_byte_length = 7)]
 ///     waste_a_byte: [SimpleStruct; 2],
 ///     // if we want to compress the 2 struct in the array we can
 ///     // take advantage of the fact our struct is only using 52 out
@@ -1875,7 +1827,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///         #[bondrewd(bit_length = 15)]
 ///         e: u16,
 ///     },
-///     #[bondrewd(variant_id = 0)]
+///     #[bondrewd(id = 0)]
 ///     Idk,
 /// }
 ///
@@ -2219,17 +2171,44 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// #[derive(Bitfields, Debug, PartialEq, Eq)]
 /// #[bondrewd(endianness = "be", id_bit_length = 2)]
 /// enum Thing {
-///     Zero, // value of 0
-///     #[bondrewd(invalid)]
-///     Invalid, // value of 1 or 3
-///     Two, // value of 2
+///     /// value of 0
+///     Zero,
+///     /// value of 1 or 3
+///     #[bondrewd(invalid, id = 1)]
+///     Invalid,
+///     /// value of 2
+///     Two, 
 /// }
 ///
 /// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
-/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
 /// assert_eq!(Thing::from_bytes([0b01000000]), Thing::Invalid);
+/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
 /// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
+/// Note that if the id is not specified for the invalid variant it would be assigned 2 as
+/// its default value.
+/// 
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields, Debug, PartialEq, Eq)]
+/// #[bondrewd(endianness = "be", id_bit_length = 2)]
+/// enum Thing {
+///     /// value of 0
+///     Zero,
+///     /// value of 2 or 3, NOT 1 because Invalid case is handled outside on normal id assignment
+///     #[bondrewd(invalid)]
+///     Invalid,
+///     /// value of 1
+///     One, 
+/// }
+///
+/// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
+/// assert_eq!(Thing::from_bytes([0b01000000]), Thing::One);
+/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Invalid);
+/// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
+/// ```
+/// 
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::standard())
