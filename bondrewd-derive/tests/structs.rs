@@ -103,7 +103,7 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse() -> anyhow::Resul
         three: 7,
     };
     assert_eq!(SimpleWithStructWithFlip::BYTE_SIZE, 8);
-    assert_eq!(Simple::BIT_SIZE, 52);
+    assert_eq!(Simple::BIT_SIZE, 56);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 8);
     let two_bytes = simple.two.clone().into_bytes();

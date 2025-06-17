@@ -9,7 +9,7 @@ struct Aligned {
 
 #[test]
 fn aligned() {
-    assert_eq!(Aligned::BIT_SIZE, 9);
+    assert_eq!(Aligned::BIT_SIZE, 16);
     assert_eq!(Aligned::BYTE_SIZE, 2);
     let ex = Aligned { number: u16::MAX };
     let bytes = ex.clone().into_bytes();

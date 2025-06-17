@@ -279,7 +279,7 @@ impl FromMeta for EndiannessFn {
 ///     #[bondrewd(bit_length = 9)]
 ///     number: u16,
 /// }
-/// assert_eq!(Aligned::BIT_SIZE, 9);
+/// assert_eq!(Aligned::BIT_SIZE, 16);
 /// assert_eq!(Aligned::BYTE_SIZE, 2);
 /// let ex = Aligned { number: u16::MAX };
 ///
@@ -300,7 +300,7 @@ impl FromMeta for EndiannessFn {
 ///     number: u16,
 /// }
 ///
-/// assert_eq!(Packed::BIT_SIZE, 9);
+/// assert_eq!(Packed::BIT_SIZE, 16);
 /// assert_eq!(Packed::BYTE_SIZE, 2);
 /// let ex = Packed { number: u16::MAX };
 ///
@@ -545,10 +545,11 @@ impl ReserveFieldOption {
     /// Tells `bondrewd-derive` if these bits effect the bit total for the `field_set`
     #[must_use]
     pub fn count_bits(&self) -> bool {
-        match self {
-            Self::FakeField => false,
-            Self::ReserveField | Self::NotReserve | Self::ReadOnly => true,
-        }
+        // match self {
+        //     Self::FakeField => false,
+        //     Self::ReserveField | Self::NotReserve | Self::ReadOnly => true,
+        // }
+        true
     }
     /// Tells `bondrewd-derive` that this field should be completely ignored.
     #[must_use]

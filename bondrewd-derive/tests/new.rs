@@ -22,3 +22,22 @@ fn test_fn() {
     let test = Test::Two { one: false, two: 4 }.into_bytes();
     assert_eq!(test, [0b_0100_1000]);
 }
+
+
+use bondrewd::*;
+#[derive(Bitfields)]
+#[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14, dump)]
+struct FilledBytesEnforced {
+    #[bondrewd(bit_length = 7)]
+    one: u8,
+    #[bondrewd(bit_length = 7)]
+    two: u8,
+}
+fn fill_test(){
+    let _ = FilledBytesEnforced::from_bytes([0,0,0]);
+    // we are enforcing 14 bits but fill_bytes is creating
+    // an imaginary reserve field from bit index 14 to
+    // index 23
+    assert_eq!(14, FilledBytesEnforced::BIT_SIZE);
+    assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+}

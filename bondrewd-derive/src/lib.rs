@@ -1315,7 +1315,8 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// assert_eq!(2, FilledBits::BYTE_SIZE);
-/// assert_eq!(14, FilledBits::BIT_SIZE);
+/// // Note that the fill_bits are included in `BIT_SIZE` this is because fill just added a reserve field internally.
+/// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
 /// But if you hate the idea of figuring out how many bits are needed to fill the structure in order to
 /// make the bit total a multiple of 8, don't specify the amount. This example shows how to use auto
@@ -1331,7 +1332,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// assert_eq!(2, FilledBits::BYTE_SIZE);
-/// assert_eq!(14, FilledBits::BIT_SIZE);
+/// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
 /// ## Using `fill_bits` of a nested structure
 /// Because bondrewd allows bit reversal with structures that do not have a bit count that divides evenly by 8,
@@ -1356,7 +1357,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// assert_eq!(2, FilledBits::BYTE_SIZE);
-/// assert_eq!(14, FilledBits::BIT_SIZE);
+/// assert_eq!(16, FilledBits::BIT_SIZE);
 /// assert_eq!(2, UnfilledBits::BYTE_SIZE);
 /// assert_eq!(14, UnfilledBits::BIT_SIZE);
 /// assert_eq!(FilledBits {one: 127, two: 127}.into_bytes(), [0b11111111,0b00111111]);
@@ -1369,7 +1370,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// }
 /// # Fill Bytes Example
 /// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
-/// present the total output byte size would be 1.
+/// present the total output byte size would be 2.
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1379,7 +1380,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// assert_eq!(3, FilledBytes::BYTE_SIZE);
-/// assert_eq!(16, FilledBytes::BIT_SIZE);
+/// assert_eq!(24, FilledBytes::BIT_SIZE);
 /// ```
 /// Here im going to compare the example above to the closest alternative using a reserve field:
 /// - `FilledBytes` only has 2 field, so only 2 fields are required for instantiation, where as `ReservedBytes` still needs a value for the reserve field despite from/into bytes not using the value anyway.
@@ -1478,7 +1479,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
-/// #[bondrewd(endianness = "be", fill_bits = 13, enforce_bits = 14)]
+/// #[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14)]
 /// struct FilledBytesEnforced {
 ///     #[bondrewd(bit_length = 7)]
 ///     one: u8,
@@ -1489,7 +1490,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // we are enforcing 14 bits but fill_bytes is creating
 /// // an imaginary reserve field from bit index 14 to
 /// // index 23
-/// assert_eq!(14, FilledBytesEnforced::BIT_SIZE);
+/// assert_eq!(17, FilledBytesEnforced::BIT_SIZE);
 /// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// ```
 /// # Enforce Full Bytes Example
