@@ -1571,6 +1571,17 @@ pub(crate) fn generate_read_slice_field_fn_unchecked(
     })
 }
 
+fn get_bits_effected(){
+    // TODO START_HERE make the bits effected auto doc a function and have it account for
+    // reversed objects. this function should replace all read and write
+    // functions auto doc code.
+    let comment_bits = if bit_range.end - bit_range.start > 1 {
+        format!("bits {} through {}", bit_range.start, bit_range.end - 1)
+    } else {
+        format!("bit {}", bit_range.start)
+    };
+}
+
 /// Generates a `write_field_name()` function.
 pub(crate) fn generate_write_field_fn(
     field_quote: &TokenStream,

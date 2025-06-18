@@ -628,11 +628,6 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     too easy for people to understand, so select manufactures (even in Aerospace) decided that Little Endian means
 ///     interweaving bits of fields that do not align with bytes evenly. see example below for explanation of my micro-rant.
 ///
-/// ```
-/// // TODO START_HERE add examples for each endianness. using the simple structs from
-/// // the `simple_ale`, `simple_be` and `simple_le` tests should do nicely.
-/// ```
-///
 /// ## Big Endian
 ///
 /// ```
