@@ -626,7 +626,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - "le" = Little Endian. Will layout fields one after another little endian byte order.
 /// - "ale" = Aligned Little Endian. Some people think having the fields being laid out one after the other is
 ///     too easy for people to understand, so select manufactures (even in Aerospace) decided that Little Endian means
-///     interweaving bit fields that do not align with bytes evenly. see example below for explanation of my micro-rant.
+///     interweaving bits of fields that do not align with bytes evenly. see example below for explanation of my micro-rant.
 /// 
 /// ```
 /// // TODO START_HERE add examples for each endianness. using the simple structs from
