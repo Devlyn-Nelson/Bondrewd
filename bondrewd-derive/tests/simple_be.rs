@@ -23,14 +23,18 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
-    assert_eq!(bytes[0], 0b010_00000);
-    assert_eq!(bytes[1], 0b0000_0000);
-    assert_eq!(bytes[2], 0b0110_0011);
-    assert_eq!(bytes[3], 0b0010_0100);
-    assert_eq!(bytes[4], 0b1000_0110);
-    assert_eq!(bytes[5], 0b0001_0100);
-    // this last 4 bits here don't exist in the struct
-    assert_eq!(bytes[6], 0b0010_0000);
+    assert_eq!(
+        bytes,
+        [
+            0b010_00000,
+            0b0000_0000,
+            0b0110_0011,
+            0b0010_0100,
+            0b1000_0110,
+            0b0001_0100,
+            0b0010_0000,
+        ]
+    );
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);

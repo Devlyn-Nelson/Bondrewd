@@ -23,7 +23,6 @@ fn test_fn() {
     assert_eq!(test, [0b_0100_1000]);
 }
 
-
 #[derive(Bitfields, BitfieldsDyn)]
 #[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14)]
 struct FilledBytesEnforced {
@@ -34,8 +33,8 @@ struct FilledBytesEnforced {
 }
 
 #[test]
-fn fill_test(){
-    let mut input = vec![0,0,0, 0xFF];
+fn fill_test() {
+    let mut input = vec![0, 0, 0, 0xFF];
     let thing = FilledBytesEnforced::from_vec(&mut input);
     // we are enforcing 14 bits but fill_bytes is creating
     // an imaginary reserve field from bit index 14 to
@@ -48,5 +47,4 @@ fn fill_test(){
     let thing = thing.unwrap();
     assert_eq!(thing.one, 0);
     assert_eq!(thing.two, 0);
-
 }

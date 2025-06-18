@@ -9,9 +9,9 @@
 //!     re-writing unaffected bytes.
 //!
 //! # Derive
-//! 
+//!
 //! > `Bitfields` must be derived to derive any other bondrewd trait.
-//! 
+//!
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //!     which offers from\into bytes functions that are non-fallible and convert the struct from/into sized
 //!     u8 arrays.
@@ -42,11 +42,11 @@
 //!     four: i8,
 //! }
 //! ```
-//! 
+//!
 //! Generated function code and attributes omitted. If you want to see the Full Generated Source copy the code above
 //! to a rust project and add the `dump` attribute on the struct for bondrewd (`#[bondrewd(endianness = "be", dump)]`), the generated
 //! code will be output to `target/bondrewd_debug/{you-object-name}_code_gen_{trait}.rs`.
-//! 
+//!
 //! ```compile_fail
 //! impl SimpleExample {
 //!     /// Reads bit 0 within `input_byte_buffer`,
@@ -436,7 +436,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 }
 /// Generates an implementation of the `bondrewd::Bitfield` trait, as well as read and write functions for direct
 /// sized u8 arrays access.
-/// 
+///
 /// This crate is designed so that attributes are only required for fields that
 /// are not what you would expect without the attribute. For example if you provide a u8 fields with no
 /// attributes, the field would be assumed to be the next 8 bits after the field before it. If a field
@@ -444,40 +444,40 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// the field before it.
 ///
 /// # Supported Field Types
-/// 
+///
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
 /// - Structs or Enums which implement Bondrewd's `Bitfield` trait.
-/// 
+///
 /// ## Primitive Assumptions
-/// 
+///
 /// When no `bit_length` is specified the amount of bits bondrewd will assume to use is the same as the number the
 /// type specifies (ex. u32 assumes 32 bits), in the case of `bool` bondrewd assumes 1 bit.
 ///
 /// # Attributes
 ///
 /// #### Common Attributes
-/// 
+///
 /// These attributes can be used on a struct, enum or enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
-/// 
+///
 /// - `endianness = {"le", "be" or "ale"}` Describes a default endianness for primitive fields. as of version
 ///     `0.3.27` the endianness will default to Little Endianness. [example](#endianness-examples)
 /// - `bit_traversal = {"front" or "back"}` Defines which end of the byte array to start at. This is a bit
 ///     index reversal across the entire array from grabbing fields from. [example](#bit-positioning-examples)
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 ///     byte index). [example](#reverse-example)
-/// 
+///
 /// #### Object Attributes
-/// 
+///
 /// - `dump` Dumps the bondrewd code generation output in the `target` directory. I got tried of adding and
 ///     removing this feature for development, so i just didn't remove it.
 ///
 /// #### Struct and Variant Attributes
-/// 
+///
 /// These should not be used on an enum type (they act funny if you do).
-/// 
+///
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 ///     BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
@@ -495,22 +495,22 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     `BYTES` specified. note that these bits will not effect the `BIT_SIZE` constant. [example](#fill-bytes-example)
 ///
 /// #### Enum Attributes
-/// 
+///
 /// - `id_bit_length = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being
 ///     stored. [example](#enum-example)
 /// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
-/// 
+///
 /// - `variant_id = {ID}` Tell bondrewd the id value to use for the variant. [example](#enum-example).
 ///     The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
 /// - `invalid` a single Enum Variant can be marked as the "invalid" variant. The invalid variant acts as
 ///     a catch all for id's that may not be specified. [example](#invalid-enum-variant).
 ///
 /// # Field Attributes
-/// 
+///
 /// #### Common Field Attributes
-/// 
+///
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
 /// - `block_bit_length = {BITS}` Describes a bit length for the entire array dropping lower indexes first.
@@ -526,16 +526,16 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///         due to `from_bytes` needed to provided a value.
 ///
 /// #### Enum Variant Field Attributes
-/// 
+///
 /// - `capture_id` Tells Bondrewd to put the value for id in the field on reads, fields
 ///     with this attribute do NOT get written to the bytes to prevent users from creating improper
 ///     byte values. [example](#capture-id)
 ///
 /// # Experimental Field Attributes
-/// 
+///
 /// if you decide to use these remember that they have not been exhaustively tested. when using
 /// experimental attributes please be careful and report unexpected behavior to our github issues.
-/// 
+///
 /// - `bits = "{RANGE}"` - Define the bit indexes yourself rather than let the proc macro figure
 ///     it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
 ///     above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
@@ -553,7 +553,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///             the field uses.
 ///
 /// # Simple Example
-/// 
+///
 /// This example is on the front page for bondrewd-derive. Here i will be adding some asserts to show what
 /// to expect.
 /// I will be defining a data structure with 7 total bytes as:
@@ -562,7 +562,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - A signed integer field named three will be the next 14 bits.
 /// - An unsigned integer field named four will be the next 6 bits.
 /// - Because these fields do not add up to a number divisible by 8 the last 3 bits will be unused.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -618,26 +618,173 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(511,reconstructed.three);
 /// assert_eq!(0,reconstructed.four);
 /// ```
-/// 
+///
 /// # Endianness Examples
-/// 
+///
 /// Currently there are 3 supported "endianness" formats:
 /// - "be" = Big Endian. Will layout fields one after another little endian byte order.
 /// - "le" = Little Endian. Will layout fields one after another little endian byte order.
 /// - "ale" = Aligned Little Endian. Some people think having the fields being laid out one after the other is
 ///     too easy for people to understand, so select manufactures (even in Aerospace) decided that Little Endian means
 ///     interweaving bits of fields that do not align with bytes evenly. see example below for explanation of my micro-rant.
-/// 
+///
 /// ```
 /// // TODO START_HERE add examples for each endianness. using the simple structs from
 /// // the `simple_ale`, `simple_be` and `simple_le` tests should do nicely.
 /// ```
-/// 
+///
+/// ## Big Endian
+///
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(endianness = "be", enforce_bits = 52)]
+/// struct Simple {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(bit_length = 27)]
+///     two: u32,
+///     #[bondrewd(bit_length = 14)]
+///     three: u16,
+///     four: u8,
+/// }
+///
+/// let simple = Simple {
+///     one: 2,
+///     two: 6345,
+///     three: 2145,
+///     four: 66,
+/// };
+/// assert_eq!(Simple::BYTE_SIZE, 7);
+/// let bytes = simple.clone().into_bytes();
+/// assert_eq!(bytes.len(), 7);
+/// assert_eq!(
+///     bytes,
+///     [
+///         0b010_00000,
+///         0b0000_0000,
+///         0b0110_0011,
+///         0b0010_0100,
+///         0b1000_0110,
+///         0b0001_0100,
+///         0b0010_0000,
+///     ]
+/// );
+/// {
+///     //peeks
+///     assert_eq!(simple.one, Simple::read_slice_one(&bytes).unwrap());
+///     assert_eq!(simple.two, Simple::read_slice_two(&bytes).unwrap());
+///     assert_eq!(simple.three, Simple::read_slice_three(&bytes).unwrap());
+///     assert_eq!(simple.four, Simple::read_slice_four(&bytes).unwrap());
+/// }
+/// // from_bytes
+/// let new_simple = Simple::from_bytes(bytes);
+/// assert_eq!(simple, new_simple);
+/// ```
+///
+/// ## Little Endian
+///
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(endianness = "le", enforce_bits = 52)]
+/// struct Simple {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(bit_length = 27)]
+///     two: u32,
+///     #[bondrewd(bit_length = 14)]
+///     three: u16,
+///     four: u8,
+/// }
+///
+/// let simple = Simple {
+///     one: 2,
+///     two: 6345,
+///     three: 2145,
+///     four: 66,
+/// };
+/// assert_eq!(Simple::BYTE_SIZE, 7);
+/// let bytes = simple.clone().into_bytes();
+/// assert_eq!(bytes.len(), 7);
+/// assert_eq!(
+///     bytes,
+///     [
+///         0b010_11001,
+///         0b0010_0011,
+///         0b0000_0000,
+///         0b0000_0001,
+///         0b1000_0100,
+///         0b1000_0100,
+///         0b0010_0000,
+///     ]
+/// );
+/// {
+///     //peeks
+///     assert_eq!(simple.one, Simple::read_slice_one(&bytes).unwrap());
+///     assert_eq!(simple.two, Simple::read_slice_two(&bytes).unwrap());
+///     assert_eq!(simple.three, Simple::read_slice_three(&bytes).unwrap());
+///     assert_eq!(simple.four, Simple::read_slice_four(&bytes).unwrap());
+/// }
+/// // from_bytes
+/// let new_simple = Simple::from_bytes(bytes);
+/// assert_eq!(simple, new_simple);
+/// ```
+///
+/// ## Aligned Little Endian
+///
+/// ```
+/// use bondrewd::*;
+/// #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+/// #[bondrewd(endianness = "ale", enforce_bits = 52)]
+/// struct Simple {
+///     #[bondrewd(bit_length = 3)]
+///     one: u8,
+///     #[bondrewd(bit_length = 27)]
+///     two: u32,
+///     #[bondrewd(bit_length = 14)]
+///     three: u16,
+///     four: u8,
+/// }
+///
+/// let simple = Simple {
+///     one: 2,
+///     two: 6345,
+///     three: 2145,
+///     four: 66,
+/// };
+/// assert_eq!(Simple::BYTE_SIZE, 7);
+/// let bytes = simple.clone().into_bytes();
+/// assert_eq!(bytes.len(), 7);
+/// assert_eq!(
+///     bytes,
+///     [
+///         0b10100000,
+///         0b01100100,
+///         0b00001100,
+///         0b00000000,
+///         0b10000100,
+///         0b00100001,
+///         0b01000010
+///     ]
+/// );
+/// {
+///     //peeks
+///     assert_eq!(simple.one, Simple::read_slice_one(&bytes).unwrap());
+///     assert_eq!(simple.two, Simple::read_slice_two(&bytes).unwrap());
+///     assert_eq!(simple.three, Simple::read_slice_three(&bytes).unwrap());
+///     assert_eq!(simple.four, Simple::read_slice_four(&bytes).unwrap());
+/// }
+/// // from_bytes
+/// let new_simple = Simple::from_bytes(bytes);
+/// assert_eq!(simple, new_simple);
+/// ```
+///
 /// # Reverse Example
-/// 
+///
 /// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order.
 /// First index becomes last index and last index becomes the first.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -672,9 +819,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(test.into_bytes(), [0b00000000, 0b11111111, 0b000000, 0b01010101]);
 /// assert_eq!(test_reverse.into_bytes(), [0b01010101, 0b000000, 0b11111111, 0b00000000]);
 /// ```
-/// 
+///
 /// # Bit Positioning Examples
-/// 
+///
 /// Here Bit positioning will control where bit 0 is. for example if you have a field with 2 bits then
 /// 2 fields with 3 bits each, bit positioning will define the direction in which it traverses bit indices,
 /// so in our example if 0 is the least significant bit the first field would be the least significant bit
@@ -721,11 +868,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // 2 then field one being the last 2 bits
 /// assert_eq!(test_back.into_bytes(), [0b000_101_00]);
 /// ```
-/// 
+///
 /// When using `reverse` and `bit_traversal` in the same structure:
 /// - `front` would begin at the least significant bit in the first byte.
 /// - `back` would begin at the most significant bit in the last byte.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -766,12 +913,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// ```
 ///
 /// # Bitfield Struct as Field Examples
-/// 
+///
 /// Nested structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
 /// `byte_length = {BYTE_SIZE}`, the `BYTE_SIZE` being the number of bytes in the outputs byte array or
 /// value in the traits const `BYTE_SIZE`.
-/// 
+///
 /// ```
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
 /// use bondrewd::*;
@@ -797,12 +944,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: [Simple; 2],
 /// }
 /// ```
-/// 
+///
 /// We can also trim the struct to a bit length, this can be very useful for struct that do not use the
 /// full amount of bits available in the byte array. For example if we have a struct that uses 4 bits
 /// leaving the remaining 4 bits as unused data, we can make a structure with 2 of the bits structure
 /// that still only uses 1 byte.
-/// 
+///
 /// ```
 /// // this struct uses 4 total bits which means the total BYTE_SIZE is 1.
 /// use bondrewd::*;
@@ -831,15 +978,15 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(SimpleWithStruct::BYTE_SIZE, 1);
 /// assert_eq!(SimpleWithStruct::BYTE_SIZE, Simple::BYTE_SIZE);
 /// ```
-/// 
+///
 /// # Bitfield Array Examples
-/// 
+///
 /// There are 2 types of arrays in Bondrewd:
 /// - Block Arrays are "bit chucks" that define a total-used-bits amount and will drop bits starting
 ///     at the lowest index.
 /// - Element Arrays treat each element of the array as its own field and requires a per element
 ///     bit-length.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -880,11 +1027,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///      0b0_1010101,  // remaining three[1] and three[2]
 ///      0b0_0000000]);// remaining three[2] and 7 unused bits.
 /// ```
-/// 
+///
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
 /// - If `bit_length` of the structs or enums needs to be smaller than the output of either `into_bytes` or `into_primitive` then it is recommended to use element arrays.
 /// - Block Arrays, in my opinion, shouldn't be used for Structs or Enums. because in the below example if the `compressed_structures` field was to use `block_bit_length = 104` the array would use 48 bits for index 0 and 56 bits for index 1.
-/// 
+///
 /// ```
 /// // this struct uses 52 total bits which means the total
 /// // BYTE_SIZE is 7.
@@ -935,12 +1082,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     compressed_structures: [SimpleStruct; 2],
 /// }
 /// ```
-/// 
+///
 /// # Reserve Examples
-/// 
+///
 /// Reserve fields tell Bondrewd to not include logic for reading or writing the field in the from and
 /// into bytes functions. Currently only primitive types are supported.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -973,9 +1120,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(127,reconstructed.two);
 /// assert_eq!(0,reconstructed.reserve);
 /// ```
-/// 
+///
 /// Reserves do not need to be at the end.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1005,15 +1152,15 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(127,reconstructed.two);
 /// assert_eq!(0,reconstructed.reserve);
 /// ```
-/// 
+///
 /// # Fill Bits Examples
-/// 
+///
 /// > if you are using `fill_bits` on a nested structure please read [Using `fill_bits` on a nested structure](#using-fill_bits-on-a-nested-structure)
 ///
 /// Fill bits is used here to make the total output byte size 2 bytes. If `fill_bits` attribute was not
 /// present the total output byte size would be still be 2, but the positioning of bits can be less predicable when
 /// using other attributes like `reverse` or `bit_traversal`.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1028,10 +1175,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // Note that the fill_bits are included in `BIT_SIZE` this is because fill just added a reserve field internally.
 /// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
-/// 
+///
 /// `fill_bits` when no value is provided will detect how many bits are needed to make
 /// `BIT_SIZE / BYTE_SIZE == 8`. This example produces the same results as the example above.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1045,13 +1192,13 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(2, FilledBits::BYTE_SIZE);
 /// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
-/// 
+///
 /// ## Using `fill_bits` on a nested structure
-/// 
+///
 /// Because bondrewd allows bit reversal with structures that do not have a bit count that divides evenly by 8,
 /// the location of bits will change in cases such as `Aligned Little Endian`. This can cause some unexpected results.
 /// It is recommended you use `fill_bits` or `reserve` fields to make the `BIT_SIZE` evenly divisible by 8.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1077,12 +1224,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(FilledBits {one: 127, two: 127}.into_bytes(), [0b11111111,0b00111111]);
 /// assert_eq!(UnfilledBits {one: 127, two: 127}.into_bytes(), [0b11111100,0b11111111]);
 /// ```
-/// 
+///
 /// # Fill Bytes Example
-/// 
+///
 /// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
 /// present the total output byte size would be 2.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1094,12 +1241,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, FilledBytes::BYTE_SIZE);
 /// assert_eq!(24, FilledBytes::BIT_SIZE);
 /// ```
-/// 
+///
 /// Here im going to compare the example above to the closest alternative using a reserve field:
 /// - `FilledBytes` only has 2 field, so only 2 fields are required for instantiation, where as `ReservedBytes` still needs a value for the reserve field despite from/into bytes not using the value anyway.
 /// - `ReservedBytes` has 2 extra functions that Filled Bytes does not, `write_reserve` and `read_reserve`.
 /// - One more thing to consider is reserve fields are currently confined to primitives, if more than 128 reserve bits are required at the end, `fill_bytes` is the only supported way of doing this.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1113,16 +1260,16 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, ReservedBytes::BYTE_SIZE);
 /// assert_eq!(24, ReservedBytes::BIT_SIZE);
 /// ```
-/// 
+///
 /// # Enforce Bits Examples
-/// 
+///
 /// Enforce Bits/Bytes Main purpose is to act as a compile time check to ensure how many bit you think
 /// are being use is the actual amount of bits being used.\
 /// Here i have 2 fields with a total defined bit-length of 6, and then an undecorated boolean field. I
 /// also have trust issues so i want to verify that the bool is only using 1 bit making the total bit
 /// length of the struct 7 bits. Adding `enforce_bits = 7` will force a compiler error if the calculated
 /// total bit length is not 7.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1137,10 +1284,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// 
+///
 /// Here is the same example where i assigned the "incorrect" the `bit_length` of the first field making the
 /// total 8 instead of 7.
-/// 
+///
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1161,7 +1308,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// second example i will show the the same end result but without a reserve field. First will be defining
 /// all 24 total bits as 3 fields marking the last field of 10 bits with the reserve attribute
 /// because we don't want from/into bytes functions to process those bytes.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1177,14 +1324,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// 
+///
 /// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works.
 /// `enforce_bytes` will check the total bit length before the bits are filled.
 ///   
 /// Here i am telling Bondrewd to make the total byte length 3 using `fill_bytes`.
 /// This Example fails to build because only 16 bits are being defined by fields and `enforce_bytes`
 /// is telling Bondrewd to expect 16 bits to be used by defined fields.
-/// 
+///
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1194,12 +1341,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// ```
-/// 
+///
 /// To fix this we need to make sure our enforcement value is the amount of bits defined by the fields NOT
 /// the expected `FilledBytesEnforced::BYTE_SIZE`.
 ///   
 /// Here is the Correct usage of these two attributes working together.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1217,13 +1364,13 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(17, FilledBytesEnforced::BIT_SIZE);
 /// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// ```
-/// 
+///
 /// # Enforce Full Bytes Example
-/// 
+///
 /// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
 /// total bits determined from the defined fields is not a multiple of 8. This was included for those
 /// like me that get paranoid they entered something in wrong.
-/// 
+///
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1235,10 +1382,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// ```
-/// 
+///
 /// In this case if we still wanted fields one and two to remain 7 bits we need to add another field
 /// to use the remaining 2 bits.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1254,7 +1401,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// 
+///
 /// # Enum Examples
 ///
 /// ```
@@ -1278,9 +1425,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     three: u8,
 /// }
 /// ```
-/// 
+///
 /// Enums can also be used in [arrays](#bitfield-array-examples)
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1304,11 +1451,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: [Simple; 3],
 /// }
 /// ```
-/// 
+///
 /// # Bits Attribute Example
-/// 
+///
 /// First i will replicate the [Simple Example](#simple-example) to show an equivalent use.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1366,14 +1513,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(511,reconstructed.three);
 /// assert_eq!(0,reconstructed.four);
 /// ```
-/// 
+///
 /// # Redundant Examples
-/// 
+///
 /// In this example we will has fields share data. flags in the example will represent a u8 storing
 /// multiple boolean flags, but all of the flags within are also fields in the struct. if we mark
 /// flags as `redundant` above the boolean flag fields then flags will be `read_only` (effects nothing
 /// during an `into_bytes` call).
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1457,9 +1604,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(false,reconstructed.flag_five);
 /// assert_eq!(false,reconstructed.flag_six);
 /// ```
-/// 
+///
 /// we can also have the flags below if we use the `bits` attribute.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1543,9 +1690,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(false, reconstructed.flag_five);
 /// assert_eq!(false, reconstructed.flag_six);
 /// ```
-/// 
+///
 /// # Enum Example
-/// 
+///
 /// Because enums can provide a lot of ambiguity there is a requirement that The last variant is
 /// always considered the "Invalid Variant", which simply means that it will be a
 /// catch-all in the match statement for the generated `Bitfields::from_bytes()` function.
@@ -1583,14 +1730,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
 /// assert_eq!(bytes[2], 0b01_000000);
 /// ```
-/// 
+///
 /// # Enum With Discriminates
-/// 
+///
 /// This example has Variant's `Three`, `Two`, `One`, and `Idk`. The variants with
 /// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
 ///
 /// #### Issue You May Run Into
-/// 
+///
 /// Because I am:
 /// - Setting the last variant's, "Idk" variant, id to `0`,
 /// - Setting the first variant's, `Three` variant, id to `3`,
@@ -1607,9 +1754,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     zero regardless of the last variant being manually assigned that number already.
 /// - Change the second variant's, `One`, id assignment of `1` to `2`. `repr` will assume that this should
 ///     be that last variant's value plus one which is `3` and already used.
-/// 
+///
 /// #### Discriminate Example
-/// 
+///
 /// ```
 /// use bondrewd::*;
 ///
@@ -1647,9 +1794,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// };
 /// assert_eq!(two.id(), 2);
 /// ```
-/// 
+///
 /// #### Capture Id
-/// 
+///
 /// ```
 /// use bondrewd::*;
 ///
@@ -1697,9 +1844,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     _ => panic!("id wasn't 3"),
 /// }
 /// ```
-/// 
+///
 /// #### Invalid Enum Variant
-/// 
+///
 /// For this example we will be show casing why enums do not panic on an invalid case. The generative code
 /// for enums always has an invalid variant even when all possible values have a variant. If an Id value
 /// does not have an associated variant, `Bitfield::from_bytes` will return the "invalid" variant. This
@@ -1737,7 +1884,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant
 /// - a value of 2 as the id would result in a `Thing::Two` variant
-/// 
+///
 /// ```
 /// use bondrewd::*;
 ///
@@ -1758,7 +1905,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
 /// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
-/// 
+///
 /// Note that if the id is not specified for the invalid variant it would be assigned 2 as
 /// its default value because the invalid variant is processed last within bondrewd.
 ///
@@ -1789,21 +1936,21 @@ pub fn derive_bitfields(input: proc_macro::TokenStream) -> proc_macro::TokenStre
 
 /// Slice functions are convenience functions for reading/wring single or multiple fields without reading
 /// the entire structure. Bondrewd will provide 2 ways to access the field: slice functions and checked structs.
-/// 
+///
 /// # Slice Functions
-/// 
+///
 /// These are functions that are added along side the standard read/write field
 /// functions in the impl for the input structure. read/write slice functions will check the length of
 /// the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
 /// and return `BitfieldLengthError` if not enough bytes are present.
-/// 
+///
 /// functions implemented to object by derive:
 ///
 /// `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
 /// `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
 ///
 /// # Checked Structs
-/// 
+///
 /// Deriving the `BitfieldsSlice` trait provides "checked structures" (structures containing a reference to a slice
 /// we checked the size of). These checked structs contain all of the same read/write field functions that `Bitfields`
 /// provides without the requirement of providing a statically sized array because we checked the size while creating
@@ -1827,7 +1974,7 @@ pub fn derive_bitfields_dyn(input: proc_macro::TokenStream) -> proc_macro::Token
 }
 
 /// `BitfieldsHex` provides from/into hex functions like from/into bytes.
-/// 
+///
 /// The hex inputs/outputs are \[u8;N\] where N is double the calculated bondrewd `STRUCT_SIZE`.
 /// Hex encoding and decoding is based off the [hex](https://crates.io/crates/hex) crate's
 /// from/into slice functions but with statically sized arrays so we could eliminate sizing errors.

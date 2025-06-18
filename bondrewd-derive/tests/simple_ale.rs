@@ -23,14 +23,10 @@ fn ale_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
-    assert_eq!(bytes[0], 0b010_00000);
-    assert_eq!(bytes[1], 0b0000_0000);
-    assert_eq!(bytes[2], 0b0110_0011);
-    assert_eq!(bytes[3], 0b0010_0100);
-    assert_eq!(bytes[4], 0b1000_0110);
-    assert_eq!(bytes[5], 0b0001_0100);
-    // this last 4 bits here don't exist in the struct
-    assert_eq!(bytes[6], 0b0010_0000);
+    assert_eq!(
+        bytes,
+        [0b10100000, 0b01100100, 0b00001100, 0b00000000, 0b10000100, 0b00100001, 0b01000010]
+    );
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -65,8 +61,7 @@ fn ale_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[1], 0b0111_1111);
-    assert_eq!(bytes[0], 0b1110_0000);
+    assert_eq!(bytes, [0b00000111, 0b11111110,]);
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
@@ -100,8 +95,7 @@ fn ale_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[0], 0b0000_0111);
-    assert_eq!(bytes[1], 0b1111_1110);
+    assert_eq!(bytes, [0b11100000, 0b01111111,]);
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
@@ -140,8 +134,7 @@ fn ale_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
     let mut bytes: [u8; 2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[0], 0b1010_1010);
-    assert_eq!(bytes[1], 0b1000_1111);
+    assert_eq!(bytes, [0b01010101, 0b11110001,]);
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReserve::read_slice_one(&bytes)?);
@@ -175,8 +168,8 @@ struct SimpleDuplicateData {
     six: bool,
     seven: bool,
     eight: bool,
-    // #[bondrewd(bits = "0..8", redundant)]
-    // dup: u8,
+    #[bondrewd(bits = "0..8", redundant)]
+    dup: u8,
     nine: u8,
 }
 
@@ -191,7 +184,7 @@ fn ale_duplicate_data() {
         six: false,
         seven: false,
         eight: false,
-        // dup: 0,
+        dup: 0,
         nine: u8::MAX,
     };
     assert_eq!(SimpleDuplicateData::BYTE_SIZE, 2);
@@ -208,6 +201,6 @@ fn ale_duplicate_data() {
     assert!(!new_data.six);
     assert!(!new_data.seven);
     assert!(!new_data.eight);
-    // assert_eq!(new_data.dup, 0);
+    assert_eq!(new_data.dup, 0);
     assert_eq!(new_data.nine, u8::MAX);
 }
