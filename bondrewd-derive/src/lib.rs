@@ -3,28 +3,15 @@
 //!
 //! Provides a proc macro used on Structures or Enums which provides functions for:
 //! - outputting your native rust structure/enum as a statically sized byte array.
-//! - re-creating your structure/enum from a statically sized byte array (no possible errors). Or if the
-//!     `dyn_fns` feature is enabled a `&[u8]` or `Vec<u8>` (possible length error)
-//! - read/writing individual fields within a byte array (or slice with `dyn_fns` feature enabled) without
+//! - re-creating your structure/enum from a statically sized byte array (no possible errors). `BitfieldsDyn`
+//!     a `&[u8]` or `Vec<u8>` (possible length error).
+//! - read/writing individual fields within a byte array (or slice with `BitfieldsDyn`) without
 //!     re-writing unaffected bytes.
 //!
-//! # Under Development
-//!
-//! This project is worked on as needed for my job. Public releases and requests are low priority,
-//! because they have to be done during my free time which i spend on other/more-fun projects. These are
-//! the only changes i am currently considering at the moment:
-//!
-//! - Full support for floating point numbers. I would like to be able to be able to
-//!     have fully dynamic floating point with customizable exponent and mantissa as well
-//!     and unsigned option.
-//! - Allow assumed id sizing for enums. we do check the provided id size is large enough so if non is
-//!     defined we could just use the calculated smallest allowable.
-//! - Getters and Setters. Most of this is actually done already, just need:
-//!     - Write array setters.
-//!     - better struct/enum setters/getters.
-//! - LOTS of in code documentation, this is greatly needed in the math code.
-//!
-//! # Derive Bitfields
+//! # Derive
+//! 
+//! > `Bitfields` must be derived to derive any other bondrewd trait.
+//! 
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //!     which offers from\into bytes functions that are non-fallible and convert the struct from/into sized
 //!     u8 arrays.
@@ -55,7 +42,11 @@
 //!     four: i8,
 //! }
 //! ```
-//! Generated function code and attributes omitted. [Full Generated Code](#full-example-generated-code)
+//! 
+//! Generated function code and attributes omitted. If you want to see the Full Generated Source copy the code above
+//! to a rust project and add the `dump` attribute on the struct for bondrewd (`#[bondrewd(endianness = "be", dump)]`), the generated
+//! code will be output to `target/bondrewd_debug/{you-object-name}_code_gen_{trait}.rs`.
+//! 
 //! ```compile_fail
 //! impl SimpleExample {
 //!     /// Reads bit 0 within `input_byte_buffer`,
@@ -95,347 +86,6 @@
 //!     fn from_bytes(mut input_byte_buffer: [u8; 7usize]) -> Self { ... }
 //!
 //!     fn into_bytes(self) -> [u8; 7usize] { ... }
-//! }
-//! ```
-//!
-//! # Crate Features
-//! ### `dyn_fns`
-//! Slice functions are convenience functions for reading/wring single or multiple fields without reading
-//! the entire structure. Bondrewd will provided 2 ways to access the field:
-//!
-//! > as of `bondrewd = 0.2` the `std` feature is no longer on by default, meaning `BondrewdSliceError`
-//! > does NOT implement [`std::error::Error`] by default. If you want standard error, use the [`std`]
-//! > feature in bondrewd.
-//!
-//! - Single field access. These are functions that are added along side the standard read/write field
-//!     functions in the impl for the input structure. read/write slice functions will check the length of
-//!     the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
-//!     and return `BitfieldLengthError` if not enough bytes are present.
-//!
-//!     - `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
-//!
-//!     - `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
-//!
-//! - Multiple field access.
-//!
-//!     - `fn check_slice(&[u8]) -> Result<{struct_name}Checked, bondrewd::BondrewdSliceError> { .. }`
-//!       This function will check the size of the slice, if the slice is big enough it will return
-//!       a checked structure. the structure will be the same name as the input structure with
-//!       "Checked" tacked onto the end. the Checked Structure will have getters for each of the input
-//!       structures fields, the naming is the same as the standard `read_{field}` functions.
-//!
-//!         - `fn read_{field}(&self) -> {field_type} { .. }`
-//!
-//!     - `fn check_slice_mut(&mut [u8]) -> Result<{struct_name}CheckedMut, bondrewd::BondrewdSliceError> { .. }`
-//!       This function will check the size of the slice, if the slice is big enough it will return
-//!       a checked structure. the structure will be the same name as the input structure with
-//!       `CheckedMut` tacked onto the end. the Checked Structure will have getters and setters for each
-//!       of the input structures fields, the naming is the same as the standard `read_{field}` and
-//!       `write_{field}` functions.
-//!
-//!         - `fn read_{field}(&self) -> {field_type} { .. }`
-//!
-//!         - `fn write_{field}(&mut self) -> {field_type} { .. }`
-//!
-//! > Enums will generate a separate "Checked" structure set for each variant.
-//!
-//! - `BitfieldsDyn` trait implementation. This allows easier creation of the object without needing an array
-//!     that has the exact `Bitfield::BYTE_SIZE`.
-//!   
-//! Example Cargo.toml Bondrewd dependency\
-//! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`\
-//! `SimpleExample` Generated Slice Api:
-//! ```compile_fail
-//! impl SimpleExample {
-//!     /// Returns the value for the `one` field of a `SimpleExample` in bitfield form by reading
-//!     /// bits 0 through 0 in `input_byte_buffer`. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are
-//!     /// present.
-//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<bool, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Returns the value for the `two` field of a `SimpleExample` in bitfield form by reading
-//!     /// bits 1 through 32 in `input_byte_buffer`. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are
-//!     /// present.
-//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<f32, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Returns the value for the `three` field of a `SimpleExample` in bitfield form by reading
-//!     /// bits 33 through 46 in `input_byte_buffer`. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are
-//!     /// present.
-//!     pub fn read_slice_three(
-//!         input_byte_buffer: &[u8],
-//!     ) -> Result<u16, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Returns the value for the `four` field of a `SimpleExample` in bitfield form by reading
-//!     /// bits 47 through 52 in `input_byte_buffer`. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are
-//!     /// present.
-//!     pub fn read_slice_four(input_byte_buffer: &[u8]) -> Result<i8, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Returns a [SimpleExampleChecked] which allows you to read any field for a `SimpleExample`
-//!     /// from provided slice.
-//!     pub fn check_slice(
-//!         buffer: &[u8],
-//!     ) -> Result<SimpleExampleChecked, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Writes to bit 0 in `input_byte_buffer` if enough bytes are present in slice,
-//!     /// setting the `one` field of a `SimpleExample` in bitfield form. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned
-//!     pub fn write_slice_one(
-//!         output_byte_buffer: &mut [u8],
-//!         one: bool,
-//!     ) -> Result<(), bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Writes to bits 1 through 32 in `input_byte_buffer` if enough bytes are present in slice,
-//!     /// setting the `two` field of a `SimpleExample` in bitfield form. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned
-//!     pub fn write_slice_two(
-//!         output_byte_buffer: &mut [u8],
-//!         two: f32,
-//!     ) -> Result<(), bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Writes to bits 33 through 46 in `input_byte_buffer` if enough bytes are present in slice,
-//!     /// setting the `three` field of a `SimpleExample` in bitfield form. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned
-//!     pub fn write_slice_three(
-//!         output_byte_buffer: &mut [u8],
-//!         three: u16,
-//!     ) -> Result<(), bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Writes to bits 47 through 52 in `input_byte_buffer` if enough bytes are present in slice,
-//!     /// setting the `four` field of a `SimpleExample` in bitfield form. Otherwise a
-//!     /// [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned
-//!     pub fn write_slice_four(
-//!         output_byte_buffer: &mut [u8],
-//!         four: i8,
-//!     ) -> Result<(), bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Returns a [SimpleExampleCheckedMut] which allows you to read/write any field for a
-//!     /// `SimpleExample` from/to provided mutable slice.
-//!     pub fn check_slice_mut(
-//!         buffer: &mut [u8],
-//!     ) -> Result<SimpleExampleCheckedMut, bondrewd::BitfieldLengthError> { ... }
-//! }
-//! /// A Structure which provides functions for getting the fields of a
-//! /// [SimpleExample] in its bitfield form.
-//! struct SimpleExampleChecked<'a> {
-//!     buffer: &'a [u8],
-//! }
-//! impl<'a> SimpleExampleChecked<'a> {
-//!     /// Reads bit 0 in pre-checked slice, getting the `one` field of
-//!     ///  [SimpleExample] in bitfield form.
-//!     pub fn read_one(&self) -> bool { ... }
-//!
-//!     /// Reads bits 1 through 32 in pre-checked slice, getting the `two` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_two(&self) -> f32 { ... }
-//!
-//!     /// Reads bits 33 through 46 in pre-checked slice, getting the `three` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_three(&self) -> u16 { ... }
-//!
-//!     /// Reads bits 47 through 52 in pre-checked slice, getting the `four` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_four(&self) -> i8 { ... }
-//!
-//!     /// Panics if resulting `SimpleExampleChecked` does not contain enough bytes to read
-//!     /// a field that is attempted to be read.
-//!     pub fn from_unchecked_slice(data: &'a [u8]) -> Self { ... }
-//! }
-//! /// A Structure which provides functions for getting and setting the fields
-//! /// of a [SimpleExample] in its bitfield form.
-//! struct SimpleExampleCheckedMut<'a> {
-//!     buffer: &'a mut [u8],
-//! }
-//! impl<'a> SimpleExampleCheckedMut<'a> {
-//!     /// Reads bit 0 in pre-checked slice, getting the `one` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_one(&self) -> bool { ... }
-//!
-//!     /// Reads bits 1 through 32 in pre-checked slice, getting the `two` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_two(&self) -> f32 { ... }
-//!
-//!     /// Reads bits 33 through 46 in pre-checked slice, getting the `three` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_three(&self) -> u16 { ... }
-//!
-//!     /// Reads bits 47 through 52 in pre-checked slice, getting the `four` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn read_four(&self) -> i8 { ... }
-//!
-//!     /// Writes to bit 0 in pre-checked mutable slice, setting the `one` field of a
-//!     /// [SimpleExample] in bitfield form.
-//!     pub fn write_one(&mut self, one: bool) { ... }
-//!
-//!     /// Writes to bits 1 through 32 in pre-checked mutable slice, setting the `two`
-//!     /// field of a [SimpleExample] in bitfield form.
-//!     pub fn write_two(&mut self, two: f32) { ... }
-//!
-//!     /// Writes to bits 33 through 46 in pre-checked mutable slice, setting the `three`
-//!     /// field of a [SimpleExample] in bitfield form.
-//!     pub fn write_three(&mut self, three: u16) { ... }
-//!
-//!     /// Writes to bits 47 through 52 in pre-checked mutable slice, setting the `four`
-//!     /// field of a [SimpleExample] in bitfield form.
-//!     pub fn write_four(&mut self, four: i8) { ... }
-//!
-//!     /// Panics if resulting `SimpleExampleCheckedMut` does not contain enough bytes to
-//!     /// read a field that is attempted to be read or written.
-//!     pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self { ... }
-//! }
-//! impl bondrewd::BitfieldsDyn<7usize> for SimpleExample {
-//!     /// Creates a new instance of `Self` by copying field from the bitfields,
-//!     /// removing bytes that where used.
-//!     ///
-//!     /// # Errors
-//!     /// If the provided `Vec<u8>` does not have enough bytes an error will be returned.
-//!     fn from_vec(input_byte_buffer: &mut Vec<u8>) -> Result<Self, bondrewd::BitfieldLengthError> { ... }
-//!
-//!     /// Creates a new instance of `Self` by copying field from the bitfields.
-//!     /// # Errors
-//!     /// If the provided `Vec<u8>` does not have enough bytes an error will be returned.
-//!     fn from_slice(input_byte_buffer: &[u8]) -> Result<Self, bondrewd::BitfieldLengthError> { ... }
-//! }
-//! ```
-//! ### `hex_fns`
-//! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
-//! where N is double the calculated bondrewd `STRUCT_SIZE`. Hex encoding and decoding is based off the
-//! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
-//! arrays so we could eliminate sizing errors.
-//!
-//! ### Full Example Generated Code
-//! ```
-//! struct SimpleExample {
-//!     one: bool,
-//!     two: f32,
-//!     three: u16,
-//!     four: i8,
-//! }
-//! impl SimpleExample {
-//!     #[inline]
-//!     #[doc = "Reads bit 0 within `input_byte_buffer`, getting the `one` field of a `SimpleExample` in bitfield form."]
-//!     pub fn read_one(input_byte_buffer: &[u8; 7usize]) -> bool {
-//!         ((input_byte_buffer[0usize] & 128u8) != 0)
-//!     }
-//!     #[inline]
-//!     #[doc = "Reads bits 1 through 32 within `input_byte_buffer`, getting the `two` field of a `SimpleExample` in bitfield form."]
-//!     pub fn read_two(input_byte_buffer: &[u8; 7usize]) -> f32 {
-//!         f32::from_bits(
-//!             u32::from_be_bytes({
-//!                 let mut two_bytes: [u8; 4usize] = [0u8; 4usize];
-//!                 two_bytes[0usize] |= input_byte_buffer[0usize] & 127u8;
-//!                 two_bytes[1usize] |= input_byte_buffer[1usize];
-//!                 two_bytes[2usize] |= input_byte_buffer[2usize];
-//!                 two_bytes[3usize] |= input_byte_buffer[3usize];
-//!                 two_bytes[0] |= input_byte_buffer[4usize] & 128u8;
-//!                 two_bytes
-//!             })
-//!             .rotate_left(1u32),
-//!         )
-//!     }
-//!     #[inline]
-//!     #[doc = "Reads bits 33 through 46 within `input_byte_buffer`, getting the `three` field of a `SimpleExample` in bitfield form."]
-//!     pub fn read_three(input_byte_buffer: &[u8; 7usize]) -> u16 {
-//!         u16::from_be_bytes({
-//!             let mut three_bytes: [u8; 2usize] = [0u8; 2usize];
-//!             three_bytes[1usize] |= input_byte_buffer[4usize] & 127u8;
-//!             three_bytes[0] |= input_byte_buffer[5usize] & 254u8;
-//!             three_bytes
-//!         })
-//!         .rotate_left(7u32)
-//!     }
-//!     #[inline]
-//!     #[doc = "Reads bits 47 through 52 within `input_byte_buffer`, getting the `four` field of a `SimpleExample` in bitfield form."]
-//!     pub fn read_four(input_byte_buffer: &[u8; 7usize]) -> i8 {
-//!         i8::from_be_bytes({
-//!             let mut four_bytes: [u8; 1usize] = if (input_byte_buffer[5usize] & 1u8) == 1u8 {
-//!                 [6u8]
-//!             } else {
-//!                 [0u8; 1usize]
-//!             };
-//!             four_bytes[0usize] |= input_byte_buffer[5usize] & 1u8;
-//!             four_bytes[0] |= input_byte_buffer[6usize] & 248u8;
-//!             four_bytes
-//!         })
-//!         .rotate_left(5u32)
-//!     }
-//!     #[inline]
-//!     #[doc = "Writes to bit 0 within `output_byte_buffer`, setting the `one` field of a `SimpleExample` in bitfield form."]
-//!     pub fn write_one(output_byte_buffer: &mut [u8; 7usize], mut one: bool) {
-//!         output_byte_buffer[0usize] &= 127u8;
-//!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
-//!     }
-//!     #[inline]
-//!     #[doc = "Writes to bits 1 through 32 within `output_byte_buffer`, setting the `two` field of a `SimpleExample` in bitfield form."]
-//!     pub fn write_two(output_byte_buffer: &mut [u8; 7usize], mut two: f32) {
-//!         output_byte_buffer[0usize] &= 128u8;
-//!         output_byte_buffer[1usize] &= 0u8;
-//!         output_byte_buffer[2usize] &= 0u8;
-//!         output_byte_buffer[3usize] &= 0u8;
-//!         output_byte_buffer[4usize] &= 127u8;
-//!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
-//!         output_byte_buffer[1usize] |= two_bytes[1usize];
-//!         output_byte_buffer[2usize] |= two_bytes[2usize];
-//!         output_byte_buffer[3usize] |= two_bytes[3usize];
-//!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
-//!     }
-//!     #[inline]
-//!     #[doc = "Writes to bits 33 through 46 within `output_byte_buffer`, setting the `three` field of a `SimpleExample` in bitfield form."]
-//!     pub fn write_three(output_byte_buffer: &mut [u8; 7usize], mut three: u16) {
-//!         output_byte_buffer[4usize] &= 128u8;
-//!         output_byte_buffer[5usize] &= 1u8;
-//!         let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
-//!         output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
-//!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
-//!     }
-//!     #[inline]
-//!     #[doc = "Writes to bits 47 through 52 within `output_byte_buffer`, setting the `four` field of a `SimpleExample` in bitfield form."]
-//!     pub fn write_four(output_byte_buffer: &mut [u8; 7usize], mut four: i8) {
-//!         output_byte_buffer[5usize] &= 254u8;
-//!         output_byte_buffer[6usize] &= 7u8;
-//!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
-//!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
-//!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
-//!     }
-//! }
-//! impl bondrewd::Bitfields<7usize> for SimpleExample {
-//!     const BIT_SIZE: usize = 53usize;
-//!     fn from_bytes(mut input_byte_buffer: [u8; 7usize]) -> Self {
-//!         let one = Self::read_one(&input_byte_buffer);
-//!         let two = Self::read_two(&input_byte_buffer);
-//!         let three = Self::read_three(&input_byte_buffer);
-//!         let four = Self::read_four(&input_byte_buffer);
-//!         Self {
-//!             one,
-//!             two,
-//!             three,
-//!             four,
-//!         }
-//!     }
-//!     fn into_bytes(self) -> [u8; 7usize] {
-//!         let mut output_byte_buffer: [u8; 7usize] = [0u8; 7usize];
-//!         let one = self.one;
-//!         output_byte_buffer[0usize] |= ((one as u8) << 7usize) & 128u8;
-//!         let two = self.two;
-//!         let two_bytes = (two.to_bits().rotate_right(1u32)).to_be_bytes();
-//!         output_byte_buffer[0usize] |= two_bytes[0usize] & 127u8;
-//!         output_byte_buffer[1usize] |= two_bytes[1usize];
-//!         output_byte_buffer[2usize] |= two_bytes[2usize];
-//!         output_byte_buffer[3usize] |= two_bytes[3usize];
-//!         output_byte_buffer[4usize] |= two_bytes[0] & 128u8;
-//!         let three = self.three;
-//!         let three_bytes = (three.rotate_right(7u32)).to_be_bytes();
-//!         output_byte_buffer[4usize] |= three_bytes[1usize] & 127u8;
-//!         output_byte_buffer[5usize] |= three_bytes[0] & 254u8;
-//!         let four = self.four;
-//!         let four_bytes = (four.rotate_right(5u32)).to_be_bytes();
-//!         output_byte_buffer[5usize] |= four_bytes[0usize] & 1u8;
-//!         output_byte_buffer[6usize] |= four_bytes[0] & 248u8;
-//!         output_byte_buffer
-//!     }
 //! }
 //! ```
 
@@ -785,34 +435,49 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
     }
 }
 /// Generates an implementation of the `bondrewd::Bitfield` trait, as well as read and write functions for direct
-/// sized u8 arrays access. This crate is designed so that attributes are only required for fields that
+/// sized u8 arrays access.
+/// 
+/// This crate is designed so that attributes are only required for fields that
 /// are not what you would expect without the attribute. For example if you provide a u8 fields with no
 /// attributes, the field would be assumed to be the next 8 bits after the field before it. If a field
 /// of bool type without attributes is defined, the field would be assumed to be the next bit after
 /// the field before it.
 ///
 /// # Supported Field Types
+/// 
 /// - All primitives other than usize and isize (i believe ambiguous sizing is bad for this type of work).
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
 /// - Structs or Enums which implement Bondrewd's `Bitfield` trait.
-/// - Enums which implement the Bondrewd's deprecated `BitfieldEnum` trait.
+/// 
+/// ## Primitive Assumptions
+/// 
+/// When no `bit_length` is specified the amount of bits bondrewd will assume to use is the same as the number the
+/// type specifies (ex. u32 assumes 32 bits), in the case of `bool` bondrewd assumes 1 bit.
 ///
 /// # Attributes
 ///
 /// #### Common Attributes
+/// 
 /// These attributes can be used on a struct, enum or enum variant. When used with an enum they are
 /// defaults for the variants, and each variant can be assigned these attributes as well.
-/// - `endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
+/// 
+/// - `endianness = {"le", "be" or "ale"}` Describes a default endianness for primitive fields. as of version
 ///     `0.3.27` the endianness will default to Little Endianness. [example](#endianness-examples)
 /// - `bit_traversal = {"front" or "back"}` Defines which end of the byte array to start at. This is a bit
 ///     index reversal across the entire array from grabbing fields from. [example](#bit-positioning-examples)
 /// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
 ///     byte index). [example](#reverse-example)
-/// - `dump` Dumps the bondrewd code generation output to a file. I got tried of adding and removing this
-///     feature for development, so i just didn't remove it.
+/// 
+/// #### Object Attributes
+/// 
+/// - `dump` Dumps the bondrewd code generation output in the `target` directory. I got tried of adding and
+///     removing this feature for development, so i just didn't remove it.
 ///
 /// #### Struct and Variant Attributes
+/// 
+/// These should not be used on an enum type (they act funny if you do).
+/// 
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 ///     BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
@@ -830,21 +495,24 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     `BYTES` specified. note that these bits will not effect the `BIT_SIZE` constant. [example](#fill-bytes-example)
 ///
 /// #### Enum Attributes
+/// 
 /// - `id_bit_length = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being
 ///     stored. [example](#enum-example)
 /// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
 ///
 /// #### Variant Attributes
+/// 
 /// - `variant_id = {ID}` Tell bondrewd the id value to use for the variant. [example](#enum-example).
 ///     The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
 /// - `invalid` a single Enum Variant can be marked as the "invalid" variant. The invalid variant acts as
 ///     a catch all for id's that may not be specified. [example](#invalid-enum-variant).
 ///
 /// # Field Attributes
+/// 
 /// #### Common Field Attributes
+/// 
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
 /// - `byte_length = {BYTES}` Define the total amount of bytes to use when condensed. [example](#simple-example)
-/// - `endianness = {"le" or "be"}` Define per field endianness. [example](#endianness-examples)
 /// - `block_bit_length = {BITS}` Describes a bit length for the entire array dropping lower indexes first.
 ///     [example](#bitfield-array-examples)
 /// - `block_byte_length = {BYTES}` Describes a byte length for the entire array dropping lower indexes
@@ -856,17 +524,18 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - `reserve` Defines that this field should be ignored in from and into bytes functions. [example](#reserve-examples)
 ///     - Reserve requires the fields type to impl [`Default`](https://doc.rust-lang.org/std/default/trait.Default.html).
 ///         due to `from_bytes` needed to provided a value.
-/// - `enum_primitive = "u8"` Defines the size of the enum. the `BitfieldEnum` only supports u8.
-///     [example](#enum-examples)
 ///
 /// #### Enum Variant Field Attributes
+/// 
 /// - `capture_id` Tells Bondrewd to put the value for id in the field on reads, fields
 ///     with this attribute do NOT get written to the bytes to prevent users from creating improper
 ///     byte values. [example](#capture-id)
 ///
 /// # Experimental Field Attributes
+/// 
 /// if you decide to use these remember that they have not been exhaustively tested. when using
 /// experimental attributes please be careful and report unexpected behavior to our github issues.
+/// 
 /// - `bits = "{RANGE}"` - Define the bit indexes yourself rather than let the proc macro figure
 ///     it out. using a rust range in quotes. the RANGE must provide a inclusively below and exclusively
 ///     above bounded range (ex. bits = "0..2" means use bits 0 and 1 but NOT 2).
@@ -884,6 +553,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///             the field uses.
 ///
 /// # Simple Example
+/// 
 /// This example is on the front page for bondrewd-derive. Here i will be adding some asserts to show what
 /// to expect.
 /// I will be defining a data structure with 7 total bytes as:
@@ -892,6 +562,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - A signed integer field named three will be the next 14 bits.
 /// - An unsigned integer field named four will be the next 6 bits.
 /// - Because these fields do not add up to a number divisible by 8 the last 3 bits will be unused.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -947,9 +618,24 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(511,reconstructed.three);
 /// assert_eq!(0,reconstructed.four);
 /// ```
+/// 
+/// # Endianness Examples
+/// 
+/// Currently there are 3 supported "endianness" formats:
+/// - "be" = Big Endian. Will layout fields one after another little endian byte order.
+/// - "le" = Little Endian. Will layout fields one after another little endian byte order.
+/// - "ale" = Aligned Little Endian. Some people think having the fields being laid out one after the other is
+///     too easy for people to understand, so select manufactures (even in Aerospace) decided that Little Endian means
+///     interweaving bit fields that do not align with bytes evenly. see example below for explanation of my micro-rant.
+/// 
+/// ```
+/// ```
+/// 
 /// # Reverse Example
+/// 
 /// Reverse simply makes Bondrewd index the bytes in the output/input buffers in the opposite order.
 /// First index becomes last index and last index becomes the first.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -984,12 +670,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(test.into_bytes(), [0b00000000, 0b11111111, 0b000000, 0b01010101]);
 /// assert_eq!(test_reverse.into_bytes(), [0b01010101, 0b000000, 0b11111111, 0b00000000]);
 /// ```
+/// 
 /// # Bit Positioning Examples
+/// 
 /// Here Bit positioning will control where bit 0 is. for example if you have a field with 2 bits then
 /// 2 fields with 3 bits each, bit positioning will define the direction in which it traverses bit indices,
 /// so in our example if 0 is the least significant bit the first field would be the least significant bit
 /// in the last index in the byte array. `msb0` is the default.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1031,9 +719,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // 2 then field one being the last 2 bits
 /// assert_eq!(test_back.into_bytes(), [0b000_101_00]);
 /// ```
+/// 
 /// When using `reverse` and `bit_traversal` in the same structure:
-/// - `lsb0` would begin at the least significant bit in the first byte.
-/// - `msb0` would begin at the most significant bit in the last byte.
+/// - `front` would begin at the least significant bit in the first byte.
+/// - `back` would begin at the most significant bit in the last byte.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1072,12 +762,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(test_front.into_bytes(), [0b10000000, 0b00000111]);
 /// assert_eq!(test_back.into_bytes(), [0b11100000, 0b00000001]);
 /// ```
-/// 
+///
 /// # Bitfield Struct as Field Examples
+/// 
 /// Nested structs must implement the
 /// [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait and be given the
 /// `byte_length = {BYTE_SIZE}`, the `BYTE_SIZE` being the number of bytes in the outputs byte array or
 /// value in the traits const `BYTE_SIZE`.
+/// 
 /// ```
 /// // this struct uses 52 total bits which means the total BYTE_SIZE is 7.
 /// use bondrewd::*;
@@ -1103,10 +795,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: [Simple; 2],
 /// }
 /// ```
+/// 
 /// We can also trim the struct to a bit length, this can be very useful for struct that do not use the
 /// full amount of bits available in the byte array. For example if we have a struct that uses 4 bits
 /// leaving the remaining 4 bits as unused data, we can make a structure with 2 of the bits structure
 /// that still only uses 1 byte.
+/// 
 /// ```
 /// // this struct uses 4 total bits which means the total BYTE_SIZE is 1.
 /// use bondrewd::*;
@@ -1135,12 +829,15 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(SimpleWithStruct::BYTE_SIZE, 1);
 /// assert_eq!(SimpleWithStruct::BYTE_SIZE, Simple::BYTE_SIZE);
 /// ```
+/// 
 /// # Bitfield Array Examples
+/// 
 /// There are 2 types of arrays in Bondrewd:
 /// - Block Arrays are "bit chucks" that define a total-used-bits amount and will drop bits starting
 ///     at the lowest index.
 /// - Element Arrays treat each element of the array as its own field and requires a per element
 ///     bit-length.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1181,9 +878,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///      0b0_1010101,  // remaining three[1] and three[2]
 ///      0b0_0000000]);// remaining three[2] and 7 unused bits.
 /// ```
+/// 
 /// Structures and Enums can also be used in arrays but there are some extra things to consider.
 /// - If `bit_length` of the structs or enums needs to be smaller than the output of either `into_bytes` or `into_primitive` then it is recommended to use element arrays.
 /// - Block Arrays, in my opinion, shouldn't be used for Structs or Enums. because in the below example if the `compressed_structures` field was to use `block_bit_length = 104` the array would use 48 bits for index 0 and 56 bits for index 1.
+/// 
 /// ```
 /// // this struct uses 52 total bits which means the total
 /// // BYTE_SIZE is 7.
@@ -1234,9 +933,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     compressed_structures: [SimpleStruct; 2],
 /// }
 /// ```
+/// 
 /// # Reserve Examples
+/// 
 /// Reserve fields tell Bondrewd to not include logic for reading or writing the field in the from and
 /// into bytes functions. Currently only primitive types are supported.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1269,7 +971,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(127,reconstructed.two);
 /// assert_eq!(0,reconstructed.reserve);
 /// ```
+/// 
 /// Reserves do not need to be at the end.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1299,11 +1003,15 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(127,reconstructed.two);
 /// assert_eq!(0,reconstructed.reserve);
 /// ```
+/// 
 /// # Fill Bits Examples
-/// > if you are using `fill_bits` on a nested structure please read [Using `fill_bits` of a nested structure](#using-fill_bits-of-a-nested-structure)
+/// 
+/// > if you are using `fill_bits` on a nested structure please read [Using `fill_bits` on a nested structure](#using-fill_bits-on-a-nested-structure)
 ///
 /// Fill bits is used here to make the total output byte size 2 bytes. If `fill_bits` attribute was not
-/// present the total output byte size would be still be 2...
+/// present the total output byte size would be still be 2, but the positioning of bits can be less predicable when
+/// using other attributes like `reverse` or `bit_traversal`.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1318,9 +1026,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // Note that the fill_bits are included in `BIT_SIZE` this is because fill just added a reserve field internally.
 /// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
-/// But if you hate the idea of figuring out how many bits are needed to fill the structure in order to
-/// make the bit total a multiple of 8, don't specify the amount. This example shows how to use auto
-/// `fill_bits` and will produces the same results as the example above.
+/// 
+/// `fill_bits` when no value is provided will detect how many bits are needed to make
+/// `BIT_SIZE / BYTE_SIZE == 8`. This example produces the same results as the example above.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1334,10 +1043,13 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(2, FilledBits::BYTE_SIZE);
 /// assert_eq!(16, FilledBits::BIT_SIZE);
 /// ```
-/// ## Using `fill_bits` of a nested structure
+/// 
+/// ## Using `fill_bits` on a nested structure
+/// 
 /// Because bondrewd allows bit reversal with structures that do not have a bit count that divides evenly by 8,
-/// the location of bits will change in cases such as `Aligned Little Endian`. because of the removal
-/// of `struct_size` attribute being required this can cause some unexpected results.
+/// the location of bits will change in cases such as `Aligned Little Endian`. This can cause some unexpected results.
+/// It is recommended you use `fill_bits` or `reserve` fields to make the `BIT_SIZE` evenly divisible by 8.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1363,14 +1075,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(FilledBits {one: 127, two: 127}.into_bytes(), [0b11111111,0b00111111]);
 /// assert_eq!(UnfilledBits {one: 127, two: 127}.into_bytes(), [0b11111100,0b11111111]);
 /// ```
-/// #[derive(Bitfields)]
-/// #[`bondrewd(endianness` = "ale")]
-/// struct Unfilled {
-///     one
-/// }
+/// 
 /// # Fill Bytes Example
+/// 
 /// Fill bytes is used here to make the total output byte size 3 bytes. If fill bytes attribute was not
 /// present the total output byte size would be 2.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1382,10 +1092,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, FilledBytes::BYTE_SIZE);
 /// assert_eq!(24, FilledBytes::BIT_SIZE);
 /// ```
+/// 
 /// Here im going to compare the example above to the closest alternative using a reserve field:
 /// - `FilledBytes` only has 2 field, so only 2 fields are required for instantiation, where as `ReservedBytes` still needs a value for the reserve field despite from/into bytes not using the value anyway.
 /// - `ReservedBytes` has 2 extra functions that Filled Bytes does not, `write_reserve` and `read_reserve`.
 /// - One more thing to consider is reserve fields are currently confined to primitives, if more than 128 reserve bits are required at the end, `fill_bytes` is the only supported way of doing this.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1399,13 +1111,16 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, ReservedBytes::BYTE_SIZE);
 /// assert_eq!(24, ReservedBytes::BIT_SIZE);
 /// ```
+/// 
 /// # Enforce Bits Examples
+/// 
 /// Enforce Bits/Bytes Main purpose is to act as a compile time check to ensure how many bit you think
 /// are being use is the actual amount of bits being used.\
 /// Here i have 2 fields with a total defined bit-length of 6, and then an undecorated boolean field. I
 /// also have trust issues so i want to verify that the bool is only using 1 bit making the total bit
 /// length of the struct 7 bits. Adding `enforce_bits = 7` will force a compiler error if the calculated
 /// total bit length is not 7.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1420,8 +1135,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
+/// 
 /// Here is the same example where i assigned the "incorrect" the `bit_length` of the first field making the
 /// total 8 instead of 7.
+/// 
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1442,6 +1159,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// second example i will show the the same end result but without a reserve field. First will be defining
 /// all 24 total bits as 3 fields marking the last field of 10 bits with the reserve attribute
 /// because we don't want from/into bytes functions to process those bytes.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1457,12 +1175,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(24, FilledBytesEnforced::BIT_SIZE);
 /// ```
+/// 
 /// Also note that [`fill_bytes`](#fill-bytes-examples) does NOT effect how `enforce_bytes` works.
 /// `enforce_bytes` will check the total bit length before the bits are filled.
 ///   
 /// Here i am telling Bondrewd to make the total byte length 3 using `fill_bytes`.
 /// This Example fails to build because only 16 bits are being defined by fields and `enforce_bytes`
 /// is telling Bondrewd to expect 16 bits to be used by defined fields.
+/// 
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1472,10 +1192,12 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// ```
+/// 
 /// To fix this we need to make sure our enforcement value is the amount of bits defined by the fields NOT
 /// the expected `FilledBytesEnforced::BYTE_SIZE`.
 ///   
 /// Here is the Correct usage of these two attributes working together.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1493,10 +1215,13 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(17, FilledBytesEnforced::BIT_SIZE);
 /// assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
 /// ```
+/// 
 /// # Enforce Full Bytes Example
+/// 
 /// `enforce_full_bytes` adds a check during parsing phase of Bondrewd which will throw an error if the
 /// total bits determined from the defined fields is not a multiple of 8. This was included for those
 /// like me that get paranoid they entered something in wrong.
+/// 
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1508,8 +1233,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: u8,
 /// }
 /// ```
+/// 
 /// In this case if we still wanted fields one and two to remain 7 bits we need to add another field
 /// to use the remaining 2 bits.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1525,8 +1252,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(2, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(16, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// # Enum Examples (Deprecated)
-/// For enum derive examples goto [`BitfieldEnum` Derive](BitfieldEnum).
+/// 
+/// # Enum Examples
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1548,7 +1276,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     three: u8,
 /// }
 /// ```
+/// 
 /// Enums can also be used in [arrays](#bitfield-array-examples)
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1572,8 +1302,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     two: [Simple; 3],
 /// }
 /// ```
+/// 
 /// # Bits Attribute Example
+/// 
 /// First i will replicate the [Simple Example](#simple-example) to show an equivalent use.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1631,11 +1364,14 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(511,reconstructed.three);
 /// assert_eq!(0,reconstructed.four);
 /// ```
+/// 
 /// # Redundant Examples
+/// 
 /// In this example we will has fields share data. flags in the example will represent a u8 storing
 /// multiple boolean flags, but all of the flags within are also fields in the struct. if we mark
 /// flags as `redundant` above the boolean flag fields then flags will be `read_only` (effects nothing
-/// during an [`into_bytes`] call).
+/// during an `into_bytes` call).
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1719,7 +1455,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(false,reconstructed.flag_five);
 /// assert_eq!(false,reconstructed.flag_six);
 /// ```
+/// 
 /// we can also have the flags below if we use the `bits` attribute.
+/// 
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -1803,7 +1541,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(false, reconstructed.flag_five);
 /// assert_eq!(false, reconstructed.flag_six);
 /// ```
+/// 
 /// # Enum Example
+/// 
 /// Because enums can provide a lot of ambiguity there is a requirement that The last variant is
 /// always considered the "Invalid Variant", which simply means that it will be a
 /// catch-all in the match statement for the generated `Bitfields::from_bytes()` function.
@@ -1841,205 +1581,22 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
 /// assert_eq!(bytes[2], 0b01_000000);
 /// ```
-/// #### Generated From Bytes
-/// ```
-/// enum Thing {
-///     One {
-///         a: u16
-///     },
-///     Two {
-///         a: u16,
-///         b: u8
-///     },
-///     Three {
-///         d: u8,
-///         e: u16
-///     },
-///     Idk,
-/// }
-/// impl bondrewd::Bitfields<3usize> for Thing {
-///     const BIT_SIZE: usize = 24usize;
-///     fn into_bytes(self) -> [u8; 3usize] {
-///         let mut output_byte_buffer = [0u8; 3usize];
-///         match self {
-///             Self::One { a } => {
-///                 Self::write_id(&mut output_byte_buffer, 1);
-///                 Self::write_one_a(&mut output_byte_buffer, a);
-///             }
-///             Self::Two { a, b } => {
-///                 Self::write_id(&mut output_byte_buffer, 2);
-///                 Self::write_two_a(&mut output_byte_buffer, a);
-///                 Self::write_two_b(&mut output_byte_buffer, b);
-///             }
-///             Self::Three { d, e } => {
-///                 Self::write_id(&mut output_byte_buffer, 3);
-///                 Self::write_three_d(&mut output_byte_buffer, d);
-///                 Self::write_three_e(&mut output_byte_buffer, e);
-///             }
-///             Self::Idk {} => {
-///                 Self::write_id(&mut output_byte_buffer, 0);
-///             }
-///         }
-///         output_byte_buffer
-///     }
-///     fn from_bytes(mut input_byte_buffer: [u8; 3usize]) -> Self {
-///         let id = Self::read_id(&input_byte_buffer);
-///         match id {
-///             1 => {
-///                 let a = Self::read_one_a(&input_byte_buffer);
-///                 Self::One { a }
-///             }
-///             2 => {
-///                 let a = Self::read_two_a(&input_byte_buffer);
-///                 let b = Self::read_two_b(&input_byte_buffer);
-///                 Self::Two { a, b }
-///             }
-///             3 => {
-///                 let d = Self::read_three_d(&input_byte_buffer);
-///                 let e = Self::read_three_e(&input_byte_buffer);
-///                 Self::Three { d, e }
-///             }
-///             _ => Self::Idk,
-///         }
-///     }
-///     }
-///     impl Thing {
-///     #[inline]
-///     /// Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
-///     pub fn read_id(input_byte_buffer: &[u8; 3usize]) -> u8 {
-///         ((input_byte_buffer[0usize] & 192u8) >> 6usize) as u8
-///     }
-///     #[inline]
-///     /// Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
-///     pub fn read_one_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
-///         u16::from_be_bytes({
-///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
-///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
-///                 a_bytes[1usize] |= input_byte_buffer[1usize];
-///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
-///                 a_bytes
-///             })
-///             .rotate_left(2u32)
-///     }
-///     #[inline]
-///     /// Reads bits 18 through 23 within `input_byte_buffer`, getting the `one_fill_bits` field of a `One` in bitfield form.
-///     pub fn read_one_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 1usize] {
-///         [{ ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8 }]
-///     }
-///     #[inline]
-///     /// Reads bits 2 through 17 within `input_byte_buffer`, getting the `two_a` field of a `Two` in bitfield form.
-///     pub fn read_two_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
-///         u16::from_be_bytes({
-///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
-///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
-///                 a_bytes[1usize] |= input_byte_buffer[1usize];
-///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
-///                 a_bytes
-///             })
-///             .rotate_left(2u32)
-///     }
-///     #[inline]
-///     /// Reads bits 18 through 23 within `input_byte_buffer`, getting the `two_b` field of a `Two` in bitfield form.
-///     pub fn read_two_b(input_byte_buffer: &[u8; 3usize]) -> u8 {
-///         ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8
-///     }
-///     #[inline]
-///     /// Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
-///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
-///         u8::from_be_bytes({
-///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
-///                 d_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
-///                 d_bytes[0] |= input_byte_buffer[1usize] & 128u8;
-///                 d_bytes
-///             })
-///             .rotate_left(1u32)
-///     }
-///     #[inline]
-///     /// Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
-///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
-///         u16::from_be_bytes({
-///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
-///             e_bytes[0usize] |= input_byte_buffer[1usize] & 127u8;
-///             e_bytes[1usize] |= input_byte_buffer[2usize];
-///             e_bytes
-///         })
-///     }
-///     #[inline]
-///     /// Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
-///     pub fn read_idk_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 3usize] {
-///         [
-///             { ((input_byte_buffer[0usize] & 63u8) >> 0usize) as u8 },
-///             { ((input_byte_buffer[1usize] & 255u8) >> 0usize) as u8 },
-///             { ((input_byte_buffer[2usize] & 255u8) >> 0usize) as u8 },
-///         ]
-///     }
-///     #[inline]
-///     /// Writes to bits 0 through 1 within `output_byte_buffer`, setting the `id` field of a `Thing` in bitfield form.
-///     pub fn write_id(output_byte_buffer: &mut [u8; 3usize], mut id: u8) {
-///         output_byte_buffer[0usize] &= 63u8;
-///         output_byte_buffer[0usize] |= ((id as u8) << 6usize) & 192u8;
-///     }
-///     #[inline]
-///     /// Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
-///     pub fn write_one_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
-///         output_byte_buffer[0usize] &= 192u8;
-///         output_byte_buffer[1usize] &= 0u8;
-///         output_byte_buffer[2usize] &= 63u8;
-///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
-///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
-///         output_byte_buffer[1usize] |= a_bytes[1usize];
-///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
-///     }
-///     #[inline]
-///     /// Writes to bits 2 through 17 within `output_byte_buffer`, setting the `two_a` field of a `Two` in bitfield form.
-///     pub fn write_two_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
-///         output_byte_buffer[0usize] &= 192u8;
-///         output_byte_buffer[1usize] &= 0u8;
-///         output_byte_buffer[2usize] &= 63u8;
-///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
-///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
-///         output_byte_buffer[1usize] |= a_bytes[1usize];
-///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
-///     }
-///     #[inline]
-///     /// Writes to bits 18 through 23 within `output_byte_buffer`, setting the `two_b` field of a `Two` in bitfield form.
-///     pub fn write_two_b(output_byte_buffer: &mut [u8; 3usize], mut b: u8) {
-///         output_byte_buffer[2usize] &= 192u8;
-///         output_byte_buffer[2usize] |= ((b as u8) << 0usize) & 63u8;
-///     }
-///     #[inline]
-///     /// Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
-///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
-///         output_byte_buffer[0usize] &= 192u8;
-///         output_byte_buffer[1usize] &= 127u8;
-///         let d_bytes = (d.rotate_right(1u32)).to_be_bytes();
-///         output_byte_buffer[0usize] |= d_bytes[0usize] & 63u8;
-///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
-///     }
-///     #[inline]
-///     /// Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
-///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
-///         output_byte_buffer[1usize] &= 128u8;
-///         output_byte_buffer[2usize] &= 0u8;
-///         let e_bytes = e.to_be_bytes();
-///         output_byte_buffer[1usize] |= e_bytes[0usize] & 127u8;
-///         output_byte_buffer[2usize] |= e_bytes[1usize];
-///     }
-/// }
-/// ```
+/// 
 /// # Enum With Discriminates
-/// In this example i have create Variant's `Three`, `Two`, `One`, and `Idk` variants. The variants with
+/// 
+/// This example has Variant's `Three`, `Two`, `One`, and `Idk`. The variants with
 /// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
 ///
 /// #### Issue You May Run Into
-/// Because i am:
+/// 
+/// Because I am:
 /// - Setting the last variant's, "Idk" variant, id to `0`,
 /// - Setting the first variant's, `Three` variant, id to `3`,
-/// - Setting the third variant's, `Two` variant, id to `2`,
-/// - And variant `One` does not have a defined id.
+/// - Setting the second variant's, `One` variant, id to `1`,
+/// - And variant `Two` does not have a defined id.
 ///
 ///
-/// variant `One` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
+/// variant `Two` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
 /// the assignment would go from top to bottom. This happens internally in bondrewd for its code generation
 /// but the `#[repr(u8)]` attribute assigns values for if you want to represent the variant as a number,
 /// and you should be aware `repr` does not look forward or backward for used numbers, meaning you will
@@ -2048,7 +1605,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     zero regardless of the last variant being manually assigned that number already.
 /// - Change the second variant's, `One`, id assignment of `1` to `2`. `repr` will assume that this should
 ///     be that last variant's value plus one which is `3` and already used.
+/// 
 /// #### Discriminate Example
+/// 
 /// ```
 /// use bondrewd::*;
 ///
@@ -2080,8 +1639,15 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(bytes[1], 0b00000000);
 /// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
 /// assert_eq!(bytes[2], 0b01_000000);
+/// let two = Thing::Two{
+///     a:0,
+///     b: 0
+/// };
+/// assert_eq!(two.id(), 2);
 /// ```
+/// 
 /// #### Capture Id
+/// 
 /// ```
 /// use bondrewd::*;
 ///
@@ -2129,7 +1695,9 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     _ => panic!("id wasn't 3"),
 /// }
 /// ```
+/// 
 /// #### Invalid Enum Variant
+/// 
 /// For this example we will be show casing why enums do not panic on an invalid case. The generative code
 /// for enums always has an invalid variant even when all possible values have a variant. If an Id value
 /// does not have an associated variant, `Bitfield::from_bytes` will return the "invalid" variant. This
@@ -2167,6 +1735,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant
 /// - a value of 2 as the id would result in a `Thing::Two` variant
+/// 
 /// ```
 /// use bondrewd::*;
 ///
@@ -2179,7 +1748,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     #[bondrewd(invalid, id = 1)]
 ///     Invalid,
 ///     /// value of 2
-///     Two, 
+///     Two,
 /// }
 ///
 /// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
@@ -2187,9 +1756,10 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
 /// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
-/// Note that if the id is not specified for the invalid variant it would be assigned 2 as
-/// its default value.
 /// 
+/// Note that if the id is not specified for the invalid variant it would be assigned 2 as
+/// its default value because the invalid variant is processed last within bondrewd.
+///
 /// ```
 /// use bondrewd::*;
 ///
@@ -2202,7 +1772,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     #[bondrewd(invalid)]
 ///     Invalid,
 ///     /// value of 1
-///     One, 
+///     One,
 /// }
 ///
 /// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
@@ -2210,27 +1780,61 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Invalid);
 /// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
-/// 
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::standard())
 }
 
+/// Slice functions are convenience functions for reading/wring single or multiple fields without reading
+/// the entire structure. Bondrewd will provide 2 ways to access the field: slice functions and checked structs.
+/// 
+/// # Slice Functions
+/// 
+/// These are functions that are added along side the standard read/write field
+/// functions in the impl for the input structure. read/write slice functions will check the length of
+/// the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present
+/// and return `BitfieldLengthError` if not enough bytes are present.
+/// 
+/// functions implemented to object by derive:
+///
+/// `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
+/// `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
+///
+/// # Checked Structs
+/// 
+/// Deriving the `BitfieldsSlice` trait provides "checked structures" (structures containing a reference to a slice
+/// we checked the size of). These checked structs contain all of the same read/write field functions that `Bitfields`
+/// provides without the requirement of providing a statically sized array because we checked the size while creating
+/// the checked struct.
+///
+/// > Enums will generate a separate "Checked" structure set for each variant.
 #[proc_macro_derive(BitfieldsSlice, attributes(bondrewd,))]
 pub fn derive_bitfields_slice(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::slice())
 }
 
+/// `BitfieldsDyn` trait implementation allows easier creation of the object without needing an array
+/// that has the exact `Bitfield::BYTE_SIZE`.
+///
+/// `from_vec` will consume bytes from provided buffer.
+/// `from_slice` copy the bytes of packet at the start of the buffer provided. if you want to consume those
+/// bytes you must manually remove `YouObject::BYTE_SIZE` bytes from the start of the buffer.
 #[proc_macro_derive(BitfieldsDyn, attributes(bondrewd,))]
 pub fn derive_bitfields_dyn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::dynamic())
 }
 
+/// `BitfieldsHex` provides from/into hex functions like from/into bytes.
+/// 
+/// The hex inputs/outputs are \[u8;N\] where N is double the calculated bondrewd `STRUCT_SIZE`.
+/// Hex encoding and decoding is based off the [hex](https://crates.io/crates/hex) crate's
+/// from/into slice functions but with statically sized arrays so we could eliminate sizing errors.
 #[proc_macro_derive(BitfieldsHex, attributes(bondrewd,))]
 pub fn derive_bitfields_hex(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::hex())
 }
 
+/// `BitfieldsHexDyn` provides the functions from [`BitfieldsDyn`] for hex encoded bytes.
 #[proc_macro_derive(BitfieldsHexDyn, attributes(bondrewd,))]
 pub fn derive_bitfields_hex_dyn(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     do_thing(input, GenerationFlavor::hex_dynamic())

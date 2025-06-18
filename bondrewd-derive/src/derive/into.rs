@@ -345,8 +345,6 @@ impl Resolver {
             };
             i += 1;
         }
-        // START_HERE make sure clear bytes always works. may need to use the `next_clear_mask` in the below code.
-        // bits used after applying the first_bit_mask one more time.
         let used_bits = self.data.available_bits_in_first_byte() + (8 * i);
         let start = self.data.offset_starting_inject_byte(i);
         if right_shift > 0 {
@@ -560,10 +558,6 @@ impl Resolver {
             #field_byte_buffer;
         };
         let bytes_effected = self.bit_length().div_ceil(8);
-        // START_HERE the masks are not correct. currently i can confirm the `Ordering::Equal`
-        // does not consider the fact that no right shift does not mean that the entire byte
-        // belongs to the field.
-        //
         // fill in the rest of the bits
         match right_shift.cmp(&0) {
             Ordering::Greater => {

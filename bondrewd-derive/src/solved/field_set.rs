@@ -652,7 +652,6 @@ impl Solved {
                     ty: BuiltRangeType::BlockArray(vec![fill_bytes_size]),
                 },
                 endianness: Endianness::default(),
-                // START_HERE this should be a reserve field so it gets accounted for.
                 reserve: ReserveFieldOption::FakeField,
                 overlap: OverlapOptions::None,
                 is_captured_id: false,

@@ -482,8 +482,6 @@ fn nothing() {
         0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000,
         0b00000000,
     ];
-    // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
-    // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
     Test::write_test_struct(&mut full, TestInner::from_bytes([0; TestInner::BYTE_SIZE]));
     for (f, c) in full.into_iter().zip(correct) {
         assert_eq!(c, f);
@@ -513,8 +511,6 @@ fn nothing_2() {
         0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111,
         0b11111111,
     ];
-    // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
-    // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
     Test::write_ten(&mut full, 0);
     for (f, c) in full.into_iter().zip(correct) {
         assert_eq!(c, f);
@@ -543,8 +539,6 @@ fn nothing_two() {
         0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b11111111,
         0b11111111,
     ];
-    // START_HERE test_struct is writing oer 1 bit from ten. byte index 45 have 1 bit for `ten`
-    // and 7 for `test_struct` but `test_struct` is writing over all 8 bits of that byte.
     Test::write_two(&mut full, 0);
     for (f, c) in full.into_iter().zip(correct) {
         // println!("0b{c:08b},");

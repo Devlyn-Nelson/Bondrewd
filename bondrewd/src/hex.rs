@@ -13,7 +13,7 @@ where
     /// array of bytes.
     ///
     /// # Errors
-    /// see [`BitfieldHexError`].
+    /// see [`BitfieldHexError`](crate::error::BitfieldHexError).
     fn from_hex(hex: [u8; HEX_SIZE]) -> Result<Self, crate::BitfieldHexError> {
         let mut bytes: [u8; BYTE_SIZE] = [0; BYTE_SIZE];
         for (i, assign_to_me) in bytes.iter_mut().enumerate() {
@@ -99,7 +99,7 @@ where
     /// Returns Self with the fields containing the extracted values from provided hex encoded bytes.
     ///
     /// # Errors
-    /// see [`BitfieldHexDynError`].
+    /// see [`BitfieldHexDynError`](crate::error::BitfieldHexDynError).
     fn from_hex_slice(hex: &[u8]) -> Result<Self, crate::BitfieldHexDynError> {
         if hex.len() < HEX_SIZE {
             return Err(crate::BitfieldHexDynError::Length(

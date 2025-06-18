@@ -1,4 +1,4 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsDyn};
 
 #[derive(Bitfields)]
 pub enum Test {
@@ -24,7 +24,7 @@ fn test_fn() {
 }
 
 
-#[derive(Bitfields)]
+#[derive(Bitfields, BitfieldsDyn)]
 #[bondrewd(endianness = "be", fill_bits = 3, enforce_bits = 14)]
 struct FilledBytesEnforced {
     #[bondrewd(bit_length = 7)]
@@ -35,10 +35,18 @@ struct FilledBytesEnforced {
 
 #[test]
 fn fill_test(){
-    let _ = FilledBytesEnforced::from_bytes([0,0,0]);
+    let mut input = vec![0,0,0, 0xFF];
+    let thing = FilledBytesEnforced::from_vec(&mut input);
     // we are enforcing 14 bits but fill_bytes is creating
     // an imaginary reserve field from bit index 14 to
     // index 23
     assert_eq!(17, FilledBytesEnforced::BIT_SIZE);
     assert_eq!(3, FilledBytesEnforced::BYTE_SIZE);
+    assert_eq!(input.len(), 1);
+    assert_eq!(input[0], 0xFF);
+    assert!(thing.is_ok());
+    let thing = thing.unwrap();
+    assert_eq!(thing.one, 0);
+    assert_eq!(thing.two, 0);
+
 }
