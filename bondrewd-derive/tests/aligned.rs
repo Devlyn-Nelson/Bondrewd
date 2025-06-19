@@ -1,4 +1,4 @@
-use std::u32;
+use std::{u16, u32};
 
 use bondrewd::{Bitfields, BitfieldsSlice};
 
@@ -265,27 +265,46 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale", dump)]
-struct Nothing {
+#[bondrewd(endianness = "ale")]
+struct DocTest {
     #[bondrewd(bit_length = 4)]
     one: u8,
-    #[bondrewd(byte_length = 4)]
     two: u32,
+    three: u16,
+    four: u8,
     #[bondrewd(bit_length = 4)]
-    three: u8,
+    five: u8,
+    #[bondrewd(bit_length = 15)]
+    six: u16,
+    #[bondrewd(bit_length = 9)]
+    seven: u16,
+    eight: u16,
+    nine: u8,
+    #[bondrewd(bit_length = 9)]
+    ten: u16,
+    #[bondrewd(bit_length = 15)]
+    eleven: u16,
 }
 
-#[test]
-fn asdf() {
-    let bytes = Nothing {
-        one: 0,
-        two: u32::MAX,
-        three: 0,
-    }
-    .into_bytes();
-    print!("[");
-    for b in bytes {
-        print!("0b{b:08b}, ")
-    }
-    print!("]\n");
-}
+// #[test]
+// fn asdf() {
+//     let bytes = DocTest {
+//         one: 0,
+//         two: 0,
+//         three: 0,
+//         four: 0,
+//         five: 0,
+//         six: 0,
+//         seven: 0,
+//         eight: 0,
+//         nine: 0,
+//         ten: u16::MAX,
+//         eleven: 0,
+//     }
+//     .into_bytes();
+//     print!("[");
+//     for b in bytes {
+//         print!("0b{b:08b}, ")
+//     }
+//     print!("]\n");
+// }

@@ -1,5 +1,9 @@
 use std::{
-    collections::BTreeMap, env::current_dir, fmt::Display, ops::{Div, Range}, str::FromStr
+    collections::BTreeMap,
+    env::current_dir,
+    fmt::Display,
+    ops::{Div, Range},
+    str::FromStr,
 };
 
 use crate::{
@@ -316,16 +320,25 @@ impl Solved {
         let field_access = id.get_quotes()?;
         // TODO pass field list into make read function.
 
-        let bits_effected = get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().map(|a| *a));
+        let bits_effected =
+            get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().map(|a| *a));
         invalid.make_read_fns(
             id,
             &set_add,
             &mut quote! {},
             flavor,
             &field_access,
-            struct_size, &bits_effected,
+            struct_size,
+            &bits_effected,
         )?;
-        invalid.make_write_fns(id, &set_add, flavor, &field_access, struct_size, &bits_effected)?;
+        invalid.make_write_fns(
+            id,
+            &set_add,
+            flavor,
+            &field_access,
+            struct_size,
+            &bits_effected,
+        )?;
 
         if let GenerationFlavor::Slice {
             trait_fns,
@@ -1052,7 +1065,10 @@ impl SolvedFieldSet {
             // TODO capture_id may not need to be run fully, capture id fields will
             // rely on the fact it was already read for the matching process.
             let field_access = field.get_quotes()?;
-            let bits_effected = get_bits_effected_string(field.bit_range().clone(), field.resolver.data.flip().map(|a| *a));
+            let bits_effected = get_bits_effected_string(
+                field.bit_range().clone(),
+                field.resolver.data.flip().map(|a| *a),
+            );
             self.make_read_fns(
                 field,
                 &set_add,
@@ -1062,7 +1078,14 @@ impl SolvedFieldSet {
                 struct_size,
                 &bits_effected,
             )?;
-            self.make_write_fns(field, &set_add, flavor, &field_access, struct_size, &bits_effected)?;
+            self.make_write_fns(
+                field,
+                &set_add,
+                flavor,
+                &field_access,
+                struct_size,
+                &bits_effected,
+            )?;
         }
         let checked = if let GenerationFlavor::Slice {
             trait_fns,
@@ -1198,8 +1221,13 @@ impl SolvedFieldSet {
                 trait_fns,
                 impl_fns,
             } => {
-                let read_fns =
-                    generate_read_field_fn(field_extractor, field, struct_size, &prefixed_name, bits_effected)?;
+                let read_fns = generate_read_field_fn(
+                    field_extractor,
+                    field,
+                    struct_size,
+                    &prefixed_name,
+                    bits_effected,
+                )?;
                 let impl_read_fns = &mut impl_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
@@ -1253,8 +1281,13 @@ impl SolvedFieldSet {
                 trait_fns,
                 impl_fns,
             } => {
-                let read_fns =
-                    generate_read_field_fn(field_extractor, field, struct_size, &prefixed_name, bits_effected)?;
+                let read_fns = generate_read_field_fn(
+                    field_extractor,
+                    field,
+                    struct_size,
+                    &prefixed_name,
+                    bits_effected,
+                )?;
                 let impl_read_fns = &mut impl_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
@@ -1286,8 +1319,12 @@ impl SolvedFieldSet {
                 impl_fns,
                 struct_fns,
             } => {
-                let peek_slice_quote =
-                    generate_read_slice_field_fn(field_extractor, field, &prefixed_name, bits_effected)?;
+                let peek_slice_quote = generate_read_slice_field_fn(
+                    field_extractor,
+                    field,
+                    &prefixed_name,
+                    bits_effected,
+                )?;
                 let impl_read_fns = &mut impl_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
@@ -1316,12 +1353,21 @@ impl SolvedFieldSet {
         struct_size: usize,
         bits_effected: &str,
     ) -> syn::Result<()> {
-        *peek_quote =
-            generate_read_field_fn(field_extractor, field, struct_size, prefixed_field_name, bits_effected)?;
+        *peek_quote = generate_read_field_fn(
+            field_extractor,
+            field,
+            struct_size,
+            prefixed_field_name,
+            bits_effected,
+        )?;
         // make the slice functions if applicable.
         if let Some(peek_slice) = peek_slice_fns_option {
-            let peek_slice_quote =
-                generate_read_slice_field_fn(field_extractor, field, prefixed_field_name, bits_effected)?;
+            let peek_slice_quote = generate_read_slice_field_fn(
+                field_extractor,
+                field,
+                prefixed_field_name,
+                bits_effected,
+            )?;
             *peek_quote = quote! {
                 #peek_quote
                 #peek_slice_quote
@@ -1409,8 +1455,12 @@ impl SolvedFieldSet {
                     #impl_write_fns
                     #set_slice_quote
                 };
-                let set_slice_unchecked_quote =
-                    generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field, bits_effected)?;
+                let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
+                    field_setter,
+                    clear_quote,
+                    field,
+                    bits_effected,
+                )?;
                 let struct_write_fns = &mut struct_fns.write;
                 *struct_write_fns = quote! {
                     #struct_write_fns
@@ -1453,8 +1503,12 @@ impl SolvedFieldSet {
                 #write_quote
                 #set_slice_quote
             };
-            let set_slice_unchecked_quote =
-                generate_write_slice_field_fn_unchecked(field_setter, clear_quote, field, bits_effected)?;
+            let set_slice_unchecked_quote = generate_write_slice_field_fn_unchecked(
+                field_setter,
+                clear_quote,
+                field,
+                bits_effected,
+            )?;
             *write_slice_fns_option = quote! {
                 #write_slice_fns_option
                 #set_slice_unchecked_quote
@@ -1587,7 +1641,9 @@ impl Display for ReversedBitsEffectedHelper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ReversedBitsEffectedHelper::Single(bit) => write!(f, "{bit}"),
-            ReversedBitsEffectedHelper::Range(range) => write!(f, "{} through {}", range.start, range.end),
+            ReversedBitsEffectedHelper::Range(range) => {
+                write!(f, "{} through {}", range.start, range.end)
+            }
         }
     }
 }
@@ -1595,37 +1651,81 @@ impl Display for ReversedBitsEffectedHelper {
 pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) -> String {
     if bit_range.end - bit_range.start > 1 {
         if let Some(flip) = flip {
-            // TODO START_HERE subtraction underflow.
-            let start_byte = bit_range.start.div(8);
-            let end_byte = bit_range.end.div(8);
-            let start_byte = flip - start_byte;
-            let end_byte = flip - end_byte;
-            let start_offset = bit_range.start % 8;
-            let end_offset = bit_range.end % 8;
+            // NOTE end byte will be less than or equal to start_byte because of the flip.
+            //
+            // the byte index that the ending index is in.
+            let end_byte = flip - (bit_range.end - 1).div(8);
+            // the byte index that the starting index is in.
+            let start_byte = flip - bit_range.start.div(8);
+            // the index of the first bit in the byte where the first set of bits is.
+            let first_byte_zero_index = end_byte * 8;
+            // the index of the first bit in the byte where the last set of bits is.
+            let last_byte_zero_index = start_byte * 8;
             // so start above is the start before the flip. below we are using post flip start.
-            let end_index = end_byte * 8;
-            let first = if end_offset == 0 {
-                ReversedBitsEffectedHelper::Single(end_index)
-            } else{
-                let r = end_index..(end_index + end_offset + 1);
-                ReversedBitsEffectedHelper::Range(r)
-            };
-            let start_index = start_byte * 8;
-            let last = if start_offset == 0 {
-                ReversedBitsEffectedHelper::Single(start_index)
+            let mut output = format!("bits");
+            if start_byte == end_byte {
+                // the offset to add to last `first_byte_zero_index`
+                let first_offset = (bit_range.end - 1) % 8;
+                // the offset to add to last `last_byte_zero_index`
+                let last_offset = bit_range.start % 8;
+                let end_index = first_byte_zero_index + first_offset;
+                let start_index = last_byte_zero_index + last_offset;
+                if start_index == end_index {
+                    output = format!("{output} {end_index}");
+                } else if start_index < end_index {
+                    output = format!("{output} {start_index} though {end_index}");
+                } else {
+                    output = format!("{output} {end_index} though {start_index}");
+                }
             } else {
-                let r = start_index + start_offset..start_index + 8;
-                ReversedBitsEffectedHelper::Range(r)
-            };
-            // TODO get range for between bits if applicable.
-            let mut output = format!("bits {first}");
-            if start_byte != end_byte + 1 {
-                let s = (end_byte + 1) * 8;
-                let e = ((start_byte - 1) * 8) + 8;
-                output = format!("{output}, {s} through {e},");
+                // the offset to add to last `first_byte_zero_index`
+                let first_offset = (bit_range.end - 1) % 8;
+                // the offset to add to last `last_byte_zero_index`
+                let last_offset = bit_range.start % 8;
+                // TODO START_HERE sometimes when a full byte occurs the output will
+                // so only the first bit. both first and last need to detect when that
+                // is true.
+                let first = if first_offset == 0 {
+                    ReversedBitsEffectedHelper::Single(first_byte_zero_index)
+                } else {
+                    let r = first_byte_zero_index..(first_byte_zero_index + first_offset);
+                    ReversedBitsEffectedHelper::Range(r)
+                };
+                let last = if last_offset == 7 {
+                    ReversedBitsEffectedHelper::Single(last_byte_zero_index + 7)
+                } else {
+                    let r = last_byte_zero_index + last_offset..last_byte_zero_index + 7;
+                    ReversedBitsEffectedHelper::Range(r)
+                };
+                if start_byte != end_byte + 1 {
+                    // TODO add dectection of when either start or last touches inner.
+                    let s = (end_byte + 1) * 8;
+                    let e = ((start_byte - 1) * 8) + 7;
+                    output = format!("{output} {first}, {s} through {e}, and {last}");
+                } else {
+                    let do_thing = if let (
+                        ReversedBitsEffectedHelper::Range(first_r),
+                        ReversedBitsEffectedHelper::Range(last_r),
+                    ) = (&first, &last)
+                    {
+                        if first_r.end + 1 == last_r.start {
+                            let start = first_r.start;
+                            let end = last_r.end;
+                            output = format!("{output} {start} through {end}");
+                            false
+                        } else {
+                            true
+                        }
+                    } else {
+                        true
+                    };
+                    if do_thing {
+                        output = format!("{output} {first} and {last}");
+                    }
+                }
             }
-            return format!("{output} and {last}");
-        }else{
+            return output;
+        } else {
             format!("bits {} through {}", bit_range.start, bit_range.end - 1)
         }
     } else {
