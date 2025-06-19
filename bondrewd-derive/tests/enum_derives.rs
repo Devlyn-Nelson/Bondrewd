@@ -97,7 +97,7 @@ fn enum_centered_catch_all() {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(id_byte_length = 1, endianness = "be", dump)]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum CenteredInvalidPrimitive {
     Zero,
     One,
