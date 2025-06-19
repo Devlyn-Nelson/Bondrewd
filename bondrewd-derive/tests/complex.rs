@@ -1,9 +1,9 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 // TODO add the ability to mark a field in the variants as the id which will contain the value the id and
 // be ignored as a field of the struct.
 // TODO add a functions that get and set the id.
-#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
+#[derive(Bitfields, BitfieldsSlice, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {

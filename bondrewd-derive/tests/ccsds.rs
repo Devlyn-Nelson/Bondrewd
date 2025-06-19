@@ -1,6 +1,6 @@
 use bondrewd::{Bitfields, BitfieldsDyn, BitfieldsSlice};
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(id_bit_length = 2, endianness = "be")]
 pub enum SpacePacketSequenceFlags {
     Continuation,

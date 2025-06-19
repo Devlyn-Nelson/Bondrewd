@@ -535,13 +535,18 @@ impl Solved {
                 impl_fns,
                 struct_fns,
             } => {
+                let lifetime = if lifetime {
+                    quote! {<'a>}
+                } else {
+                    quote! {}
+                };
                 let comment = format!(
                     "Returns a checked structure which allows you to read any field for a `{enum_name}` from provided slice.",
                 );
                 let impl_read_fns = &mut trait_fns.read;
                 *impl_read_fns = quote! {
                     #impl_read_fns
-                    type Checked<'a> = #checked_ident<'a>;
+                    type Checked<'a> = #checked_ident #lifetime;
                     #[doc = #comment]
                     fn check_slice(buffer: &[u8]) -> Result<#checked_ident, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -556,7 +561,7 @@ impl Solved {
                 let impl_write_fns = &mut trait_fns.write;
                 *impl_write_fns = quote! {
                     #impl_write_fns
-                    type CheckedMut<'a> = #checked_ident_mut<'a>;
+                    type CheckedMut<'a> = #checked_ident_mut #lifetime;
                     #[doc = #comment]
                     fn check_slice_mut(buffer: &mut [u8]) -> Result<#checked_ident_mut, bondrewd::BitfieldLengthError> {
                         let #v_id = Self::#v_id_read_slice_call(&buffer)?;
@@ -564,11 +569,6 @@ impl Solved {
                             #check_slice_mut_fn
                         }
                     }
-                };
-                let lifetime = if lifetime {
-                    quote! {<'a>}
-                } else {
-                    quote! {}
                 };
                 let struct_read_fns = &mut struct_fns.read;
                 let struct_write_fns = &mut struct_fns.write;
