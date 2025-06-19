@@ -24,3 +24,4 @@
     - NOTE: When ANY field has a `dynamic` starting or ending bit index, we lose the ability to implement `Bitfields` but `BitfieldsDyn` would still be an option.
 - [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
 - [x] Try to fix id assignment for test enum_derive::CenteredInvalid, the old system assigned Invalid an id of 2 due to its position in the enum, the new system assigns it 4. the id attribute was added to the test for now to get things working. i want to be able to remove that. My best guess to get things working is doing the id assignment earlier or keep track of the order of variants.
+- [ ] add `into_object` function to checked structures, this would be an alternative to using `Bitfields::from_bytes` but from a checked slice.
