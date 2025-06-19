@@ -1874,7 +1874,8 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///
 /// > Note that when no id values are specified they will be assigned automatically starting at zero, incrementing 1 for each variant.r
 ///
-/// If for some reason the last variant should not be the catch all you can specify a variant.
+/// If for some reason the last variant should not be the catch all you can specify which variant is the invalid variant.
+/// 
 /// So for this next example:
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant
@@ -1889,7 +1890,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 ///     /// value of 0
 ///     Zero,
 ///     /// value of 1 or 3
-///     #[bondrewd(invalid, id = 1)]
+///     #[bondrewd(invalid)]
 ///     Invalid,
 ///     /// value of 2
 ///     Two,
@@ -1898,30 +1899,6 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
 /// assert_eq!(Thing::from_bytes([0b01000000]), Thing::Invalid);
 /// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Two);
-/// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
-/// ```
-///
-/// Note that if the id is not specified for the invalid variant it would be assigned 2 as
-/// its default value because the invalid variant is processed last within bondrewd.
-///
-/// ```
-/// use bondrewd::*;
-///
-/// #[derive(Bitfields, Debug, PartialEq, Eq)]
-/// #[bondrewd(endianness = "be", id_bit_length = 2)]
-/// enum Thing {
-///     /// value of 0
-///     Zero,
-///     /// value of 2 or 3, NOT 1 because Invalid case is handled outside on normal id assignment
-///     #[bondrewd(invalid)]
-///     Invalid,
-///     /// value of 1
-///     One,
-/// }
-///
-/// assert_eq!(Thing::from_bytes([0b00000000]), Thing::Zero);
-/// assert_eq!(Thing::from_bytes([0b01000000]), Thing::One);
-/// assert_eq!(Thing::from_bytes([0b10000000]), Thing::Invalid);
 /// assert_eq!(Thing::from_bytes([0b11000000]), Thing::Invalid);
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]

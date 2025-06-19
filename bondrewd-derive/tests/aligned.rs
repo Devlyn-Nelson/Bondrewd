@@ -265,7 +265,7 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale", dump)]
+#[bondrewd(endianness = "ale")]
 struct DocTest {
     #[bondrewd(bit_length = 4)]
     one: u8,

@@ -177,17 +177,34 @@ impl TryFrom<EnumBuilder> for Solved {
         check_for_id(&value.invalid, &mut used_ids)?;
         // go through variants again, assigning id's to the ones that don't have one,
         // and convert them to BuiltVariants (between Builder and Solved)
-        for variant in variants {
+        let mut used = Err(value.invalid);
+        for (i, variant) in variants.into_iter().enumerate() {
+            if i == value.invalid_position {
+                if let Err(not_done) = used {
+                    used = Ok(get_built_variant(
+                        not_done,
+                        &mut used_ids,
+                        &mut last,
+                        &mut largest_variant_id,
+                    ));
+                }else{
+                    return Err(syn::Error::new(Span::call_site(), format!("invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github.")));
+                }
+            }
             let built =
                 get_built_variant(variant, &mut used_ids, &mut last, &mut largest_variant_id);
             built_variants.push(built);
         }
-        let built_invalid = get_built_variant(
-            value.invalid,
-            &mut used_ids,
-            &mut last,
-            &mut largest_variant_id,
-        );
+        let built_invalid = match used {
+            Ok(done) => done,
+            Err(not_done) => get_built_variant(
+                not_done,
+                &mut used_ids,
+                &mut last,
+                &mut largest_variant_id,
+            ),
+        };
+        
         // determine id field.
         let (id_field_type, id_bits) = {
             let id_bits = if let Some(id_bits) = value.id_bit_length {

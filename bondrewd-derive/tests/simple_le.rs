@@ -1,7 +1,7 @@
 use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "le", enforce_bits = 52, dump)]
+#[bondrewd(endianness = "le", enforce_bits = 52)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,

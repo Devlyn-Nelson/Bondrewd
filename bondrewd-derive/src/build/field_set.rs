@@ -102,9 +102,10 @@ impl GenericBuilder {
         enum_attrs: &EnumDarlingSimplified,
     ) -> syn::Result<Self> {
         let mut variants: Vec<VariantBuilder> = Vec::default();
-        // let mut id_hint =
-        let mut invalid_variant: Option<VariantBuilder> = None;
-        for variant in &data_enum.variants {
+        // the usize in the tuple is the original position of the variant so
+        // we can assign ids better.
+        let mut invalid_variant: Option<(VariantBuilder, usize)> = None;
+        for (i, variant) in data_enum.variants.iter().enumerate() {
             let mut attrs = StructDarlingSimplified::default();
             attrs.endianness = struct_attrs.endianness.clone();
             let lit_id = if let Some((_, ref expr)) = variant.discriminant {
@@ -153,11 +154,14 @@ impl GenericBuilder {
                         "second \"invalid\" variant found. This acts as the Enum's default for invalid cases and bondrewd currently only allows 1.",
                     ));
                 }
-                invalid_variant = Some(VariantBuilder {
-                    id,
-                    field_set,
-                    tuple,
-                });
+                invalid_variant = Some((
+                    VariantBuilder {
+                        id,
+                        field_set,
+                        tuple,
+                    },
+                    i,
+                ));
             } else {
                 variants.push(VariantBuilder {
                     id,
@@ -167,10 +171,10 @@ impl GenericBuilder {
             }
         }
         // detect and fix variants without ids and verify non conflict.
-        let invalid_variant = if let Some(iv) = invalid_variant {
-            iv
+        let (invalid_variant, invalid_position) = if let Some(out) = invalid_variant {
+            out
         } else if let Some(last) = variants.pop() {
-            last
+            (last, variants.len())
         } else {
             return Err(Error::new(
                 Span::call_site(),
@@ -183,6 +187,7 @@ impl GenericBuilder {
                 name: struct_attrs.ident.clone(),
                 id: None,
                 invalid: invalid_variant,
+                invalid_position,
                 variants,
                 solved_attrs: SolvedFieldSetAttributes {
                     dump: struct_attrs.dump,
@@ -667,6 +672,8 @@ pub struct EnumBuilder {
     pub(crate) id: Option<DataBuilder>,
     /// The default variant for situations where no other variant matches.
     pub(crate) invalid: VariantBuilder,
+    /// The default variant for situations where no other variant matches.
+    pub(crate) invalid_position: usize,
     /// The collection of variant `field_sets`.
     pub(crate) variants: Vec<VariantBuilder>,
     pub(crate) solved_attrs: SolvedFieldSetAttributes,
@@ -679,11 +686,12 @@ impl EnumBuilder {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
     #[must_use]
-    pub fn new(name: Ident, invalid: VariantBuilder) -> Self {
+    pub fn new(name: Ident, invalid: VariantBuilder, invalid_position: usize) -> Self {
         Self {
             name,
             id: None,
             invalid,
+            invalid_position,
             variants: Vec::default(),
             solved_attrs: SolvedFieldSetAttributes::default(),
             id_bit_length: None,

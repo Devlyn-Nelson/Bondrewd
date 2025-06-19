@@ -66,9 +66,9 @@ fn enum_infer_primitive_type_with_auto_catch_all() {
 #[derive(Bitfields, PartialEq, Debug)]
 #[bondrewd(id_byte_length = 1, endianness = "be")]
 enum CenteredInvalid {
-    BLue,
+    Zero,
     One,
-    #[bondrewd(invalid, id = 2)]
+    #[bondrewd(invalid)]
     Invalid,
     Three,
     Four,
@@ -76,6 +76,11 @@ enum CenteredInvalid {
 
 #[test]
 fn enum_centered_catch_all() {
+    assert_eq!(CenteredInvalid::Zero.id(), 0);
+    assert_eq!(CenteredInvalid::One.id(), 1);
+    assert_eq!(CenteredInvalid::Invalid.id(), 2);
+    assert_eq!(CenteredInvalid::Three.id(), 3);
+    assert_eq!(CenteredInvalid::Four.id(), 4);
     assert_eq!(CenteredInvalid::from_bytes([0u8]).into_bytes()[0], 0);
     assert_eq!(CenteredInvalid::from_bytes([1u8]).into_bytes()[0], 1);
     assert_eq!(CenteredInvalid::from_bytes([2u8]).into_bytes()[0], 2);
@@ -92,11 +97,11 @@ fn enum_centered_catch_all() {
 }
 
 #[derive(Bitfields)]
-#[bondrewd(id_byte_length = 1, endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be", dump)]
 enum CenteredInvalidPrimitive {
     Zero,
     One,
-    #[bondrewd(invalid, id = 2)]
+    #[bondrewd(invalid)]
     Invalid {
         #[bondrewd(capture_id)]
         id: u8,
