@@ -1,3 +1,5 @@
+use std::u32;
+
 use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Bitfields, Debug, PartialEq, Eq, Clone)]
@@ -260,4 +262,30 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
     let new_simple = AlignedNestedBugInducer::from_bytes(bytes);
     assert_eq!(simple, new_simple);
     Ok(())
+}
+
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "ale", dump)]
+struct Nothing {
+    #[bondrewd(bit_length = 4)]
+    one: u8,
+    #[bondrewd(byte_length = 4)]
+    two: u32,
+    #[bondrewd(bit_length = 4)]
+    three: u8,
+}
+
+#[test]
+fn asdf() {
+    let bytes = Nothing {
+        one: 0,
+        two: u32::MAX,
+        three: 0,
+    }
+    .into_bytes();
+    print!("[");
+    for b in bytes {
+        print!("0b{b:08b}, ")
+    }
+    print!("]\n");
 }
