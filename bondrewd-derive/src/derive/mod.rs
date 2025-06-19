@@ -1637,6 +1637,28 @@ enum ReversedBitsEffectedHelper {
     Range(Range<usize>),
 }
 
+impl ReversedBitsEffectedHelper {
+    pub fn is_full_byte(&self) -> bool {
+        if let Self::Range(r) = self {
+            r.end - r.start == 7
+        } else {
+            false
+        }
+    }
+    pub fn start(&self) -> usize {
+        match self {
+            ReversedBitsEffectedHelper::Single(x) => *x,
+            ReversedBitsEffectedHelper::Range(range) => range.start,
+        }
+    }
+    pub fn end(&self) -> usize {
+        match self {
+            ReversedBitsEffectedHelper::Single(x) => *x,
+            ReversedBitsEffectedHelper::Range(range) => range.end,
+        }
+    }
+}
+
 impl Display for ReversedBitsEffectedHelper {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -1682,9 +1704,6 @@ pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) ->
                 let first_offset = (bit_range.end - 1) % 8;
                 // the offset to add to last `last_byte_zero_index`
                 let last_offset = bit_range.start % 8;
-                // TODO START_HERE sometimes when a full byte occurs the output will
-                // so only the first bit. both first and last need to detect when that
-                // is true.
                 let first = if first_offset == 0 {
                     ReversedBitsEffectedHelper::Single(first_byte_zero_index)
                 } else {
@@ -1698,10 +1717,23 @@ pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) ->
                     ReversedBitsEffectedHelper::Range(r)
                 };
                 if start_byte != end_byte + 1 {
-                    // TODO add dectection of when either start or last touches inner.
+                    // TODO add detection of when either start or last touches inner.
                     let s = (end_byte + 1) * 8;
                     let e = ((start_byte - 1) * 8) + 7;
-                    output = format!("{output} {first}, {s} through {e}, and {last}");
+                    if first.is_full_byte() {
+                        let start = first.start();
+                        if last.is_full_byte() {
+                            let end = last.end();
+                            output = format!("{output} {start} through {end}");
+                        } else {
+                            output = format!("{output} {start} through {e}, and {last}");
+                        }
+                    } else if last.is_full_byte() {
+                        let end = last.end();
+                        output = format!("{output} {first}, {s} through {end}");
+                    } else {
+                        output = format!("{output} {first}, {s} through {e}, and {last}");
+                    }
                 } else {
                     let do_thing = if let (
                         ReversedBitsEffectedHelper::Range(first_r),

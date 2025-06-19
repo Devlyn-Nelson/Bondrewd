@@ -236,8 +236,6 @@ impl SolvedData {
             let old_field_range = pre_field.bit_range.range().clone();
             let new_start = reverse_val - old_field_range.end;
             let new_end = reverse_val - old_field_range.start;
-            // println!("{struct_bit_size} start {}, end {}", old_field_range.start, old_field_range.end);
-            // println!("\tstart {new_start}, end {new_end}");
             pre_field.bit_range.bit_range = new_start..new_end;
         }
         // get the total number of bits the field uses.

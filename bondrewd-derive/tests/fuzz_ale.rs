@@ -541,7 +541,6 @@ fn nothing_two() {
     ];
     Test::write_two(&mut full, 0);
     for (f, c) in full.into_iter().zip(correct) {
-        // println!("0b{c:08b},");
         assert_eq!(c, f);
     }
 }
@@ -556,7 +555,6 @@ fn fuzz() {
     let test_bytes = test.clone().into_bytes();
     if let Ok(checked) = Test::check_slice(&test_bytes) {
         assert_eq!(checked.read_one(), test.one);
-        println!("{:08b}\n{:08b}", checked.read_two(), test.two);
         assert_eq!(checked.read_two(), test.two);
         assert_eq!(checked.read_three(), test.three);
         assert_eq!(checked.read_four(), test.four);

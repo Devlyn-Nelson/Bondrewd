@@ -265,7 +265,7 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale")]
+#[bondrewd(endianness = "ale", dump)]
 struct DocTest {
     #[bondrewd(bit_length = 4)]
     one: u8,
@@ -284,27 +284,34 @@ struct DocTest {
     ten: u16,
     #[bondrewd(bit_length = 15)]
     eleven: u16,
+    #[bondrewd(bit_length = 23)]
+    twelve: u32,
+    #[bondrewd(bit_length = 25)]
+    thirteen: u32,
 }
 
-// #[test]
-// fn asdf() {
-//     let bytes = DocTest {
-//         one: 0,
-//         two: 0,
-//         three: 0,
-//         four: 0,
-//         five: 0,
-//         six: 0,
-//         seven: 0,
-//         eight: 0,
-//         nine: 0,
-//         ten: u16::MAX,
-//         eleven: 0,
-//     }
-//     .into_bytes();
-//     print!("[");
-//     for b in bytes {
-//         print!("0b{b:08b}, ")
-//     }
-//     print!("]\n");
-// }
+#[test]
+fn asdf() {
+    let bytes = DocTest {
+        one: 0,
+        two: 0,
+        three: 0,
+        four: 0,
+        five: 0,
+        six: 0,
+        seven: 0,
+        eight: 0,
+        nine: 0,
+        ten: 0,
+        eleven: 0,
+        twelve: u32::MAX,
+        thirteen: 0,
+    }
+    .into_bytes();
+    print!("[");
+    for b in bytes {
+        print!("0b{b:08b}, ")
+    }
+    print!("]\n");
+    panic!()
+}

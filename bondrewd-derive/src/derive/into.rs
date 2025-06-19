@@ -646,7 +646,6 @@ impl Resolver {
                 };
                 let mut used = 0;
                 for (i, start) in itr {
-                    // println!("==== {i}, {start}");
                     let current_bit_mask = if used == 0 {
                         let mut bits = self.data.available_bits_in_first_byte();
                         let mask = if bits == 0 {
@@ -732,7 +731,6 @@ impl Resolver {
             ));
         }
         let zeros_on_right = 8 - (self.data.zeros_on_left + amount_of_bits);
-        // println!("{} - {}", self.name(), self.data.zeros_on_left);
         // combining the left and right masks will give us a mask that keeps the amount og bytes we
         // have in the position we need them to be in for this byte. we use available_bytes for
         // right mask because param is amount of 1's on the side specified (right), and
