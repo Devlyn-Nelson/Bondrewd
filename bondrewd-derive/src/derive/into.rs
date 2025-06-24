@@ -570,10 +570,10 @@ impl Resolver {
                 let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                 for i in 0usize..size {
                     let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
-                        let fbi = (flip - 1) - i;
+                        let fbi = (size - 1) - i;
                         let start = self
                             .data
-                            .offset_starting_inject_byte((bytes_effected - 1) - i);
+                            .offset_starting_inject_byte(fbi);
                         (fbi, start)
                     } else {
                         let start = self.data.offset_starting_inject_byte(i);

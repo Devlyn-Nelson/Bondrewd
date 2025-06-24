@@ -187,7 +187,7 @@ impl TryFrom<EnumBuilder> for Solved {
                         &mut last,
                         &mut largest_variant_id,
                     ));
-                }else{
+                } else {
                     return Err(syn::Error::new(Span::call_site(), format!("invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github.")));
                 }
             }
@@ -197,14 +197,11 @@ impl TryFrom<EnumBuilder> for Solved {
         }
         let built_invalid = match used {
             Ok(done) => done,
-            Err(not_done) => get_built_variant(
-                not_done,
-                &mut used_ids,
-                &mut last,
-                &mut largest_variant_id,
-            ),
+            Err(not_done) => {
+                get_built_variant(not_done, &mut used_ids, &mut last, &mut largest_variant_id)
+            }
         };
-        
+
         // determine id field.
         let (id_field_type, id_bits) = {
             let id_bits = if let Some(id_bits) = value.id_bit_length {

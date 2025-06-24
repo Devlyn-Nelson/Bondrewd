@@ -1875,7 +1875,7 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
 /// > Note that when no id values are specified they will be assigned automatically starting at zero, incrementing 1 for each variant.r
 ///
 /// If for some reason the last variant should not be the catch all you can specify which variant is the invalid variant.
-/// 
+///
 /// So for this next example:
 /// - a value of 0 as the id would result in a `Thing::Zero` variant
 /// - a value of 1 or 3 as the id would result in a `Thing::Invalid` variant

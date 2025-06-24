@@ -17,62 +17,72 @@ fn hard_core_test() {
     }
 }
 
-// TODO redo this test
-// #[test]
-// fn super_hard_code() {
-//     use bondrewd::Bitfields;
-//     use current::{One, ReallyHardcore, Three, Two};
-//     // TODO add multi-byte nested structure.
-//     // make it a changing test like the HAL protocol tests do.
-//     let thing_1 = ReallyHardcore {
-//         one: One { one: true, two: 7 },
-//         two: Two::One { one: false, two: 0 },
-//         three: Three::Invalid { id: 3, other: 127 },
-//         four: 0,
-//     };
-//     let thing_2 = ReallyHardcore {
-//         one: One { one: false, two: 0 },
-//         two: Two::Invalid(7, 31),
-//         three: Three::One(false, false),
-//         four: 7,
-//     };
+#[test]
+fn super_hard_code() {
+    use bondrewd::Bitfields;
+    use current::{One, ReallyHardcore, Three, Two};
+    // TODO add multi-byte nested structure.
+    // make it a changing test like the HAL protocol tests do.
+    let thing_1 = ReallyHardcore {
+        one: One { one: true, two: 7 },
+        two: Two::One { one: false, two: 0 },
+        three: Three::Invalid { id: 3, other: 127 },
+        four: 0,
+    };
+    let thing_2 = ReallyHardcore {
+        one: One { one: false, two: 0 },
+        two: Two::Invalid(7, 31),
+        three: Three::One(false, false),
+        four: 7,
+    };
+    let zero = ReallyHardcore {
+        one: One { one: false, two: 0 },
+        two: Two::One{one: false, two: 0},
+        three: Three::Four(false, false),
+        four: 0,
+    };
 
-//     // let half_bytes_1 = thing_1.two.clone().into_bytes();
+    // let half_bytes_1 = thing_1.two.clone().into_bytes();
 
-//     let bytes_1 = thing_1.clone().into_bytes();
-//     let bytes_2 = thing_2.clone().into_bytes();
+    let bytes_1 = thing_1.clone().into_bytes();
+    let bytes_2 = thing_2.clone().into_bytes();
+    let bytes_zero = zero.clone().into_bytes();
 
-//     let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
-//     // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
-//     assert_eq!(bytes_1, correct_bytes_1);
-//     assert_eq!(
-//         bytes_2,
-//         [
-//             !correct_bytes_1[0],
-//             !correct_bytes_1[1],
-//             !correct_bytes_1[2]
-//         ]
-//     );
+    // let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
+    // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
+    // assert_eq!(bytes_1, correct_bytes_1);
+    let toher = Three::Four(false, false).into_bytes();
+    print_bytes(&toher);
+    print_bytes(&bytes_zero);
+    assert_eq!(bytes_zero, [0b00000000, 0b00000000,0b00000000]);
+    // assert_eq!(
+    //     bytes_2,
+    //     [
+    //         !correct_bytes_1[0],
+    //         !correct_bytes_1[1],
+    //         !correct_bytes_1[2]
+    //     ]
+    // );
 
-//     let new_1 = ReallyHardcore::from_bytes(bytes_1);
-//     let new_2 = ReallyHardcore::from_bytes(bytes_2);
+    let new_1 = ReallyHardcore::from_bytes(bytes_1);
+    let new_2 = ReallyHardcore::from_bytes(bytes_2);
 
-//     assert_eq!(thing_1, new_1);
-//     assert_eq!(thing_2, new_2);
-// }
+    assert_eq!(thing_1, new_1);
+    assert_eq!(thing_2, new_2);
+}
 
-// fn print_bytes(bytes: &[u8]) {
-//     print!("[");
-//     for b in bytes {
-//         print!("0b{b:08b}, ")
-//     }
-//     print!("]\n");
-// }
+fn print_bytes(bytes: &[u8]) {
+    print!("[");
+    for b in bytes {
+        print!("0b{b:08b}, ")
+    }
+    print!("]\n");
+}
 
 mod current {
     use bondrewd::{Bitfields, BitfieldsSlice};
     #[derive(Bitfields, BitfieldsSlice, Default)]
-    #[bondrewd(endianness = "msb")]
+    #[bondrewd(endianness = "ale")]
     pub struct Weird {
         #[bondrewd(bit_length = 7)]
         pub one: u16,
@@ -105,8 +115,9 @@ mod current {
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "ale", id_bit_length = 2, enforce_bits = 9)]
+    #[bondrewd(endianness = "ale", id_bit_length = 2)]
     pub enum Three {
+        #[bondrewd(fill_bits = 12)]
         One(bool, bool),
         Two,
         Invalid {
@@ -115,10 +126,12 @@ mod current {
             #[bondrewd(bit_length = 7)]
             other: u8,
         },
+        #[bondrewd(fill_bits = 12)]
+        Four(bool, bool),
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "ale")]
+    #[bondrewd(endianness = "ale", dump)]
     pub struct ReallyHardcore {
         #[bondrewd(bit_length = 4)]
         pub one: One,
