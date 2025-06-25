@@ -93,7 +93,6 @@ impl Iterator for ElementArrayIter {
             let zeros_on_left = bit_range.start % 8;
             Some(Resolver {
                 data: Box::new(ResolverData {
-                    // TODO the flip information may be incorrect. it might be rust size.
                     flip: if self.flip.is_some() {
                         Some(bit_range.end - bit_range.start)
                     } else {
@@ -213,7 +212,6 @@ impl Iterator for BlockArrayIter {
                     zeros_on_left,
                     available_bits_in_first_byte: 8 - zeros_on_left,
                     starting_inject_byte: start / 8,
-                    // TODO the flip information may be incorrect. it might be rust size.
                     flip: if self.flip.is_some() {
                         Some(end - start)
                     } else {

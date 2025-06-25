@@ -181,10 +181,6 @@ impl Resolver {
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.bit_length();
-        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
-        // currently only u8 and i8 fields will work here. verify bool works it might.
-        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
-        // left)
         if 8 < (self.data.zeros_on_left + amount_of_bits) {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -436,10 +432,6 @@ impl Resolver {
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
-        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
-        // currently only u8 and i8 fields will work here. verify bool works it might.
-        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
-        // left)
         if 8 < (self.data.zeros_on_left + amount_of_bits) {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -574,12 +566,13 @@ impl Resolver {
                         let start = self
                             .data
                             .offset_starting_inject_byte(fbi);
-                        (fbi, start)
+                        (i, start)
                     } else {
                         let start = self.data.offset_starting_inject_byte(i);
                         (i, start)
                     };
                     let next_index = self.data.next_index(start);
+                    // let next_index = start;
                     let not_current_bit_mask = !current_bit_mask;
                     let not_next_bit_mask = !next_bit_mask;
                     clear_quote = quote! {
@@ -634,7 +627,6 @@ impl Resolver {
             }
             Ordering::Equal => {
                 // no shift can be more faster.
-                // TODO the code here needs more testings.
                 let bit_length = self.bit_length();
                 // indices used for `output_byte_buffer`
                 let buffer_indices =
@@ -720,10 +712,6 @@ impl Resolver {
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
         let amount_of_bits = self.data.bit_length();
-        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
-        // currently only u8 and i8 fields will work here. verify bool works it might.
-        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
-        // left)
         if 8 < (self.data.zeros_on_left + amount_of_bits) {
             return Err(syn::Error::new(
                 self.ident().span(),

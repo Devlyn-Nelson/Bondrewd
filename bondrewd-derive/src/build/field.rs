@@ -16,7 +16,6 @@ pub struct DataBuilder {
     /// filled.
     pub(crate) ty: FullDataType,
     /// The range of bits that this field will use.
-    /// TODO this should become a new Range system that allows dynamic start and/or end bit-indices.
     pub(crate) bit_range: DataBuilderRange,
     /// Describes when the field should be considered.
     pub(crate) reserve: ReserveFieldOption,
@@ -121,23 +120,6 @@ pub enum FullDataTypeArraySpecType {
 }
 
 impl DataType {
-    // pub fn type_ident(&self) -> Ident {
-    //     match self {
-    //         DataType::Number(number_type, rust_byte_size) => {
-    //             let ty = match number_type {
-    //                 NumberType::Float => 'f',
-    //                 NumberType::Unsigned => 'u',
-    //                 NumberType::Signed => 'i',
-    //                 NumberType::Char => return format_ident!("char"),
-    //                 NumberType::Bool => return format_ident!("bool"),
-    //             };
-    //             let bits = rust_byte_size.bits();
-    //             // TODOthis might not do numbers correctly.
-    //             format_ident!("{ty}{bits}")
-    //         }
-    //         DataType::Nested { ident, .. } => ident.clone(),
-    //     }
-    // }
     pub fn needs_endianness(&self) -> bool {
         match self {
             DataType::Number(number_type, rust_byte_size) => match number_type {
@@ -369,7 +351,6 @@ impl DataBuilder {
             name.clone().into()
         } else {
             (fields.len(), field.span()).into()
-            // return Err(Error::new(Span::call_site(), "all fields must be named"));
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
@@ -378,28 +359,9 @@ impl DataBuilder {
             .filter(|x| !x.overlap.is_redundant())
             .next_back();
 
-        // let mut attrs_builder = AttrBuilder::parse(field, last_relevant_field)?;
         let mut attrs = DataDarling::from_field(field)?.simplify(field)?;
         // check the field for supported types.
         let data_type = DataType::parse(&field.ty, &mut attrs, endianness)?;
-        // TODO make sure fields that don't have a solved range here get solved during the solve process.
-        // let attrs: Attributes = match attrs_builder.try_into() {
-        //     Ok(attr) => attr,
-        //     Err(fix_me) => {
-        //         let mut start = 0;
-        //         if let Some(last_value) = last_relevant_field {
-        //             start = last_value.attrs.bit_range.end;
-        //         }
-        //         fix_me.fix(start..start + (data_type.size() * 8))
-        //     }
-        // };
-
-        // construct the field we are parsed.
-        // let new_field = FieldInfo {
-        //     ident: Box::new(ident),
-        //     ty: data_type,
-        //     attrs,
-        // };
         let overlap = if attrs.redundant {
             if attrs.overlapping_bits.is_none() {
                 OverlapOptions::Redundant
@@ -519,16 +481,6 @@ impl DataBuilder {
             overlap,
             is_captured_id: attrs.capture_id,
         };
-        // TODO i think the overlap checking happens during solve process, please verify.
-        // // check to verify there are no overlapping bit ranges from previously parsed fields.
-        // for (i, parsed_field) in fields.iter().enumerate() {
-        //     if parsed_field.overlapping(&new_field) {
-        //         return Err(Error::new(
-        //             Span::call_site(),
-        //             format!("fields {} and {} overlap", i, fields.len()),
-        //         ));
-        //     }
-        // }
 
         Ok(new_field)
     }

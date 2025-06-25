@@ -164,7 +164,6 @@ impl TryFrom<EnumBuilder> for Solved {
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
         let variants = value.variants;
         // give all variants ids.
-        // TODO this code was in the parsing code, but has been moved here.
         let mut used_ids: Vec<usize> = Vec::default();
         let mut last = 0;
         let mut built_variants = Vec::<VariantBuilt>::with_capacity(variants.len());
@@ -240,7 +239,6 @@ impl TryFrom<EnumBuilder> for Solved {
             return Err(syn::Error::new(span, format!("Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})")));
         }
 
-        // TODO try to enhance id field detection, use any hints given such as `capture_id` fields.
         let id_field = BuiltData {
             id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
             ty: id_field_type,
@@ -295,7 +293,6 @@ impl TryFrom<EnumBuilder> for Solved {
                     let mut span = None;
                     let expected = bit_size - id_bits;
                     for (key, v) in &solved_variants {
-                        // TODO test to see that the struct enforcement error are nice and accurate.
                         if v.0.total_bits_no_fill() >= expected {
                             span = Some(key.name.span());
                             break;
@@ -330,102 +327,7 @@ impl TryFrom<EnumBuilder> for Solved {
                 dump: value.solved_attrs.dump,
             },
         })
-        // // verify the size doesn't go over set size.
-        // for variant in &variants {
-        //     let size = variant.total_bits();
-        //     if largest < size {
-        //         largest = size;
-        //     }
-        //     let variant_id_field = {
-        //         if let Some(id) = variant.get_id_field()? {
-        //             id
-        //         } else {
-        //             return Err(syn::Error::new(variant.name.span(), "failed to get variant field for variant. (this is a bondrewd issue, please report issue)"));
-        //         }
-        //     };
-
-        //     if let Some(bit_size) = enum_attrs.payload_bit_size {
-        //         if bit_size < size - variant_id_field.bit_size() {
-        //             return Err(Error::new(
-        //                         variant.name.span(),
-        //                         format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant_id_field.bit_size()),
-        //                     ));
-        //         }
-        //     } else if let (Some(bit_size), Some(id_size)) =
-        //         (enum_attrs.total_bit_size, enum_attrs.id_bits)
-        //     {
-        //         if bit_size - id_size < size - variant_id_field.bit_size() {
-        //             return Err(Error::new(
-        //                         variant.name.span(),
-        //                         format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size - variant_id_field.bit_size()),
-        //                     ));
-        //         }
-        //     }
-        // }
-        // TODO add validity check that ensures all capture-id fields are valid.
-        // // add fill_bits if needed.
-        // // TODO fix fill byte getting inserted of wrong side sometimes.
-        // // the problem is, things get calculated before fill is added. also fill might be getting added when it shouldn't.
-        // for v in &mut variants {
-        //     let first_bit = v.total_bits();
-        //     if first_bit < largest {
-        //         let fill_bytes_size = (largest - first_bit).div_ceil(8);
-        //         let ident = quote::format_ident!("enum_fill_bits");
-        //         let fill = FieldInfo {
-        //             ident: Box::new(ident.into()),
-        //             attrs: Attributes {
-        //                 bit_range: first_bit..largest,
-        //                 endianness: Box::new(Endianness::big()),
-        //                 reserve: ReserveFieldOption::FakeField,
-        //                 overlap: OverlapOptions::None,
-        //                 capture_id: false,
-        //             },
-        //             ty: DataType::BlockArray {
-        //                 sub_type: Box::new(SubFieldInfo {
-        //                     ty: DataType::Number {
-        //                         size: 1,
-        //                         sign: NumberSignage::Unsigned,
-        //                         type_quote: quote! {u8},
-        //                     },
-        //                 }),
-        //                 length: fill_bytes_size,
-        //                 type_quote: quote! {[u8;#fill_bytes_size]},
-        //             },
-        //         };
-        //         if v.attrs.default_endianess.is_byte_order_reversed() {
-        //             v.fields.insert(0, fill);
-        //         } else {
-        //             v.fields.push(fill);
-        //         }
-        //     }
-        // }
-        // // TODO make the id_field of truth. or the one that bondrewd actually reads NOT captured id_fields.
-        // // the truth Id_field should also match the capture_id fields that do exist. use below code for this.
-        //
-        // todo!("write conversion from EnumBuilder to Solved")
     }
-}
-
-// TODO determine if this is needed. also fix Span of error if it is needed.
-fn detect_variant_fill(
-    variant_payload_length: usize,
-    largest_bit_size: usize,
-    id_bits: usize,
-    fill_bits: &FillBits,
-) -> Result<FillBits, syn::Error> {
-    if largest_bit_size < variant_payload_length {
-        return Err(syn::Error::new(Span::call_site(), format!("Largest variant payload ({largest_bit_size}) is larger than `payload_bit_size` ({variant_payload_length})")));
-    }
-    Ok(
-        if matches!(fill_bits, FillBits::Auto) || variant_payload_length < largest_bit_size {
-            let mut target = largest_bit_size + id_bits;
-            target = target.div_ceil(8) * 8;
-            let fill = target - (id_bits + variant_payload_length);
-            FillBits::Bits(fill)
-        } else {
-            FillBits::None
-        },
-    )
 }
 
 impl TryFrom<StructBuilder> for Solved {
@@ -518,7 +420,6 @@ impl Solved {
         attrs: &SolvedFieldSetAttributes,
         id_field: Option<&BuiltData>,
     ) -> Result<SolvedFieldSet, syn::Error> {
-        // TODO verify captured id fields match the generated id field using below commented code.
         let mut pre_fields: Vec<BuiltData> = Vec::default();
         let mut last_end_bit_index: Option<usize> = id_field.map(|f| f.bit_range.bit_length());
         let total_fields = value.fields.len();

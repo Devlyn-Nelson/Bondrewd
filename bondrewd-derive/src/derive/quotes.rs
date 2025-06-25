@@ -3,7 +3,6 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
 
-// TODO nothing about field quotes should be public
 /// This contains incomplete function generation. this should only be used by `StructInfo` or `EnumInfo` internally.
 pub struct FieldQuotes {
     pub read_fns: GeneratedFunctions,

@@ -318,8 +318,6 @@ impl Solved {
     ) -> syn::Result<()> {
         let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
         let field_access = id.get_quotes()?;
-        // TODO pass field list into make read function.
-
         let bits_effected =
             get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().map(|a| *a));
         invalid.make_read_fns(
@@ -349,37 +347,6 @@ impl Solved {
             struct_fns.clear();
         }
 
-        // match flavor {
-        //     crate::GenerationFlavor::Standard { trait_fns, impl_fns } => todo!(),
-        //     crate::GenerationFlavor::Dynamic { trait_fns, impl_fns } => todo!(),
-        //     crate::GenerationFlavor::Slice { trait_fns, impl_fns, struct_fns } => {
-        //         tfn = trait_fns.read;
-        //         *tfn = quote!{}
-        //     }
-        //     crate::GenerationFlavor::Hex { trait_fns } => todo!(),
-        //     crate::GenerationFlavor::HexDynamic { trait_fns } => todo!(),
-        // }
-        // TODO generate slice functions for id field.
-        // let id_slice_read = generate_read_slice_field_fn(
-        //     access.read(),
-        //     &field,
-        //     &temp_struct_info,
-        //     field_name,
-        // );
-        // let id_slice_write = generate_write_slice_field_fn(
-        //     access.write(),
-        //     access.zero(),
-        //     &field,
-        //     &temp_struct_info,
-        //     field_name,
-        // );
-        // quote! {
-        //     #output
-        //     #id_slice_read
-        //     #id_slice_write
-        // }
-
-        // let last_variant = self.variants.len() - 1;
         // stores all of the into/from bytes functions across variants.
         let mut into_bytes_fn: TokenStream = quote! {};
         let mut from_bytes_fn: TokenStream = quote! {};
@@ -692,8 +659,6 @@ impl Solved {
                 impl_fns,
             } => {
                 // Into Bytes
-                // TODO this may get funny, due to the transition to flavor instead of generated quote (the great
-                // proc_macro separation) this function may need to get reset trait_fns before calling `variant.gen_struct_fields`
                 let into_bytes_quote = &mut trait_fns.write;
                 *into_bytes_fn = quote! {
                     #into_bytes_fn
@@ -736,7 +701,6 @@ impl Solved {
                 impl_fns,
                 struct_fns,
             } => {
-                // TODO below confuses me greatly, probably not quite right.
                 // Check Slice
                 if let Some(slice_info) = thing.slice_info {
                     // do the match statement stuff
@@ -927,7 +891,6 @@ impl Solved {
 impl SolvedFieldSet {
     pub const VARIANT_ID_NAME: &'static str = "variant_id";
     pub const VARIANT_ID_NAME_KEBAB: &'static str = "variant-id";
-    // TODO make sure capture id fields in enums do not get read twice.
     pub fn vis(&self) -> &Visibility {
         &self.attrs.vis
     }
@@ -1054,16 +1017,11 @@ impl SolvedFieldSet {
         } else {
             SolvedFieldSetAdditive::new_struct(name)
         };
-        // TODO If we are building code for an enum variant that does not capture the id
-        // then we should skip the id field to avoid creating an get_id function for each variant.
         let mut field_name_list = quote! {};
         for field in &self.fields {
-            // TODO verify we want to hide all fake_fields.
             if matches!(field.attr_reserve(), ReserveFieldOption::FakeField) {
                 continue;
             }
-            // TODO capture_id may not need to be run fully, capture id fields will
-            // rely on the fact it was already read for the matching process.
             let field_access = field.get_quotes()?;
             let bits_effected = get_bits_effected_string(
                 field.bit_range().clone(),
@@ -1239,14 +1197,6 @@ impl SolvedFieldSet {
                     // put the name of the field into the list of fields that are needed to create
                     // the struct.
                     *field_name_list = quote! {#field_name_list #field_name,};
-                    // TODO line above replaced commented code below, this is old code that i don't think is necessary.
-                    // field order here shouldn't matter.
-                    //
-                    // if field.is_field_order_reversed() {
-                    //     *field_name_list = quote! {#field_name, #field_name_list}
-                    // } else {
-                    //     *field_name_list = quote! {#field_name_list #field_name,}
-                    // };
                     let peek_call = if field.attr_capture_id() {
                         // put the field extraction in the actual from bytes.
                         if field.attr_reserve().wants_read_fns() {
@@ -1299,14 +1249,6 @@ impl SolvedFieldSet {
                     // put the name of the field into the list of fields that are needed to create
                     // the struct.
                     *field_name_list = quote! {#field_name_list #field_name,};
-                    // TODO line above replaced commented code below, this is old code that i don't think is necessary.
-                    // field order here shouldn't matter.
-                    //
-                    // if field.is_field_order_reversed() {
-                    //     *field_name_list = quote! {#field_name, #field_name_list}
-                    // } else {
-                    //     *field_name_list = quote! {#field_name_list #field_name,}
-                    // };
                     let trait_read_fns = &mut trait_fns.read;
                     *trait_read_fns = quote! {
                         #trait_read_fns
@@ -1404,12 +1346,6 @@ impl SolvedFieldSet {
             } => {
                 if field.attr_reserve().wants_write_fns() && !field.attr_capture_id() {
                     let trait_write_fns = &mut trait_fns.write;
-                    // *trait_write_fns = quote! {
-                    //     #trait_write_fns
-                    //     let #field_name = self.#field_name;
-                    //     #field_setter
-                    // };
-                    // TODO below was replaced by above. check that `into_bytes` still works.
                     if set_add.is_variant() {
                         let fn_name = format_ident!("write_{prefixed_name}");
                         *trait_write_fns = quote! {
@@ -1717,7 +1653,6 @@ pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) ->
                     ReversedBitsEffectedHelper::Range(r)
                 };
                 if start_byte != end_byte + 1 {
-                    // TODO add detection of when either start or last touches inner.
                     let s = (end_byte + 1) * 8;
                     let e = ((start_byte - 1) * 8) + 7;
                     if first.is_full_byte() {

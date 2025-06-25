@@ -135,7 +135,6 @@ fn add_sign_fix_quote(
                     ResolverPrimitiveStrategyTy::Alternate => {
                         let skip_bytes = (amount_of_bits / 8) * 8;
                         let sign_bit_index = field.data.bit_range_start() + skip_bytes;
-                        // TODO fix bit isolators to fix signed numbers.
                         (sign_bit_index % 8, sign_bit_index / 8)
                     }
                 };
@@ -218,7 +217,6 @@ fn add_sign_fix_quote_single_bit(
     amount_of_bits: usize,
     byte_index: usize,
 ) -> TokenStream {
-    // TODO I don't think these sign_fix fns can handle least significant bit first ordering.
     if let ResolverType::Primitive {
         number_ty,
         resolver_strategy,
@@ -377,10 +375,6 @@ impl Resolver {
         }
     }
     pub(crate) fn get_read_le_single_byte_quote(&self) -> syn::Result<TokenStream> {
-        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
-        // currently only u8 and i8 fields will work here. verify bool works it might.
-        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
-        // left)
         if 8 < (self.zeros_on_left() + self.bit_length()) {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -757,9 +751,6 @@ impl Resolver {
             let thing: ResolverDataNestedAdditive = self.data.as_ref().into();
             thing.right_shift
         };
-        // TODO `byte_effected` may need to include bits already taken in its starting byte because a 4 byte number could
-        // effect 5 bytes if it is not aligned with the start of a byte. just add zeros on left to bit length before div.
-        // this change would be required in `into.rs` as well.
         let bytes_effected = self.bit_length().div_ceil(8);
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let full_quote = match self.ty.as_ref() {
@@ -790,7 +781,7 @@ impl Resolver {
                                 let start = self
                                     .data
                                     .offset_starting_inject_byte(fbi);
-                                (fbi, start)
+                                (i, start)
                             } else {
                                 let start = self.data.offset_starting_inject_byte(i);
                                 (i, start)
@@ -826,7 +817,7 @@ impl Resolver {
                             self.ident().span(),
                             "left shifting struct was removed to see if it would ever happen",
                         ));
-                        //TODO this might be impossible for structs
+                        // TODO this might be impossible for structs
                         // left shift (this means that the last bits are in the first byte)
                         // because we are applying bits in place we need masks in insure we don't effect other fields
                         // data. we need one for the first byte and the last byte.
@@ -908,10 +899,6 @@ impl Resolver {
         }
     }
     pub(crate) fn get_read_be_single_byte_quote(&self) -> syn::Result<TokenStream> {
-        // TODO make multi-byte values that for some reason use less then 9 bits work in here.
-        // currently only u8 and i8 fields will work here. verify bool works it might.
-        // amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the
-        // left)
         if 8 < (self.zeros_on_left() + self.bit_length()) {
             return Err(syn::Error::new(
                 self.ident().span(),

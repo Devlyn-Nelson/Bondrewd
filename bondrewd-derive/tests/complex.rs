@@ -1,8 +1,5 @@
 use bondrewd::{Bitfields, BitfieldsSlice};
 
-// TODO add the ability to mark a field in the variants as the id which will contain the value the id and
-// be ignored as a field of the struct.
-// TODO add a functions that get and set the id.
 #[derive(Bitfields, BitfieldsSlice, Clone, Debug, PartialEq, Eq)]
 #[bondrewd(endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
@@ -14,7 +11,7 @@ enum ComplexEnum {
         test_two: u8,
     },
     Three {
-        // TODO: fix
+        // OPTIMIZE:
         /// DO NOT CHANGE THIS. i believe it produces un-optimized code because it
         /// rotates the bits right 6 times.
         #[bondrewd(bit_length = 30)]
@@ -52,16 +49,6 @@ struct SimpleExample {
     flag_four: bool,
     flag_five: bool,
     flag_six: bool,
-    // TODO make it so the struct_size attribute can be defined with bits.
-    // currently the backend used byte size for all of the math surrounding
-    // the extraction of nested bondrewd structures, i believe this could
-    // become bit_size based.
-    // this would allow us to either:
-    // - enforce that nested bondrewd Bitfields use either `bit-length`
-    //      or `byte-length` instead of `struct_size`. it would be kind to still
-    //      allow struct_size but just have the underlying code do what
-    //      `byte-length` does.
-    // - make `struct-bit-length` and `struct-byte-length` replace `struct_size`.
     #[bondrewd(bit_length = 46)]
     enum_field: ComplexEnum,
     #[bondrewd(bit_length = 3)]
@@ -88,9 +75,6 @@ fn complex_stuff() {
 
     // test full structure with Enums that are `Bitfields` NOT `BitfieldEnum`.
     assert_eq!(13, SimpleExample::BYTE_SIZE);
-    // if you are wondering why the 2 is there. it is because bondrewd currently does
-    // not support nested `Bitfields` to use bit sizing. read TODO above the declaration
-    // of the `SimpleExample::enum_field` field.
     assert_eq!(53 + 46 + 3, SimpleExample::BIT_SIZE);
     let og = SimpleExample {
         one: false,
@@ -183,7 +167,6 @@ enum Thing {
     // TODO below attribute will break things. it should not.
     // #[bondrewd(enforce_bits = 16)]
     Idk {
-        // TODO make sure capture id automatically gets the correct bit size.
         #[bondrewd(capture_id)]
         id: u8,
         a: u16,

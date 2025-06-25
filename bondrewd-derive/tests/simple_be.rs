@@ -151,7 +151,6 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         assert_eq!(simple.one, SimpleWithReserve::read_slice_one(&bytes)?);
         assert_eq!(0, SimpleWithReserve::read_slice_reserve(&bytes)?);
         assert_eq!(simple.two, SimpleWithReserve::read_slice_two(&bytes)?);
-        // TODO write more set slice tests
         SimpleWithReserve::write_slice_one(&mut bytes, 0)?;
         SimpleWithReserve::write_slice_reserve(&mut bytes, 7)?;
         SimpleWithReserve::write_slice_two(&mut bytes, 0)?;

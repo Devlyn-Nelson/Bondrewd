@@ -21,8 +21,6 @@ fn hard_core_test() {
 fn super_hard_code() {
     use bondrewd::Bitfields;
     use current::{One, ReallyHardcore, Three, Two};
-    // TODO add multi-byte nested structure.
-    // make it a changing test like the HAL protocol tests do.
     let thing_1 = ReallyHardcore {
         one: One { one: true, two: 7 },
         two: Two::One { one: false, two: 0 },

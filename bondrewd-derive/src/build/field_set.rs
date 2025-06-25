@@ -126,15 +126,6 @@ impl GenericBuilder {
                 return Err(syn::Error::new(variant.span(), "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id."));
             }
             let variant_name = variant.ident.clone();
-            // let fields = Self::parse_fields(
-            //     &variant_name,
-            //     &variant.fields,
-            //     &attrs,
-            //     Some(id_field.clone()),
-            //     tuple,
-            // )?;
-            // TODO currently we always add the id field, but some people might want the id to be a
-            // field in the variant. this would no longer need to insert the id as a "fake-field".
             let mut fields = Vec::default();
             let tuple = Self::extract_fields(&mut fields, &variant.fields, &endianness)?;
             let field_set = FieldSetBuilder {
@@ -542,9 +533,6 @@ impl VariantDarlingSimplified {
 pub struct EnumDarling {
     pub ident: Ident,
     pub vis: syn::Visibility,
-    // TODO implement id_tail and id_head.
-    // pub id_tail: darling::util::Flag,
-    // pub id_head: darling::util::Flag,
     pub payload_bit_length: Option<usize>,
     pub payload_byte_length: Option<usize>,
     pub id_bit_length: Option<usize>,
@@ -765,7 +753,6 @@ impl FieldSetBuilder {
 /// A [`Builder`] option that can dynamically add reserve bits to the end of a [`FieldSetBuilder`].
 #[derive(Clone, Debug, Default)]
 pub enum FillBits {
-    // TODO I might want this to default to Auto in the future.
     /// Does not fill bits.
     #[default]
     None,

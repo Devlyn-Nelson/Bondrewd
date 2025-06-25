@@ -1,13 +1,31 @@
-- [x] Add way to force the endianness used when creating the Rust type. currently the endianness is either big for standard and little for Alternative. aligned-little-endian currently uses `from_be_byte` (not an issue), but it would be cool if the actually endianness could be defined separately from the resolving method.
-- [x] Ale endianness currently outputs the bit locations in the fn-doc incorrectly.
-- [ ] Add functions that run the clearing code from the write functions. this would be cool because writing a field as zero actually sets it to 0 twice, once to clear old bits and again setting it to provided value. providing a set_to_zero function that preforms only the clearing code would be lots faster due to no masks calculations and at least half the write calls to he buffer.
-- [x] `from_vec` and `from_slice` for generated `BitfieldsDyn` trait impls on enums read the variant id twice instead of reusing the value from the first read to determine variant.
-- [x] Make sure capture id is not reading twice.
-- [x] Add non-packed little endian
-- [ ] Make a way for the Id of a enum to be received via another field when using nested enums.
-- [ ] Allow id_field in enums to be other primitive types that can be matched against.
-- [x] Fix nested structs/enums. Currently if you want Aligned Little Endian your nested struct must NOT reverse byte-order.
-- [ ] Zero shifts happen still. Please insure these don't get output.
+
+
+
+# Must Fix
+
+- fix `ne` multi-byte.
+- verify overlap protection works.
+  - [ ] enums
+  - [ ] struct
+- verify sign_fix works for signed number.
+- verify a multi-byte rust type can be given less than 9 bits. currently only u8 and i8 fields will work here. verify bool works it might. amount of zeros to have for the left mask. (left mask meaning a mask to keep data on the left)
+- test to see that the struct enforcement error are nice and accurate.
+
+# Features
+
+- add option to put the id field at the tail instead of the head of the bits.
+- add `FillTo` which should make a fill field that fills the remaining unused bits to specified amount. if the current used bits amount goes over the fill-to amount specified throw error.
+- add `into_object` function to checked structures, this would be an alternative to using `Bitfields::from_bytes` but from a checked slice.
+- Make a way for the Id of a enum to be received via another field when using nested enums.
+- Allow id_field in enums to be other primitive types that can be matched against.
+- Zero shifts happen still. Please insure these don't get output.
+
+# Optimizations
+
+- [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
+
+# Overhauls
+
 - [x] Make bondrewd builder
   - [x] Create `Solved` layer that solves the builder into basic pre-bitfield-derive information.
     - [ ] this could be used to calculate final masks then create the derive code.
@@ -22,6 +40,7 @@
       - [ ] When ending index is `static` we calculate the value at runtime.
       - [ ] When ending index is `dynamic` it is required that a previous field be provided to get a length from. which will make the read and write functions also require a ending index to provided during runtime to determine where it ends.
     - NOTE: When ANY field has a `dynamic` starting or ending bit index, we lose the ability to implement `Bitfields` but `BitfieldsDyn` would still be an option.
-- [ ] Make even bytes optimizations. when bit fields are not necessary we could optimize things by using copy from slice.
-- [x] Try to fix id assignment for test enum_derive::CenteredInvalid, the old system assigned Invalid an id of 2 due to its position in the enum, the new system assigns it 4. the id attribute was added to the test for now to get things working. i want to be able to remove that. My best guess to get things working is doing the id assignment earlier or keep track of the order of variants.
-- [ ] add `into_object` function to checked structures, this would be an alternative to using `Bitfields::from_bytes` but from a checked slice.
+  
+# Think On
+
+- I might want `FillBits::Auto` to replace `FillBits::None`.

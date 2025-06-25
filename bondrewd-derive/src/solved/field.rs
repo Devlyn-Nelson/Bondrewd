@@ -226,10 +226,6 @@ impl SolvedData {
         } else {
             None
         };
-        // TODO do auto_fill process. which just adds a implied reserve fields to structures that have a
-        // bit size which has a non-zero remainder when divided by 8 (amount of bit in a byte). This shall
-        // happen before byte_order_reversal and field_order_reversal
-        //
         // Reverse field order
         if pre_field.endianness.is_field_order_reversed() && struct_bit_size != 0 {
             let reverse_val = struct_bit_size;
@@ -245,13 +241,6 @@ impl SolvedData {
         let start = pre_field.bit_range.range().start;
         let mut zeros_on_left = start % 8;
         if 7 < zeros_on_left {
-            // TODO if don't think this error is possible, and im wondering why it is being checked for
-            // in the first place.
-            // return Err(SolvingError::ResolverUnderflow(format!(
-            //     "field \"{}\" would have had left shift underflow, report this at \
-            //         https://github.com/Devlyn-Nelson/Bondrewd",
-            //     pre_field.id.ident(),
-            // )));
             zeros_on_left %= 8;
         }
         let available_bits_in_first_byte = 8 - zeros_on_left;
