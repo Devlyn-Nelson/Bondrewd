@@ -52,7 +52,7 @@ impl std::error::Error for BitfieldHexError {}
 
 /// Error type describing that a character in provided slice is Invalid.
 #[derive(Debug)]
-pub enum BitfieldHexDynError{
+pub enum BitfieldHexDynError {
     Hex(BitfieldHexError),
     Length(BitfieldLengthError),
 }
@@ -60,16 +60,8 @@ pub enum BitfieldHexDynError{
 impl fmt::Display for BitfieldHexDynError {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BitfieldHexDynError::Hex(err) => write!(
-                fmt,
-                "{}",
-                err
-            ),
-            BitfieldHexDynError::Length(err) => write!(
-                fmt,
-                "{}",
-                err
-            ),
+            BitfieldHexDynError::Hex(err) => write!(fmt, "{err}"),
+            BitfieldHexDynError::Length(err) => write!(fmt, "{err}"),
         }
     }
 }
