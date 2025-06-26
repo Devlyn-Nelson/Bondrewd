@@ -1,13 +1,13 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Clone, Bitfields, PartialEq, Eq, Copy, Debug, PartialOrd, Ord)]
-#[bondrewd(id_bit_length = 6, default_endianness = "be")]
+#[bondrewd(id_bit_length = 6, endianness = "be")]
 pub enum AosFrameVirtualChannelId {
-    /// Denotes that the AosFrame belongs to the Orbital or Non-Realtime Virtual Channel. value of 0.
+    /// Denotes that the `AosFrame` belongs to the Orbital or Non-Realtime Virtual Channel. value of 0.
     Orbital,
-    /// Denotes that the AosFrame belongs to Realtime Virtual Channel. value of 1.
+    /// Denotes that the `AosFrame` belongs to Realtime Virtual Channel. value of 1.
     Realtime,
-    /// Denotes that the AosFrame Virtual Channel is not within the Pumpkin Inc spec values.
+    /// Denotes that the `AosFrame` Virtual Channel is not within the Pumpkin Inc spec values.
     Invalid {
         #[bondrewd(capture_id)]
         id: u8,
@@ -17,8 +17,8 @@ pub enum AosFrameVirtualChannelId {
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
-#[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "msb", read_from = "msb0", enforce_bytes = 8)]
+#[derive(Bitfields, BitfieldsSlice, Clone, Debug)]
+#[bondrewd(endianness = "be", enforce_bytes = 8)]
 pub struct AosFrameHeaderBe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]
@@ -52,7 +52,7 @@ pub struct AosFrameHeaderBe {
 }
 
 #[test]
-fn cycle_header_be() -> anyhow::Result<()> {
+fn cycle_header_be() {
     let mut header = AosFrameHeaderBe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -78,17 +78,45 @@ fn cycle_header_be() -> anyhow::Result<()> {
         assert_eq!(
             header.virtual_channel_frame_count,
             AosFrameHeaderBe::read_virtual_channel_frame_count(&bytes)
-        )
+        );
     }
+}
+#[test]
+fn cycle_header_be_slice() {
+    let mut header = AosFrameHeaderBe {
+        transfer_frame_version: 0,
+        space_craft_id: 55,
+        vcid: AosFrameVirtualChannelId::Orbital,
+        virtual_channel_frame_count: 0,
+        replay_flag: false,
+        vc_frame_count_usage: false,
+        reserved: 0,
+        vc_frame_count_cycle: 0,
+        reserved_spare: 0,
+        first_header_pointer: 0xff,
+    };
 
-    Ok(())
+    let mut bytes = header.clone().into_bytes();
+
+    let end = 2_u32.pow(24) - 1;
+    while header.virtual_channel_frame_count != end {
+        header.virtual_channel_frame_count += 1;
+        let _ = AosFrameHeaderBe::write_slice_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderBe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
+        );
+    }
 }
 
 /// A Structure containing all of the information of a AOS Space Data Link Header (CCSDS 732.0-B-4 4.1.2)
 /// for AOS Space Data Link Protocol in native rust typing. Bondrewd Bitfields are derived which means we
 /// can easily convert this from/into a fixed size array of bytes.
-#[derive(Clone, Bitfields, Debug)]
-#[bondrewd(default_endianness = "le", read_from = "msb0", enforce_bytes = 8)]
+#[derive(Clone, Bitfields, BitfieldsSlice, Debug)]
+#[bondrewd(endianness = "le", enforce_bytes = 8)]
 pub struct AosFrameHeaderLe {
     /// AOS Space Data Link Protocol `Transfer Frame Version Number` (CCSDS 732.0-B-4 4.1.2.2.2).
     #[bondrewd(bit_length = 2)]
@@ -122,7 +150,7 @@ pub struct AosFrameHeaderLe {
 }
 
 #[test]
-fn cycle_header_le() -> anyhow::Result<()> {
+fn cycle_header_le() {
     let mut header = AosFrameHeaderLe {
         transfer_frame_version: 0,
         space_craft_id: 55,
@@ -148,8 +176,37 @@ fn cycle_header_le() -> anyhow::Result<()> {
         assert_eq!(
             header.virtual_channel_frame_count,
             AosFrameHeaderLe::read_virtual_channel_frame_count(&bytes)
-        )
+        );
     }
+}
 
-    Ok(())
+#[test]
+fn cycle_header_le_slice() {
+    let mut header = AosFrameHeaderLe {
+        transfer_frame_version: 0,
+        space_craft_id: 55,
+        vcid: AosFrameVirtualChannelId::Orbital,
+        virtual_channel_frame_count: 0,
+        replay_flag: false,
+        vc_frame_count_usage: false,
+        reserved: 0,
+        vc_frame_count_cycle: 0,
+        reserved_spare: 0,
+        first_header_pointer: 0xff,
+    };
+
+    let mut bytes = header.clone().into_bytes();
+
+    let end = 2_u32.pow(24) - 1;
+    while header.virtual_channel_frame_count != end {
+        header.virtual_channel_frame_count += 1;
+        let _ = AosFrameHeaderLe::write_slice_virtual_channel_frame_count(
+            &mut bytes,
+            header.virtual_channel_frame_count,
+        );
+        assert_eq!(
+            header.virtual_channel_frame_count,
+            AosFrameHeaderLe::read_slice_virtual_channel_frame_count(&bytes).unwrap()
+        );
+    }
 }

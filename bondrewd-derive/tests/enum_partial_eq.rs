@@ -1,7 +1,7 @@
 use bondrewd::Bitfields;
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum TestPartialEqEnum {
     Zero,
     One,
@@ -11,7 +11,7 @@ enum TestPartialEqEnum {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum TestPartialEqCustomEnum {
     CustomZero = 0x10,
     CustomOne = 0x20,
@@ -21,7 +21,7 @@ enum TestPartialEqCustomEnum {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(id_byte_length = 1, default_endianness = "be")]
+#[bondrewd(id_byte_length = 1, endianness = "be")]
 enum TestNoPartialEqCustomEnum {
     CustomZero = 0x10,
     CustomOne = 0x20,
@@ -30,7 +30,6 @@ enum TestNoPartialEqCustomEnum {
     Invalid = 0xFF,
 }
 
-#[cfg(feature = "part_eq_enums")]
 #[test]
 fn enum_partial_eq_tests() -> anyhow::Result<()> {
     // Create some enums and compare directly to numbers
@@ -38,18 +37,18 @@ fn enum_partial_eq_tests() -> anyhow::Result<()> {
     let simple_three = TestPartialEqEnum::Three;
     let simple_invalid = TestPartialEqEnum::Invalid;
 
-    assert_eq!(simple_one, 1_u8);
-    assert_eq!(simple_three, 3_u8);
-    assert_eq!(simple_invalid, 4_u8);
+    assert_eq!(simple_one.id(), 1_u8);
+    assert_eq!(simple_three.id(), 3_u8);
+    assert_eq!(simple_invalid.id(), 4_u8);
 
     // Create some custom enums
     let custom_one = TestPartialEqCustomEnum::CustomOne;
     let custom_three = TestPartialEqCustomEnum::CustomThree;
     let custom_invalid = TestPartialEqCustomEnum::Invalid;
 
-    assert_eq!(custom_one, 0x20_u8);
-    assert_eq!(custom_three, 0x40_u8);
-    assert_eq!(custom_invalid, 0xFF);
+    assert_eq!(custom_one.id(), 0x20_u8);
+    assert_eq!(custom_three.id(), 0x40_u8);
+    assert_eq!(custom_invalid.id(), 0xFF);
 
     // Test against a non partial_eq enum too
     let no_partial_one = TestNoPartialEqCustomEnum::CustomOne;
