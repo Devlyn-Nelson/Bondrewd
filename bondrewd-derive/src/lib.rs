@@ -3,6 +3,17 @@
 //! Provides a proc macro for compressing a data structure with data which can be expressed with bit
 //! lengths that are not a power of Two.
 //!
+//! # Under Development
+//! with 0.4.0 enums are now supported by the standard Bitfield proc macro. This is still experimental.
+//!
+//! - Mark any Enum Bitfield Variant as invalid instead of forcing it to be the last one.
+//! - Implement Tuple Structs.
+//! - Allow the user to capture the id value in the fields list of a Enum Variant.
+//! - Allow assumed id sizing. we do check the provided id size is large enough so if non is defined
+//!     we could just use the calculated smallest allowable.
+//! - Enable `hex` and `setter` features for enums.
+//! - We may be able to detect `repr(TYPE)` attribute and if so we can get useful information from that.
+//!
 //! # Derive Bitfields
 //! - Implements the [`Bitfields`](https://docs.rs/bondrewd/latest/bondrewd/trait.Bitfields.html) trait
 //! which offers from\into bytes functions that are non-failable and convert the struct from/into sized
@@ -102,12 +113,13 @@
 //! ```
 //!
 //! # Crate Features
+//! ### dyn_fns
 //! Slice functions are convenience functions for reading/wring single or multiple fields without reading
 //! the entire structure. Bondrewd will provided 2 ways to access the field:
 //! * Single field access. These are functions that are added along side the standard read/write field
 //! functions in the impl for the input structure. read/write slice functions will check the length of
 //! the slice to insure the amount to bytes needed for the field (NOT the entire structure) are present and
-//! return BitfieldSliceError if not enough bytes are present.
+//! return BitfieldLengthError if not enough bytes are present.
 //!     * `fn read_slice_{field}(&[u8]) -> Result<{field_type}, bondrewd::BondrewdSliceError> { .. }`
 //!     * `fn write_slice_{field}(&mut [u8], {field_type}) -> Result<(), bondrewd::BondrewdSliceError> { .. }`
 //! * Multiple field access.
@@ -127,24 +139,24 @@
 //!         * `fn write_{field}(&mut self) -> {field_type} { .. }`
 //!   
 //! Example Cargo.toml Bondrewd dependency  
-//! `bondrewd = { version = "^0.1", features = ["derive", "slice_fns"] }`  
+//! `bondrewd = { version = "^0.1", features = ["derive", "dyn_fns"] }`  
 //! Example Generated Slice Api:
 //! ```compile_fail
 //! impl Simple {
-//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldSliceError> { .. }
-//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldSliceError> { .. }
+//!     pub fn check_slice(buffer: &[u8]) -> Result<SimpleChecked, BitfieldLengthError> { .. }
+//!     pub fn check_slice_mut(buffer: &mut [u8]) -> Result<SimpleCheckedMut, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     pub fn read_slice_one(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldSliceError> { .. }
+//!     pub fn read_slice_two(input_byte_buffer: &[u8]) -> Result<bool, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldSliceError> { .. }
+//!     pub fn read_slice_three(input_byte_buffer: &[u8]) -> Result<u8, BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_one(output_byte_buffer: &mut [u8],one: u8) -> Result<(), BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_two(output_byte_buffer: &mut [u8],two: bool) -> Result<(), BitfieldLengthError> { .. }
 //!     #[inline]
-//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldSliceError> { .. }
+//!     pub fn write_slice_three(output_byte_buffer: &mut [u8],three: u8) -> Result<(), BitfieldLengthError> { .. }
 //! }
 //! struct SimpleChecked<'a> {
 //!     buffer: &'a [u8],
@@ -175,7 +187,9 @@
 //!     pub fn write_three(&mut self, three: u8) { .. }
 //! }
 //! ```
-//!
+//! ### part_eq_enums
+//! Implements [`PartialEq`] for the type which fits the bits of the a [`Bitfields`] enum's id on the enum.
+//! ### hex_fns
 //! `hex_fns` provided from/into hex functions like from/into bytes. The hex inputs/outputs are \[u8;N\]
 //! where N is double the calculated bondrewd STRUCT_SIZE. Hex encoding and decoding is based off the
 //! [hex](https://crates.io/crates/hex) crate's from/into slice functions but with statically sized
@@ -311,13 +325,16 @@ extern crate proc_macro;
 mod enums;
 use enums::parse::EnumInfo;
 mod structs;
-use structs::common::StructInfo;
-use structs::from_bytes::create_from_bytes_field_quotes;
-use structs::into_bytes::create_into_bytes_field_quotes;
+use structs::into_bytes::{
+    create_into_bytes_field_quotes_enum, create_into_bytes_field_quotes_struct,
+};
+use structs::{common::ObjectInfo, from_bytes::create_from_bytes_field_quotes};
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, DeriveInput};
+
+use crate::structs::from_bytes::create_from_bytes_field_quotes_enum;
 
 /// Generates an implementation of the bondrewd::Bitfield trait, as well as peek and set functions for direct
 /// sized u8 arrays access. This crate is designed so that attributes are only required for fields that
@@ -331,13 +348,22 @@ use syn::{parse_macro_input, DeriveInput};
 ///     - Floats currently must be full sized.
 ///     - Its important to know that there is a small runtime cost for signed numbers.
 /// - Enums which implement the BitfieldEnum trait in Bondrewd.
-/// - Structs which implement the Bitfield trait in Bondrewd.
+/// - Structs or Enums which implement the Bitfield trait in Bondrewd.
 ///
-/// # Struct Attributes
-/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields.
+/// # Struct/Enum/Variant Attributes
+///
+/// #### Common Attributes
+/// These attributes can be used on a struct, enum or a n enum variant. When used with an enum they are
+/// defaults for the variants, and each variant can be assigned these attributes as well.
+/// - `default_endianness = {"le" or "be"}` Describes a default endianness for primitive fields. as of version
+/// `0.3.27` the endianness will default to Little Endianness.
 /// [example](#endianness-examples)
 /// - `read_from = {"msb0" or "lsb0"}` Defines bit positioning. which end of the byte array to start at.
 /// [example](#bit-positioning-examples)
+/// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
+/// byte index). This has no runtime cost. [example](#reverse-example)
+///
+/// #### Struct/Variant Attributes
 /// - `enforce_bytes = {BYTES}` Adds a check that requires total bytes defined by fields to equal provided
 /// BYTES. [example](#enforce-bits-examples)
 /// - `enforce_bits = {BITS}` Adds a check that requires total bits defined by fields to equal provided
@@ -346,8 +372,16 @@ use syn::{parse_macro_input, DeriveInput};
 /// [example](#enforce-full-bytes-example)
 /// - `fill_bytes = {BYTES}` Will force the output/input byte array size to be the provided SIZE amount of
 /// bytes. [example](#fill-bytes-examples)
-/// - `reverse` Defines that the entire byte array should be read backward (first byte index becomes last
-/// byte index). This has no runtime cost. [example](#reverse-example)
+///
+/// #### Enum Attributes
+/// - `id_bit_length = {BITS}` Describes the amount of bits bondrewd will use to identify which variant is being stored.
+/// [example](#enum-example)
+/// - `id_byte_length = {BYTES}` Describes the amount of bytes bondrewd will use to identify which variant is being stored.
+///
+/// #### Variant Attributes
+/// - `variant_id = {ID}` Tell bondrewd the id value tot use for the variant.
+/// [example](#enum-example).
+/// The id can also be defined by a using discriminates [discriminate-example](#enum-with-discriminates).
 ///
 /// # Field Attributes
 /// - `bit_length = {BITS}` Define the total amount of bits to use when condensed. [example](#simple-example)
@@ -369,6 +403,11 @@ use syn::{parse_macro_input, DeriveInput};
 /// [example](#reserve-examples)
 ///     - Reserve requires the fields type to impl ['Default'](https://doc.rust-lang.org/std/default/trait.Default.html).
 /// due to from_bytes needed to provided a value.
+///
+/// # Enum Attributes
+/// - `capture_id` Tells Bondrewd to put the value for id in the field on reads, fields
+/// with this attribute do NOT get written to the bytes to prevent users from creating improper
+/// byte values. [example](#capture-id)
 ///
 /// # Experimental Field Attributes
 /// if you decide to use these remember that they have not been exhaustively tested. when using
@@ -758,7 +797,8 @@ use syn::{parse_macro_input, DeriveInput};
 ///
 /// // this enum has 4 variants therefore only uses 2 bits
 /// // out of 8 in the primitive type.
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -769,15 +809,13 @@ use syn::{parse_macro_input, DeriveInput};
 /// #[derive(Bitfields)]
 /// #[bondrewd(default_endianness = "be")]
 /// struct ArraysWithStructsAndEnums {
-///     // if the bit size should be the full size of the primitive, only
-///     // the enum attribute is needed.
-///     #[bondrewd(enum_primitive = "u8")]
+///     #[bondrewd(element_bit_length = 8)]
 ///     four_byte_four_values: [SimpleEnum; 4],
 ///     // if we use the element_bit_length we can say to only use 2
 ///     // bits per SimpleEnum, and due to SimpleEnum only needing 2
 ///     // bits, this could be desirable. means instead of using 4
 ///     // bytes to store 4 SimpleEnums, we can use 1 byte.
-///     #[bondrewd(enum_primitive = "u8", element_bit_length = 2)]
+///     #[bondrewd(element_bit_length = 2)]
 ///     one_byte_four_values: [SimpleEnum; 4],
 ///     // again if the size doesn't need to change, no array attribute
 ///     // is needed.
@@ -916,8 +954,8 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
 /// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
-/// Here is the same example where but i messed up the bit_length of the first field making the total 8
-/// instead of 7.
+/// Here is the same example where i assigned the "incorrect" the bit_length of the first field making the
+/// total 8 instead of 7.
 /// ```compile_fail
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -929,8 +967,6 @@ use syn::{parse_macro_input, DeriveInput};
 ///     two: u8,
 ///     three: bool
 /// }
-/// assert_eq!(1, FilledBytesEnforced::BYTE_SIZE);
-/// assert_eq!(7, FilledBytesEnforced::BIT_SIZE);
 /// ```
 ///   
 /// These next 3 examples all attempt to have near the same end results. A total output of 3 bytes, but the
@@ -1028,7 +1064,8 @@ use syn::{parse_macro_input, DeriveInput};
 /// For enum derive examples goto [BitfieldEnum Derive](BitfieldEnum).
 /// ```
 /// use bondrewd::*;
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum SimpleEnum {
 ///     Zero,
 ///     One,
@@ -1040,7 +1077,7 @@ use syn::{parse_macro_input, DeriveInput};
 /// struct StructWithEnumExample {
 ///     #[bondrewd(bit_length = 3)]
 ///     one: u8,
-///     #[bondrewd(enum_primitive = "u8", bit_length = 2)]
+///     #[bondrewd(bit_length = 2)]
 ///     two: SimpleEnum,
 ///     #[bondrewd(bit_length = 3)]
 ///     three: u8,
@@ -1049,7 +1086,8 @@ use syn::{parse_macro_input, DeriveInput};
 /// Enums can also be used in [arrays](#bitfield-array-examples)
 /// ```
 /// use bondrewd::*;
-/// #[derive(BitfieldEnum)]
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2)]
 /// enum Simple {
 ///     One,
 ///     Two,
@@ -1063,9 +1101,9 @@ use syn::{parse_macro_input, DeriveInput};
 ///     // bit length is not required for enums but in this case where only 4 possible variants are in
 ///     // our enums 2 bits is all that is needed. also note using more bits than possible variants is
 ///     // not a problem because the catch all system will protect you from bad inputs.
-///     #[bondrewd(bit_length = 2, enum_primitive = "u8")]
+///     #[bondrewd(bit_length = 2)]
 ///     one: Simple,
-///     #[bondrewd(element_bit_length = 2, enum_primitive = "u8")]
+///     #[bondrewd(element_bit_length = 2)]
 ///     two: [Simple; 3],
 /// }
 /// ```
@@ -1272,12 +1310,12 @@ use syn::{parse_macro_input, DeriveInput};
 /// assert_eq!(-1034, SimpleExample::read_three(&bytes));
 /// // notice i can still use the read calls for the redundant field.
 /// assert_eq!(63, SimpleExample::read_flags(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_one(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_two(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_three(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_four(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_five(&bytes));
-/// assert_eq!(true,SimpleExample::read_flag_six(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_one(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_two(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_three(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_four(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_five(&bytes));
+/// assert_eq!(true, SimpleExample::read_flag_six(&bytes));
 /// // overwrite the values with new ones in the byte array.
 /// SimpleExample::write_one(&mut bytes, true);
 /// SimpleExample::write_two(&mut bytes, 5.5);
@@ -1289,23 +1327,350 @@ use syn::{parse_macro_input, DeriveInput};
 /// let reconstructed = SimpleExample::from_bytes(bytes);
 /// // check the values read by from bytes and check if they are
 /// // what we wrote to the bytes NOT the origanal values.
-/// assert_eq!(true,reconstructed.one);
-/// assert_eq!(5.5,reconstructed.two);
-/// assert_eq!(511,reconstructed.three);
-/// assert_eq!(0,reconstructed.flags);
-/// assert_eq!(false,reconstructed.flag_one);
-/// assert_eq!(false,reconstructed.flag_two);
-/// assert_eq!(false,reconstructed.flag_three);
-/// assert_eq!(false,reconstructed.flag_four);
-/// assert_eq!(false,reconstructed.flag_five);
-/// assert_eq!(false,reconstructed.flag_six);
+/// assert_eq!(true, reconstructed.one);
+/// assert_eq!(5.5, reconstructed.two);
+/// assert_eq!(511, reconstructed.three);
+/// assert_eq!(0, reconstructed.flags);
+/// assert_eq!(false, reconstructed.flag_one);
+/// assert_eq!(false, reconstructed.flag_two);
+/// assert_eq!(false, reconstructed.flag_three);
+/// assert_eq!(false, reconstructed.flag_four);
+/// assert_eq!(false, reconstructed.flag_five);
+/// assert_eq!(false, reconstructed.flag_six);
+/// ```
+/// # Enum Example
+/// Because enums can provide a lot of ambiguity there is a requirement that The last variant is
+/// always considered the "Invalid Variant", which simply means that it will be a
+/// catch-all in the match statement for the generated `Bitfields::from_bytes()` function.
+/// See [Generated From Bytes](#generated-from-bytes) below.
+///
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
+///
+/// enum Thing {
+///     One {
+///         a: u16,
+///     },
+///     Two {
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     },
+///     Three {
+///         #[bondrewd(bit_length = 7)]
+///         d: u8,
+///         #[bondrewd(bit_length = 15)]
+///         e: u16,
+///     },
+///     #[bondrewd(variant_id = 0)]
+///     Idk,
+/// }
+///
+/// let thing = Thing::One { a: 1 };
+/// let bytes = thing.into_bytes();
+/// // the first two bits are the id followed by Variant One's `a` field.
+/// assert_eq!(bytes[0], 0b01_000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+/// assert_eq!(bytes[2], 0b01_000000);
+/// ```
+/// #### Generated From Bytes
+/// ```
+/// enum Thing {
+///     One {
+///         a: u16
+///     },
+///     Two {
+///         a: u16,
+///         b: u8
+///     },
+///     Three {
+///         d: u8,
+///         e: u16
+///     },
+///     Idk,
+/// }
+/// impl bondrewd::Bitfields<3usize> for Thing {
+///     const BIT_SIZE: usize = 24usize;
+///     fn into_bytes(self) -> [u8; 3usize] {
+///         let mut output_byte_buffer = [0u8; 3usize];
+///         match self {
+///             Self::One { a } => {
+///                 Self::write_id(&mut output_byte_buffer, 1);
+///                 Self::write_one_a(&mut output_byte_buffer, a);
+///             }
+///             Self::Two { a, b } => {
+///                 Self::write_id(&mut output_byte_buffer, 2);
+///                 Self::write_two_a(&mut output_byte_buffer, a);
+///                 Self::write_two_b(&mut output_byte_buffer, b);
+///             }
+///             Self::Three { d, e } => {
+///                 Self::write_id(&mut output_byte_buffer, 3);
+///                 Self::write_three_d(&mut output_byte_buffer, d);
+///                 Self::write_three_e(&mut output_byte_buffer, e);
+///             }
+///             Self::Idk {} => {
+///                 Self::write_id(&mut output_byte_buffer, 0);
+///             }
+///         }
+///         output_byte_buffer
+///     }
+///     fn from_bytes(mut input_byte_buffer: [u8; 3usize]) -> Self {
+///         let id = Self::read_id(&input_byte_buffer);
+///         match id {
+///             1 => {
+///                 let a = Self::read_one_a(&input_byte_buffer);
+///                 Self::One { a }
+///             }
+///             2 => {
+///                 let a = Self::read_two_a(&input_byte_buffer);
+///                 let b = Self::read_two_b(&input_byte_buffer);
+///                 Self::Two { a, b }
+///             }
+///             3 => {
+///                 let d = Self::read_three_d(&input_byte_buffer);
+///                 let e = Self::read_three_e(&input_byte_buffer);
+///                 Self::Three { d, e }
+///             }
+///             _ => Self::Idk,
+///         }
+///     }
+///     }
+///     impl Thing {
+///     #[inline]
+///     ///Reads bits 0 through 1 within `input_byte_buffer`, getting the `id` field of a `Thing` in bitfield form.
+///     pub fn read_id(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         ((input_byte_buffer[0usize] & 192u8) >> 6usize) as u8
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 17 within `input_byte_buffer`, getting the `one_a` field of a `One` in bitfield form.
+///     pub fn read_one_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
+///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 a_bytes[1usize] |= input_byte_buffer[1usize];
+///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
+///                 a_bytes
+///             })
+///             .rotate_left(2u32)
+///     }
+///     #[inline]
+///     ///Reads bits 18 through 23 within `input_byte_buffer`, getting the `one_fill_bits` field of a `One` in bitfield form.
+///     pub fn read_one_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 1usize] {
+///         [{ ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8 }]
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 17 within `input_byte_buffer`, getting the `two_a` field of a `Two` in bitfield form.
+///     pub fn read_two_a(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///                 let mut a_bytes: [u8; 2usize] = [0u8; 2usize];
+///                 a_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 a_bytes[1usize] |= input_byte_buffer[1usize];
+///                 a_bytes[0] |= input_byte_buffer[2usize] & 192u8;
+///                 a_bytes
+///             })
+///             .rotate_left(2u32)
+///     }
+///     #[inline]
+///     ///Reads bits 18 through 23 within `input_byte_buffer`, getting the `two_b` field of a `Two` in bitfield form.
+///     pub fn read_two_b(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         ((input_byte_buffer[2usize] & 63u8) >> 0usize) as u8
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 8 within `input_byte_buffer`, getting the `three_d` field of a `Three` in bitfield form.
+///     pub fn read_three_d(input_byte_buffer: &[u8; 3usize]) -> u8 {
+///         u8::from_be_bytes({
+///                 let mut d_bytes: [u8; 1usize] = [0u8; 1usize];
+///                 d_bytes[0usize] |= input_byte_buffer[0usize] & 63u8;
+///                 d_bytes[0] |= input_byte_buffer[1usize] & 128u8;
+///                 d_bytes
+///             })
+///             .rotate_left(1u32)
+///     }
+///     #[inline]
+///     ///Reads bits 9 through 23 within `input_byte_buffer`, getting the `three_e` field of a `Three` in bitfield form.
+///     pub fn read_three_e(input_byte_buffer: &[u8; 3usize]) -> u16 {
+///         u16::from_be_bytes({
+///             let mut e_bytes: [u8; 2usize] = [0u8; 2usize];
+///             e_bytes[0usize] |= input_byte_buffer[1usize] & 127u8;
+///             e_bytes[1usize] |= input_byte_buffer[2usize];
+///             e_bytes
+///         })
+///     }
+///     #[inline]
+///     ///Reads bits 2 through 23 within `input_byte_buffer`, getting the `idk_fill_bits` field of a `Idk` in bitfield form.
+///     pub fn read_idk_fill_bits(input_byte_buffer: &[u8; 3usize]) -> [u8; 3usize] {
+///         [
+///             { ((input_byte_buffer[0usize] & 63u8) >> 0usize) as u8 },
+///             { ((input_byte_buffer[1usize] & 255u8) >> 0usize) as u8 },
+///             { ((input_byte_buffer[2usize] & 255u8) >> 0usize) as u8 },
+///         ]
+///     }
+///     #[inline]
+///     ///Writes to bits 0 through 1 within `output_byte_buffer`, setting the `id` field of a `Thing` in bitfield form.
+///     pub fn write_id(output_byte_buffer: &mut [u8; 3usize], mut id: u8) {
+///         output_byte_buffer[0usize] &= 63u8;
+///         output_byte_buffer[0usize] |= ((id as u8) << 6usize) & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 17 within `output_byte_buffer`, setting the `one_a` field of a `One` in bitfield form.
+///     pub fn write_one_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 0u8;
+///         output_byte_buffer[2usize] &= 63u8;
+///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= a_bytes[1usize];
+///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 17 within `output_byte_buffer`, setting the `two_a` field of a `Two` in bitfield form.
+///     pub fn write_two_a(output_byte_buffer: &mut [u8; 3usize], mut a: u16) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 0u8;
+///         output_byte_buffer[2usize] &= 63u8;
+///         let a_bytes = (a.rotate_right(2u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= a_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= a_bytes[1usize];
+///         output_byte_buffer[2usize] |= a_bytes[0] & 192u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 18 through 23 within `output_byte_buffer`, setting the `two_b` field of a `Two` in bitfield form.
+///     pub fn write_two_b(output_byte_buffer: &mut [u8; 3usize], mut b: u8) {
+///         output_byte_buffer[2usize] &= 192u8;
+///         output_byte_buffer[2usize] |= ((b as u8) << 0usize) & 63u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 2 through 8 within `output_byte_buffer`, setting the `three_d` field of a `Three` in bitfield form.
+///     pub fn write_three_d(output_byte_buffer: &mut [u8; 3usize], mut d: u8) {
+///         output_byte_buffer[0usize] &= 192u8;
+///         output_byte_buffer[1usize] &= 127u8;
+///         let d_bytes = (d.rotate_right(1u32)).to_be_bytes();
+///         output_byte_buffer[0usize] |= d_bytes[0usize] & 63u8;
+///         output_byte_buffer[1usize] |= d_bytes[0] & 128u8;
+///     }
+///     #[inline]
+///     ///Writes to bits 9 through 23 within `output_byte_buffer`, setting the `three_e` field of a `Three` in bitfield form.
+///     pub fn write_three_e(output_byte_buffer: &mut [u8; 3usize], mut e: u16) {
+///         output_byte_buffer[1usize] &= 128u8;
+///         output_byte_buffer[2usize] &= 0u8;
+///         let e_bytes = e.to_be_bytes();
+///         output_byte_buffer[1usize] |= e_bytes[0usize] & 127u8;
+///         output_byte_buffer[2usize] |= e_bytes[1usize];
+///     }
+/// }
+/// ```
+/// # Enum With Discriminates
+/// In this example i have create Variant's `Three`, `Two`, `One`, and `Idk` variants. The variants with
+/// numbers as their names are listed from highest to lowest to show case an easy issue you may run into.
+///
+/// #### Issue You May Run Into
+/// Because i am:
+/// - Setting the last variant's, "Idk" variant, id to `0`,
+/// - Setting the first variant's, `Three` variant, id to `3`,
+/// - Setting the third variant's, `Two` variant, id to `2`,
+/// - And variant `One` does not have a defined id.
+///
+///
+/// variant `One` will be assigned an id of the next lowest value not already used, if more than 1 was undefined
+/// the assignment would go from top to bottom. This happens internally in bondrewd for its code generation
+/// but the `#[repr(u8)] attribute assigns values for if you want to represent the variant as a number,
+/// and you should be aware `repr` does not look forward or backward for used numbers, meaning you will
+/// get an error from `repr` if you:
+/// - Remove the first variant's, `Three`, id assignment of `3`. The first variant will be assigned
+///     zero regardless of the last variant being manually assigned that number already.
+/// - Change the second variant's, `One`, id assignment of `1` to `2`. `repr` will assume that this should
+///     be that last variant's value plus one which is `3` and already used.
+/// #### Discriminate Example
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields)]
+/// #[repr(u8)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
+/// enum Thing {
+///     Three {
+///         #[bondrewd(bit_length = 7)]
+///         d: u8,
+///         #[bondrewd(bit_length = 15)]
+///         e: u16,
+///     } = 3,
+///     One {
+///         a: u16,
+///     } = 1,
+///     Two {
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     },
+///     Idk = 0,
+/// }
+///
+/// let thing = Thing::One { a: 1 };
+/// let bytes = thing.into_bytes();
+/// // the first two bits are the id followed by Variant One's `a` field.
+/// assert_eq!(bytes[0], 0b01_000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// // because Variant One doesn't use the full amount of bytes so the last 6 bytes are just filler.
+/// assert_eq!(bytes[2], 0b01_000000);
+/// ```
+/// #### Capture Id
+/// ```
+/// use bondrewd::*;
+///
+/// #[derive(Bitfields)]
+/// #[repr(u8)]
+/// #[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bits = 18)]
+/// enum Thing {
+///     One {
+///         a: u16,
+///     } = 1,
+///     Two {
+///         #[bondrewd(bit_length = 10)]
+///         a: u16,
+///         #[bondrewd(bit_length = 6)]
+///         b: u8,
+///     } = 2,
+///     Idk {
+///         #[bondrewd(capture_id)]
+///         id: u8,
+///         a: u16,
+///     } = 0,
+/// }
+///
+/// // fields with capture_id will use the id_bit_length so defining the bit_length is unnecessary.
+/// assert_eq!(Thing::BYTE_SIZE, 3);
+/// assert_eq!(Thing::BIT_SIZE, 18);
+/// // fields that are capturing the id do not write.
+/// let mut bytes = Thing::Idk { id: 3, a: 0 }.into_bytes();
+/// // despite setting the id to 3 it will be 0 on output, this is to prevent
+/// // users from providing a valid id when it should not be.
+/// assert_eq!(bytes[0], 0b11000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// assert_eq!(bytes[2], 0b00000000);
+/// // but the id can be set to anything using the write_variant_id function.
+/// Thing::write_variant_id(&mut bytes, 3);
+/// // the id is now 3
+/// assert_eq!(bytes[0], 0b11000000);
+/// assert_eq!(bytes[1], 0b00000000);
+/// assert_eq!(bytes[2], 0b00000000);
+/// let reconstructed = Thing::from_bytes(bytes);
+/// // other than into_bytes everything else with give you the stored value.
+/// assert_eq!(reconstructed.id(), 3);
+/// match reconstructed {
+///     Thing::Idk { id, .. } => assert_eq!(id, 3),
+///     _ => panic!("id wasn't 3"),
+/// }
 /// ```
 #[proc_macro_derive(Bitfields, attributes(bondrewd,))]
 pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     // parse the input into a StructInfo which contains all the information we
     // along with some helpful structures to generate our Bitfield code.
-    let struct_info = match StructInfo::parse(&input) {
+    let struct_info = match ObjectInfo::parse(&input) {
         Ok(parsed_struct) => parsed_struct,
         Err(err) => {
             return TokenStream::from(err.to_compile_error());
@@ -1314,48 +1679,18 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     // println!("{:?}", struct_info);
     // get the struct size and name so we can use them in a quote.
     let struct_size = struct_info.total_bytes();
-    let struct_name = format_ident!("{}", struct_info.name);
+    let struct_name = struct_info.name();
 
     // get a list of all fields from_bytes logic which gets there bytes from an array called
     // input_byte_buffer.
-    let slice_fns: bool;
-    #[cfg(not(feature = "slice_fns"))]
+    let dyn_fns: bool;
+    #[cfg(not(feature = "dyn_fns"))]
     {
-        slice_fns = false;
+        dyn_fns = false;
     }
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
-        slice_fns = true;
-    }
-    // get a list of all fields into_bytes logic which puts there bytes into an array called
-    // output_byte_buffer.
-    let fields_into_bytes = match create_into_bytes_field_quotes(&struct_info, slice_fns) {
-        Ok(ftb) => ftb,
-        Err(err) => return TokenStream::from(err.to_compile_error()),
-    };
-    let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, slice_fns) {
-        Ok(ffb) => ffb,
-        Err(err) => return TokenStream::from(err.to_compile_error()),
-    };
-    // combine all of the into_bytes quotes separated by newlines
-    let into_bytes_quote = fields_into_bytes.into_bytes_fn;
-    let mut set_quotes = fields_into_bytes.set_field_fns;
-
-    if let Some(set_slice_quote) = fields_into_bytes.set_slice_field_fns {
-        set_quotes = quote! {
-            #set_quotes
-            #set_slice_quote
-        }
-    }
-
-    let from_bytes_quote = fields_from_bytes.from_bytes_fn;
-    let mut peek_quotes = fields_from_bytes.peek_field_fns;
-
-    if let Some(peek_slice_quote) = fields_from_bytes.peek_slice_field_fns {
-        peek_quotes = quote! {
-            #peek_quotes
-            #peek_slice_quote
-        }
+        dyn_fns = true;
     }
 
     let setters: bool;
@@ -1367,24 +1702,6 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     {
         setters = true;
     }
-    let setters_quote = if setters {
-        match structs::struct_fns::create_into_bytes_field_quotes(&struct_info) {
-            Ok(parsed_struct) => parsed_struct,
-            Err(err) => {
-                return TokenStream::from(err.to_compile_error());
-            }
-        }
-    } else {
-        quote! {}
-    };
-
-    let getter_setters_quotes = quote! {
-        impl #struct_name {
-            #peek_quotes
-            #set_quotes
-            #setters_quote
-        }
-    };
     let hex;
     #[cfg(feature = "hex_fns")]
     {
@@ -1394,118 +1711,280 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     {
         hex = false;
     }
-    let hex_size = struct_size * 2;
-    let hex_fns_quote = if hex {
-        quote! {
-            impl bondrewd::BitfieldHex<#hex_size> for #struct_name {
-                fn from_hex(hex: [u8;#hex_size]) -> Result<Self, bondrewd::BitfieldHexError> {
-                    let bytes: [u8; #struct_size] = [0;#struct_size];
-                    let mut bytes: [u8; Self::BYTE_SIZE] = [0;Self::BYTE_SIZE];
-                    for i in 0usize..#struct_size {
-                        let index = i * 2;
-                        let index2 = index + 1;
-                        let decode_nibble = |c, c_i| match c {
-                            b'A'..=b'F' => Ok(c - b'A' + 10u8),
-                            b'a'..=b'f' => Ok(c - b'a' + 10u8),
-                            b'0'..=b'9' => Ok(c - b'0'),
-                            _ => return Err(bondrewd::BitfieldHexError(
-                                c as char,
-                                c_i,
-                            )),
-                        };
-                        bytes[i] = ((decode_nibble(hex[index], index)? & 0b00001111) << 4) | decode_nibble(hex[index2], index2)?;
-                    }
-                    Ok(Self::from_bytes(bytes))
+    match struct_info {
+        ObjectInfo::Struct(struct_info) => {
+            // get a list of all fields into_bytes logic which puts there bytes into an array called
+            // output_byte_buffer.
+            let fields_into_bytes =
+                match create_into_bytes_field_quotes_struct(&struct_info, dyn_fns) {
+                    Ok(ftb) => ftb,
+                    Err(err) => return TokenStream::from(err.to_compile_error()),
+                };
+            let fields_from_bytes = match create_from_bytes_field_quotes(&struct_info, dyn_fns) {
+                Ok(ffb) => ffb,
+                Err(err) => return TokenStream::from(err.to_compile_error()),
+            };
+            // combine all of the into_bytes quotes separated by newlines
+            let into_bytes_quote = fields_into_bytes.into_bytes_fn;
+            let mut set_quotes = fields_into_bytes.set_field_fns;
 
+            if let Some(set_slice_quote) = fields_into_bytes.set_slice_field_fns {
+                set_quotes = quote! {
+                    #set_quotes
+                    #set_slice_quote
                 }
+            }
 
-                fn into_hex_upper(self) -> [u8;#hex_size] {
-                    let bytes = self.into_bytes();
-                    let mut output: [u8;#hex_size] = [0; #hex_size];
-                    for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                        output[i] = (Self::UPPERS[((byte & 0b11110000) >> 4) as usize]);
-                        output[i + 1] = (Self::UPPERS[(byte & 0b00001111) as usize]);
-                    }
-                    output
-                }
+            let from_bytes_quote = fields_from_bytes.from_bytes_fn;
+            let mut peek_quotes = fields_from_bytes.peek_field_fns;
 
-                fn into_hex_lower(self) -> [u8;#hex_size] {
-                    let bytes = self.into_bytes();
-                    let mut output: [u8;#hex_size] = [0; #hex_size];
-                    for (i, byte) in (0..#hex_size).step_by(2).zip(bytes) {
-                        output[i] = (Self::LOWERS[((byte & 0b11110000) >> 4) as usize]);
-                        output[i + 1] = (Self::LOWERS[(byte & 0b00001111) as usize]);
-                    }
-                    output
+            if let Some(peek_slice_quote) = fields_from_bytes.peek_slice_field_fns {
+                peek_quotes = quote! {
+                    #peek_quotes
+                    #peek_slice_quote
                 }
+            }
+            let setters_quote = if setters {
+                match structs::struct_fns::create_setters_quotes(&struct_info) {
+                    Ok(parsed_struct) => parsed_struct,
+                    Err(err) => {
+                        return TokenStream::from(err.to_compile_error());
+                    }
+                }
+            } else {
+                quote! {}
+            };
+
+            let getter_setters_quotes = quote! {
+                impl #struct_name {
+                    #peek_quotes
+                    #set_quotes
+                    #setters_quote
+                }
+            };
+            let hex_size = struct_size * 2;
+            let mut hex_fns_quote = if hex {
+                quote! {
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+                }
+            } else {
+                quote! {}
+            };
+            if dyn_fns {
+                hex_fns_quote = quote!{
+                    #hex_fns_quote
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
+
+            // get the bit size of the entire set of fields to fill in trait requirement.
+            let bit_size = struct_info.total_bits();
+
+            // put it all together.
+            // to_bytes_quote will put all of the fields in self into a array called output_byte_buffer.
+            // so for into_bytes all we need is the fn declaration, the output_byte_buffer, and to return
+            // that buffer.
+            // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
+            // slap peek quotes inside a impl block at the end and we good to go
+            let to_bytes_quote = quote! {
+                impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                    const BIT_SIZE: usize = #bit_size;
+                    #into_bytes_quote
+                    #from_bytes_quote
+                }
+                #getter_setters_quotes
+                #hex_fns_quote
+            };
+
+            if dyn_fns {
+                let from_vec_quote = fields_from_bytes.from_slice_field_fns;
+                let vis = struct_info.vis;
+                let checked_ident = format_ident!("{}Checked", &struct_name);
+                let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
+                let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+                let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
+                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    #[doc = #comment]
+                    #vis struct #checked_ident<'a> {
+                        buffer: &'a [u8],
+                    }
+                    impl<'a> #checked_ident<'a> {
+                        #unchecked_functions
+                        #[doc = #unchecked_comment]
+                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    #[doc = #comment_mut]
+                    #vis struct #checked_mut_ident<'a> {
+                        buffer: &'a mut [u8],
+                    }
+                    impl<'a> #checked_mut_ident<'a> {
+                        #unchecked_functions
+                        #unchecked_mut_functions
+                        #[doc = #unchecked_comment_mut]
+                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
+                    }
+                };
+                TokenStream::from(to_bytes_quote)
+            } else {
+                TokenStream::from(to_bytes_quote)
             }
         }
-    } else {
-        quote! {}
-    };
+        ObjectInfo::Enum(enum_info) => {
+            // let dyn_fns = false;
+            // get a list of all fields into_bytes logic which puts there bytes into an array called
+            // output_byte_buffer.
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns)
+            {
+                Ok(ftb) => ftb,
+                Err(err) => return TokenStream::from(err.to_compile_error()),
+            };
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns)
+            {
+                Ok(ffb) => ffb,
+                Err(err) => return TokenStream::from(err.to_compile_error()),
+            };
+            // combine all of the into_bytes quotes separated by newlines
+            let into_bytes_quote = fields_into_bytes.into_bytes_fn;
+            let mut set_quotes = fields_into_bytes.set_field_fns;
 
-    // get the bit size of the entire set of fields to fill in trait requirement.
-    let bit_size = struct_info.total_bits();
+            if let Some(set_slice_quote) = fields_into_bytes.set_slice_field_fns {
+                set_quotes = quote! {
+                    #set_quotes
+                    #set_slice_quote
+                }
+            }
 
-    // put it all together.
-    // to_bytes_quote will put all of the fields in self into a array called output_byte_buffer.
-    // so for into_bytes all we need is the fn declaration, the output_byte_buffer, and to return
-    // that buffer.
-    // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
-    // slap peek quotes inside a impl block at the end and we good to go
-    let to_bytes_quote = quote! {
-        impl bondrewd::Bitfields<#struct_size> for #struct_name {
-            const BIT_SIZE: usize = #bit_size;
-            #into_bytes_quote
-            #from_bytes_quote
+            let from_bytes_quote = fields_from_bytes.from_bytes_fn;
+            let mut peek_quotes = fields_from_bytes.peek_field_fns;
+
+            if let Some(peek_slice_quote) = fields_from_bytes.peek_slice_field_fns {
+                peek_quotes = quote! {
+                    #peek_quotes
+                    #peek_slice_quote
+                }
+            }
+
+            let getter_setters_quotes = quote! {
+                impl #struct_name {
+                    #peek_quotes
+                    #set_quotes
+                }
+            };
+            let struct_size = enum_info.total_bytes();
+            let hex_size = struct_size * 2;
+            let mut hex_fns_quote = if hex {
+                quote! {
+                    impl bondrewd::BitfieldHex<#hex_size, #struct_size> for #struct_name {}
+                }
+            } else {
+                quote! {}
+            };
+            if dyn_fns {
+                hex_fns_quote = quote!{
+                    #hex_fns_quote
+                    impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
+                };
+            }
+
+            // get the bit size of the entire set of fields to fill in trait requirement.
+            let bit_size = enum_info.total_bits();
+
+            // put it all together.
+            // to_bytes_quote will put all of the fields in self into a array called output_byte_buffer.
+            // so for into_bytes all we need is the fn declaration, the output_byte_buffer, and to return
+            // that buffer.
+            // from_bytes is essentially the same minus a variable because input_byte_buffer is the input.
+            // slap peek quotes inside a impl block at the end and we good to go
+            let to_bytes_quote = quote! {
+                impl bondrewd::Bitfields<#struct_size> for #struct_name {
+                    const BIT_SIZE: usize = #bit_size;
+                    #into_bytes_quote
+                    #from_bytes_quote
+                }
+                #getter_setters_quotes
+                #hex_fns_quote
+            };
+            if dyn_fns {
+                let from_vec_quote = fields_from_bytes.from_slice_field_fns;
+                let vis = &enum_info.vis;
+                let checked_ident = format_ident!("{}Checked", &struct_name);
+                let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
+                let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
+                let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
+                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
+                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
+                let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    #[doc = #comment]
+                    #vis struct #checked_ident<'a> {
+                        buffer: &'a [u8],
+                    }
+                    impl<'a> #checked_ident<'a> {
+                        #unchecked_functions
+                        #[doc = #unchecked_comment]
+                        pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    #[doc = #comment_mut]
+                    #vis struct #checked_mut_ident<'a> {
+                        buffer: &'a mut [u8],
+                    }
+                    impl<'a> #checked_mut_ident<'a> {
+                        #unchecked_functions
+                        #unchecked_mut_functions
+                        #[doc = #unchecked_comment_mut]
+                        pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
+                            Self{
+                                buffer: data
+                            }
+                        }
+                    }
+                    impl bondrewd::BitfieldsDyn<#struct_size> for #struct_name {
+                        #from_vec_quote
+                    }
+                };
+                #[cfg(feature = "part_eq_enums")]
+                let id_ident = match enum_info.id_ident() {
+                    Ok(ii) => ii,
+                    Err(err) => {
+                        return err.to_compile_error().into();
+                    }
+                };
+                #[cfg(feature = "part_eq_enums")]
+                let to_bytes_quote = quote! {
+                    #to_bytes_quote
+                    impl PartialEq<#id_ident> for #struct_name {
+                        fn eq(&self, other: &#id_ident) -> bool {
+                            self.id() == *other
+                        }
+                    }
+                };
+                TokenStream::from(to_bytes_quote)
+            } else {
+                TokenStream::from(to_bytes_quote)
+            }
         }
-        #getter_setters_quotes
-        #hex_fns_quote
-    };
-
-    if slice_fns {
-        let vis = struct_info.vis;
-        let checked_ident = format_ident!("{}Checked", &struct_name);
-        let checked_mut_ident = format_ident!("{}CheckedMut", &struct_name);
-        let unchecked_functions = fields_from_bytes.peek_slice_field_unchecked_fns;
-        let unchecked_mut_functions = fields_into_bytes.set_slice_field_unchecked_fns;
-        let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
-        let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
-        let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
-        let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
-        let to_bytes_quote = quote! {
-            #to_bytes_quote
-            #[doc = #comment]
-            #vis struct #checked_ident<'a> {
-                buffer: &'a [u8],
-            }
-            impl<'a> #checked_ident<'a> {
-                #unchecked_functions
-                #[doc = #unchecked_comment]
-                pub fn from_unchecked_slice(data: &'a [u8]) -> Self {
-                    Self{
-                        buffer: data
-                    }
-                }
-            }
-            #[doc = #comment_mut]
-            #vis struct #checked_mut_ident<'a> {
-                buffer: &'a mut [u8],
-            }
-            impl<'a> #checked_mut_ident<'a> {
-                #unchecked_functions
-                #unchecked_mut_functions
-                #[doc = #unchecked_comment_mut]
-                pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self {
-                    Self{
-                        buffer: data
-                    }
-                }
-            }
-        };
-        TokenStream::from(to_bytes_quote)
-    } else {
-        TokenStream::from(to_bytes_quote)
     }
 }
 
@@ -1716,9 +2195,12 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
 ///     assert_eq!(SimpleEnum::Zero, SimpleEnum::from_primitive(i));
 /// }
 /// ```
+#[deprecated(
+    since = "0.3.25",
+    note = "please use `Bitfields` instead of `BitfieldEnum`"
+)]
 #[proc_macro_derive(BitfieldEnum, attributes(bondrewd_enum))]
 pub fn derive_bondrewd_enum(input: TokenStream) -> TokenStream {
-    // TODO added the ability to give a Catch Value Variant a Literal value.
     let input = parse_macro_input!(input as DeriveInput);
     let enum_info = match EnumInfo::parse(&input) {
         Ok(parsed_enum) => parsed_enum,

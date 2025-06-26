@@ -12,6 +12,7 @@ pub struct TryFromAttrBuilderError {
     pub endianness: Box<Endianness>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    pub capture_id: bool,
 }
 
 impl TryFromAttrBuilderError {
@@ -21,6 +22,7 @@ impl TryFromAttrBuilderError {
             bit_range,
             reserve: self.reserve,
             overlap: self.overlap,
+            capture_id: self.capture_id,
         }
     }
 }
@@ -62,37 +64,40 @@ impl Default for FieldBuilderRange {
 #[derive(Clone, Debug)]
 pub struct FieldAttrBuilder {
     /// name is just so we can give better errors
-    name: Box<Ident>,
+    span: Span,
     pub endianness: Box<Endianness>,
     pub bit_range: FieldBuilderRange,
     pub ty: FieldAttrBuilderType,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    /// This should only ever be true when it the first field in a variant
+    /// of an enum.
+    pub capture_id: bool,
 }
 
 impl FieldAttrBuilder {
-    fn new(name: Box<Ident>) -> Self {
+    fn new(span: Span) -> Self {
         Self {
-            name,
+            span,
             endianness: Box::new(Endianness::None),
             bit_range: FieldBuilderRange::None,
             ty: FieldAttrBuilderType::None,
             reserve: ReserveFieldOption::NotReserve,
             overlap: OverlapOptions::None,
+            capture_id: false,
         }
     }
 
     fn span(&self) -> Span {
-        self.name.span()
+        self.span
     }
 
     pub fn parse(
         field: &syn::Field,
         last_field: Option<&FieldInfo>,
-        name: Box<Ident>,
+        span: Span,
     ) -> syn::Result<FieldAttrBuilder> {
-        let mut builder = FieldAttrBuilder::new(name);
-        // TODO make this more compact. use match or something.
+        let mut builder = FieldAttrBuilder::new(span);
         // we are just looking for attrs that can fill in the details in the builder variable above
         // sometimes having the last field is useful for example the bit range the builder wants could be
         // filled in using the end of the previous field as the start, add the length in bits you get the
@@ -270,8 +275,7 @@ impl FieldAttrBuilder {
                         "bits" => {
                             if let Lit::Str(val) = value.lit {
                                 let val_string = val.value();
-                                let split =
-                                    val_string.split("..").into_iter().collect::<Vec<&str>>();
+                                let split = val_string.split("..").collect::<Vec<&str>>();
                                 if split.len() == 2 {
                                     match (split[0].parse::<usize>(), split[1].parse::<usize>()) {
                                         (Ok(start), Ok(end)) => match builder.bit_range {
@@ -572,6 +576,9 @@ impl FieldAttrBuilder {
                         "read_only" => {
                             builder.reserve = ReserveFieldOption::ReadOnly;
                         }
+                        "capture_id" => {
+                            builder.capture_id = true;
+                        }
                         // TODO  can not enable this until i figure out a way to express exactly the amount
                         // of overlapping bits.
                         /*"allow_overlap" => {
@@ -611,12 +618,14 @@ impl TryInto<FieldAttrs> for FieldAttrBuilder {
                 bit_range,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                capture_id: self.capture_id,
             })
         } else {
             Err(TryFromAttrBuilderError {
                 endianness: self.endianness,
                 reserve: self.reserve,
                 overlap: self.overlap,
+                capture_id: self.capture_id,
             })
         }
     }

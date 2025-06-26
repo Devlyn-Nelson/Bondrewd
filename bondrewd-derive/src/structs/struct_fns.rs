@@ -2,7 +2,7 @@ use crate::structs::common::{FieldDataType, FieldInfo, NumberSignage, StructInfo
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 
-pub fn create_into_bytes_field_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
+pub fn create_setters_quotes(info: &StructInfo) -> Result<TokenStream, syn::Error> {
     // all of the fields set functions that disallow numbers that are too large to fit into bit length.
     let mut set_fns_quote = quote! {};
     for field in info.fields.iter() {
@@ -16,7 +16,7 @@ pub fn create_into_bytes_field_quotes(info: &StructInfo) -> Result<TokenStream, 
 }
 
 fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
-    let field_name = field.ident.as_ref().clone();
+    let field_name = field.ident().ident();
     Ok(match field.ty {
         FieldDataType::Number(ref size, ref sign, ref type_ident) => {
             let mut full_quote = quote! {
@@ -77,7 +77,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     f64::MAX
                 } else {
                     return Err(syn::Error::new(
-                        field.ident.span(),
+                        field.span(),
                         "unsupported floating point size",
                     ));
                 };
@@ -87,7 +87,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                     f64::MIN
                 } else {
                     return Err(syn::Error::new(
-                        field.ident.span(),
+                        field.span(),
                         "unsupported floating point size",
                     ));
                 };

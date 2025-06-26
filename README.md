@@ -8,7 +8,7 @@ The major features of the crate are:
 * Associated functions to `read/write` a single field instead of decoding/encoding a whole structure, saving many instructions
 * Ability to decode/encode C-like enums from integer types
 * Pure-rust typing with attributes to assign endianness/bit-length/bit-positioning/...
-* by default no failable functions are generated. Two Error types exist but are within crate features `"slice_fns"` and `"hex_fns"`.
+* by default no failable functions are generated. Two Error types exist but are within crate features `"dyn_fns"` and `"hex_fns"`.
 * Compress structures into small amounts of bits, or use to expand large data structures across many bytes
 * All generated code is `no_std` capable and 100% safe code.
 
