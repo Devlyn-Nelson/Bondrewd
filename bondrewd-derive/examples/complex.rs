@@ -1,11 +1,15 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 
-#[derive(BitfieldEnum, Clone, Eq, PartialEq, Debug)]
+#[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
+#[bondrewd(id_bit_length = 3, default_endianness = "be")]
 enum EyeColor {
     Blue,
     Green,
     Brown,
-    Other(u8),
+    Other {
+        #[bondrewd(capture_id)]
+        test: u8,
+    },
 }
 
 #[derive(Bitfields, Clone, Eq, PartialEq, Debug)]
@@ -31,10 +35,10 @@ struct PersonStuff {
     #[bondrewd(bit_length = 7)]
     age: u8,
     // Eyes have color
-    #[bondrewd(enum_primitive = "u8", bit_length = 3)]
+    #[bondrewd(bit_length = 3)]
     eye_color: EyeColor,
     // Standard components
-    #[bondrewd(bit_length = 9, struct_size = 2)]
+    #[bondrewd(bit_length = 9)]
     parts: PersonParts,
     // how many times they have blinked each of their eyes
     #[bondrewd(bit_length = 60)]
@@ -58,7 +62,7 @@ fn main() {
             knees: 2,
             toes: 10,
         },
-        blinks: 10000000000,
+        blinks: 10_000_000_000,
     };
 
     let bytes = person.clone().into_bytes();

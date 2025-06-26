@@ -1,7 +1,7 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 
-#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
-#[bondrewd_enum(u8)]
+#[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum TestCustomEnum {
     CustomZero = 0x30,
     CustomOne = 0x10,
@@ -14,7 +14,7 @@ enum TestCustomEnum {
 #[bondrewd(default_endianness = "be")]
 struct SimpleCustomEnumUsage {
     one: u8,
-    #[bondrewd(enum_primitive = "u8", bit_length = 8)]
+    #[bondrewd(bit_length = 8)]
     two: TestCustomEnum,
     three: u8,
 }
@@ -28,9 +28,9 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(SimpleCustomEnumUsage::BYTE_SIZE, 3);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
-    assert_eq!(bytes[0], 0b00001000);
-    assert_eq!(bytes[1], 0b01000000);
-    #[cfg(feature = "slice_fns")]
+    assert_eq!(bytes[0], 0b0000_1000);
+    assert_eq!(bytes[1], 0b0100_0000);
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
@@ -47,8 +47,8 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Eq, PartialEq, Clone, Debug, BitfieldEnum)]
-#[bondrewd_enum(u8)]
+#[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
+#[bondrewd(default_endianness = "be", id_bit_length = 8)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -61,7 +61,7 @@ enum TestCustomContinuationEnum {
 #[bondrewd(default_endianness = "be")]
 struct SimpleCustomContinuationEnumUsage {
     one: u8,
-    #[bondrewd(enum_primitive = "u8", bit_length = 8)]
+    #[bondrewd(bit_length = 8)]
     two: TestCustomContinuationEnum,
     three: u8,
 }
@@ -76,10 +76,10 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     assert_eq!(SimpleCustomContinuationEnumUsage::BYTE_SIZE, 3);
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
-    assert_eq!(bytes[0], 0b10000000);
-    assert_eq!(bytes[1], 0b00000001);
-    assert_eq!(bytes[2], 0b00001000);
-    #[cfg(feature = "slice_fns")]
+    assert_eq!(bytes[0], 0b1000_0000);
+    assert_eq!(bytes[1], 0b0000_0001);
+    assert_eq!(bytes[2], 0b0000_1000);
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(

@@ -1,6 +1,8 @@
 #[cfg(feature = "hex_fns")]
 mod hex_tests {
-    use bondrewd::*;
+    use bondrewd::{BitfieldHex, Bitfields};
+    #[cfg(feature = "dyn_fns")]
+    use bondrewd::BitfieldHexDyn;
     #[derive(Bitfields, Clone, Debug, PartialEq)]
     #[bondrewd(read_from = "lsb0", enforce_bits = 3)]
     pub struct StatusMagnetometer {
@@ -9,7 +11,7 @@ mod hex_tests {
         ext_mtm: bool,
     }
 
-    /// Response to a Get Mtm Reading command - returns data in the Telemetry::Magnetometer format (separate as non-unit enums are not supported by GraphQL)
+    /// Response to a Get Mtm Reading command - returns data in the `Telemetry::Magnetometer` format (separate as non-unit enums are not supported by GraphQL)
     /// This includes status and readings for all magnetometers
     #[derive(Bitfields, Clone, Debug, PartialEq)]
     #[bondrewd(default_endianness = "msb")]
@@ -27,7 +29,7 @@ mod hex_tests {
     #[test]
     fn hex_test() {
         let og = Magnetometer {
-            timestamp: 063482412850,
+            timestamp: 063_482_412_850,
             status: StatusMagnetometer {
                 int_mtm1: true,
                 int_mtm2: false,
@@ -40,7 +42,7 @@ mod hex_tests {
         let bytes = og.clone().into_bytes();
         let mut hex_from_bytes = String::new();
         for byte in bytes {
-            let hex_byte = format!("{:02X}", byte);
+            let hex_byte = format!("{byte:02X}");
             hex_from_bytes.push_str(hex_byte.as_str());
         }
         let hex = og.clone().into_hex_upper();
@@ -52,12 +54,28 @@ mod hex_tests {
 
         let from_bytes_obj = Magnetometer::from_bytes(bytes);
         assert_eq!(from_bytes_obj, og);
-
+        let mut hex_vec = hex.to_vec();
         let from_hex_obj = if let Ok(m) = Magnetometer::from_hex(hex) {
             m
         } else {
             panic!("Bad decode")
         };
+        #[cfg(feature = "dyn_fns")]
+        let from_slice_hex_obj = if let Ok(m) = Magnetometer::from_hex_slice(&hex_vec) {
+            m
+        } else {
+            panic!("Bad decode")
+        };
+        #[cfg(feature = "dyn_fns")]
+        let from_vec_hex_obj = if let Ok(m) = Magnetometer::from_hex_vec(&mut hex_vec) {
+            m
+        } else {
+            panic!("Bad decode")
+        };
         assert_eq!(from_hex_obj, og);
+        #[cfg(feature = "dyn_fns")]
+        assert_eq!(from_vec_hex_obj, og);
+        #[cfg(feature = "dyn_fns")]
+        assert_eq!(from_slice_hex_obj, og);
     }
 }

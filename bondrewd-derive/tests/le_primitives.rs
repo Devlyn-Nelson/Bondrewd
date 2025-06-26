@@ -1,7 +1,6 @@
-use bondrewd::*;
+use bondrewd::Bitfields;
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "le")]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -24,14 +23,14 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
     assert_eq!(bytes[0], 0b010_11001);
-    assert_eq!(bytes[1], 0b00100011);
-    assert_eq!(bytes[2], 0b00000000);
-    assert_eq!(bytes[3], 0b000000_01);
-    assert_eq!(bytes[4], 0b10000100);
+    assert_eq!(bytes[1], 0b0010_0011);
+    assert_eq!(bytes[2], 0b0000_0000);
+    assert_eq!(bytes[3], 0b0000_0001);
+    assert_eq!(bytes[4], 0b1000_0100);
     assert_eq!(bytes[5], 0b1000_0100);
     // this last 4 bits here don't exist in the struct
     assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -59,16 +58,16 @@ struct SimpleWithFlip {
 fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     let simple = SimpleWithFlip {
         one: false,
-        two: u16::MAX & 0b0000001111111111,
+        two: u16::MAX & 0b0000_0011_1111_1111,
         three: 0,
     };
     assert_eq!(SimpleWithFlip::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[1], 0b01111111);
-    assert_eq!(bytes[0], 0b11100000);
-    #[cfg(feature = "slice_fns")]
+    assert_eq!(bytes[1], 0b0111_1111);
+    assert_eq!(bytes[0], 0b1110_0000);
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
@@ -95,16 +94,16 @@ struct SimpleWithReadFromBack {
 fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     let simple = SimpleWithReadFromBack {
         one: false,
-        two: u16::MAX & 0b0000001111111111,
+        two: u16::MAX & 0b0000_0011_1111_1111,
         three: 0,
     };
     assert_eq!(SimpleWithReadFromBack::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[0], 0b00000111);
-    assert_eq!(bytes[1], 0b11111110);
-    #[cfg(feature = "slice_fns")]
+    assert_eq!(bytes[0], 0b0000_0111);
+    assert_eq!(bytes[1], 0b1111_1110);
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
@@ -134,12 +133,12 @@ struct SimpleWithFloats {
 #[test]
 fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     let simple = SimpleWithFloats {
-        one: f32::from_bits(0x00000000_u32),
-        two: f64::from_bits(0x09A1D45EE54D1A90_u64),
-        three: f32::from_bits(0x0001D45E_u32),
+        one: f32::from_bits(0x0000_0000_u32),
+        two: f64::from_bits(0x09A1_D45E_E54D_1A90_u64),
+        three: f32::from_bits(0x0001_D45E_u32),
     };
     let bytes = simple.clone().into_bytes();
-    #[cfg(feature = "slice_fns")]
+    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFloats::read_slice_one(&bytes)?);

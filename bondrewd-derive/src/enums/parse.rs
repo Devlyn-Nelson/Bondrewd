@@ -266,24 +266,26 @@ impl EnumInfo {
                     if meta_list.path.is_ident("bondrewd_enum") {
                         for nested_meta in meta_list.nested {
                             match nested_meta {
-                                NestedMeta::Meta(meta) => if let Meta::Path(path) = meta {
-                                    // Add an additional check to implement `partial_eq` optionally.
-                                    if path.is_ident("u8") {
-                                        primitive_type = Some(quote::format_ident!("u8"));
-                                    } else if path.is_ident("partial_eq") {
-                                        partial_eq = true;
-                                    } else {
-                                        return Err(syn::Error::new(
+                                NestedMeta::Meta(meta) => {
+                                    if let Meta::Path(path) = meta {
+                                        // Add an additional check to implement `partial_eq` optionally.
+                                        if path.is_ident("u8") {
+                                            primitive_type = Some(quote::format_ident!("u8"));
+                                        } else if path.is_ident("partial_eq") {
+                                            partial_eq = true;
+                                        } else {
+                                            return Err(syn::Error::new(
                                             input.ident.span(),
                                             "the only supported enum attributes are u8, partial_eq currently",
                                         ));
-                                    }
+                                        }
 
-                                    // Have we found all of the relevant attributes?
-                                    if primitive_type.is_some() && partial_eq {
-                                        break;
+                                        // Have we found all of the relevant attributes?
+                                        if primitive_type.is_some() && partial_eq {
+                                            break;
+                                        }
                                     }
-                                },
+                                }
                                 NestedMeta::Lit(_) => {}
                             }
                         }

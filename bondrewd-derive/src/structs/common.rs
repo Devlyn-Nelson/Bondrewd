@@ -1,11 +1,13 @@
 use crate::structs::parse::{
     FieldAttrBuilder, FieldAttrBuilderType, FieldBuilderRange, TryFromAttrBuilderError,
 };
-use proc_macro2::Span;
-use quote::quote;
+use proc_macro2::{Span, TokenStream};
+use quote::{format_ident, quote};
 use std::ops::Range;
+use std::str::FromStr;
 use syn::parse::Error;
-use syn::{DeriveInput, Ident, Lit, Meta, NestedMeta, Type};
+use syn::spanned::Spanned;
+use syn::{Attribute, DeriveInput, Expr, Fields, Ident, Lit, Meta, NestedMeta, Type};
 
 /// Returns a u8 mask with provided `num` amount of 1's on the left side (most significant bit)
 pub fn get_left_and_mask(num: usize) -> u8 {
@@ -55,7 +57,7 @@ pub fn get_be_starting_index(
     //println!("be_start_index = [last;{}] - ([aob;{}] - [rs;{}]) / 8", last_index, amount_of_bits, right_rotation);
     let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
     if last_index < first {
-        Err("the be_starting_index subtract underflow".to_string())
+        Err("Failed getting the starting index for big endianness, field's type doesn't fix the bit size".to_string())
     } else {
         Ok(last_index - first)
     }
@@ -131,7 +133,7 @@ impl Endianness {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum NumberSignage {
     Signed,
     Unsigned,
@@ -181,7 +183,6 @@ impl FieldDataType {
         }
     }
     pub fn is_number(&self) -> bool {
-        // TODO put Arrays in here
         match self {
             Self::Enum(_, _, _) | Self::Number(_, _, _) | Self::Float(_, _) | Self::Char(_, _) => {
                 true
@@ -208,7 +209,7 @@ impl FieldDataType {
     pub fn parse(
         ty: &syn::Type,
         attrs: &mut FieldAttrBuilder,
-        ident: &Ident,
+        span: Span,
         default_endianess: &Endianness,
     ) -> syn::Result<FieldDataType> {
         let data_type = match ty {
@@ -219,7 +220,7 @@ impl FieldDataType {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        return Err(syn::Error::new(span, "field has no Type?"));
                     },
                 ),
                 FieldAttrBuilderType::Enum(ref size, ref prim) => FieldDataType::Enum(
@@ -229,10 +230,10 @@ impl FieldDataType {
                         let asdf = &last_segment.ident;
                         quote! {#asdf}
                     } else {
-                        return Err(syn::Error::new(ident.span(), "field has no Type?"));
+                        return Err(syn::Error::new(span, "field has no Type?"));
                     },
                 ),
-                _ => Self::parse_path(&path.path, attrs, ident.span())?,
+                _ => Self::parse_path(&path.path, attrs, span)?,
             },
             Type::Array(ref array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
@@ -248,7 +249,7 @@ impl FieldDataType {
                                         FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    ident.span(),
+                                                    span,
                                                     "range end is less than range start",
                                                 ));
                                             }
@@ -257,7 +258,7 @@ impl FieldDataType {
                                             {
                                                 return Err(
                                                     syn::Error::new(
-                                                        ident.span(),
+                                                        span,
                                                         "Element arrays bit range didn't match (element bit size * array length)"
                                                     )
                                                 );
@@ -272,7 +273,7 @@ impl FieldDataType {
                                         }
                                         _ => {
                                             return Err(syn::Error::new(
-                                                ident.span(),
+                                                span,
                                                 "failed getting Range for element array",
                                             ));
                                         }
@@ -287,7 +288,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
 
@@ -308,7 +309,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -330,7 +331,7 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.endianness = sub_attrs.endianness;
@@ -350,21 +351,21 @@ impl FieldDataType {
                                     let sub_ty = Self::parse(
                                         &array_path.elem,
                                         &mut sub_attrs,
-                                        ident,
+                                        span,
                                         default_endianess,
                                     )?;
                                     attrs.bit_range = match std::mem::take(&mut attrs.bit_range) {
                                         FieldBuilderRange::Range(ref range) => {
                                             if range.end < range.start {
                                                 return Err(syn::Error::new(
-                                                    ident.span(),
+                                                    span,
                                                     "range end is less than range start",
                                                 ));
                                             }
                                             if range.end - range.start % array_length != 0 {
                                                 return Err(
                                                     syn::Error::new(
-                                                        ident.span(),
+                                                        span,
                                                         "Array Inference failed because given total bit_length does not split up evenly between elements"
                                                     )
                                                 );
@@ -382,7 +383,7 @@ impl FieldDataType {
                                         }
                                         _ => {
                                             return Err(syn::Error::new(
-                                                ident.span(),
+                                                span,
                                                 "failed getting Range for element array",
                                             ));
                                         }
@@ -412,7 +413,7 @@ impl FieldDataType {
                 }
             }
             _ => {
-                return Err(Error::new(ident.span(), "Unsupported field type"));
+                return Err(Error::new(span, "Unsupported field type"));
             }
         };
         // if the type is a number and its endianess is None (numbers should have endianess) then we
@@ -424,7 +425,9 @@ impl FieldDataType {
                 let mut big = Endianness::Big;
                 std::mem::swap(attrs.endianness.as_mut(), &mut big);
             } else {
-                return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
+                let mut little = Endianness::Little;
+                std::mem::swap(attrs.endianness.as_mut(), &mut little);
+                // return Err(Error::new(ident.span(), "field without defined endianess found, please set endianess of struct or fields"));
             }
         }
 
@@ -436,9 +439,6 @@ impl FieldDataType {
         attrs: &mut FieldAttrBuilder,
         field_span: Span,
     ) -> syn::Result<FieldDataType> {
-        // TODO added attribute consideration for recognizing structs and enums.
-        // TODO impl enum logic.
-        // TODO impl struct logic
         match attrs.ty {
             FieldAttrBuilderType::None => {
                 if let Some(last_segment) = path.segments.last() {
@@ -523,10 +523,26 @@ impl FieldDataType {
                             field_span,
                             "usize and isize are not supported due to ambiguous sizing".to_string(),
                         )),
-                        _ => Err(Error::new(
-                            field_span,
-                            format!("unknown primitive type [{}]", field_type_name),
-                        )),
+                        _ => {
+                            Ok(FieldDataType::Struct(
+                                match attrs.bit_range {
+                                    FieldBuilderRange::Range(ref range) => {
+                                        ((range.end - range.start) as f64 / 8.0f64).ceil() as usize
+                                    }
+                                    FieldBuilderRange::LastEnd(_) | FieldBuilderRange::None => {
+                                        return Err(Error::new(
+                                            field_span,
+                                            format!("unknown primitive type. If this type is a Bitfield as well you need to define the bit_length because bondrewd has no way to determine the size of another struct at compile time. [{}]", field_type_name),
+                                        ));
+                                    }
+                                },
+                                quote! {#type_quote},
+                            ))
+                            // Err(Error::new(
+                            //     field_span,
+                            //     format!("unknown primitive type [{}]", field_type_name),
+                            // ))
+                        }
                     }
                 } else {
                     Err(syn::Error::new(field_span, "field has no Type?"))
@@ -617,6 +633,8 @@ pub struct FieldAttrs {
     pub bit_range: Range<usize>,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
+    /// This should only ever be true on the Invalid case for enums that what to capture the invalid Id.
+    pub capture_id: bool,
 }
 
 impl FieldAttrs {
@@ -631,13 +649,12 @@ pub struct SubFieldInfo {
 }
 
 pub struct ElementSubFieldIter {
-    pub outer_ident: Box<Ident>,
+    pub outer_ident: Box<FieldIdent>,
     pub endianness: Box<Endianness>,
     // this range is elements in the array, not bit range
     pub range: Range<usize>,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: Ident,
     pub element_bit_size: usize,
     pub reserve: ReserveFieldOption,
     pub overlap: OverlapOptions,
@@ -653,12 +670,14 @@ impl Iterator for ElementSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                capture_id: false,
             };
-            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
+            let outer_ident = self.outer_ident.ident().clone();
+            let name = quote::format_ident!("{}_{}", outer_ident, index);
+            let ident = Box::new((outer_ident, name).into());
             Some(FieldInfo {
-                ident: self.outer_ident.clone(),
+                ident,
                 attrs,
-                name,
                 ty: self.ty.clone(),
             })
         } else {
@@ -669,13 +688,12 @@ impl Iterator for ElementSubFieldIter {
 
 #[derive(Debug)]
 pub struct BlockSubFieldIter {
-    pub outer_ident: Box<Ident>,
+    pub outer_ident: Box<FieldIdent>,
     pub endianness: Box<Endianness>,
     //array length
     pub length: usize,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
-    pub outer_name: Ident,
     pub bit_length: usize,
     pub total_bytes: usize,
     pub reserve: ReserveFieldOption,
@@ -697,15 +715,17 @@ impl Iterator for BlockSubFieldIter {
                 endianness: self.endianness.clone(),
                 reserve: self.reserve.clone(),
                 overlap: self.overlap.clone(),
+                capture_id: false,
             };
             self.bit_length -= ty_size;
             let index = self.total_bytes - self.length;
-            let name = quote::format_ident!("{}_{}", self.outer_ident.as_ref(), index);
+            let outer_ident = self.outer_ident.ident().clone();
+            let name = quote::format_ident!("{}_{}", outer_ident, index);
+            let ident = Box::new((outer_ident, name).into());
             self.length -= 1;
             Some(FieldInfo {
-                ident: self.outer_ident.clone(),
+                ident,
                 attrs,
-                name,
                 ty: self.ty.clone(),
             })
         } else {
@@ -715,14 +735,73 @@ impl Iterator for BlockSubFieldIter {
 }
 
 #[derive(Clone, Debug)]
+pub enum FieldIdent {
+    Ident{
+        /// name of the field given by the user.
+        ident: Ident,
+        /// name of the value given by bondrewd.
+        name: Ident
+    },
+    Index{
+        /// Index of the field in the tuple struct/enum-variant
+        index: usize,
+        /// name of the value given by bondrewd.
+        name: Ident,
+    },
+}
+
+impl FieldIdent {
+    pub fn ident(&self) -> Ident {
+        match self {
+            FieldIdent::Ident{ ident, name: _} => ident.clone(),
+            FieldIdent::Index{ index, name } => Ident::new(&format!("field_{index}"), name.span()),
+        }
+    }
+    pub fn name(&self) -> Ident {
+        match self {
+            FieldIdent::Ident{ ident: _, name} |
+            FieldIdent::Index{ index: _, name} => name.clone(),
+        }
+    }
+    pub fn span(&self) -> Span {
+        match self {
+            FieldIdent::Ident { ident, name: _ } => ident.span(),
+            FieldIdent::Index { index: _, name } => name.span(),
+        }
+    }
+}
+
+impl From<(usize, Span)> for FieldIdent {
+    fn from((value, span): (usize, Span)) -> Self {
+        Self::Index{ index: value, name: Ident::new(&format!("field_{value}"), span) }
+    }
+}
+
+impl From<Ident> for FieldIdent {
+    fn from(value: Ident) -> Self {
+        Self::Ident { ident: value.clone(), name: value }
+    }
+}
+impl From<(Ident, Ident)> for FieldIdent {
+    fn from((value,value2): (Ident, Ident)) -> Self {
+        Self::Ident { ident: value, name: value2 }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct FieldInfo {
-    pub name: Ident,
-    pub ident: Box<Ident>,
+    pub ident: Box<FieldIdent>,
     pub ty: FieldDataType,
     pub attrs: FieldAttrs,
 }
 
 impl FieldInfo {
+    pub fn ident(&self) -> &Box<FieldIdent> {
+        &self.ident
+    }
+    pub fn span(&self) -> Span {
+        self.ident.span()
+    }
     fn overlapping(&self, other: &Self) -> bool {
         if self.attrs.overlap.enabled() || other.attrs.overlap.enabled() {
             return false;
@@ -778,7 +857,6 @@ impl FieldInfo {
     pub fn get_element_iter(&self) -> Result<ElementSubFieldIter, syn::Error> {
         if let FieldDataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
             Ok(ElementSubFieldIter {
-                outer_name: self.name.clone(),
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
                 element_bit_size: (self.attrs.bit_range.end - self.attrs.bit_range.start)
@@ -801,7 +879,6 @@ impl FieldInfo {
         if let FieldDataType::BlockArray(ref sub_field, ref array_length, _) = self.ty {
             let bit_length = self.attrs.bit_range.end - self.attrs.bit_range.start;
             Ok(BlockSubFieldIter {
-                outer_name: self.name.clone(),
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
                 bit_length,
@@ -820,26 +897,30 @@ impl FieldInfo {
         }
     }
 
-    pub fn from_syn_field(field: &syn::Field, struct_info: &StructInfo) -> syn::Result<Self> {
-        let ident: Box<Ident> = if let Some(ref name) = field.ident {
-            Box::new(name.clone())
+    pub fn from_syn_field(
+        field: &syn::Field,
+        fields: &Vec<FieldInfo>,
+        attrs: &AttrInfo,
+    ) -> syn::Result<Self> {
+        let ident: FieldIdent = if let Some(ref name) = field.ident {
+            name.clone().into()
         } else {
-            return Err(Error::new(Span::call_site(), "all fields must be named"));
+            (fields.len(), field.span()).into()
+            // return Err(Error::new(Span::call_site(), "all fields must be named"));
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = struct_info
-            .fields
+        let last_relevant_field = fields
             .iter()
             .filter(|x| !x.attrs.overlap.is_redundant())
             .last();
-        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.clone())?;
+        let mut attrs_builder = FieldAttrBuilder::parse(field, last_relevant_field, ident.span())?;
         // check the field for supported types.
         let data_type = FieldDataType::parse(
             &field.ty,
             &mut attrs_builder,
-            &ident,
-            &struct_info.default_endianess,
+            ident.span(),
+            &attrs.default_endianess,
         )?;
 
         let attr_result: std::result::Result<FieldAttrs, TryFromAttrBuilderError> =
@@ -858,17 +939,16 @@ impl FieldInfo {
 
         // construct the field we are parsed.
         let new_field = FieldInfo {
-            name: ident.as_ref().clone(),
-            ident: ident.clone(),
+            ident: Box::new(ident),
             ty: data_type,
             attrs,
         };
         // check to verify there are no overlapping bit ranges from previously parsed fields.
-        for (parsed_field, i) in struct_info.fields.iter().zip(0..struct_info.fields.len()) {
+        for (i, parsed_field) in fields.iter().enumerate() {
             if parsed_field.overlapping(&new_field) {
                 return Err(Error::new(
                     Span::call_site(),
-                    format!("fields {} and {} overlap", i, struct_info.fields.len()),
+                    format!("fields {} and {} overlap", i, fields.len()),
                 ));
             }
         }
@@ -877,7 +957,7 @@ impl FieldInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StructEnforcement {
     /// there is no enforcement so if bits are unused then it will act like they are a reserve field
     NoRules,
@@ -887,8 +967,14 @@ pub enum StructEnforcement {
     EnforceBitAmount(usize),
 }
 
-pub struct StructInfo {
-    pub name: Ident,
+#[derive(Clone)]
+pub enum IdPosition {
+    Leading,
+    Trailing,
+}
+
+#[derive(Clone)]
+pub struct AttrInfo {
     /// if false then bit 0 is the Most Significant Bit meaning the first values first bit will start there.
     /// if true then bit 0 is the Least Significant Bit (the last bit in the last byte).
     pub lsb_zero: bool,
@@ -896,94 +982,630 @@ pub struct StructInfo {
     /// it with no runtime cost.
     pub flip: bool,
     pub enforcement: StructEnforcement,
-    pub fields: Vec<FieldInfo>,
     pub default_endianess: Endianness,
     pub fill_bits: Option<usize>,
+    pub id: Option<u128>,
+    pub invalid: bool,
+}
+
+impl Default for AttrInfo {
+    fn default() -> Self {
+        Self {
+            lsb_zero: false,
+            flip: false,
+            enforcement: StructEnforcement::NoRules,
+            default_endianess: Endianness::None,
+            fill_bits: None,
+            id: None,
+            invalid: false,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct StructInfo {
+    pub name: Ident,
+    pub attrs: AttrInfo,
+    pub fields: Vec<FieldInfo>,
     pub vis: syn::Visibility,
+    pub tuple: bool,
 }
 
 impl StructInfo {
+    pub fn id_or_field_name(&self) -> syn::Result<TokenStream> {
+        for field in self.fields.iter() {
+            if field.attrs.capture_id {
+                let name = field.ident().name();
+                return Ok(quote! {#name});
+            }
+        }
+        if let Some(id) = self.attrs.id {
+            match TokenStream::from_str(format!("{id}").as_str()) {
+                Ok(id) => Ok(id),
+                Err(err) => Err(syn::Error::new(
+                    self.name.span(),
+                    format!(
+                        "variant id was not able to be formatted for of code generation. [{err}]"
+                    ),
+                )),
+            }
+        } else {
+            Err(syn::Error::new(
+                self.name.span(),
+                "variant id was unknown at time of code generation",
+            ))
+        }
+    }
     pub fn total_bits(&self) -> usize {
         let mut total: usize = 0;
         for field in self.fields.iter() {
             total += field.bit_size();
         }
+
         total
     }
 
     pub fn total_bytes(&self) -> usize {
         (self.total_bits() as f64 / 8.0f64).ceil() as usize
     }
-    fn parse_struct_attrs_meta(info: &mut StructInfo, meta: Meta) -> Result<(), syn::Error> {
+}
+
+pub struct EnumInfo {
+    pub name: Ident,
+    pub variants: Vec<StructInfo>,
+    pub attrs: EnumAttrInfo,
+    pub vis: syn::Visibility,
+}
+
+impl EnumInfo {
+    pub const VARIANT_ID_NAME: &str = "variant_id";
+    pub fn total_bits(&self) -> usize {
+        let mut total = self.variants[0].total_bits();
+        for variant in self.variants.iter().skip(1) {
+            let t = variant.total_bits();
+            if t > total {
+                total = t;
+            }
+        }
+        total
+    }
+    pub fn total_bytes(&self) -> usize {
+        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+    pub fn id_ident(&self) -> syn::Result<TokenStream> {
+        match self.attrs.id_bits {
+            0..=8 => Ok(quote! {u8}),
+            9..=16 => Ok(quote! {u16}),
+            17..=32 => Ok(quote! {u32}),
+            33..=64 => Ok(quote! {u64}),
+            65..=128 => Ok(quote! {u128}),
+            _ => {
+                return Err(syn::Error::new(
+                    self.name.span(),
+                    "variant id size is invalid",
+                ));
+            }
+        }
+    }
+    pub fn generate_id_field(&self) -> syn::Result<FieldInfo> {
+        let e = match &self.attrs.attrs.default_endianess {
+            Endianness::Little => Endianness::Little,
+            Endianness::Big => Endianness::Big,
+            Endianness::None => Endianness::Little,
+        };
+        Ok(FieldInfo {
+            ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
+            ty: FieldDataType::Number(
+                (self.attrs.id_bits as f64 / 8.0f64).ceil() as usize,
+                NumberSignage::Unsigned,
+                self.id_ident()?,
+            ),
+            attrs: FieldAttrs {
+                endianness: Box::new(e),
+                bit_range: 0..self.attrs.id_bits,
+                reserve: ReserveFieldOption::NotReserve,
+                overlap: OverlapOptions::None,
+                capture_id: false,
+            },
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct EnumAttrInfoBuilder {
+    pub id_bits: Option<usize>,
+    pub id_position: IdPosition,
+    pub total_bit_size: Option<usize>,
+    pub payload_bit_size: Option<usize>,
+}
+
+#[derive(Clone)]
+pub struct EnumAttrInfo {
+    pub id_bits: usize,
+    pub id_position: IdPosition,
+    // TODO we should add an option of where to but the fill bytes. currently the generative code will always
+    // have the "useful" data proceeding each other then filler. maybe someone will want id -> fill -> variant_data
+    /// The Full size of the enum. while we allow variants to be take differing sizes, the
+    /// enum will always use the full size, filling unused space with a pattern
+    /// of bytes. `payload_bit_size` is simply the largest variant's size and
+    /// therefore the total bytes used by the enum regardless of differing sized variants.
+    pub payload_bit_size: usize,
+    pub attrs: AttrInfo,
+}
+
+impl Default for EnumAttrInfoBuilder {
+    fn default() -> Self {
+        Self {
+            id_bits: None,
+            id_position: IdPosition::Leading,
+            total_bit_size: None,
+            payload_bit_size: None,
+        }
+    }
+}
+
+pub enum ObjectInfo {
+    Struct(StructInfo),
+    Enum(EnumInfo),
+}
+
+/// `id_bits` is the amount of bits the enum's id takes.
+fn get_id_type(id_bits: usize, span: Span) -> syn::Result<TokenStream> {
+    match id_bits {
+        0..=8 => Ok(quote! {u8}),
+        9..=16 => Ok(quote! {u16}),
+        17..=32 => Ok(quote! {u32}),
+        33..=64 => Ok(quote! {u64}),
+        65..=128 => Ok(quote! {u128}),
+        _ => {
+            return Err(syn::Error::new(span, "id size is invalid"));
+        }
+    }
+}
+
+impl ObjectInfo {
+    pub fn name(&self) -> Ident {
+        match self {
+            ObjectInfo::Struct(s) => s.name.clone(),
+            ObjectInfo::Enum(e) => e.name.clone(),
+        }
+    }
+    fn parse_struct_attrs(
+        attrs: &Vec<Attribute>,
+        attrs_info: &mut AttrInfo,
+        is_variant: bool,
+    ) -> syn::Result<()> {
+        for attr in attrs.iter() {
+            let span = attr.pound_token.span();
+            let meta = attr.parse_meta()?;
+            Self::parse_struct_attrs_meta(span, attrs_info, &meta, is_variant)?;
+        }
+        Ok(())
+    }
+
+    fn parse_enum_attrs(
+        attrs: &Vec<Attribute>,
+        attrs_info: &mut AttrInfo,
+        enum_attrs_info: &mut EnumAttrInfoBuilder,
+    ) -> syn::Result<()> {
+        for attr in attrs.iter() {
+            let span = attr.pound_token.span();
+            let meta = attr.parse_meta()?;
+            Self::parse_enum_attrs_meta(span, attrs_info, enum_attrs_info, &meta)?;
+        }
+        Ok(())
+    }
+    // Parses the Expression, looking for a literal number expression
+    fn parse_lit_discriminant_expr(input: &Expr) -> syn::Result<u128> {
+        match input {
+            Expr::Lit(ref lit) => match lit.lit {
+                Lit::Int(ref i) => Ok(i.base10_parse()?),
+                _ => Err(syn::Error::new(
+                    input.span(),
+                    "non-integer literals for custom discriminant are illegal.",
+                )),
+            },
+            _ => Err(syn::Error::new(
+                input.span(),
+                "non-literal expressions for custom discriminant are illegal.",
+            )),
+        }
+    }
+    pub fn parse(input: &DeriveInput) -> syn::Result<Self> {
+        // get the struct, error out if not a struct
+        let mut attrs = AttrInfo::default();
+        let name = input.ident.clone();
+        match input.data {
+            syn::Data::Struct(ref data) => {
+                let tuple = matches!(data.fields, syn::Fields::Unnamed(_));
+                Self::parse_struct_attrs(&input.attrs, &mut attrs, false)?;
+                let fields = Self::parse_fields(&name, &data.fields, &attrs, None, tuple)?;
+                Ok(Self::Struct(StructInfo {
+                    name,
+                    attrs,
+                    fields,
+                    vis: input.vis.clone(),
+                    tuple,
+                }))
+            }
+            syn::Data::Enum(ref data) => {
+                let mut enum_attrs = EnumAttrInfoBuilder::default();
+                Self::parse_enum_attrs(&input.attrs, &mut attrs, &mut enum_attrs)?;
+                let mut variants: Vec<StructInfo> = Vec::default();
+                let (id_field_type, id_bits) = {
+                    let id_bits = if let Some(id_bits) = enum_attrs.id_bits {
+                        id_bits
+                    } else if let (Some(payload_size), Some(total_size)) =
+                        (enum_attrs.payload_bit_size, enum_attrs.total_bit_size)
+                    {
+                        total_size - payload_size
+                    } else {
+                        return Err(syn::Error::new(
+                            data.enum_token.span(),
+                            "Must define the length of the id use #[bondrewd(id_bit_length = AMOUNT_OF_BITS)]",
+                        ));
+                    };
+                    (
+                        FieldDataType::Number(
+                            (id_bits as f64 / 8.0f64).ceil() as usize,
+                            NumberSignage::Unsigned,
+                            get_id_type(id_bits, name.span())?,
+                        ),
+                        id_bits,
+                    )
+                };
+                let id_field = FieldInfo {
+                    ident: Box::new(format_ident!("{}", EnumInfo::VARIANT_ID_NAME).into()),
+                    ty: id_field_type,
+                    attrs: FieldAttrs {
+                        endianness: Box::new(attrs.default_endianess.clone()),
+                        // this need to accommodate tailing ids, currently this locks the
+                        // id field to the first field read from the starting point of reading.
+                        // TODO make sure this gets corrected if the id size is unknown.
+                        bit_range: 0..id_bits,
+                        reserve: ReserveFieldOption::FakeReserveField,
+                        overlap: OverlapOptions::None,
+                        capture_id: false,
+                    },
+                };
+                for variant in data.variants.iter() {
+                    let tuple = matches!(variant.fields, syn::Fields::Unnamed(_));
+                    let mut attrs = attrs.clone();
+                    if let Some((_, ref expr)) = variant.discriminant {
+                        let parsed = Self::parse_lit_discriminant_expr(expr)?;
+                        attrs.id = Some(parsed);
+                    }
+                    Self::parse_struct_attrs(&variant.attrs, &mut attrs, true)?;
+                    let variant_name = variant.ident.clone();
+                    // TODO currently we always add the id field, but some people might want the id to be a
+                    // field in the variant. this would no longer need to insert the id as a "fake-field".
+                    let fields = Self::parse_fields(
+                        &variant_name,
+                        &variant.fields,
+                        &attrs,
+                        Some(id_field.clone()),
+                        tuple,
+                    )?;
+                    variants.push(StructInfo {
+                        name: variant_name,
+                        attrs,
+                        fields,
+                        vis: input.vis.clone(),
+                        tuple,
+                    });
+                }
+                // detect and fix variants without ids and verify non conflict.
+                let mut used_ids: Vec<u128> = Vec::default();
+                let mut unassigned_indices: Vec<usize> = Vec::default();
+                let mut invalid_index: Option<usize> = None;
+                let mut largest = 0;
+                for (i, variant) in variants.iter().enumerate() {
+                    if let Some(ref value) = variant.attrs.id {
+                        if used_ids.contains(value) {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                "variant identifier used twice.",
+                            ));
+                        } else {
+                            used_ids.push(*value);
+                        }
+                    } else {
+                        unassigned_indices.push(i);
+                    }
+                    if variant.attrs.invalid {
+                        if invalid_index.is_none() {
+                            invalid_index = Some(i);
+                        } else {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                "second catch invalid variant found. only 1 is currently allowed.",
+                            ));
+                        }
+                    }
+                    // verify the size doesn't go over set size.
+                    let size = variant.total_bits();
+                    if largest < size {
+                        largest = size;
+                    }
+                    if let Some(bit_size) = enum_attrs.payload_bit_size {
+                        if bit_size < size - variant.fields[0].attrs.bit_length() {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant is larger than defined payload_size of enum. defined size: {bit_size}. variant size: {}", size- variant.fields[0].attrs.bit_length()),
+                            ));
+                        }
+                    } else if let (Some(bit_size), Some(id_size)) =
+                        (enum_attrs.total_bit_size, enum_attrs.id_bits)
+                    {
+                        if bit_size - id_size < size - variant.fields[0].attrs.bit_length() {
+                            return Err(Error::new(
+                                variant.name.span(),
+                                format!("variant with id is larger than defined total_size of enum. defined size: {}. calculated size: {}", bit_size - id_size, size),
+                            ));
+                        }
+                    }
+                }
+                if !unassigned_indices.is_empty() {
+                    let mut current_guess: u128 = 0;
+                    for i in unassigned_indices {
+                        while used_ids.contains(&current_guess) {
+                            current_guess += 1;
+                        }
+                        variants[i].attrs.id = Some(current_guess);
+                        used_ids.push(current_guess);
+                        current_guess += 1;
+                    }
+                }
+                if let Some(ii) = invalid_index {
+                    let var = variants.remove(ii);
+                    variants.push(var);
+                }
+                // find minimal id size from largest id value
+                used_ids.sort();
+                let min_id_size = if let Some(last_id) = used_ids.last() {
+                    let mut x = last_id.clone();
+                    // find minimal id size from largest id value
+                    let mut n = 0;
+                    while x != 0 {
+                        x >>= 1;
+                        n += 1;
+                    }
+                    n
+                } else {
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("found no variants and could not determine size of id"),
+                    ));
+                };
+                let enum_attrs = match (enum_attrs.payload_bit_size, enum_attrs.total_bit_size) {
+                    (Some(payload), None) => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                payload_bit_size: payload,
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
+                            }
+                        } else {
+                            EnumAttrInfo {
+                                payload_bit_size: payload,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
+                            }
+                        }
+                    }
+                    (None, Some(total)) => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                payload_bit_size: total - id,
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
+                            }
+                        } else {
+                            if largest < total {
+                                let id = total - largest;
+                                EnumAttrInfo {
+                                    payload_bit_size: largest,
+                                    id_bits: id,
+                                    id_position: enum_attrs.id_position,
+                                    attrs: attrs.clone(),
+                                }
+                            } else {
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("specified total is not smaller than the largest payload size, meaning there is not room the the variant id."),
+                                ));
+                            }
+                        }
+                    }
+                    (Some(payload), Some(total)) => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            if payload + id != total {
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("total_size, payload_size, and id_size where all specified but id_size ({id}) + payload_size ({payload}) is not equal to total_size ({total})"),
+                                ));
+                            }
+                            if payload < largest {
+                                return Err(Error::new(
+                                    data.enum_token.span(),
+                                    format!("detected a variant over the maximum defined size."),
+                                ));
+                            }
+                            EnumAttrInfo {
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                payload_bit_size: payload,
+                                attrs: attrs.clone(),
+                            }
+                        } else {
+                            EnumAttrInfo {
+                                payload_bit_size: largest,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
+                            }
+                        }
+                    }
+                    _ => {
+                        if let Some(id) = enum_attrs.id_bits {
+                            EnumAttrInfo {
+                                id_bits: id,
+                                id_position: enum_attrs.id_position,
+                                payload_bit_size: largest,
+                                attrs: attrs.clone(),
+                            }
+                        } else {
+                            EnumAttrInfo {
+                                payload_bit_size: largest,
+                                id_bits: min_id_size,
+                                id_position: enum_attrs.id_position,
+                                attrs: attrs.clone(),
+                            }
+                        }
+                    }
+                };
+                if enum_attrs.id_bits < min_id_size {
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("the bit size being used is less than required to describe each variant"),
+                    ));
+                }
+                if enum_attrs.payload_bit_size + enum_attrs.id_bits < largest {
+                    return Err(Error::new(
+                        data.enum_token.span(),
+                        format!("the payload size being used is less than largest variant"),
+                    ));
+                }
+                // let id_field_ty = FieldDataType::Number(
+                //     enum_attrs.id_bits,
+                //     NumberSignage::Unsigned,
+                //     get_id_type(enum_attrs.id_bits, name.span())?,
+                // );
+                // add fill_bits if needed.
+                for v in variants.iter_mut() {
+                    let first_bit = v.total_bits();
+                    if first_bit < largest {
+                        let fill_bytes_size =
+                            ((largest - first_bit) as f64 / 8.0_f64).ceil() as usize;
+                        let ident = quote::format_ident!("fill_bits");
+                        v.fields.push(FieldInfo {
+                            ident: Box::new(ident.into()),
+                            attrs: FieldAttrs {
+                                bit_range: first_bit..largest,
+                                endianness: Box::new(Endianness::Big),
+                                reserve: ReserveFieldOption::FakeReserveField,
+                                overlap: OverlapOptions::None,
+                                capture_id: false,
+                            },
+                            ty: FieldDataType::BlockArray(
+                                Box::new(SubFieldInfo {
+                                    ty: FieldDataType::Number(
+                                        1,
+                                        NumberSignage::Unsigned,
+                                        quote! {u8},
+                                    ),
+                                }),
+                                fill_bytes_size,
+                                quote! {[u8;#fill_bytes_size]},
+                            ),
+                        });
+                    }
+                }
+                Ok(Self::Enum(EnumInfo {
+                    name,
+                    variants,
+                    attrs: enum_attrs,
+                    vis: input.vis.clone(),
+                }))
+            }
+            _ => Err(Error::new(Span::call_site(), "input can not be a union")),
+        }
+    }
+    pub fn total_bits(&self) -> usize {
+        match self {
+            Self::Struct(s) => s.total_bits(),
+            Self::Enum(info) => info.total_bits(),
+        }
+    }
+
+    pub fn total_bytes(&self) -> usize {
+        (self.total_bits() as f64 / 8.0f64).ceil() as usize
+    }
+    fn parse_enum_attrs_meta(
+        span: Span,
+        info: &mut AttrInfo,
+        enum_info: &mut EnumAttrInfoBuilder,
+        meta: &Meta,
+    ) -> Result<(), syn::Error> {
         match meta {
             Meta::NameValue(value) => {
-                if value.path.is_ident("read_from") {
-                    if let Lit::Str(val) = value.lit {
-                        match val.value().as_str() {
-                            "lsb0" => info.lsb_zero = true,
-                            "msb0" => info.lsb_zero = false,
-                            _ => return Err(Error::new(
-                                val.span(),
-                                "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
-                            )),
-                        }
-                    }
-                } else if value.path.is_ident("default_endianness") {
-                    if let Lit::Str(val) = value.lit {
-                        match val.value().as_str() {
-                            "le" | "lsb" | "little" | "lil" => {
-                                info.default_endianess = Endianness::Little
-                            }
-                            "be" | "msb" | "big" => info.default_endianess = Endianness::Big,
-                            "ne" | "native" => info.default_endianess = Endianness::None,
-                            _ => {}
-                        }
-                    }
-                } else if value.path.is_ident("enforce_bytes") {
-                    if let Lit::Int(val) = value.lit {
+                if value.path.is_ident("id_bit_length") {
+                    if let Lit::Int(ref val) = value.lit {
                         match val.base10_parse::<usize>() {
                             Ok(value) => {
-                                info.enforcement = StructEnforcement::EnforceBitAmount(value * 8);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    info.name.span(),
-                                    format!("failed parsing enforce_bytes value [{}]", err),
-                                ))
-                            }
-                        }
-                    }
-                } else if value.path.is_ident("enforce_bits") {
-                    if let Lit::Int(val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                info.enforcement = StructEnforcement::EnforceBitAmount(value);
-                            }
-                            Err(err) => {
-                                return Err(syn::Error::new(
-                                    info.name.span(),
-                                    format!("failed parsing enforce_bits value [{}]", err),
-                                ))
-                            }
-                        }
-                    }
-                } else if value.path.is_ident("fill_bytes") {
-                    if let Lit::Int(val) = value.lit {
-                        match val.base10_parse::<usize>() {
-                            Ok(value) => {
-                                if info.fill_bits.is_none() {
-                                    info.fill_bits = Some(value * 8);
-                                } else {
+                                if value > 128 {
                                     return Err(syn::Error::new(
-                                        info.name.span(),
-                                        "multiple fill_bits values".to_string(),
+                                        span,
+                                        format!("Maximum id bits is 128."),
                                     ));
                                 }
+                                enum_info.id_bits = Some(value);
                             }
                             Err(err) => {
                                 return Err(syn::Error::new(
-                                    info.name.span(),
-                                    format!("failed parsing fill_bits value [{}]", err),
+                                    span,
+                                    format!("failed parsing id_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("id_byte_length") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if value > 16 {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("Maximum id bytes is 16."),
+                                    ));
+                                }
+                                enum_info.id_bits = Some(value * 8);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing id_bytes value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("payload_bit_length") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                enum_info.payload_bit_size = Some(value);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing payload_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    }
+                } else if value.path.is_ident("payload_byte_length") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                enum_info.payload_bit_size = Some(value * 8);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing payload_bytes value [{}]", err),
                                 ))
                             }
                         }
@@ -993,11 +1615,11 @@ impl StructInfo {
             Meta::Path(value) => {
                 if let Some(ident) = value.get_ident() {
                     match ident.to_string().as_str() {
-                        "reverse" => {
-                            info.flip = true;
+                        "id_tail" => {
+                            enum_info.id_position = IdPosition::Trailing;
                         }
-                        "enforce_full_bytes" => {
-                            info.enforcement = StructEnforcement::EnforceFullBytes;
+                        "id_head" => {
+                            enum_info.id_position = IdPosition::Leading;
                         }
                         _ => {}
                     }
@@ -1005,10 +1627,182 @@ impl StructInfo {
             }
             Meta::List(meta_list) => {
                 if meta_list.path.is_ident("bondrewd") {
-                    for nested_meta in meta_list.nested {
+                    for nested_meta in meta_list.nested.iter() {
                         match nested_meta {
                             NestedMeta::Meta(meta) => {
-                                Self::parse_struct_attrs_meta(info, meta)?;
+                                Self::parse_enum_attrs_meta(span, info, enum_info, &meta)?;
+                            }
+                            NestedMeta::Lit(_) => {}
+                        }
+                    }
+                }
+            }
+        }
+        Self::parse_struct_attrs_meta(span, info, &meta, false)?;
+        if let StructEnforcement::EnforceBitAmount(bits) = info.enforcement {
+            enum_info.total_bit_size = Some(bits);
+            info.enforcement = StructEnforcement::NoRules;
+        }
+        Ok(())
+    }
+    fn parse_struct_attrs_meta(
+        span: Span,
+        info: &mut AttrInfo,
+        meta: &Meta,
+        is_variant: bool,
+    ) -> Result<(), syn::Error> {
+        match meta {
+            Meta::NameValue(ref value) => {
+                if is_variant && value.path.is_ident(EnumInfo::VARIANT_ID_NAME) {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<u128>() {
+                            Ok(value) => {
+                                if info.id.is_none() {
+                                    info.id = Some(value);
+                                } else {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        format!("must not have 2 ids defined."),
+                                    ));
+                                }
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing id value [{}]", err),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!(
+                                "improper usage of {}, must use literal integer ex. `{} = 0`",
+                                EnumInfo::VARIANT_ID_NAME,
+                                EnumInfo::VARIANT_ID_NAME
+                            ),
+                        ));
+                    }
+                } else if value.path.is_ident("read_from") {
+                    if let Lit::Str(ref val) = value.lit {
+                        match val.value().as_str() {
+                            "lsb0" => info.lsb_zero = true,
+                            "msb0" => info.lsb_zero = false,
+                            _ => return Err(Error::new(
+                                val.span(),
+                                "Expected literal str \"lsb0\" or \"msb0\" for read_from attribute.",
+                            )),
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of read_from, must use string ex. `read_from = \"lsb0\"`"),
+                        ));
+                    }
+                } else if value.path.is_ident("default_endianness") {
+                    if let Lit::Str(ref val) = value.lit {
+                        match val.value().as_str() {
+                            "le" | "lsb" | "little" | "lil" => {
+                                info.default_endianess = Endianness::Little
+                            }
+                            "be" | "msb" | "big" => info.default_endianess = Endianness::Big,
+                            "ne" | "native" => info.default_endianess = Endianness::None,
+                            _ => {}
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of default_endianness, must use string ex. `default_endianness = \"be\"`"),
+                        ));
+                    }
+                } else if value.path.is_ident("enforce_bytes") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                info.enforcement = StructEnforcement::EnforceBitAmount(value * 8);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing enforce_bytes value [{}]", err),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of enforce_bytes, must use literal integer ex. `enforce_bytes = 5`"),
+                        ));
+                    }
+                } else if value.path.is_ident("enforce_bits") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                info.enforcement = StructEnforcement::EnforceBitAmount(value);
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing enforce_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of enforce_bits, must use literal integer ex. `enforce_bits = 5`"),
+                        ));
+                    }
+                } else if value.path.is_ident("fill_bytes") {
+                    if let Lit::Int(ref val) = value.lit {
+                        match val.base10_parse::<usize>() {
+                            Ok(value) => {
+                                if info.fill_bits.is_none() {
+                                    info.fill_bits = Some(value * 8);
+                                } else {
+                                    return Err(syn::Error::new(
+                                        span,
+                                        "multiple fill_bits values".to_string(),
+                                    ));
+                                }
+                            }
+                            Err(err) => {
+                                return Err(syn::Error::new(
+                                    span,
+                                    format!("failed parsing fill_bits value [{}]", err),
+                                ))
+                            }
+                        }
+                    } else {
+                        return Err(syn::Error::new(
+                            span,
+                            format!("improper usage of fill_bytes, must use literal integer ex. `fill_bytes = 5`"),
+                        ));
+                    }
+                }
+            }
+            Meta::Path(ref value) => {
+                if let Some(ident) = value.get_ident() {
+                    match ident.to_string().as_str() {
+                        "reverse" => {
+                            info.flip = true;
+                        }
+                        "enforce_full_bytes" => {
+                            info.enforcement = StructEnforcement::EnforceFullBytes;
+                        }
+                        "invalid" => {
+                            info.invalid = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Meta::List(ref meta_list) => {
+                if meta_list.path.is_ident("bondrewd") {
+                    for nested_meta in meta_list.nested.iter() {
+                        match nested_meta {
+                            NestedMeta::Meta(ref meta) => {
+                                Self::parse_struct_attrs_meta(span, info, meta, is_variant)?;
                             }
                             NestedMeta::Lit(_) => {}
                         }
@@ -1018,50 +1812,95 @@ impl StructInfo {
         }
         Ok(())
     }
-    pub fn parse(input: &DeriveInput) -> syn::Result<StructInfo> {
-        // get the struct, error out if not a struct
-        let data = match input.data {
-            syn::Data::Struct(ref data) => data,
-            _ => {
-                return Err(Error::new(Span::call_site(), "input must be a struct"));
-            }
+    pub fn parse_fields(
+        name: &Ident,
+        fields: &Fields,
+        attrs: &AttrInfo,
+        first_field: Option<FieldInfo>,
+        tuple: bool,
+    ) -> syn::Result<Vec<FieldInfo>> {
+        let (mut parsed_fields, is_enum) = if let Some(f) = first_field {
+            (vec![f], true)
+        } else {
+            (Vec::default(), false)
         };
-        let mut info = StructInfo {
-            name: input.ident.clone(),
-            lsb_zero: false,
-            flip: false,
-            enforcement: StructEnforcement::NoRules,
-            fields: Default::default(),
-            default_endianess: Endianness::None,
-            fill_bits: None,
-            vis: input.vis.clone(),
-        };
-        for attr in input.attrs.iter() {
-            let meta = attr.parse_meta()?;
-            Self::parse_struct_attrs_meta(&mut info, meta)?;
-        }
         // get the list of fields in syn form, error out if unit struct (because they have no data, and
         // data packing/analysis don't seem necessary)
-        let fields = match data.fields {
-            syn::Fields::Named(ref named_fields) => named_fields.named.iter().cloned().collect::<Vec<syn::Field>>(),
-            syn::Fields::Unnamed(ref fields) => fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>(),
-            syn::Fields::Unit => return Err(Error::new(data.struct_token.span, "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it.")),
+        let fields = match fields {
+            syn::Fields::Named(ref named_fields) => Some(
+                named_fields
+                    .named
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<syn::Field>>(),
+            ),
+            syn::Fields::Unnamed(ref fields) => {
+                Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>())
+            }
+            syn::Fields::Unit => {
+                if parsed_fields.first().is_none() {
+                    return Err(Error::new(name.span(), "Packing a Unit Struct (Struct with no data) seems pointless to me, so i didn't write code for it."));
+                } else {
+                    None
+                }
+            }
         };
 
         // figure out what the field are and what/where they should be in byte form.
-        let mut bit_size = 0;
-        for ref field in fields {
-            let parsed_field = FieldInfo::from_syn_field(field, &info)?;
-            bit_size += parsed_field.bit_size();
-            info.fields.push(parsed_field);
+        let mut bit_size = if let Some(id_field) = parsed_fields.first() {
+            id_field.bit_size()
+        } else {
+            0
+        };
+        if let Some(fields) = fields {
+            for (i, ref field) in fields.iter().enumerate() {
+                let mut parsed_field = FieldInfo::from_syn_field(field, &parsed_fields, attrs)?;
+                if parsed_field.attrs.capture_id {
+                    if is_enum {
+                        if i == 0 {
+                            match (&parsed_fields[0].ty, &mut parsed_field.ty) {
+                                (FieldDataType::Number(_, ref bon_sign, ref bon_ty), FieldDataType::Number(_, ref user_sign, ref user_ty)) => {
+                                    if parsed_fields[0].attrs.bit_range != parsed_field.attrs.bit_range {
+                                        parsed_field.attrs.bit_range = parsed_fields[0].attrs.bit_range.clone();
+                                    }
+                                    if bon_sign != user_sign {
+                                        return Err(Error::new(field.span(), format!("capture_id field must be unsigned. bondrewd will enforce the type as {bon_ty}")));
+                                    }else if bon_ty.to_string() != user_ty.to_string() {
+                                        return Err(Error::new(field.span(), format!("capture_id field currently must be {bon_ty} in this instance, because bondrewd makes an assumption about the id type. changing this would be difficult")));
+                                    }
+                                    let old_id = parsed_fields.remove(0);
+                                    if tuple {
+                                        parsed_field.ident = old_id.ident;
+                                    }
+                                }
+                                (FieldDataType::Number(_bon_bits, _bon_sign, bon_ty), _) => return Err(Error::new(field.span(), format!("capture_id field must be an unsigned number. detected type is {bon_ty}."))),
+                                _ => return Err(Error::new(field.span(), "an error with bondrewd has occurred, the id field should be a number but bondrewd did not use a number for the id.")),
+                            }
+                        } else {
+                            return Err(Error::new(
+                                field.span(),
+                                "capture_id attribute must be the first field.",
+                            ));
+                        }
+                    } else {
+                        return Err(Error::new(
+                            field.span(),
+                            "capture_id attribute is intended for enum variants only.",
+                        ));
+                    }
+                } else {
+                    bit_size += parsed_field.bit_size();
+                }
+                parsed_fields.push(parsed_field);
+            }
         }
 
-        match info.enforcement {
+        match attrs.enforcement {
             StructEnforcement::NoRules => {}
             StructEnforcement::EnforceFullBytes => {
                 if bit_size % 8 != 0 {
                     return Err(syn::Error::new(
-                        info.name.span(),
+                        name.span(),
                         "BIT_SIZE modulus 8 is not zero",
                     ));
                 }
@@ -1069,7 +1908,7 @@ impl StructInfo {
             StructEnforcement::EnforceBitAmount(expected_total_bits) => {
                 if bit_size != expected_total_bits {
                     return Err(syn::Error::new(
-                        info.name.span(),
+                        name.span(),
                         format!(
                             "Bit Enforcement failed because bondrewd detected {} total bits used by defined fields, but the bit enforcement attribute is defined as {} bits.",
                             bit_size, expected_total_bits
@@ -1080,22 +1919,22 @@ impl StructInfo {
         }
 
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        if let Some(fill_bits) = info.fill_bits {
-            let first_bit = if let Some(last_range) = info.fields.iter().last() {
+        if let Some(fill_bits) = attrs.fill_bits {
+            let first_bit = if let Some(last_range) = parsed_fields.iter().last() {
                 last_range.attrs.bit_range.end
             } else {
                 0_usize
             };
             let fill_bytes_size = ((fill_bits - first_bit) as f64 / 8.0_f64).ceil() as usize;
             let ident = quote::format_ident!("bondrewd_fill_bits");
-            info.fields.push(FieldInfo {
-                name: ident.clone(),
-                ident: Box::new(ident),
+            parsed_fields.push(FieldInfo {
+                ident: Box::new(ident.into()),
                 attrs: FieldAttrs {
                     bit_range: first_bit..fill_bits,
                     endianness: Box::new(Endianness::Big),
                     reserve: ReserveFieldOption::FakeReserveField,
                     overlap: OverlapOptions::None,
+                    capture_id: false,
                 },
                 ty: FieldDataType::BlockArray(
                     Box::new(SubFieldInfo {
@@ -1107,14 +1946,14 @@ impl StructInfo {
             });
         }
 
-        if info.lsb_zero {
-            for ref mut field in info.fields.iter_mut() {
+        if attrs.lsb_zero {
+            for ref mut field in parsed_fields.iter_mut() {
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);
             }
-            info.fields.reverse();
+            parsed_fields.reverse();
         }
 
-        Ok(info)
+        Ok(parsed_fields)
     }
 }
