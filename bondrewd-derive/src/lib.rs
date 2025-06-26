@@ -1770,7 +1770,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             } else {
                 quote! {}
             };
-            if dyn_fns {
+            if dyn_fns && hex {
                 hex_fns_quote = quote!{
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
@@ -1895,7 +1895,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
             } else {
                 quote! {}
             };
-            if dyn_fns {
+            if dyn_fns && hex {
                 hex_fns_quote = quote!{
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
