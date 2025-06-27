@@ -28,5 +28,9 @@ std = []
 [dev-dependencies]
 rand = "0.8"
 anyhow = "1"
-# bondrewd-old = {package = "bondrewd", registry = "pumpkin-patch", version = "0.2", features = ["dyn_fns", "derive"]}
-bondrewd = { path = "../bondrewd", features = ["full"]}
+
+[dev-dependencies.bondrewd]
+version = "0.3.0-beta.0"
+registry = "pumpkin-patch"
+path = "../bondrewd"
+features = ["full"]

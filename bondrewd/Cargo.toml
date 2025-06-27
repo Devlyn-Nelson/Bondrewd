@@ -10,9 +10,11 @@ categories = ["data-structures","development-tools"]
 readme = "../README.md"
 repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 
-[dependencies]
-# bondrewd-derive = { version = "0.5.0", optional = true, registry = "pumpkin-patch" }
-bondrewd-derive = { path = "../bondrewd-derive", optional = true }
+[dependencies.bondrewd-derive]
+version = "0.5.0-beta.4"
+registry = "pumpkin-patch"
+path = "../bondrewd-derive"
+optional = true
 
 [features]
 full = ["derive", "std"]
