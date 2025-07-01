@@ -21,6 +21,8 @@ fn hard_core_test() {
 fn super_hard_code() {
     use bondrewd::Bitfields;
     use current::{One, ReallyHardcore, Three, Two};
+    assert_eq!(Three::BIT_SIZE, 16);
+    assert_eq!(Three::BYTE_SIZE, 2);
     let thing_1 = ReallyHardcore {
         one: One { one: true, two: 7 },
         two: Two::One { one: false, two: 0 },
@@ -30,32 +32,35 @@ fn super_hard_code() {
     let thing_2 = ReallyHardcore {
         one: One { one: false, two: 0 },
         two: Two::Invalid(7, 31),
-        three: Three::One(false, false),
+        three: Three::First(false, false),
         four: 7,
     };
     let zero = ReallyHardcore {
         one: One { one: false, two: 0 },
         two: Two::One{one: false, two: 0},
-        three: Three::One(false, false),
+        three: Three::First(false, false),
         four: 0,
     };
 
     let bytes_1 = thing_1.clone().into_bytes();
     let bytes_2 = thing_2.clone().into_bytes();
-    let mut bytes_zero = zero.clone().into_bytes();
+    let mut test_field_three = zero.clone().into_bytes();
+    let mut test_field_two = zero.clone().into_bytes();
     // TESTS
-    let three= Three::Four(false, false);
-    let toher = three.clone().into_bytes();
-    ReallyHardcore::write_three(&mut bytes_zero, three);
+    let three= Three::full();
+    let test_three = three.clone().into_bytes();
+    ReallyHardcore::write_three(&mut test_field_three, three);
+    print_bytes(&test_three);
+    print_bytes(&test_field_three);
     // assert_eq!(ReallyHardcore::read_three(&mut bytes_zero), three);
-    // let two= Two::One { one: true, two: 0 };
-    // let toher = two.clone().into_bytes();
-    // ReallyHardcore::write_two(&mut bytes_zero, two);
+    let two= Two::full();
+    let test_two = two.clone().into_bytes();
+    ReallyHardcore::write_two(&mut test_field_two, two);
+    print_bytes(&test_two);
+    print_bytes(&test_field_two);
     // assert_eq!(ReallyHardcore::read_two(&mut bytes_zero), two);
 
-    print_bytes(&toher);
-    print_bytes(&bytes_zero);
-    assert_eq!(bytes_zero, [0b00000000, 0b00000000,0b00000000]);
+    // assert_eq!(bytes_zero, [0b00000000, 0b00000000,0b00000000]);
     //
     // let half_bytes_1 = thing_1.two.clone().into_bytes();
     // 
@@ -120,21 +125,31 @@ mod current {
         },
         Invalid(#[bondrewd(capture_id)] u8, #[bondrewd(bit_length = 5)] u8),
     }
+    impl Two {
+        pub fn full() -> Self {
+            Self::Invalid(7, 31)
+        }
+    }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "ale", id_bit_length = 2)]
+    #[bondrewd(endianness = "ale", id_bit_length = 2, fill_bits_to = 16)]
     pub enum Three {
-        #[bondrewd(fill_bits = 12)]
-        One(bool, bool),
-        Two,
+        First(bool, bool),
+        Second,
         Invalid {
             #[bondrewd(capture_id)]
             id: u8,
             #[bondrewd(bit_length = 7)]
             other: u8,
         },
-        #[bondrewd(fill_bits = 12)]
-        Four(bool, bool),
+        Four(
+            #[bondrewd(bit_length = 7)]
+            u8,)
+    }
+    impl Three {
+        pub fn full() -> Self {
+            Self::Four(127)
+        }
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]

@@ -119,6 +119,9 @@ impl GenericBuilder {
 
                 VariantDarlingSimplified::do_thing(vd, &mut attrs)?
             };
+            if attrs.fill_bits.is_none() && struct_attrs.fill_bits.passable() {
+                attrs.fill_bits = struct_attrs.fill_bits.clone();
+            }
             let endianness = attrs.endianness.clone().unwrap_or_default();
             if variant_attrs.id.is_none() {
                 variant_attrs.id = lit_id;
@@ -272,6 +275,8 @@ pub struct StructDarling {
     pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
+    pub fill_bits_to: Option<usize>,
+    pub fill_bytes_to: Option<usize>,
     pub fill: darling::util::Flag,
 }
 #[derive(Debug, Clone)]
@@ -336,36 +341,49 @@ impl StructDarlingSimplified {
     pub fn try_solve_fill_bits(
         fill_bits: Option<FillDarling>,
         fill_bytes: Option<FillDarling>,
+        fill_bits_to: Option<usize>,
+        fill_bytes_to: Option<usize>,
         fill: darling::util::Flag,
     ) -> syn::Result<FillBits> {
+        let mut count = 0;
+        if fill_bits.is_some() {
+            count += 1;
+        }
+        if fill_bytes.is_some() {
+            count += 1;
+        }
+        if fill_bits_to.is_some() {
+            count += 1;
+        }
+        if fill_bytes_to.is_some() {
+            count += 1;
+        }
         if fill.is_present() {
-            if fill_bytes.is_none() && fill_bits.is_none() {
-                Ok(FillBits::Auto)
-            } else {
-                Err(Error::new(
-                    Span::call_site(),
-                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
-                ))
-            }
+            count += 1;
+        }
+        if count > 1 {
+            Err(Error::new(
+                Span::call_site(),
+                "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes, fill_bits_to, fill_bytes_to)",
+            ))
+        }else if fill.is_present() {
+            Ok(FillBits::Auto)
         } else if let Some(bytes) = fill_bytes {
-            if fill_bits.is_none() {
-                let out = match bytes {
-                    FillDarling::Auto => FillBits::Auto,
-                    FillDarling::Size(bytes) => FillBits::Bits(bytes * 8),
-                };
-                Ok(out)
-            } else {
-                Err(Error::new(
-                    Span::call_site(),
-                    "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes)",
-                ))
-            }
+            let out = match bytes {
+                FillDarling::Auto => FillBits::Auto,
+                FillDarling::Size(bytes) => FillBits::Bits(bytes * 8),
+            };
+            Ok(out)
         } else if let Some(bits) = fill_bits {
             let out = match bits {
                 FillDarling::Auto => FillBits::Auto,
                 FillDarling::Size(bits) => FillBits::Bits(bits),
             };
             Ok(out)
+        } else if let Some(bits) = fill_bits_to {
+            Ok(FillBits::FillTo(bits))
+        } else if let Some(bytes) = fill_bytes_to {
+            Ok(FillBits::FillTo(bytes * 8))
         } else {
             Ok(FillBits::None)
         }
@@ -428,7 +446,7 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
         )?;
         // determine byte filling if any.
         let fill_bits =
-            Self::try_solve_fill_bits(darling.fill_bits, darling.fill_bytes, darling.fill)?;
+            Self::try_solve_fill_bits(darling.fill_bits, darling.fill_bytes, darling.fill_bits_to, darling.fill_bytes_to, darling.fill)?;
         Ok(Self {
             endianness,
             ident: darling.ident,
@@ -456,6 +474,8 @@ pub struct VariantDarling {
     pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
+    pub fill_bits_to: Option<usize>,
+    pub fill_bytes_to: Option<usize>,
     pub fill: darling::util::Flag,
 }
 
@@ -511,7 +531,7 @@ impl VariantDarlingSimplified {
         // determine byte filling if any.
         let fill_bits = StructDarlingSimplified::try_solve_fill_bits(
             value.fill_bits,
-            value.fill_bytes,
+            value.fill_bytes, value.fill_bits_to, value.fill_bytes_to,
             value.fill,
         )?;
         if !matches!(enforcement.ty, StructEnforcementTy::NoRules) {
@@ -548,6 +568,8 @@ pub struct EnumDarling {
     pub enforce_bits: Option<darling::util::SpannedValue<usize>>,
     pub fill_bits: Option<FillDarling>,
     pub fill_bytes: Option<FillDarling>,
+    pub fill_bits_to: Option<usize>,
+    pub fill_bytes_to: Option<usize>,
     pub fill: darling::util::Flag,
 }
 
@@ -578,6 +600,8 @@ impl TryFrom<EnumDarling> for ObjectDarlingSimplifiedPackage {
             enforce_bits: value.enforce_bits,
             fill_bits: value.fill_bits,
             fill_bytes: value.fill_bytes,
+            fill_bits_to: value.fill_bits_to,
+            fill_bytes_to: value.fill_bytes_to,
             fill: value.fill,
         }
         .try_into()?;
@@ -756,8 +780,10 @@ pub enum FillBits {
     /// Does not fill bits.
     #[default]
     None,
-    /// Fills a specific amount of bits.
+    /// Adds a specific amount of fill bits to the end.
     Bits(usize),
+    /// Fills 
+    FillTo(usize),
     /// Fills bits up until the total amount of bits used is a multiple of 8.
     Auto,
 }
@@ -766,6 +792,18 @@ impl FillBits {
     #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, Self::None)
+    }
+    #[must_use]
+    pub fn is_some(&self) -> bool {
+        matches!(self, Self::Bits(_) | Self::FillTo(_) | Self::Auto)
+    }
+    #[must_use]
+    pub fn passable(&self) -> bool {
+        matches!(self, Self::FillTo(_) | Self::Auto)
+    }
+    #[must_use]
+    pub fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
     }
 }
 

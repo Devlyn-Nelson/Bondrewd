@@ -776,7 +776,7 @@ impl Resolver {
                             get_left_and_mask(8 - self.available_bits_in_first_byte());
                         let right_shift: u32 = u32::from(right_shift.unsigned_abs());
                         for i in 0..*size {
-                            let (field_buffer_index, mut start) = if let Some(flip) = self.data.flip() {
+                            let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
                                 let fbi = (size - 1) - i;
                                 let start = self
                                     .data
@@ -786,7 +786,7 @@ impl Resolver {
                                 let start = self.data.offset_starting_inject_byte(i);
                                 (i, start)
                             };
-                            let mut next_index = self.data.next_index(start);
+                            let next_index = self.data.next_index(start);
                             // if self.data.flip().is_some() {
                             //     std::mem::swap(&mut next_index, &mut start);
                             // }
