@@ -36,23 +36,32 @@ fn super_hard_code() {
     let zero = ReallyHardcore {
         one: One { one: false, two: 0 },
         two: Two::One{one: false, two: 0},
-        three: Three::Four(false, false),
+        three: Three::One(false, false),
         four: 0,
     };
 
-    // let half_bytes_1 = thing_1.two.clone().into_bytes();
-
     let bytes_1 = thing_1.clone().into_bytes();
     let bytes_2 = thing_2.clone().into_bytes();
-    let bytes_zero = zero.clone().into_bytes();
+    let mut bytes_zero = zero.clone().into_bytes();
+    // TESTS
+    let three= Three::Four(false, false);
+    let toher = three.clone().into_bytes();
+    ReallyHardcore::write_three(&mut bytes_zero, three);
+    // assert_eq!(ReallyHardcore::read_three(&mut bytes_zero), three);
+    // let two= Two::One { one: true, two: 0 };
+    // let toher = two.clone().into_bytes();
+    // ReallyHardcore::write_two(&mut bytes_zero, two);
+    // assert_eq!(ReallyHardcore::read_two(&mut bytes_zero), two);
 
-    // let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
-    // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
-    // assert_eq!(bytes_1, correct_bytes_1);
-    let toher = Three::Four(false, false).into_bytes();
     print_bytes(&toher);
     print_bytes(&bytes_zero);
     assert_eq!(bytes_zero, [0b00000000, 0b00000000,0b00000000]);
+    //
+    // let half_bytes_1 = thing_1.two.clone().into_bytes();
+    // 
+    // let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
+    // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
+    // assert_eq!(bytes_1, correct_bytes_1);
     // assert_eq!(
     //     bytes_2,
     //     [
