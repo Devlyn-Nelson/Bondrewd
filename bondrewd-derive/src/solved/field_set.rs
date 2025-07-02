@@ -200,7 +200,7 @@ impl TryFrom<EnumBuilder> for Solved {
 
             built_variants.push(built);
         }
-        let mut built_invalid = match used {
+        let built_invalid = match used {
             Ok(done) => done,
             Err(not_done) => {
                 get_built_variant(not_done, &mut used_ids, &mut last, &mut largest_variant_id)
@@ -388,7 +388,7 @@ impl<'a> HalfSolvedFieldSet<'a> {
     }
     pub fn finish(mut self) -> Result<SolvedFieldSet, syn::Error> {
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        println!("--- {}: {}", self.value.name, self.total_bit_size);
+        println!("-- {}: {}", self.value.name, self.total_bit_size);
         println!("\t ={:?}\n\t *{:?}", self.value.fill_bits, self.fill_override);
         let maybe_fill = Solved::maybe_add_fill_field(
             self.fill_override.as_ref().unwrap_or(&self.value.fill_bits),
@@ -398,7 +398,7 @@ impl<'a> HalfSolvedFieldSet<'a> {
             &mut self.total_bit_size,
         );
         if let Some(mf) = &maybe_fill {
-            println!("\t +{}", mf.bit_length());
+            println!("\t +{}", mf.bit_range.bit_length());
         }
         // finalize
         let mut fields: Vec<SolvedData> = Vec::default();
@@ -412,8 +412,9 @@ impl<'a> HalfSolvedFieldSet<'a> {
             fields.push(SolvedData::from_built(pre_field, flip_bits));
         }
         if let Some(fill) = maybe_fill {
-            fields.push(fill);
+            fields.push(SolvedData::from_built(fill, self.total_bit_size));
         }
+        println!("\n{fields:?}\n");
         let out = SolvedFieldSet {
             fields,
             attrs: self.attrs.clone(),
@@ -584,7 +585,7 @@ impl Solved {
         has_id_field: bool,
         id_bit_size: Option<usize>,
         total_bits: &mut usize,
-    ) -> Option<SolvedData> {
+    ) -> Option<BuiltData> {
         println!("\t= {fill:?}");
         let auto_fill = match fill {
             FillBits::None => None,
@@ -625,7 +626,7 @@ impl Solved {
                 overlap: OverlapOptions::None,
                 is_captured_id: false,
             };
-            Some(SolvedData::from_built(fill_field, *total_bits))
+            Some(fill_field)
         } else {
             None
         };
