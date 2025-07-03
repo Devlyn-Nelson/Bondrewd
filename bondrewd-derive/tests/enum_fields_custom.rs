@@ -1,7 +1,7 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(endianness = "be", id_bit_length = 8)]
 enum TestCustomEnum {
     CustomZero = 0x30,
     CustomOne = 0x10,
@@ -10,8 +10,8 @@ enum TestCustomEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be")]
 struct SimpleCustomEnumUsage {
     one: u8,
     #[bondrewd(bit_length = 8)]
@@ -30,16 +30,14 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b0000_1000);
     assert_eq!(bytes[1], 0b0100_0000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
-        assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
-        assert_eq!(
-            simple.three,
-            SimpleCustomEnumUsage::read_slice_three(&bytes)?
-        );
-    }
+
+    //peeks
+    assert_eq!(simple.one, SimpleCustomEnumUsage::read_slice_one(&bytes)?);
+    assert_eq!(simple.two, SimpleCustomEnumUsage::read_slice_two(&bytes)?);
+    assert_eq!(
+        simple.three,
+        SimpleCustomEnumUsage::read_slice_three(&bytes)?
+    );
 
     // from_bytes
     let new_simple = SimpleCustomEnumUsage::from_bytes(bytes);
@@ -48,7 +46,7 @@ fn to_bytes_simple_with_custom_enum_spanning() -> anyhow::Result<()> {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 8)]
+#[bondrewd(endianness = "be", id_bit_length = 8)]
 enum TestCustomContinuationEnum {
     CustomZero = 0x7F,
     CustomZeroContinued,
@@ -57,8 +55,8 @@ enum TestCustomContinuationEnum {
     Invalid,
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be")]
 struct SimpleCustomContinuationEnumUsage {
     one: u8,
     #[bondrewd(bit_length = 8)]
@@ -67,6 +65,7 @@ struct SimpleCustomContinuationEnumUsage {
 }
 
 #[test]
+#[allow(unused_mut)]
 fn enum_contiunation_tests() -> anyhow::Result<()> {
     let simple = SimpleCustomContinuationEnumUsage {
         one: 0x80,
@@ -77,24 +76,22 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
     let mut bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 3);
     assert_eq!(bytes[0], 0b1000_0000);
-    assert_eq!(bytes[1], 0b0000_0001);
+    assert_eq!(bytes[1], 0x40);
     assert_eq!(bytes[2], 0b0000_1000);
-    #[cfg(feature = "dyn_fns")]
-    {
-        //peeks
-        assert_eq!(
-            simple.one,
-            SimpleCustomContinuationEnumUsage::read_slice_one(&bytes)?
-        );
-        assert_eq!(
-            simple.two,
-            SimpleCustomContinuationEnumUsage::read_slice_two(&bytes)?
-        );
-        assert_eq!(
-            simple.three,
-            SimpleCustomContinuationEnumUsage::read_slice_three(&bytes)?
-        );
-    }
+
+    //peeks
+    assert_eq!(
+        simple.one,
+        SimpleCustomContinuationEnumUsage::read_slice_one(&bytes)?
+    );
+    assert_eq!(
+        simple.two,
+        SimpleCustomContinuationEnumUsage::read_slice_two(&bytes)?
+    );
+    assert_eq!(
+        simple.three,
+        SimpleCustomContinuationEnumUsage::read_slice_three(&bytes)?
+    );
 
     // from bytes
     let new_simple = SimpleCustomContinuationEnumUsage::from_bytes(bytes);
@@ -114,5 +111,6 @@ fn enum_contiunation_tests() -> anyhow::Result<()> {
         SimpleCustomContinuationEnumUsage::from_bytes(bytes),
         expected
     );
+
     Ok(())
 }

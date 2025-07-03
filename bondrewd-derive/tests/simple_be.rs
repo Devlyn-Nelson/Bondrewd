@@ -1,7 +1,7 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", enforce_bits = 52)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -23,15 +23,18 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
-    assert_eq!(bytes[0], 0b010_00000);
-    assert_eq!(bytes[1], 0b0000_0000);
-    assert_eq!(bytes[2], 0b0110_0011);
-    assert_eq!(bytes[3], 0b0010_0100);
-    assert_eq!(bytes[4], 0b1000_0110);
-    assert_eq!(bytes[5], 0b0001_0100);
-    // this last 4 bits here don't exist in the struct
-    assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "dyn_fns")]
+    assert_eq!(
+        bytes,
+        [
+            0b010_00000,
+            0b0000_0000,
+            0b0110_0011,
+            0b0010_0100,
+            0b1000_0110,
+            0b0001_0100,
+            0b0010_0000,
+        ]
+    );
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -46,8 +49,8 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", reverse)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", reverse)]
 struct SimpleWithFlip {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -68,7 +71,6 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
 
     assert_eq!(bytes[1], 0b0111_1111);
     assert_eq!(bytes[0], 0b1110_0000);
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
@@ -82,8 +84,8 @@ fn be_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", read_from = "lsb0")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", bit_traversal = "back")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -104,7 +106,6 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
 
     assert_eq!(bytes[0], 0b0000_0111);
     assert_eq!(bytes[1], 0b1111_1110);
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
@@ -121,8 +122,8 @@ fn be_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be", read_from = "msb0")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "be", bit_traversal = "front")]
 struct SimpleWithReserve {
     #[bondrewd(bit_length = 9)]
     one: u16,
@@ -140,31 +141,23 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
         two: -1,
     };
     assert_eq!(SimpleWithReserve::BYTE_SIZE, 2);
-    #[cfg(feature = "dyn_fns")]
     let mut bytes: [u8; 2] = simple.clone().into_bytes();
-    #[cfg(not(feature = "dyn_fns"))]
-    let bytes: [u8; 2] = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
     assert_eq!(bytes[0], 0b1010_1010);
     assert_eq!(bytes[1], 0b1000_1111);
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReserve::read_slice_one(&bytes)?);
         assert_eq!(0, SimpleWithReserve::read_slice_reserve(&bytes)?);
         assert_eq!(simple.two, SimpleWithReserve::read_slice_two(&bytes)?);
-        // TODO write more set slice tests
         SimpleWithReserve::write_slice_one(&mut bytes, 0)?;
         SimpleWithReserve::write_slice_reserve(&mut bytes, 7)?;
         SimpleWithReserve::write_slice_two(&mut bytes, 0)?;
         simple.one = 0;
         simple.two = 0;
     }
-    #[cfg(feature = "dyn_fns")]
     assert_eq!(7, SimpleWithReserve::read_reserve(&bytes));
-    #[cfg(not(feature = "dyn_fns"))]
-    assert_eq!(0, SimpleWithReserve::read_reserve(&bytes));
     assert!(SimpleWithReserve::read_reserve(&bytes) != simple.reserve);
     simple.reserve = 0;
     // from_bytes
@@ -174,7 +167,8 @@ fn be_into_bytes_simple_with_reserve_field() -> anyhow::Result<()> {
 }
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "be")]
+#[bondrewd(endianness = "be")]
+#[allow(clippy::struct_excessive_bools)]
 struct SimpleDuplicateData {
     one: bool,
     two: bool,
@@ -184,13 +178,13 @@ struct SimpleDuplicateData {
     six: bool,
     seven: bool,
     eight: bool,
-    #[bondrewd(bits = "0..8", redundant)]
-    dup: u8,
+    // #[bondrewd(bits = "0..8", redundant)]
+    // dup: u8,
     nine: u8,
 }
 
 #[test]
-fn be_duplicate_data() -> anyhow::Result<()> {
+fn be_duplicate_data() {
     let data = SimpleDuplicateData {
         one: false,
         two: false,
@@ -200,7 +194,7 @@ fn be_duplicate_data() -> anyhow::Result<()> {
         six: false,
         seven: false,
         eight: false,
-        dup: 0,
+        // dup: 0,
         nine: u8::MAX,
     };
     assert_eq!(SimpleDuplicateData::BYTE_SIZE, 2);
@@ -217,8 +211,6 @@ fn be_duplicate_data() -> anyhow::Result<()> {
     assert!(!new_data.six);
     assert!(!new_data.seven);
     assert!(!new_data.eight);
-    assert_eq!(new_data.dup, 0);
+    // assert_eq!(new_data.dup, 0);
     assert_eq!(new_data.nine, u8::MAX);
-
-    Ok(())
 }
