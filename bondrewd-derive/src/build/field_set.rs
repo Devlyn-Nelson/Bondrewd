@@ -366,7 +366,7 @@ impl StructDarlingSimplified {
                 Span::call_site(),
                 "Please only use 1 byte filling attribute (fill, fill_bits, fill_bytes, fill_bits_to, fill_bytes_to)",
             ))
-        }else if fill.is_present() {
+        } else if fill.is_present() {
             Ok(FillBits::Auto)
         } else if let Some(bytes) = fill_bytes {
             let out = match bytes {
@@ -445,8 +445,13 @@ impl TryFrom<StructDarling> for StructDarlingSimplified {
             darling.enforce_bits,
         )?;
         // determine byte filling if any.
-        let fill_bits =
-            Self::try_solve_fill_bits(darling.fill_bits, darling.fill_bytes, darling.fill_bits_to, darling.fill_bytes_to, darling.fill)?;
+        let fill_bits = Self::try_solve_fill_bits(
+            darling.fill_bits,
+            darling.fill_bytes,
+            darling.fill_bits_to,
+            darling.fill_bytes_to,
+            darling.fill,
+        )?;
         Ok(Self {
             endianness,
             ident: darling.ident,
@@ -531,7 +536,9 @@ impl VariantDarlingSimplified {
         // determine byte filling if any.
         let fill_bits = StructDarlingSimplified::try_solve_fill_bits(
             value.fill_bits,
-            value.fill_bytes, value.fill_bits_to, value.fill_bytes_to,
+            value.fill_bytes,
+            value.fill_bits_to,
+            value.fill_bytes_to,
             value.fill,
         )?;
         if !matches!(enforcement.ty, StructEnforcementTy::NoRules) {
@@ -782,7 +789,7 @@ pub enum FillBits {
     None,
     /// Adds a specific amount of fill bits to the end.
     Bits(usize),
-    /// Fills 
+    /// Fills
     FillTo(usize),
     /// Fills bits up until the total amount of bits used is a multiple of 8.
     Auto,

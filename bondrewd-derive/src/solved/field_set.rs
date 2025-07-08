@@ -262,19 +262,11 @@ impl TryFrom<EnumBuilder> for Solved {
         // if matches!(built_invalid.field_set.fill_bits, FillBits::Auto){
         //     built_invalid.field_set.fill_bits = FillBits::FillTo(math_filled_bits(largest_bit_size));
         // }
-        let (invalid_name, mut half_invalid) = Self::solve_variant(
-            &built_invalid,
-            &id_field,
-            &value.solved_attrs,
-            id_bits,
-        )?;
+        let (invalid_name, mut half_invalid) =
+            Self::solve_variant(&built_invalid, &id_field, &value.solved_attrs, id_bits)?;
         for variant in built_variants.iter_mut() {
-            let (variant_info, solved_variant) = Self::solve_variant(
-                variant,
-                &id_field,
-                &value.solved_attrs,
-                id_bits,
-            )?;
+            let (variant_info, solved_variant) =
+                Self::solve_variant(variant, &id_field, &value.solved_attrs, id_bits)?;
             if solved_variant.total_bits_without_id() > largest_bit_size {
                 largest_bit_size = solved_variant.total_bits_without_id();
             }
@@ -360,7 +352,7 @@ impl TryFrom<&StructBuilder> for Solved {
     }
 }
 
-struct HalfSolvedFieldSet<'a>{
+struct HalfSolvedFieldSet<'a> {
     pre_fields: Vec<BuiltData>,
     value: &'a FieldSetBuilder,
     attrs: &'a SolvedFieldSetAttributes,
@@ -377,8 +369,8 @@ impl<'a> HalfSolvedFieldSet<'a> {
     pub fn total_bits_without_id(&self) -> usize {
         self.total_bits_without_id
     }
-    pub fn apply_auto_fill(&mut self, fill_to: usize){
-        if self.value.fill_bits.is_auto() && self.total_bit_size < fill_to{
+    pub fn apply_auto_fill(&mut self, fill_to: usize) {
+        if self.value.fill_bits.is_auto() && self.total_bit_size < fill_to {
             let mut amount = fill_to;
             if let Some(id) = self.id_field {
                 amount += id.bit_range.bit_length();
@@ -389,7 +381,10 @@ impl<'a> HalfSolvedFieldSet<'a> {
     pub fn finish(mut self) -> Result<SolvedFieldSet, syn::Error> {
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
         println!("-- {}: {}", self.value.name, self.total_bit_size);
-        println!("\t ={:?}\n\t *{:?}", self.value.fill_bits, self.fill_override);
+        println!(
+            "\t ={:?}\n\t *{:?}",
+            self.value.fill_bits, self.fill_override
+        );
         let maybe_fill = Solved::maybe_add_fill_field(
             self.fill_override.as_ref().unwrap_or(&self.value.fill_bits),
             &mut self.pre_fields,
@@ -547,7 +542,7 @@ impl Solved {
         if let Some(id_field) = id_field {
             total_bits_without_id -= id_field.bit_range.bit_length();
         }
-        // verify and add fill
+        // verify enforcement
         match &value.attrs.enforcement.ty {
             StructEnforcementTy::NoRules => {}
             StructEnforcementTy::EnforceFullBytes => {
@@ -591,18 +586,20 @@ impl Solved {
             FillBits::None => None,
             FillBits::Bits(bits) => Some(*bits),
             FillBits::Auto => {
-                let unused_bits = (8 - (*total_bits % 8))% 8;
+                let unused_bits = (8 - (*total_bits % 8)) % 8;
                 if unused_bits == 0 {
                     None
                 } else {
                     Some(unused_bits)
                 }
             }
-            FillBits::FillTo(end) => if end > total_bits {
-                Some(*end - *total_bits)
-            }else{
-                None
-            },
+            FillBits::FillTo(end) => {
+                if end > total_bits {
+                    Some(*end - *total_bits)
+                } else {
+                    None
+                }
+            }
         };
         let thing = if let Some(fill_bits) = auto_fill {
             *total_bits += fill_bits;

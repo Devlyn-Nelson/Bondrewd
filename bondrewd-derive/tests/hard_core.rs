@@ -37,7 +37,7 @@ fn super_hard_code() {
     };
     let zero = ReallyHardcore {
         one: One { one: false, two: 0 },
-        two: Two::One{one: false, two: 0},
+        two: Two::One { one: false, two: 0 },
         three: Three::First(false, false),
         four: 0,
     };
@@ -47,13 +47,13 @@ fn super_hard_code() {
     let mut test_field_three = zero.clone().into_bytes();
     let mut test_field_two = zero.clone().into_bytes();
     // TESTS
-    let three= Three::full();
+    let three = Three::full();
     let test_three = three.clone().into_bytes();
     ReallyHardcore::write_three(&mut test_field_three, three);
     print_bytes(&test_three);
     print_bytes(&test_field_three);
     // assert_eq!(ReallyHardcore::read_three(&mut bytes_zero), three);
-    let two= Two::full();
+    let two = Two::full();
     let test_two = two.clone().into_bytes();
     ReallyHardcore::write_two(&mut test_field_two, two);
     print_bytes(&test_two);
@@ -63,7 +63,7 @@ fn super_hard_code() {
     // assert_eq!(bytes_zero, [0b00000000, 0b00000000,0b00000000]);
     //
     // let half_bytes_1 = thing_1.two.clone().into_bytes();
-    // 
+    //
     // let correct_bytes_1 = [0b0000_1111, 0b1111_0000, 0b00011111];
     // let correct_bytes_1 = [0b1111_0000, 0b0000_1111, 0b11111000];
     // assert_eq!(bytes_1, correct_bytes_1);
@@ -143,9 +143,7 @@ mod current {
             #[bondrewd(bit_length = 7)]
             other: u8,
         },
-        Four(
-            #[bondrewd(bit_length = 7)]
-            u8,)
+        Four(#[bondrewd(bit_length = 7)] u8),
     }
     impl Three {
         pub fn full() -> Self {

@@ -78,7 +78,7 @@
 //         blinks: 5,
 //     };
 
-//     // Get `person` as bytes again, which has different values than out target. 
+//     // Get `person` as bytes again, which has different values than out target.
 //     let mut bytes = person.into_bytes();
 
 //     // Change output.
@@ -87,7 +87,7 @@
 //     Person::write_eye_color(&mut bytes, target_changes.eye_color.clone());
 //     Person::write_parts(&mut bytes, target_changes.parts.clone());
 //     Person::write_blinks(&mut bytes, target_changes.blinks);
-    
+
 //     // Verify.
 //     assert_eq!(Person::read_name(&bytes), target_changes.name);
 //     assert_eq!(Person::read_age(&bytes), target_changes.age);
@@ -100,4 +100,4 @@
 //     assert_eq!(new_person, target_changes);
 // }
 
-fn main(){}
+fn main() {}

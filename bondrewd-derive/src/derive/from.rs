@@ -778,9 +778,7 @@ impl Resolver {
                         for i in 0..*size {
                             let (field_buffer_index, start) = if let Some(flip) = self.data.flip() {
                                 let fbi = (size - 1) - i;
-                                let start = self
-                                    .data
-                                    .offset_starting_inject_byte(fbi);
+                                let start = self.data.offset_starting_inject_byte(fbi);
                                 (i, start)
                             } else {
                                 let start = self.data.offset_starting_inject_byte(i);
