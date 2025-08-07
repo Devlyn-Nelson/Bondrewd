@@ -277,7 +277,7 @@ impl TryFrom<EnumBuilder> for Solved {
         let bit_size = largest_bit_size + id_bits;
         half_invalid.apply_auto_fill(bit_size);
         let invalid = half_invalid.finish()?;
-        println!("+++++++ {largest_bit_size}");
+        // println!("+++++++ {largest_bit_size}");
         for (key, mut half_solved) in half_solved_variants {
             half_solved.apply_auto_fill(bit_size);
             solved_variants.insert(key, half_solved.finish()?);
@@ -380,11 +380,11 @@ impl<'a> HalfSolvedFieldSet<'a> {
     }
     pub fn finish(mut self) -> Result<SolvedFieldSet, syn::Error> {
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        println!("-- {}: {}", self.value.name, self.total_bit_size);
-        println!(
-            "\t ={:?}\n\t *{:?}",
-            self.value.fill_bits, self.fill_override
-        );
+        // println!("-- {}: {}", self.value.name, self.total_bit_size);
+        // println!(
+        //     "\t ={:?}\n\t *{:?}",
+        //     self.value.fill_bits, self.fill_override
+        // );
         let maybe_fill = Solved::maybe_add_fill_field(
             self.fill_override.as_ref().unwrap_or(&self.value.fill_bits),
             &mut self.pre_fields,
@@ -392,9 +392,9 @@ impl<'a> HalfSolvedFieldSet<'a> {
             None,
             &mut self.total_bit_size,
         );
-        if let Some(mf) = &maybe_fill {
-            println!("\t +{}", mf.bit_range.bit_length());
-        }
+        // if let Some(mf) = &maybe_fill {
+        //     println!("\t +{}", mf.bit_range.bit_length());
+        // }
         // finalize
         let mut fields: Vec<SolvedData> = Vec::default();
         let flip_bits = self.total_bit_size;
@@ -409,7 +409,7 @@ impl<'a> HalfSolvedFieldSet<'a> {
         if let Some(fill) = maybe_fill {
             fields.push(SolvedData::from_built(fill, self.total_bit_size));
         }
-        println!("\n{fields:?}\n");
+        // println!("\n{fields:?}\n");
         let out = SolvedFieldSet {
             fields,
             attrs: self.attrs.clone(),
@@ -581,7 +581,7 @@ impl Solved {
         id_bit_size: Option<usize>,
         total_bits: &mut usize,
     ) -> Option<BuiltData> {
-        println!("\t= {fill:?}");
+        // println!("\t= {fill:?}");
         let auto_fill = match fill {
             FillBits::None => None,
             FillBits::Bits(bits) => Some(*bits),

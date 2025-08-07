@@ -1,7 +1,7 @@
 use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "be", enforce_bits = 52)]
+#[bondrewd(endianness = "be", enforce_bits = 52, dump)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -43,9 +43,16 @@ fn be_into_bytes_simple() -> anyhow::Result<()> {
         assert_eq!(simple.four, Simple::read_slice_four(&bytes)?);
     }
 
+    let from_slice: Simple = {
+        // slice
+        let checked = Simple::check_slice(&bytes).unwrap();
+        checked.into()
+    };
+
     // from_bytes
     let new_simple = Simple::from_bytes(bytes);
     assert_eq!(simple, new_simple);
+    assert_eq!(simple, from_slice);
     Ok(())
 }
 

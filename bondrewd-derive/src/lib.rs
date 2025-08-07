@@ -175,6 +175,8 @@ pub(crate) enum GenerationFlavor {
         impl_fns: SplitTokenStream,
         /// Functions that belong in `BitfieldsSlice` impl for object.
         struct_fns: SplitTokenStream,
+        /// Functions that belong in `BitfieldsSlice` impl for object.
+        from_fn: SplitTokenStream,
     },
     Hex {
         /// Functions that belong in `Bitfields` impl for object.
@@ -201,6 +203,7 @@ impl Display for GenerationFlavor {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => "slice",
             GenerationFlavor::Hex { trait_fns } => "hex",
             GenerationFlavor::HexDynamic { trait_fns } => "hex_dynamic",
@@ -227,6 +230,7 @@ impl GenerationFlavor {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => {
                 *trait_fns = SplitTokenStream::default();
                 // *impl_fns = SplitTokenStream::default();
@@ -251,6 +255,7 @@ impl GenerationFlavor {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => Self::slice(),
             GenerationFlavor::Hex { trait_fns } => Self::hex(),
             GenerationFlavor::HexDynamic { trait_fns } => Self::hex_dynamic(),
@@ -273,6 +278,7 @@ impl GenerationFlavor {
             trait_fns: SplitTokenStream::default(),
             impl_fns: SplitTokenStream::default(),
             struct_fns: SplitTokenStream::default(),
+            from_fn: SplitTokenStream::default(),
         }
     }
     pub(crate) fn hex() -> Self {
@@ -362,13 +368,16 @@ impl GenerationFlavor {
                     trait_fns,
                     impl_fns,
                     struct_fns,
+                    from_fn,
                 },
                 Self::Slice {
                     trait_fns: other_trait_fns,
                     impl_fns: other_impl_fns,
                     struct_fns: other_struct_fns,
+                    from_fn: other_from_fn,
                 },
             ) => {
+                // reads
                 let read_trait_fns = &mut trait_fns.read;
                 let other_read_trait_fns = &other_trait_fns.read;
                 *read_trait_fns = quote! {
@@ -387,6 +396,14 @@ impl GenerationFlavor {
                     #read_struct_fns
                     #other_read_struct_fns
                 };
+                let read_from_fn = &mut from_fn.read;
+                let other_read_from_fn = &other_from_fn.read;
+                *read_trait_fns = quote! {
+                    #read_from_fn
+                    #other_read_from_fn
+                };
+
+                // Writes
                 let write_trait_fns = &mut trait_fns.write;
                 let other_write_trait_fns = &other_trait_fns.write;
                 *write_trait_fns = quote! {

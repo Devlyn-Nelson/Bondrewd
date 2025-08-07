@@ -342,6 +342,7 @@ impl Solved {
             trait_fns,
             impl_fns,
             struct_fns,
+            from_fn,
         } = flavor
         {
             struct_fns.clear();
@@ -501,6 +502,7 @@ impl Solved {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => {
                 let lifetime = if lifetime {
                     quote! {<'a>}
@@ -700,6 +702,7 @@ impl Solved {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => {
                 // Check Slice
                 if let Some(slice_info) = thing.slice_info {
@@ -842,10 +845,12 @@ impl Solved {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => {
                 let impl_fns = impl_fns.merge();
                 let trait_fns = trait_fns.merge();
                 let struct_fns = struct_fns.merge();
+                let from_fn = from_fn.read;
                 let checked_structs = struct_fns;
                 quote! {
                     impl #struct_name {
@@ -855,6 +860,7 @@ impl Solved {
                     impl BitfieldsSlice<#struct_size> for #struct_name {
                         #trait_fns
                     }
+                    #from_fn
                 }
             }
             crate::GenerationFlavor::Hex { trait_fns } => {
@@ -987,8 +993,23 @@ impl SolvedFieldSet {
                 trait_fns: _,
                 impl_fns: _,
                 struct_fns: _,
+                from_fn,
+            } => {
+                let checked_ident = format_ident!("{name}Checked");
+                let from_functions = &mut from_fn.read;
+                *from_functions = quote! {
+                    impl<'a> From<#checked_ident<'a>> for #name {
+                        fn from(checked: #checked_ident) -> Self {
+                            let input_byte_buffer = checked.buffer;
+                            #from_functions
+                            Self{
+                                #fields_list
+                            }
+                        }
+                    }
+                };
             }
-            | crate::GenerationFlavor::Hex { trait_fns: _ }
+            crate::GenerationFlavor::Hex { trait_fns: _ }
             | crate::GenerationFlavor::HexDynamic { trait_fns: _ } => {}
         }
         Ok(())
@@ -1006,6 +1027,7 @@ impl SolvedFieldSet {
             trait_fns,
             impl_fns,
             struct_fns,
+            from_fn,
         } = flavor
         {
             std::mem::swap(&mut temp_struct_fns, struct_fns);
@@ -1049,6 +1071,7 @@ impl SolvedFieldSet {
             trait_fns,
             impl_fns,
             struct_fns,
+            from_fn,
         } = flavor
         {
             // Do checked struct of this type
@@ -1061,6 +1084,7 @@ impl SolvedFieldSet {
                     name.clone()
                 };
                 let vis = self.vis();
+                let trait_fns_read = &trait_fns.read;
                 let checked_ident = quote::format_ident!("{struct_name}Checked");
                 let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
                 let unchecked_functions = &mut struct_fns.read;
@@ -1177,20 +1201,14 @@ impl SolvedFieldSet {
         match gen {
             crate::GenerationFlavor::Standard {
                 trait_fns,
-                impl_fns,
+                impl_fns: _,
+            }
+            | crate::GenerationFlavor::Slice {
+                trait_fns: _,
+                impl_fns: _,
+                struct_fns: _,
+                from_fn: trait_fns,
             } => {
-                let read_fns = generate_read_field_fn(
-                    field_extractor,
-                    field,
-                    struct_size,
-                    &prefixed_name,
-                    bits_effected,
-                )?;
-                let impl_read_fns = &mut impl_fns.read;
-                *impl_read_fns = quote! {
-                    #impl_read_fns
-                    #read_fns
-                };
                 // fake fields do not exist in the actual structure and should only have functions
                 // that read or write values into byte arrays.
                 if !field.attr_reserve().is_fake_field() {
@@ -1256,10 +1274,33 @@ impl SolvedFieldSet {
                     };
                 }
             }
-            crate::GenerationFlavor::Slice {
+            crate::GenerationFlavor::Hex { trait_fns }
+            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
+        }
+        match gen {
+            crate::GenerationFlavor::Standard {
                 trait_fns,
                 impl_fns,
+            } => {
+                let read_fns = generate_read_field_fn(
+                    field_extractor,
+                    field,
+                    struct_size,
+                    &prefixed_name,
+                    bits_effected,
+                )?;
+                let impl_read_fns = &mut impl_fns.read;
+                *impl_read_fns = quote! {
+                    #impl_read_fns
+                    #read_fns
+                };
+            }
+            crate::GenerationFlavor::Slice {
+                trait_fns: _,
+                impl_fns,
                 struct_fns,
+
+                from_fn: _,
             } => {
                 let peek_slice_quote = generate_read_slice_field_fn(
                     field_extractor,
@@ -1280,8 +1321,12 @@ impl SolvedFieldSet {
                     #peek_slice_unchecked_quote
                 };
             }
-            crate::GenerationFlavor::Hex { trait_fns }
-            | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
+            crate::GenerationFlavor::Hex { trait_fns: _ }
+            | crate::GenerationFlavor::HexDynamic { trait_fns: _ }
+            | crate::GenerationFlavor::Dynamic {
+                trait_fns: _,
+                impl_fns: _,
+            } => {}
         }
         Ok(())
     }
@@ -1378,6 +1423,7 @@ impl SolvedFieldSet {
                 trait_fns,
                 impl_fns,
                 struct_fns,
+                from_fn,
             } => {
                 let set_slice_quote = generate_write_slice_field_fn(
                     field_setter,
