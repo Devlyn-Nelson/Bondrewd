@@ -1567,7 +1567,7 @@ pub(crate) fn generate_read_slice_field_fn(
     let type_ident = field.resolver.ty.get_type_quote()?;
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("read_slice_{prefixed_field_name}");
-    let min_length = field.resolver.data.offset_starting_inject_byte(0) + 1;
+    let min_length = field.resolver.data.bit_range_end().div_ceil(8);
     let comment = format!("Returns the value for the `{field_name}` field of a in bitfield form by reading {bits_effected} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.");
     Ok(quote! {
         #[inline]

@@ -1,4 +1,4 @@
-use bondrewd::{Bitfields, BitfieldsDyn, BitfieldsSlice};
+use bondrewd::{BitfieldLengthError, Bitfields, BitfieldsDyn, BitfieldsSlice};
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(id_bit_length = 2, endianness = "be")]
@@ -19,7 +19,7 @@ pub enum SpacePacketVersion {
 }
 
 #[derive(Bitfields, BitfieldsSlice, BitfieldsDyn, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "be", enforce_bytes = 6)]
+#[bondrewd(endianness = "be", enforce_bytes = 6, dump)]
 pub struct SpacePacketHeader {
     #[bondrewd(bit_length = 3)]
     pub(crate) packet_version_number: SpacePacketVersion,
@@ -78,6 +78,22 @@ fn slice_fn_check_slice() {
         }
         Err(err) => panic!("check_slice failed {err}"),
     }
+    assert_eq!(
+        SpacePacketHeader::read_slice_packet_data_length(&mut bytes[..3]).unwrap_err(),
+        BitfieldLengthError(3, 6)
+    );
+    assert_eq!(
+        SpacePacketHeader::read_slice_packet_data_length(&mut bytes[..4]).unwrap_err(),
+        BitfieldLengthError(4, 6)
+    );
+    assert_eq!(
+        SpacePacketHeader::read_slice_packet_data_length(&mut bytes[..5]).unwrap_err(),
+        BitfieldLengthError(5, 6)
+    );
+    assert_eq!(
+        SpacePacketHeader::read_slice_packet_data_length(&mut bytes[..6]).unwrap(),
+        packet.packet_data_length
+    );
     match SpacePacketHeader::check_slice_mut(&mut bytes[..]) {
         Ok(mut checked) => {
             let packet = SpacePacketHeader {

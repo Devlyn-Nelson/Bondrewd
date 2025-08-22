@@ -7,7 +7,7 @@ use core::fmt;
 use std::fmt;
 
 /// Error type describing that not enough bytes were provided in a slice.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BitfieldLengthError(
     /// Amount of provided Bytes.
     pub usize,
