@@ -234,9 +234,9 @@ pub fn create_into_bytes_field_quotes_enum(
 
         let v_id_call = format_ident!("write_{}", EnumInfo::VARIANT_ID_NAME);
         let fields = if variant.tuple {
-            quote!{(#field_name_list)}
-        }else{
-            quote!{{#field_name_list}}
+            quote! {(#field_name_list)}
+        } else {
+            quote! {{#field_name_list}}
         };
         into_bytes_fn = quote! {
             #into_bytes_fn
@@ -265,7 +265,7 @@ pub fn create_into_bytes_field_quotes_enum(
         };
         if variant.tuple {
             ignore_fields = quote! {(#ignore_fields)};
-        }else{
+        } else {
             ignore_fields = quote! {{#ignore_fields}};
         }
         id_fn = quote! {

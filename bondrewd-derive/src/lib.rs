@@ -323,6 +323,9 @@
 //! ```
 extern crate proc_macro;
 mod enums;
+use std::env::current_dir;
+
+use convert_case::{Case, Casing};
 use enums::parse::EnumInfo;
 mod structs;
 use structs::into_bytes::{
@@ -1711,7 +1714,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
     {
         hex = false;
     }
-    match struct_info {
+    let (out, dump) = match struct_info {
         ObjectInfo::Struct(struct_info) => {
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
@@ -1771,7 +1774,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 quote! {}
             };
             if dyn_fns && hex {
-                hex_fns_quote = quote!{
+                hex_fns_quote = quote! {
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
                 };
@@ -1796,7 +1799,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #hex_fns_quote
             };
 
-            if dyn_fns {
+            let out = if dyn_fns {
                 let from_vec_quote = fields_from_bytes.from_slice_field_fns;
                 let vis = struct_info.vis;
                 let checked_ident = format_ident!("{}Checked", &struct_name);
@@ -1843,19 +1846,18 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 TokenStream::from(to_bytes_quote)
             } else {
                 TokenStream::from(to_bytes_quote)
-            }
+            };
+            (out, struct_info.attrs.dump)
         }
         ObjectInfo::Enum(enum_info) => {
             // let dyn_fns = false;
             // get a list of all fields into_bytes logic which puts there bytes into an array called
             // output_byte_buffer.
-            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns)
-            {
+            let fields_into_bytes = match create_into_bytes_field_quotes_enum(&enum_info, dyn_fns) {
                 Ok(ftb) => ftb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
-            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns)
-            {
+            let fields_from_bytes = match create_from_bytes_field_quotes_enum(&enum_info, dyn_fns) {
                 Ok(ffb) => ffb,
                 Err(err) => return TokenStream::from(err.to_compile_error()),
             };
@@ -1896,7 +1898,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 quote! {}
             };
             if dyn_fns && hex {
-                hex_fns_quote = quote!{
+                hex_fns_quote = quote! {
                     #hex_fns_quote
                     impl bondrewd::BitfieldHexDyn<#hex_size, #struct_size> for #struct_name {}
                 };
@@ -1920,7 +1922,7 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 #getter_setters_quotes
                 #hex_fns_quote
             };
-            if dyn_fns {
+            let out = if dyn_fns {
                 let from_vec_quote = fields_from_bytes.from_slice_field_fns;
                 let vis = &enum_info.vis;
                 let checked_ident = format_ident!("{}Checked", &struct_name);
@@ -1983,9 +1985,25 @@ pub fn derive_bitfields(input: TokenStream) -> TokenStream {
                 TokenStream::from(to_bytes_quote)
             } else {
                 TokenStream::from(to_bytes_quote)
+            };
+            (out, enum_info.attrs.dump)
+        }
+    };
+    if dump {
+        let name = struct_name.to_string().to_case(Case::Snake);
+        match current_dir() {
+            Ok(mut file_name) => {
+                file_name.push("target/bondrewd_debug");
+                let _ = std::fs::create_dir_all(&file_name);
+                file_name.push(format!("{name}_code_gen.rs"));
+                let _ = std::fs::write(file_name, out.to_string());
+            }
+            Err(err) => {
+                return syn::Error::new(struct_name.span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")).to_compile_error().into();
             }
         }
     }
+    out
 }
 
 /// Generates an implementation of bondrewd::BitfieldEnum trait.

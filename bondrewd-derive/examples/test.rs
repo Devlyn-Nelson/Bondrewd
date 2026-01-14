@@ -5,7 +5,7 @@ use bondrewd::Bitfields;
 enum TupleEnum {
     One(u8),
     Two(u8),
-    Invalid(#[bondrewd(capture_id)] u8, u8)
+    Invalid(#[bondrewd(capture_id)] u8, u8),
 }
 
 fn main() {
@@ -17,9 +17,9 @@ fn main() {
     let mut two_bytes = two.clone().into_bytes();
     let mut err_bytes = err.clone().into_bytes();
 
-    assert_eq!(one_bytes, [0,1]);
-    assert_eq!(two_bytes, [1,2]);
-    assert_eq!(err_bytes, [4,3]);
+    assert_eq!(one_bytes, [0, 1]);
+    assert_eq!(two_bytes, [1, 2]);
+    assert_eq!(err_bytes, [4, 3]);
 
     // i am rotating the values so that `one` gets `two's` value, `two` gets `err's`, and `err` gets `one's`.
     TupleEnum::write_one_field_1(&mut one_bytes, 2);
@@ -33,7 +33,7 @@ fn main() {
 
     // because we rotated the bytes above using the write function we should name to reconstructed
     // structures as they should be based oin the actual values.
-    // 
+    //
     // ex.
     // `two_bytes` was set to the same values as `one` so `two_bytes` will become `new_one` and be checked
     // against `one`.
@@ -41,9 +41,7 @@ fn main() {
     let _new_two = TupleEnum::from_bytes(err_bytes);
     let _new_err = TupleEnum::from_bytes(one_bytes);
 
-
     assert!(matches!(one, _new_one));
     assert!(matches!(two, _new_two));
     assert!(matches!(err, _new_err));
 }
-
