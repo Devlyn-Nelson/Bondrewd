@@ -152,7 +152,7 @@ fn make_set_field_quote(field: &FieldInfo) -> Result<TokenStream, syn::Error> {
                 }
             }
         }
-        FieldDataType::ElementArray(_, _, _) => {
+        FieldDataType::ElementArray(_, _, _, _) => {
             quote! {}
         }
         FieldDataType::BlockArray(_, _, _) => {

@@ -13,14 +13,14 @@ struct SimpleWithArray {
 #[test]
 fn to_bytes_simple_with_element_array_spanning() -> anyhow::Result<()> {
     let simple = SimpleWithArray {
-        one: 0,
+        one: 1,
         two: [true, false, true, false, true],
         three: 0,
     };
     assert_eq!(SimpleWithArray::BYTE_SIZE, 2);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
-    assert_eq!(bytes[0], 0b0000_1010);
+    assert_eq!(bytes[0], 0b0001_1010);
     assert_eq!(bytes[1], 0b1000_0000);
     #[cfg(feature = "dyn_fns")]
     {

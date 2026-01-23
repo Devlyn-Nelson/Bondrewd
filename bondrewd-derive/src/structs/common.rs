@@ -150,8 +150,11 @@ pub enum FieldDataType {
     /// first field is size in BYTES of the entire struct
     Struct(usize, proc_macro2::TokenStream),
     Char(usize, proc_macro2::TokenStream),
-    // array types are Subfield info, array length, ident
-    ElementArray(Box<SubFieldInfo>, usize, proc_macro2::TokenStream),
+    // array types are Subfield info,
+    // array length,
+    // ident,
+    // is field order reversed
+    ElementArray(Box<SubFieldInfo>, usize, proc_macro2::TokenStream, bool),
     BlockArray(Box<SubFieldInfo>, usize, proc_macro2::TokenStream),
 }
 
@@ -164,7 +167,7 @@ impl FieldDataType {
             Self::Enum(_, ref size, _) => *size,
             Self::Struct(ref size, _) => *size,
             Self::Char(ref size, _) => *size,
-            Self::ElementArray(ref fields, ref length, _) => fields.ty.size() * length,
+            Self::ElementArray(ref fields, ref length, _, _) => fields.ty.size() * length,
             Self::BlockArray(ref fields, size, _) => fields.ty.size() * size,
             Self::Boolean => 1,
         }
@@ -177,7 +180,7 @@ impl FieldDataType {
             Self::Enum(_, _, ref ident) => ident.clone(),
             Self::Struct(_, ref ident) => ident.clone(),
             Self::Char(_, ref ident) => ident.clone(),
-            Self::ElementArray(_, _, ref ident) => ident.clone(),
+            Self::ElementArray(_, _, ref ident, _) => ident.clone(),
             Self::BlockArray(_, _, ident) => ident.clone(),
             Self::Boolean => quote! {bool},
         }
@@ -188,7 +191,7 @@ impl FieldDataType {
                 true
             }
             Self::Boolean | Self::Struct(_, _) => false,
-            Self::ElementArray(ref ty, _, _) | Self::BlockArray(ref ty, _, _) => {
+            Self::ElementArray(ref ty, _, _, _) | Self::BlockArray(ref ty, _, _) => {
                 ty.as_ref().ty.is_number()
             }
         }
@@ -202,7 +205,7 @@ impl FieldDataType {
             Self::Float(ref size, _) => size * 8,
             Self::Struct(ref size, _) => size * 8,
             Self::BlockArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
-            Self::ElementArray(sub, _, _) => sub.as_ref().ty.get_element_bit_length(),
+            Self::ElementArray(sub, _, _, _) => sub.as_ref().ty.get_element_bit_length(),
         }
     }
 
@@ -297,6 +300,7 @@ impl FieldDataType {
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
+                                        false,
                                     )
                                 }
                                 FieldAttrBuilderType::BlockArray(_) => {
@@ -393,6 +397,7 @@ impl FieldDataType {
                                         Box::new(SubFieldInfo { ty: sub_ty }),
                                         array_length,
                                         quote! {[#type_ident;#array_length]},
+                                        false,
                                     )
                                 }
                             }
@@ -651,8 +656,9 @@ pub struct SubFieldInfo {
 pub struct ElementSubFieldIter {
     pub outer_ident: Box<FieldIdent>,
     pub endianness: Box<Endianness>,
-    // this range is elements in the array, not bit range
+    // the element indices. the end is amount of total elements in array.
     pub range: Range<usize>,
+    pub reverse_field_order: bool,
     pub starting_bit_index: usize,
     pub ty: FieldDataType,
     pub element_bit_size: usize,
@@ -663,26 +669,30 @@ pub struct ElementSubFieldIter {
 impl Iterator for ElementSubFieldIter {
     type Item = FieldInfo;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(index) = self.range.next() {
-            let start = self.starting_bit_index + (index * self.element_bit_size);
-            let attrs = FieldAttrs {
-                bit_range: start..start + self.element_bit_size,
-                endianness: self.endianness.clone(),
-                reserve: self.reserve.clone(),
-                overlap: self.overlap.clone(),
-                capture_id: false,
-            };
-            let outer_ident = self.outer_ident.ident().clone();
-            let name = quote::format_ident!("{}_{}", outer_ident, index);
-            let ident = Box::new((outer_ident, name).into());
-            Some(FieldInfo {
-                ident,
-                attrs,
-                ty: self.ty.clone(),
-            })
-        } else {
-            None
-        }
+        let Some(index) = self.range.next() else {
+            return None;
+        };
+        let start = self.starting_bit_index
+            + (if self.reverse_field_order {
+                (self.range.end - 1) - index
+            } else {
+                index
+            } * self.element_bit_size);
+        let attrs = FieldAttrs {
+            bit_range: start..start + self.element_bit_size,
+            endianness: self.endianness.clone(),
+            reserve: self.reserve.clone(),
+            overlap: self.overlap.clone(),
+            capture_id: false,
+        };
+        let outer_ident = self.outer_ident.ident().clone();
+        let name = quote::format_ident!("{}_{}", outer_ident, index);
+        let ident = Box::new((outer_ident, name).into());
+        Some(FieldInfo {
+            ident,
+            attrs,
+            ty: self.ty.clone(),
+        })
     }
 }
 
@@ -865,7 +875,13 @@ impl FieldInfo {
     }
 
     pub fn get_element_iter(&self) -> Result<ElementSubFieldIter, syn::Error> {
-        if let FieldDataType::ElementArray(ref sub_field, ref array_length, _) = self.ty {
+        if let FieldDataType::ElementArray(
+            ref sub_field,
+            ref array_length,
+            _,
+            reverse_field_order,
+        ) = self.ty
+        {
             Ok(ElementSubFieldIter {
                 outer_ident: self.ident.clone(),
                 endianness: self.attrs.endianness.clone(),
@@ -876,6 +892,7 @@ impl FieldInfo {
                 ty: sub_field.ty.clone(),
                 overlap: self.attrs.overlap.clone(),
                 reserve: self.attrs.reserve.clone(),
+                reverse_field_order,
             })
         } else {
             Err(syn::Error::new(
@@ -975,12 +992,6 @@ pub enum StructEnforcement {
     EnforceFullBytes,
     /// enforce an amount of bits total that need to be used.
     EnforceBitAmount(usize),
-}
-
-#[derive(Clone)]
-pub enum IdPosition {
-    Leading,
-    Trailing,
 }
 
 #[derive(Clone)]
@@ -1126,7 +1137,6 @@ impl EnumInfo {
 #[derive(Clone)]
 pub struct EnumAttrInfoBuilder {
     pub id_bits: Option<usize>,
-    pub id_position: IdPosition,
     pub total_bit_size: Option<usize>,
     pub payload_bit_size: Option<usize>,
 }
@@ -1134,7 +1144,6 @@ pub struct EnumAttrInfoBuilder {
 #[derive(Clone)]
 pub struct EnumAttrInfo {
     pub id_bits: usize,
-    pub id_position: IdPosition,
     // TODO we should add an option of where to but the fill bytes. currently the generative code will always
     // have the "useful" data proceeding each other then filler. maybe someone will want id -> fill -> variant_data
     /// The Full size of the enum. while we allow variants to be take differing sizes, the
@@ -1150,7 +1159,6 @@ impl Default for EnumAttrInfoBuilder {
     fn default() -> Self {
         Self {
             id_bits: None,
-            id_position: IdPosition::Leading,
             total_bit_size: None,
             payload_bit_size: None,
         }
@@ -1397,7 +1405,6 @@ impl ObjectInfo {
                             EnumAttrInfo {
                                 payload_bit_size: payload,
                                 id_bits: id,
-                                id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                                 dump,
                             }
@@ -1405,7 +1412,6 @@ impl ObjectInfo {
                             EnumAttrInfo {
                                 payload_bit_size: payload,
                                 id_bits: min_id_size,
-                                id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                                 dump,
                             }
@@ -1416,7 +1422,6 @@ impl ObjectInfo {
                             EnumAttrInfo {
                                 payload_bit_size: total - id,
                                 id_bits: id,
-                                id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                                 dump,
                             }
@@ -1426,7 +1431,6 @@ impl ObjectInfo {
                                 EnumAttrInfo {
                                     payload_bit_size: largest,
                                     id_bits: id,
-                                    id_position: enum_attrs.id_position,
                                     attrs: attrs.clone(),
                                     dump,
                                 }
@@ -1454,7 +1458,6 @@ impl ObjectInfo {
                             }
                             EnumAttrInfo {
                                 id_bits: id,
-                                id_position: enum_attrs.id_position,
                                 payload_bit_size: payload,
                                 attrs: attrs.clone(),
                                 dump,
@@ -1463,7 +1466,6 @@ impl ObjectInfo {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
-                                id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                                 dump,
                             }
@@ -1473,7 +1475,6 @@ impl ObjectInfo {
                         if let Some(id) = enum_attrs.id_bits {
                             EnumAttrInfo {
                                 id_bits: id,
-                                id_position: enum_attrs.id_position,
                                 payload_bit_size: largest,
                                 attrs: attrs.clone(),
                                 dump,
@@ -1482,7 +1483,6 @@ impl ObjectInfo {
                             EnumAttrInfo {
                                 payload_bit_size: largest,
                                 id_bits: min_id_size,
-                                id_position: enum_attrs.id_position,
                                 attrs: attrs.clone(),
                                 dump,
                             }
@@ -1634,19 +1634,7 @@ impl ObjectInfo {
                     }
                 }
             }
-            Meta::Path(value) => {
-                if let Some(ident) = value.get_ident() {
-                    match ident.to_string().as_str() {
-                        "id_tail" => {
-                            enum_info.id_position = IdPosition::Trailing;
-                        }
-                        "id_head" => {
-                            enum_info.id_position = IdPosition::Leading;
-                        }
-                        _ => {}
-                    }
-                }
-            }
+            Meta::Path(_value) => {}
             Meta::List(meta_list) => {
                 if meta_list.path.is_ident("bondrewd") {
                     for nested_meta in meta_list.nested.iter() {
@@ -1973,6 +1961,9 @@ impl ObjectInfo {
 
         if attrs.lsb_zero {
             for ref mut field in parsed_fields.iter_mut() {
+                if let FieldDataType::ElementArray(_, _, _, reversed) = &mut field.ty {
+                    *reversed = !*reversed;
+                }
                 field.attrs.bit_range = (bit_size - field.attrs.bit_range.end)
                     ..(bit_size - field.attrs.bit_range.start);
             }

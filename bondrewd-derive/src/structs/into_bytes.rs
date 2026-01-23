@@ -485,7 +485,7 @@ fn get_field_quote(
                 quote! {((#field_name).into_primitive())}
             }
         }
-        FieldDataType::ElementArray(_, _, _) => {
+        FieldDataType::ElementArray(_, _, _, _) => {
             let mut clear_buffer = quote! {};
             let mut buffer = quote! {};
             let mut de_refs: syn::punctuated::Punctuated<syn::Ident, syn::token::Comma> =
@@ -641,7 +641,7 @@ fn apply_le_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let mut full_quote = quote! {
             #field_byte_buffer;
@@ -838,7 +838,7 @@ fn apply_le_math_to_field_access_quote(
             FieldDataType::Enum(_, _, _) => field_access_quote,
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
         let not_mask = !mask;
         let clear_quote = quote! {
@@ -900,7 +900,7 @@ fn apply_ne_math_to_field_access_quote(
                 };
                 (apply_field_to_buffer, *size)
             }
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
         let mut clear_quote = quote! {};
         let mut full_quote = quote! {
@@ -1069,7 +1069,7 @@ fn apply_ne_math_to_field_access_quote(
                 quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) >> #used_bits_in_byte;}
             }
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_ne_math_to_field_access_quote, which is bad."))
         };
         Ok((finished_quote, clear_quote))
     }
@@ -1184,7 +1184,7 @@ fn apply_be_math_to_field_access_quote(
                 apply_field_to_buffer
             }
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
         };
         let not_first_bit_mask = !first_bit_mask;
         let mut clear_quote = quote! {
@@ -1330,7 +1330,7 @@ fn apply_be_math_to_field_access_quote(
             FieldDataType::Enum(_, _, _) => field_access_quote,
             FieldDataType::Struct(_, _) => return Err(syn::Error::new(field.ident.span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
             FieldDataType::Float(_, _) => return Err(syn::Error::new(field.ident.span(), "Float not supported for single byte insert logic")),
-            FieldDataType::ElementArray(_, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
+            FieldDataType::ElementArray(_, _, _, _) | FieldDataType::BlockArray(_, _, _) => return Err(syn::Error::new(field.ident.span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad.")),
         };
         let not_mask = !mask;
         let clear_quote = quote! {

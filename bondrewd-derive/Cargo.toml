@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd-derive"
-version = "0.4.3-alpha.0"
+version = "0.4.3"
 edition = "2021"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Dev <devlynknelson@gmail.com>"]
@@ -24,6 +24,7 @@ default = ["part_eq_enums"]
 dyn_fns = []
 hex_fns = []
 part_eq_enums = []
+setters = []
 # the setters feature is considered a nice to have and because chars are currently making this not work we are leaving its commented out
 # setters = []
 
