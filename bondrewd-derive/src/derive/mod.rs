@@ -1040,7 +1040,10 @@ impl SolvedFieldSet {
             SolvedFieldSetAdditive::new_struct(name)
         };
         let mut field_name_list = quote! {};
+        println!("\n===={}:{name}====", enum_name.as_ref().map(|e| e.ident.to_string()).unwrap_or_default());
         for field in &self.fields {
+            println!("----{}----", field.resolver.data.field_name);
+            println!("bits: {:?}", field.bit_range());
             if matches!(field.attr_reserve(), ReserveFieldOption::FakeField) {
                 continue;
             }
@@ -1535,6 +1538,7 @@ pub struct GenStructFieldsEnumInfo<'a> {
     pub ident: &'a Ident,
     pub full_size: usize,
 }
+
 /// Generates a `read_field_name()` function.
 pub(crate) fn generate_read_field_fn(
     field_quote: &TokenStream,

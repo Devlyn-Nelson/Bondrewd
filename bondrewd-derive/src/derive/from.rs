@@ -348,7 +348,7 @@ impl Resolver {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_le_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_alt_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // create a quote that holds the bit shifting operator and shift value and the field name.
             // first_bits_index is the index to use in the fields byte array after shift for the
@@ -369,12 +369,12 @@ impl Resolver {
             //         let right_shift_usize: u32 = right_shift.clone() as u32;
             //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
             //     }
-            self.get_read_le_multi_byte_quote()
+            self.get_read_alt_multi_byte_quote()
         } else {
-            self.get_read_le_single_byte_quote()
+            self.get_read_alt_single_byte_quote()
         }
     }
-    pub(crate) fn get_read_le_single_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_alt_single_byte_quote(&self) -> syn::Result<TokenStream> {
         if 8 < (self.zeros_on_left() + self.bit_length()) {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -481,7 +481,7 @@ impl Resolver {
         };
         Ok(output_quote)
     }
-    pub(crate) fn get_read_le_multi_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_alt_multi_byte_quote(&self) -> syn::Result<TokenStream> {
         // calculate how many of the bits will be inside the least significant byte we are adding to.
         // this will also be the number used for shifting to the right >> because that will line up
         // our bytes for the buffer.
@@ -651,7 +651,7 @@ impl Resolver {
 
         Ok(output)
     }
-    pub(crate) fn get_read_ne_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_nested_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // how many times to shift the number right.
             // NOTE if negative shift left.
@@ -664,12 +664,12 @@ impl Resolver {
                     "calculating ne right_shift failed",
                 ));
             }
-            self.get_read_ne_multi_byte_quote()
+            self.get_read_nested_multi_byte_quote()
         } else {
-            self.get_read_ne_single_byte_quote()
+            self.get_read_nested_single_byte_quote()
         }
     }
-    pub(crate) fn get_read_ne_single_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_nested_single_byte_quote(&self) -> syn::Result<TokenStream> {
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -710,7 +710,7 @@ impl Resolver {
                     ))
                 }
                 NumberType::Unsigned | NumberType::Signed => {
-                    self.get_read_be_single_byte_quote()?
+                    self.get_read_std_single_byte_quote()?
                 }
                 NumberType::Char => {
                     return Err(syn::Error::new(
@@ -735,7 +735,7 @@ impl Resolver {
         };
         Ok(output)
     }
-    pub(crate) fn get_read_ne_multi_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_nested_multi_byte_quote(&self) -> syn::Result<TokenStream> {
         // how many times to shift the number right.
         // NOTE if negative shift left.
         // NOT if negative AND amount_of_bits == size of the fields data size (8bit for a u8, 32 bits
@@ -883,7 +883,7 @@ impl Resolver {
         Ok(full_quote)
     }
 
-    pub(crate) fn get_read_be_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_std_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
             // this will also be the number used for shifting to the right >> because that will line up
@@ -894,12 +894,12 @@ impl Resolver {
                     "calculating be bits_in_last_bytes failed",
                 ));
             }
-            self.get_read_be_multi_byte_quote()
+            self.get_read_std_multi_byte_quote()
         } else {
-            self.get_read_be_single_byte_quote()
+            self.get_read_std_single_byte_quote()
         }
     }
-    pub(crate) fn get_read_be_single_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_std_single_byte_quote(&self) -> syn::Result<TokenStream> {
         if 8 < (self.zeros_on_left() + self.bit_length()) {
             return Err(syn::Error::new(
                 self.ident().span(),
@@ -1004,7 +1004,7 @@ impl Resolver {
         };
         Ok(output_quote)
     }
-    pub(crate) fn get_read_be_multi_byte_quote(&self) -> syn::Result<TokenStream> {
+    pub(crate) fn get_read_std_multi_byte_quote(&self) -> syn::Result<TokenStream> {
         let (right_shift, first_bit_mask, last_bit_mask, bits_in_last_byte): (i8, u8, u8, usize) = {
             let thing: ResolverDataBigAdditive = self.data.as_ref().into();
             (

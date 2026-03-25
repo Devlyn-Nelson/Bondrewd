@@ -1,4 +1,4 @@
-use std::{ops::Range, str::FromStr};
+use std::{fmt::Display, ops::Range, str::FromStr};
 
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
@@ -21,6 +21,12 @@ pub struct DynamicIdent {
     pub bondrewd_name: Ident,
     /// Original data from the user
     pub user_name: DynamicIdentName,
+}
+
+impl Display for DynamicIdent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.bondrewd_name)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -147,14 +153,14 @@ impl SolvedData {
             ResolverType::Nested {
                 ty_ident,
                 rust_size,
-            } => self.get_ne_quotes(),
+            } => self.get_nested_quotes(),
             ResolverType::Primitive {
                 number_ty,
                 resolver_strategy,
                 rust_size,
             } => match resolver_strategy.ty {
-                ResolverPrimitiveStrategyTy::Standard => self.get_be_quotes(),
-                ResolverPrimitiveStrategyTy::Alternate => self.get_le_quotes(),
+                ResolverPrimitiveStrategyTy::Standard => self.get_std_quotes(),
+                ResolverPrimitiveStrategyTy::Alternate => self.get_alt_quotes(),
             },
             ResolverType::Array {
                 sub_ty,
@@ -166,22 +172,22 @@ impl SolvedData {
                     resolver_strategy,
                     rust_size,
                 } => match resolver_strategy.ty {
-                    ResolverPrimitiveStrategyTy::Standard => self.get_be_quotes(),
-                    ResolverPrimitiveStrategyTy::Alternate => self.get_le_quotes(),
+                    ResolverPrimitiveStrategyTy::Standard => self.get_std_quotes(),
+                    ResolverPrimitiveStrategyTy::Alternate => self.get_alt_quotes(),
                 },
                 ResolverSubType::Nested {
                     ty_ident,
                     rust_size,
-                } => self.get_ne_quotes(),
+                } => self.get_nested_quotes(),
             },
         }
     }
-    fn get_le_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_alt_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
-            let read = self.resolver.get_read_quote(Resolver::get_read_le_quote)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_alt_quote)?;
             let (write, clear) = self
                 .resolver
-                .get_write_quote(Resolver::get_write_le_quote, false)?;
+                .get_write_quote(Resolver::get_write_alt_quote, false)?;
             (read, write, clear)
         };
         Ok(GeneratedQuotes {
@@ -190,13 +196,13 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_ne_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_nested_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.resolver.get_read_quote(Resolver::get_read_ne_quote)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_nested_quote)?;
             let (write, clear) = self
                 .resolver
-                .get_write_quote(Resolver::get_write_ne_quote, false)?;
+                .get_write_quote(Resolver::get_write_nested_quote, false)?;
             (read, write, clear)
         };
         Ok(GeneratedQuotes {
@@ -205,13 +211,13 @@ impl SolvedData {
             zero: clear,
         })
     }
-    fn get_be_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
+    fn get_std_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.resolver.get_read_quote(Resolver::get_read_be_quote)?;
+            let read = self.resolver.get_read_quote(Resolver::get_read_std_quote)?;
             let (write, clear) = self
                 .resolver
-                .get_write_quote(Resolver::get_write_be_quote, false)?;
+                .get_write_quote(Resolver::get_write_std_quote, false)?;
             (read, write, clear)
         };
         Ok(GeneratedQuotes {

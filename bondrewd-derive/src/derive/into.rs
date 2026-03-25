@@ -147,7 +147,7 @@ impl Resolver {
         };
         gen_write_fn(self, &field_access)
     }
-    pub(crate) fn get_write_le_quote(
+    pub(crate) fn get_write_alt_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -171,12 +171,12 @@ impl Resolver {
             //         let right_shift_usize: u32 = right_shift.clone() as u32;
             //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
             //     }
-            self.get_write_le_multi_byte_quote(field_access_quote)
+            self.get_write_alt_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_le_single_byte_quote(field_access_quote)
+            self.get_write_alt_single_byte_quote(field_access_quote)
         }
     }
-    pub(crate) fn get_write_le_single_byte_quote(
+    pub(crate) fn get_write_alt_single_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -249,7 +249,7 @@ impl Resolver {
         };
         Ok((apply_field_to_buffer, clear_quote))
     }
-    pub(crate) fn get_write_le_multi_byte_quote(
+    pub(crate) fn get_write_alt_multi_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -406,7 +406,7 @@ impl Resolver {
 
         Ok((full_quote, clear_quote))
     }
-    pub(crate) fn get_write_ne_quote(
+    pub(crate) fn get_write_nested_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -422,12 +422,12 @@ impl Resolver {
                     "calculating ne right_shift failed",
                 ));
             }
-            self.get_write_ne_multi_byte_quote(field_access_quote)
+            self.get_write_nested_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_ne_single_byte_quote(field_access_quote)
+            self.get_write_nested_single_byte_quote(field_access_quote)
         }
     }
-    pub(crate) fn get_write_ne_single_byte_quote(
+    pub(crate) fn get_write_nested_single_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -512,7 +512,7 @@ impl Resolver {
         };
         Ok((finished_quote, clear_quote))
     }
-    pub(crate) fn get_write_ne_multi_byte_quote(
+    pub(crate) fn get_write_nested_multi_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -688,7 +688,7 @@ impl Resolver {
         }
         Ok((full_quote, clear_quote))
     }
-    pub(crate) fn get_write_be_quote(
+    pub(crate) fn get_write_std_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -703,12 +703,12 @@ impl Resolver {
                     "calculating be bits_in_last_bytes failed",
                 ));
             }
-            self.get_write_be_multi_byte_quote(field_access_quote)
+            self.get_write_std_multi_byte_quote(field_access_quote)
         } else {
-            self.get_write_be_single_byte_quote(field_access_quote)
+            self.get_write_std_single_byte_quote(field_access_quote)
         }
     }
-    pub(crate) fn get_write_be_single_byte_quote(
+    pub(crate) fn get_write_std_single_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
@@ -764,6 +764,7 @@ impl Resolver {
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
+        println!("sib: {starting_inject_byte}");
         let not_mask = !mask;
         let clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;
@@ -773,7 +774,7 @@ impl Resolver {
         };
         Ok((apply_field_to_buffer, clear_quote))
     }
-    pub(crate) fn get_write_be_multi_byte_quote(
+    pub(crate) fn get_write_std_multi_byte_quote(
         &self,
         field_access_quote: &TokenStream,
     ) -> syn::Result<(TokenStream, TokenStream)> {
