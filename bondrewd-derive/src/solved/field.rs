@@ -199,7 +199,9 @@ impl SolvedData {
     fn get_nested_quotes(&self) -> Result<GeneratedQuotes, syn::Error> {
         let (read, write, clear) = {
             // generate
-            let read = self.resolver.get_read_quote(Resolver::get_read_nested_quote)?;
+            let read = self
+                .resolver
+                .get_read_quote(Resolver::get_read_nested_quote)?;
             let (write, clear) = self
                 .resolver
                 .get_write_quote(Resolver::get_write_nested_quote, false)?;

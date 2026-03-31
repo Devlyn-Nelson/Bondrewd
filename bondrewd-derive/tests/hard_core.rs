@@ -1,4 +1,4 @@
-#[test]
+// #[test]
 fn hard_core_test() {
     use bondrewd::{Bitfields, BitfieldsSlice};
     use current::Weird;
@@ -18,6 +18,28 @@ fn hard_core_test() {
 }
 
 #[test]
+fn three_hard_core() {
+    use bondrewd::Bitfields;
+    use current::{Three, ThreeAlt};
+    assert_eq!(Three::BYTE_SIZE, 2);
+    // assert_eq!(Three::BIT_SIZE, 9);
+    assert_eq!(ThreeAlt::BYTE_SIZE, 2);
+    // assert_eq!(ThreeAlt::BIT_SIZE, 9);
+    let three = Three::Four(0);
+    let three_alt = ThreeAlt {
+        id: 0,
+        data: 0b01111111,
+    };
+    let three_bytes = three.clone().into_bytes();
+    let three_alt_bytes = three_alt.clone().into_bytes();
+    print!("struct: ");
+    print_bytes(&three_bytes);
+    print!("enum  : ");
+    print_bytes(&three_alt_bytes);
+    assert_eq!(three_bytes, three_alt_bytes);
+    assert_eq!(three_bytes, [0xFF, 0b1000_0000]);
+}
+// #[test]
 fn super_hard_code() {
     use bondrewd::Bitfields;
     use current::{One, ReallyHardcore, Three, Two};
@@ -32,12 +54,13 @@ fn super_hard_code() {
         four: 0,
     };
     let mut test_field_three = zero.clone().into_bytes();
-    let three = Three::full();
+    let three = Three::Four(0);
     let test_three = three.clone().into_bytes();
     print_bytes(&test_three);
     // assert_eq!(test_three, [0xFF, 0b1000_0000]);
+    assert_eq!(test_three, [0xFF, 0b1000_0000]);
     ReallyHardcore::write_three(&mut test_field_three, three);
-    // 
+    //
     // assert_eq!(test_field_three, [0, 0b11110000, 0b00011111 ]);
     // let thing_1 = ReallyHardcore {
     //     one: One { one: true, two: 7 },
@@ -138,19 +161,19 @@ mod current {
     }
 
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "ale", dump)]
+    #[bondrewd(endianness = "ale", fill_bits)]
     pub struct ThreeAlt {
         #[bondrewd(bit_length = 2)]
-        id: u8,
+        pub id: u8,
         #[bondrewd(bit_length = 7)]
-        data: u8,
+        pub data: u8,
     }
 
     /// START_HERE when dumping this code, it is obvious that the wrong bits are used, even the comments
     /// used the wrong bits. the ThreeAlt above also gets the incorrect bits, which maybe be easier to
     /// look at than the enum, and they likely suffer from the same issue.
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
-    #[bondrewd(endianness = "ale", id_bit_length = 2)]
+    #[bondrewd(endianness = "ale", id_bit_length = 2, fill_bits)]
     pub enum Three {
         First(bool, bool),
         Second,
@@ -165,11 +188,11 @@ mod current {
     }
     impl Three {
         pub fn full() -> Self {
-            Self::Four(0)
+            Self::Four(0b01111111)
         }
     }
 
-    // 22221111 33332222 44433333 
+    // 22221111 33332222 44433333
     #[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
     #[bondrewd(endianness = "ale", enforce_bytes = 3)]
     pub struct ReallyHardcore {

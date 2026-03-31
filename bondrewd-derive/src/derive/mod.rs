@@ -1040,10 +1040,10 @@ impl SolvedFieldSet {
             SolvedFieldSetAdditive::new_struct(name)
         };
         let mut field_name_list = quote! {};
-        println!("\n===={}:{name}====", enum_name.as_ref().map(|e| e.ident.to_string()).unwrap_or_default());
+        // println!("\n===={}:{name}====", enum_name.as_ref().map(|e| e.ident.to_string()).unwrap_or_default());
         for field in &self.fields {
-            println!("----{}----", field.resolver.data.field_name);
-            println!("bits: {:?}", field.bit_range());
+            // println!("----{}----", field.resolver.data.field_name);
+            // println!("bits: {:?}", field.bit_range());
             if matches!(field.attr_reserve(), ReserveFieldOption::FakeField) {
                 continue;
             }

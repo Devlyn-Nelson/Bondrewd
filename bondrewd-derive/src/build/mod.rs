@@ -214,7 +214,7 @@ impl FromMeta for EndiannessFn {
 /// This mess determines the endianness of a field.
 ///
 /// # Bit and Byte order
-/// 
+///
 /// `field_order` determines the alignment of bits (left or right). `byte_order`
 /// determines the order that bytes will be used. Combining these values in `Standard`
 /// `mode` aligned little endian where as having them both as `false` in the same `mode`
@@ -235,7 +235,7 @@ impl FromMeta for EndiannessFn {
 /// |`reverse_field_order = true` | true  | false |
 ///
 /// # Mode vs Endian
-/// 
+///
 /// Endianess is basically really confusing when being applied at the bit level.
 ///
 /// To clarify: Bit Endianess exists but standards for them are very obscure and don't have much structure.
@@ -261,7 +261,7 @@ impl FromMeta for EndiannessFn {
 /// |`field_order = true` | true     | false       |
 ///
 /// ## But whats what?
-/// 
+///
 /// |`(is_field_order_reversed(),is_byte_order_reversed())`| Standard                | Alternative          |
 /// |:-----------------------------------------------------|:-----------------------:|:--------------------:|
 /// | (false, false)                                       | Big Endian              | Packed Little Endian |
@@ -270,15 +270,15 @@ impl FromMeta for EndiannessFn {
 /// | (false, true)                                        | Idk                     | Idk                  |
 ///
 /// # Packed... Aligned... ???
-/// 
+///
 /// These are my made up names for the two common "little endian" bit field strategies.
-/// 
+///
 /// ### Aligned
-/// 
+///
 /// bit are right aligned
-/// 
+///
 /// > Note that we are using `fill_bits` here otherwise only 9 bits will be considered when flipping the order.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields)]
@@ -294,15 +294,15 @@ impl FromMeta for EndiannessFn {
 /// let bytes = ex.into_bytes();
 /// assert_eq!(bytes, [0b11111111, 0b00000001]);
 /// ```
-/// 
+///
 /// ### Packed
-/// 
+///
 /// bits are left aligned
-/// 
+///
 /// > `fill_bits` does nothing to this structure but is included for comparison with Aligned example because
 /// > if you don't use `fill_bits` in the Aligned example you will actually get the same output as this
 /// > Packed example due to bondrewd handling structures that do not use a multiple of 8 bits.
-/// 
+///
 /// ```
 /// use bondrewd::*;
 /// #[derive(Bitfields, Clone)]
