@@ -446,8 +446,8 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
-    match solved.gen(flavor) {
-        Ok(gen) => gen.into(),
+    match solved.generate(flavor) {
+        Ok(generated) => generated.into(),
         Err(err) => proc_macro::TokenStream::from(err.to_compile_error()),
     }
 }

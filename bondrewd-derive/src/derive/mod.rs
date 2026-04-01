@@ -788,7 +788,7 @@ impl Solved {
         };
         Ok(())
     }
-    pub fn gen(&self, mut flavor: crate::GenerationFlavor) -> syn::Result<TokenStream> {
+    pub fn generate(&self, mut flavor: crate::GenerationFlavor) -> syn::Result<TokenStream> {
         let struct_name = &self.name;
         let struct_size = self.total_bytes_no_fill();
         match &self.ty {
@@ -887,7 +887,7 @@ impl Solved {
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {
-                    return Err(syn::Error::new(self.name.span(), format!("Failed to dump code gen because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
+                    return Err(syn::Error::new(self.name.span(), format!("Failed to dump code generation because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
                 }
             }
         }
@@ -1190,7 +1190,7 @@ impl SolvedFieldSet {
         field: &SolvedData,
         set_add: &SolvedFieldSetAdditive,
         field_name_list: &mut TokenStream,
-        gen: &mut crate::GenerationFlavor,
+        generation_flavor: &mut crate::GenerationFlavor,
         field_access: &GeneratedQuotes,
         struct_size: usize,
         bits_effected: &str,
@@ -1199,7 +1199,7 @@ impl SolvedFieldSet {
         let prefixed_name = set_add.get_prefixed_name(&field_name);
 
         let field_extractor = field_access.read();
-        match gen {
+        match generation_flavor {
             crate::GenerationFlavor::Standard {
                 trait_fns,
                 impl_fns: _,
@@ -1278,7 +1278,7 @@ impl SolvedFieldSet {
             crate::GenerationFlavor::Hex { trait_fns }
             | crate::GenerationFlavor::HexDynamic { trait_fns } => {}
         }
-        match gen {
+        match generation_flavor {
             crate::GenerationFlavor::Standard {
                 trait_fns,
                 impl_fns,
@@ -1373,7 +1373,7 @@ impl SolvedFieldSet {
         &self,
         field: &SolvedData,
         set_add: &SolvedFieldSetAdditive,
-        gen: &mut crate::GenerationFlavor,
+        generation_flavor: &mut crate::GenerationFlavor,
         field_access: &GeneratedQuotes,
         struct_size: usize,
         bits_effected: &str,
@@ -1381,7 +1381,7 @@ impl SolvedFieldSet {
         let field_name = field.resolver.ident();
         let prefixed_name = set_add.get_prefixed_name(&field_name);
         let (field_setter, clear_quote) = (field_access.write(), field_access.zero());
-        match gen {
+        match generation_flavor {
             crate::GenerationFlavor::Standard {
                 trait_fns,
                 impl_fns,
