@@ -607,7 +607,7 @@ pub(crate) fn get_lit_str<'a>(
     } else {
         String::new()
     };
-    if let Expr::Lit(ref lit) = expr {
+    if let Expr::Lit(lit) = expr {
         if let Lit::Str(ref val) = lit.lit {
             Ok(val)
         } else {
@@ -634,7 +634,7 @@ pub(crate) fn get_lit_int<'a>(
     } else {
         String::new()
     };
-    if let Expr::Lit(ref lit) = expr {
+    if let Expr::Lit(lit) = expr {
         if let Lit::Int(ref val) = lit.lit {
             Ok(val)
         } else {
@@ -652,9 +652,9 @@ pub(crate) fn get_lit_int<'a>(
 }
 
 pub(crate) fn get_lit_range(expr: &Expr) -> syn::Result<Range<usize>> {
-    if let Expr::Range(ref lit) = expr {
+    if let Expr::Range(lit) = expr {
         let start = if let Some(ref v) = lit.start {
-            if let Expr::Lit(ref el) = v.as_ref() {
+            if let Expr::Lit(el) = v.as_ref() {
                 if let Lit::Int(ref i) = el.lit {
                     i.base10_parse()?
                 } else {
@@ -676,7 +676,7 @@ pub(crate) fn get_lit_range(expr: &Expr) -> syn::Result<Range<usize>> {
             ));
         };
         let end = if let Some(ref v) = lit.end {
-            if let Expr::Lit(ref el) = v.as_ref() {
+            if let Expr::Lit(el) = v.as_ref() {
                 if let Lit::Int(ref i) = el.lit {
                     i.base10_parse()?
                 } else {

@@ -83,7 +83,7 @@ impl GenericBuilder {
     // Parses the Expression, looking for a literal number expression
     fn parse_lit_discriminant_expr(input: &Expr) -> syn::Result<usize> {
         match input {
-            Expr::Lit(ref lit) => match lit.lit {
+            Expr::Lit(lit) => match lit.lit {
                 Lit::Int(ref i) => Ok(i.base10_parse()?),
                 _ => Err(syn::Error::new(
                     input.span(),
@@ -215,7 +215,7 @@ impl GenericBuilder {
         endianness: &Endianness,
     ) -> syn::Result<bool> {
         let (stripped_fields, tuple) = match syn_fields {
-            syn::Fields::Named(ref named_fields) => (
+            syn::Fields::Named(named_fields) => (
                 Some(
                     named_fields
                         .named
@@ -225,7 +225,7 @@ impl GenericBuilder {
                 ),
                 false,
             ),
-            syn::Fields::Unnamed(ref fields) => (
+            syn::Fields::Unnamed(fields) => (
                 Some(fields.unnamed.iter().cloned().collect::<Vec<syn::Field>>()),
                 true,
             ),

@@ -503,12 +503,12 @@ impl Resolver {
         let rust_type_size = self.ty.rust_size();
         // Allocate a buffer to put the bits into as we extract them. if signed we need to be able fill
         // the unused bits with zero or 1 depending on if it is negative when read.
-        let new_array_quote =
-            if let Some(a) = add_sign_fix_quote(self, self.bit_length(), right_shift)? {
-                a
-            } else {
+        let new_array_quote = match add_sign_fix_quote(self, self.bit_length(), right_shift)? {
+            Some(a) => a,
+            _ => {
                 quote! {[0u8;#rust_type_size]}
-            };
+            }
+        };
         let field_buffer_name = self.field_buffer_ident();
         // Create the full buffer initiation quotes.
         let mut full_quote = quote! {
@@ -1146,10 +1146,11 @@ fn build_be_number_quote(field: &Resolver, first_bits_index: usize) -> syn::Resu
     let right_shift = stuff.right_shift;
     let available_bits_in_first_byte = field.available_bits_in_first_byte();
     let flip = field.data.flip();
-    let new_array_quote = if let Some(a) = add_sign_fix_quote(field, amount_of_bits, right_shift)? {
-        a
-    } else {
-        quote! {[0u8;#size]}
+    let new_array_quote = match add_sign_fix_quote(field, amount_of_bits, right_shift)? {
+        Some(a) => a,
+        _ => {
+            quote! {[0u8;#size]}
+        }
     };
     let mut full_quote = if first_bit_mask == u8::MAX {
         quote! {

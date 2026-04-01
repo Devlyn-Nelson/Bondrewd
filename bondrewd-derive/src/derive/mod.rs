@@ -623,13 +623,14 @@ impl Solved {
         } else {
             // COPIED_1 Below code is duplicate, look further below to see other copy.
             let id = &variant_info.id;
-            if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
-                yes
-            } else {
-                return Err(syn::Error::new(
-                    variant_info.name.span(),
-                    "failed to construct id, this is a bug in bondrewd.",
-                ));
+            match TokenStream::from_str(&format!("{id}")) {
+                Ok(yes) => yes,
+                _ => {
+                    return Err(syn::Error::new(
+                        variant_info.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
             }
         };
         let mut variant_value = if let Some(captured_id_field_name) = variant.get_captured_id_name()
@@ -638,13 +639,14 @@ impl Solved {
         } else {
             // COPIED_1 Below code is duplicate, look above to see other copy.
             let id = &variant_info.id;
-            if let Ok(yes) = TokenStream::from_str(&format!("{id}")) {
-                yes
-            } else {
-                return Err(syn::Error::new(
-                    variant_info.name.span(),
-                    "failed to construct id, this is a bug in bondrewd.",
-                ));
+            match TokenStream::from_str(&format!("{id}")) {
+                Ok(yes) => yes,
+                _ => {
+                    return Err(syn::Error::new(
+                        variant_info.name.span(),
+                        "failed to construct id, this is a bug in bondrewd.",
+                    ));
+                }
             }
         };
         let variant_constructor = if thing.field_list.is_empty() {

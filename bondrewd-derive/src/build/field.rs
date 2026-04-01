@@ -149,7 +149,7 @@ impl DataType {
         array_option: Option<Vec<usize>>,
     ) -> syn::Result<FullDataType> {
         let data_type = match ty {
-            Type::Path(ref path) => {
+            Type::Path(path) => {
                 let out = Self::parse_path(&path.path, attrs)?;
                 let array_spec = if let Some(mut thing) = array_option {
                     thing.reverse();
@@ -176,7 +176,7 @@ impl DataType {
                     array_spec,
                 }
             }
-            Type::Array(ref array_path) => {
+            Type::Array(array_path) => {
                 // arrays must use a literal for length, because its would be hard any other way.
                 let lit_int = get_lit_int(
                     &array_path.len,
