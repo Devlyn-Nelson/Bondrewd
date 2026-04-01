@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd-derive"
-version = "0.5.0-beta.6"
+version = "0.5.0-beta.7"
 edition = "2021"
 description = "Bit-Level field packing with builder"
 authors = ["Devlyn Nelson <thedevbo@pm.me>"]
@@ -14,19 +14,19 @@ repository = "https://github.com/Devlyn-Nelson/Bondrewd"
 proc-macro = true
 
 [dependencies]
-convert_case = "0.8"
+convert_case = "0.11"
 proc-macro2 = { version = "1.0"}
 quote = { version = "1.0"}
 syn = { version = "2.0.87", features = ["full"]}
 thiserror = "2.0"
-darling = "0.20"
+darling = "0.23"
 
 [features]
 default = ["std"]
 std = []
 
 [dev-dependencies]
-rand = "0.8"
+rand = "0.10"
 anyhow = "1"
 
 [dev-dependencies.bondrewd]
