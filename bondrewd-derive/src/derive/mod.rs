@@ -320,6 +320,7 @@ impl Solved {
         let field_access = id.get_quotes()?;
         let bits_effected =
             get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().map(|a| *a));
+
         invalid.make_read_fns(
             id,
             &set_add,
@@ -1040,10 +1041,7 @@ impl SolvedFieldSet {
             SolvedFieldSetAdditive::new_struct(name)
         };
         let mut field_name_list = quote! {};
-        // println!("\n===={}:{name}====", enum_name.as_ref().map(|e| e.ident.to_string()).unwrap_or_default());
         for field in &self.fields {
-            // println!("----{}----", field.resolver.data.field_name);
-            // println!("bits: {:?}", field.bit_range());
             if matches!(field.attr_reserve(), ReserveFieldOption::FakeField) {
                 continue;
             }

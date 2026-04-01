@@ -30,24 +30,89 @@ fn aligned() {
 // thats what flip is based on. Need same test with enum type.
 
 #[derive(Bitfields, Debug, PartialEq, Eq, Clone)]
-#[bondrewd(endianness = "ale", id_bit_length = 2)]
+#[bondrewd(endianness = "ale", id_bit_length = 2, fill_bits)]
 enum AlignedEnum {
     #[bondrewd(id = 1)]
     Thing {
         #[bondrewd(bit_length = 9)]
         number: u16,
     },
+    #[bondrewd(id = 0)]
+    Thing2 {
+        #[bondrewd(bit_length = 9)]
+        number: u16,
+    },
 }
+
 #[test]
-fn aligned_enum() {
-    assert_eq!(AlignedEnum::BIT_SIZE, 11);
+fn aligned_enum_1() {
+    assert_eq!(AlignedEnum::BIT_SIZE, 16);
     assert_eq!(AlignedEnum::BYTE_SIZE, 2);
-    let ex = AlignedEnum::Thing { number: u16::MAX };
+    let ex = AlignedEnum::Thing {
+        number: 0b0000_0001_1111_1111,
+    };
+    let bytes = ex.clone().into_bytes();
+    assert_eq!(bytes[0], 0b1111_1101);
+    assert_eq!(bytes[1], 0b0000_0111);
+    let new = AlignedEnum::from_bytes(bytes);
+    assert_eq!(new, ex);
+}
+
+#[test]
+fn aligned_enum_2() {
+    assert_eq!(AlignedEnum::BIT_SIZE, 16);
+    assert_eq!(AlignedEnum::BYTE_SIZE, 2);
+    let ex = AlignedEnum::Thing2 {
+        number: 0b0000_0000_1111_1110,
+    };
+    let bytes = ex.clone().into_bytes();
+    assert_eq!(bytes[0], 0b1111_1000);
+    assert_eq!(bytes[1], 0b0000_0011);
+    let new = AlignedEnum::from_bytes(bytes);
+    assert_eq!(new, ex);
+}
+
+#[derive(Bitfields, Debug, PartialEq, Eq, Clone)]
+#[bondrewd(endianness = "ale", id_bit_length = 2)]
+enum AlignedEnumNoFill {
+    #[bondrewd(id = 1)]
+    Thing {
+        #[bondrewd(bit_length = 9)]
+        number: u16,
+    },
+    #[bondrewd(id = 0)]
+    Thing2 {
+        #[bondrewd(bit_length = 9)]
+        number: u16,
+    },
+}
+
+#[test]
+fn aligned_enum_no_fill_1() {
+    assert_eq!(AlignedEnumNoFill::BIT_SIZE, 11);
+    assert_eq!(AlignedEnumNoFill::BYTE_SIZE, 2);
+    let ex = AlignedEnumNoFill::Thing {
+        number: 0b0000_0001_1111_1111,
+    };
     let bytes = ex.clone().into_bytes();
     assert_eq!(bytes[0], 0b1010_0000);
     assert_eq!(bytes[1], 0b1111_1111);
-    // let new = AlignedEnum::from_bytes(bytes);
-    // assert_eq!(new, ex);
+    let new = AlignedEnumNoFill::from_bytes(bytes);
+    assert_eq!(new, ex);
+}
+
+#[test]
+fn aligned_enum_no_fill_2() {
+    assert_eq!(AlignedEnumNoFill::BIT_SIZE, 11);
+    assert_eq!(AlignedEnumNoFill::BYTE_SIZE, 2);
+    let ex = AlignedEnumNoFill::Thing2 {
+        number: 0b0000_0000_1111_1110,
+    };
+    let bytes = ex.clone().into_bytes();
+    assert_eq!(bytes[0], 0b0000_0000);
+    assert_eq!(bytes[1], 0b0111_1111);
+    let new = AlignedEnumNoFill::from_bytes(bytes);
+    assert_eq!(new, ex);
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -264,31 +329,31 @@ fn bug_of_my_nightmares_but_aligned() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "ale")]
-struct DocTest {
-    #[bondrewd(bit_length = 4)]
-    one: u8,
-    two: u32,
-    three: u16,
-    four: u8,
-    #[bondrewd(bit_length = 4)]
-    five: u8,
-    #[bondrewd(bit_length = 15)]
-    six: u16,
-    #[bondrewd(bit_length = 9)]
-    seven: u16,
-    eight: u16,
-    nine: u8,
-    #[bondrewd(bit_length = 9)]
-    ten: u16,
-    #[bondrewd(bit_length = 15)]
-    eleven: u16,
-    #[bondrewd(bit_length = 23)]
-    twelve: u32,
-    #[bondrewd(bit_length = 25)]
-    thirteen: u32,
-}
+// #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+// #[bondrewd(endianness = "ale")]
+// struct DocTest {
+//     #[bondrewd(bit_length = 4)]
+//     one: u8,
+//     two: u32,
+//     three: u16,
+//     four: u8,
+//     #[bondrewd(bit_length = 4)]
+//     five: u8,
+//     #[bondrewd(bit_length = 15)]
+//     six: u16,
+//     #[bondrewd(bit_length = 9)]
+//     seven: u16,
+//     eight: u16,
+//     nine: u8,
+//     #[bondrewd(bit_length = 9)]
+//     ten: u16,
+//     #[bondrewd(bit_length = 15)]
+//     eleven: u16,
+//     #[bondrewd(bit_length = 23)]
+//     twelve: u32,
+//     #[bondrewd(bit_length = 25)]
+//     thirteen: u32,
+// }
 
 // #[test]
 // fn asdf() {
@@ -315,3 +380,84 @@ struct DocTest {
 //     print!("]\n");
 //     panic!()
 // }
+
+/// TODO test without fill_bits
+#[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
+#[bondrewd(endianness = "ale", fill_bits)]
+pub struct MyStruct {
+    #[bondrewd(bit_length = 2)]
+    pub id: u8,
+    #[bondrewd(bit_length = 7)]
+    pub data: u8,
+}
+
+/// START_HERE when dumping this code, it is obvious that the wrong bits are used, even the comments
+/// used the wrong bits. the MyStruct above also gets the incorrect bits, which maybe be easier to
+/// look at than the enum, and they likely suffer from the same issue.
+#[derive(Bitfields, Clone, Copy, Debug, PartialEq, Eq)]
+#[bondrewd(endianness = "ale", id_bit_length = 2, fill_bits)]
+pub enum MyEnum {
+    Zero(#[bondrewd(bit_length = 7)] u8),
+    One(#[bondrewd(bit_length = 7)] u8),
+    #[bondrewd(invalid)]
+    Invalid {
+        #[bondrewd(capture_id)]
+        id: u8,
+        #[bondrewd(bit_length = 7)]
+        other: u8,
+    },
+    Three(#[bondrewd(bit_length = 7)] u8),
+}
+
+#[test]
+fn enum_vs_struct_id_0() {
+    assert_eq!(MyEnum::BYTE_SIZE, 2);
+    assert_eq!(MyStruct::BYTE_SIZE, 2);
+    let my_struct = MyEnum::Zero(0b00111111);
+    let my_enum = MyStruct {
+        id: 0,
+        data: 0b00111111,
+    };
+    let my_struct_bytes = my_struct.clone().into_bytes();
+    let my_enum_bytes = my_enum.clone().into_bytes();
+    assert_eq!(my_struct_bytes, my_enum_bytes);
+    assert_eq!(my_struct_bytes, [0b11111100, 0b00000000]);
+}
+
+#[test]
+fn enum_vs_struct_id_1() {
+    assert_eq!(MyEnum::BYTE_SIZE, 2);
+    assert_eq!(MyStruct::BYTE_SIZE, 2);
+    let my_struct = MyEnum::One(0b0100_0001);
+    let my_enum = MyStruct {
+        id: 1,
+        data: 0b0100_0001,
+    };
+    let my_struct_bytes = my_struct.clone().into_bytes();
+    let my_enum_bytes = my_enum.clone().into_bytes();
+    assert_eq!(my_struct_bytes, my_enum_bytes);
+    assert_eq!(my_struct_bytes, [0b00000101, 0b00000001]);
+}
+
+#[test]
+fn enum_vs_struct_id_3() {
+    assert_eq!(MyEnum::BYTE_SIZE, 2);
+    assert_eq!(MyStruct::BYTE_SIZE, 2);
+    let my_struct = MyEnum::Three(0);
+    let my_enum = MyStruct { id: 3, data: 0 };
+    let my_struct_bytes = my_struct.clone().into_bytes();
+    let my_enum_bytes = my_enum.clone().into_bytes();
+    assert_eq!(my_struct_bytes, my_enum_bytes);
+    assert_eq!(my_struct_bytes, [0b0000_0011, 0b0000_0000]);
+
+    // AGAIN
+    let my_struct = MyEnum::Three(0b01111111);
+    let my_enum = MyStruct {
+        id: 3,
+        data: 0b01111111,
+    };
+    let my_struct_bytes = my_struct.clone().into_bytes();
+    let my_enum_bytes = my_enum.clone().into_bytes();
+    assert_eq!(my_struct_bytes, my_enum_bytes);
+    assert_eq!(my_struct_bytes, [0xFF, 0b0000_0001]);
+}

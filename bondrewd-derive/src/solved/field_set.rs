@@ -166,6 +166,7 @@ impl TryFrom<EnumBuilder> for Solved {
     type Error = syn::Error;
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
+        println!("\n# {}", value.name);
         let variants = value.variants;
         // give all variants ids.
         let mut used_ids: Vec<usize> = Vec::default();
@@ -245,18 +246,18 @@ impl TryFrom<EnumBuilder> for Solved {
             return Err(syn::Error::new(span, format!("Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})")));
         }
 
-        let id_field = BuiltData {
-            id: format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
-            ty: id_field_type,
-            bit_range: BuiltRange {
+        let id_field = BuiltData::new(
+            format_ident!("{}", EnumBuilder::VARIANT_ID_NAME).into(),
+            id_field_type,
+            BuiltRange {
                 bit_range: 0..id_bits,
                 ty: BuiltRangeType::SingleElement,
             },
-            endianness: value.attrs.endianness,
-            reserve: ReserveFieldOption::FakeField,
-            overlap: OverlapOptions::None,
-            is_captured_id: false,
-        };
+            value.attrs.endianness,
+            ReserveFieldOption::FakeField,
+            OverlapOptions::None,
+            false,
+        );
 
         let mut half_solved_variants = BTreeMap::default();
         // if matches!(built_invalid.field_set.fill_bits, FillBits::Auto){
@@ -277,7 +278,6 @@ impl TryFrom<EnumBuilder> for Solved {
         let bit_size = largest_bit_size + id_bits;
         half_invalid.apply_auto_fill(bit_size);
         let invalid = half_invalid.finish()?;
-        // println!("+++++++ {largest_bit_size}");
         for (key, mut half_solved) in half_solved_variants {
             half_solved.apply_auto_fill(bit_size);
             solved_variants.insert(key, half_solved.finish()?);
@@ -318,6 +318,10 @@ impl TryFrom<EnumBuilder> for Solved {
                 }
             }
         }
+        let mut bit_size = invalid.total_bits();
+        if !invalid.fields.iter().any(|field| field.attr_capture_id()) {
+            bit_size += id_bits;
+        }
         let id = SolvedData::from_built(id_field, bit_size);
         Ok(Solved {
             name: value.name,
@@ -344,6 +348,7 @@ impl TryFrom<&StructBuilder> for Solved {
     type Error = syn::Error;
 
     fn try_from(value: &StructBuilder) -> Result<Self, Self::Error> {
+        println!("\n# {}", value.field_set.name);
         let fs = Self::try_from_field_set(&value.field_set, &value.attrs, None)?.finish()?;
         Ok(Self {
             name: value.field_set.name.clone(),
@@ -373,6 +378,7 @@ impl<'a> HalfSolvedFieldSet<'a> {
         if self.value.fill_bits.is_auto() && self.total_bit_size < fill_to {
             let mut amount = fill_to;
             if let Some(id) = self.id_field {
+                // TODO sus of bugs.
                 amount += id.bit_range.bit_length();
             }
             self.fill_override = Some(FillBits::FillTo(math_filled_bits(amount)));
@@ -380,11 +386,6 @@ impl<'a> HalfSolvedFieldSet<'a> {
     }
     pub fn finish(mut self) -> Result<SolvedFieldSet, syn::Error> {
         // add reserve for fill bytes. this happens after bit enforcement because bit_enforcement is for checking user code.
-        // println!("-- {}: {}", self.value.name, self.total_bit_size);
-        // println!(
-        //     "\t ={:?}\n\t *{:?}",
-        //     self.value.fill_bits, self.fill_override
-        // );
         let maybe_fill = Solved::maybe_add_fill_field(
             self.fill_override.as_ref().unwrap_or(&self.value.fill_bits),
             &mut self.pre_fields,
@@ -392,16 +393,13 @@ impl<'a> HalfSolvedFieldSet<'a> {
             None,
             &mut self.total_bit_size,
         );
-        // if let Some(mf) = &maybe_fill {
-        //     println!("\t +{}", mf.bit_range.bit_length());
-        // }
         // finalize
         let mut fields: Vec<SolvedData> = Vec::default();
         let flip_bits = self.total_bit_size;
         for pre_field in self.pre_fields {
             if let Some(field) = self.id_field {
                 if field.conflict(&pre_field) {
-                    return Err(syn::Error::new(pre_field.id.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", field.id.name())));
+                    return Err(syn::Error::new(pre_field.name.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", field.name.name())));
                 }
             }
             fields.push(SolvedData::from_built(pre_field, flip_bits));
@@ -409,7 +407,6 @@ impl<'a> HalfSolvedFieldSet<'a> {
         if let Some(fill) = maybe_fill {
             fields.push(SolvedData::from_built(fill, self.total_bit_size));
         }
-        // println!("\n{fields:?}\n");
         let out = SolvedFieldSet {
             fields,
             attrs: self.attrs.clone(),
@@ -425,6 +422,7 @@ impl Solved {
         solved_attrs: &'a SolvedFieldSetAttributes,
         id_bits: usize,
     ) -> Result<(VariantInfo, HalfSolvedFieldSet<'a>), syn::Error> {
+        println!("### {}", variant.field_set.name);
         let solved_variant =
             Self::try_from_field_set(&variant.field_set, solved_attrs, Some(id_field))?;
 
@@ -500,7 +498,7 @@ impl Solved {
                     id.bit_range.clone()
                 } else {
                     return Err(syn::Error::new(
-                        value_field.id.span(),
+                        value_field.name.span(),
                         "Field was marked as `capture_id`, but is not in an enum variant",
                     ));
                 }
@@ -518,19 +516,19 @@ impl Solved {
             }
             let ty = value_field.ty.data_type.clone();
             let nested = ty.needs_endianness();
-            let field = BuiltData {
-                endianness: value.attrs.endianness.clone(),
+            let field = BuiltData::new(
+                value_field.name.clone(),
                 ty,
                 bit_range,
-                id: value_field.id.clone(),
-                reserve: value_field.reserve.clone(),
-                overlap: value_field.overlap.clone(),
-                is_captured_id: value_field.is_captured_id,
-            };
+                value.attrs.endianness.clone(),
+                value_field.reserve.clone(),
+                value_field.overlap.clone(),
+                value_field.is_captured_id,
+            );
             let field_range = field.bit_range.range();
             for other in &pre_fields {
                 if field.conflict(other) {
-                    return Err(syn::Error::new(field.id.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", other.id.name())));
+                    return Err(syn::Error::new(field.name.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", other.name.name())));
                 }
             }
             if !value_field.is_captured_id {
@@ -581,7 +579,6 @@ impl Solved {
         id_bit_size: Option<usize>,
         total_bits: &mut usize,
     ) -> Option<BuiltData> {
-        // println!("\t= {fill:?}");
         let auto_fill = match fill {
             FillBits::None => None,
             FillBits::Bits(bits) => Some(*bits),
@@ -612,7 +609,7 @@ impl Solved {
             let fill_bytes_size = (end_bit - first_bit).div_ceil(8);
             let ident = quote::format_ident!("bondrewd_fill_bits");
             let fill_field = BuiltData {
-                id: ident.into(),
+                name: ident.into(),
                 ty: DataType::Number(NumberType::Unsigned, RustByteSize::One),
                 bit_range: BuiltRange {
                     bit_range: first_bit..end_bit,
@@ -636,7 +633,7 @@ impl Solved {
 #[derive(Clone, Debug)]
 pub struct BuiltData {
     /// The name or ident of the field.
-    pub(crate) id: DynamicIdent,
+    pub(crate) name: DynamicIdent,
     pub(crate) ty: DataType,
     pub(crate) bit_range: BuiltRange,
     pub(crate) endianness: Endianness,
@@ -648,6 +645,26 @@ pub struct BuiltData {
 }
 
 impl BuiltData {
+    pub fn new(
+        name: DynamicIdent,
+        ty: DataType,
+        bit_range: BuiltRange,
+        endianness: Endianness,
+        reserve: ReserveFieldOption,
+        overlap: OverlapOptions,
+        is_captured_id: bool,
+    ) -> Self {
+        // println!("<{}: {:?}>", name, bit_range);
+        Self {
+            name,
+            ty,
+            bit_range,
+            endianness,
+            reserve,
+            overlap,
+            is_captured_id,
+        }
+    }
     pub fn conflict(&self, other: &Self) -> bool {
         if self.reserve.is_fake_field() {
             return false;

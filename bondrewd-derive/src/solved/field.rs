@@ -229,6 +229,11 @@ impl SolvedData {
         })
     }
     pub fn from_built(mut pre_field: BuiltData, struct_bit_size: usize) -> Self {
+        println!(
+            "({}: {:?}) - {struct_bit_size}",
+            pre_field.name,
+            pre_field.bit_range.range()
+        );
         let flip = if pre_field.endianness.is_byte_order_reversed() {
             Some(struct_bit_size.div_ceil(8) - 1)
         } else {
@@ -297,6 +302,7 @@ impl SolvedData {
                 sub_ty,
             },
         });
+        println!("[{}: {:?}]", pre_field.name, pre_field.bit_range.range());
         let resolver = Resolver {
             data: Box::new(ResolverData {
                 bit_range: pre_field.bit_range.range().clone(),
@@ -304,7 +310,7 @@ impl SolvedData {
                 zeros_on_left,
                 available_bits_in_first_byte,
                 starting_inject_byte,
-                field_name: pre_field.id,
+                field_name: pre_field.name,
             }),
             ty,
             reserve: pre_field.reserve,

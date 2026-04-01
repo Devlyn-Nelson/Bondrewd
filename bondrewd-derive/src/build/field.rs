@@ -11,7 +11,7 @@ use syn::{spanned::Spanned, Error, Expr, Field, Ident, Type};
 #[derive(Debug)]
 pub struct DataBuilder {
     /// The name or ident of the field.
-    pub(crate) id: DynamicIdent,
+    pub(crate) name: DynamicIdent,
     /// The approximate data type of the field. when solving, this must be
     /// filled.
     pub(crate) ty: FullDataType,
@@ -327,7 +327,7 @@ impl DataBuilder {
     #[must_use]
     pub fn new(name: DynamicIdent, ty: FullDataType) -> Self {
         Self {
-            id: name,
+            name,
             ty,
             bit_range: DataBuilderRange::None,
             reserve: ReserveFieldOption::NotReserve,
@@ -337,7 +337,7 @@ impl DataBuilder {
     }
     #[must_use]
     pub fn id(&self) -> &DynamicIdent {
-        &self.id
+        &self.name
     }
     pub fn bit_length(&self) -> usize {
         self.bit_range.bit_length()
@@ -466,7 +466,7 @@ impl DataBuilder {
             attrs.bits
         };
         let new_field = Self {
-            id: if let Some(id) = &field.ident {
+            name: if let Some(id) = &field.ident {
                 id.into()
             } else {
                 format_ident!("field_{}", fields.len() + 1).into()

@@ -764,7 +764,6 @@ impl Resolver {
             ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
         };
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
-        // println!("sib: {starting_inject_byte}");
         let not_mask = !mask;
         let clear_quote = quote! {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;
