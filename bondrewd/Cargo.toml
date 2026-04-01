@@ -1,7 +1,7 @@
 [package]
 name = "bondrewd"
-version = "0.3.0-beta.2"
-edition = "2021"
+version = "0.3.0-beta.3"
+edition = "2024"
 description = "Bit-Level field packing with proc_macros"
 authors = ["Devlyn Nelson <thedevbo@pm.me>"]
 license = "MIT OR Apache-2.0"
