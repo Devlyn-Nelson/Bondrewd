@@ -400,7 +400,9 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = self.get_left_shift();
+        // NOTE much of the code here was copied from the into_bytes version of the code, so this left shift is the left shift for
+        // into_bytes, we should use shift_left to rotate right instead.
+        let shift_left = self.get_left_shift() as u32;
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -447,13 +449,13 @@ impl Resolver {
                     ))
                 }
                 NumberType::Unsigned => {
-                    let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                    let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right(#shift_left))};
                     quote! {
                         #field_value as #type_quote
                     }
                 }
                 NumberType::Signed => {
-                    let mut field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                    let mut field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right(#shift_left))};
                     field_value = add_sign_fix_quote_single_bit(
                         field_value,
                         self,
@@ -472,7 +474,7 @@ impl Resolver {
                     value
                 }
                 NumberType::Char => {
-                    quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32}
+                    quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right(#shift_left)) as u32}
                 }
                 NumberType::Bool => {
                     quote! {(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
@@ -483,7 +485,7 @@ impl Resolver {
     }
     pub(crate) fn get_read_alt_multi_byte_quote(&self) -> syn::Result<TokenStream> {
         // calculate how many of the bits will be inside the least significant byte we are adding to.
-        // this will also be the number used for shifting to the right >> because that will line up
+        // this will also be the number used for shifting to the right because that will line up
         // our bytes for the buffer.
         if self.bit_length() < self.available_bits_in_first_byte() {
             return Err(syn::Error::new(
@@ -492,7 +494,7 @@ impl Resolver {
             ));
         }
         // calculate how many of the bits will be inside the least significant byte we are adding to.
-        // this will also be the number used for shifting to the right >> because that will line up
+        // this will also be the number used for shifting to the right because that will line up
         // our bytes for the buffer.
         let (right_shift, first_bit_mask, last_bit_mask): (i8, u8, u8) = {
             let thing: ResolverDataLittleAdditive = (self.data.as_ref()).into();
@@ -723,8 +725,8 @@ impl Resolver {
                 }
             },
             ResolverType::Nested { .. } => {
-                let used_bits_in_byte = 8 - self.available_bits_in_first_byte();
-                quote! {([((input_byte_buffer[#starting_inject_byte] & #mask)) << #used_bits_in_byte])}
+                let used_bits_in_byte = (8 - self.available_bits_in_first_byte()) as u32;
+                quote! {([((input_byte_buffer[#starting_inject_byte] & #mask)).rotate_left(#used_bits_in_byte)])}
             }
             ResolverType::Array { .. } => {
                 return Err(syn::Error::new(
@@ -886,7 +888,7 @@ impl Resolver {
     pub(crate) fn get_read_std_quote(&self) -> syn::Result<TokenStream> {
         if self.bit_length() > self.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
+            // this will also be the number used for shifting to the right because that will line up
             // our bytes for the buffer.
             if self.bit_length() < self.available_bits_in_first_byte() {
                 return Err(syn::Error::new(
@@ -925,7 +927,9 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = self.get_left_shift();
+        // NOTE much of the code here was copied from the into_bytes version of the code, so this left shift is the left shift for
+        // into_bytes, we should use shift_left to rotate right instead.
+        let shift_left = self.get_left_shift() as u32;
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -972,11 +976,11 @@ impl Resolver {
                     ))
                 }
                 NumberType::Unsigned => {
-                    let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                    let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right( #shift_left))};
                     quote! {#field_value as #type_quote}
                 }
                 NumberType::Signed => {
-                    let mut field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left)};
+                    let mut field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right( #shift_left))};
                     field_value = add_sign_fix_quote_single_bit(
                         field_value,
                         self,
@@ -998,7 +1002,7 @@ impl Resolver {
                     quote! {(input_byte_buffer[#starting_inject_byte] & #mask) != 0}
                 }
                 NumberType::Char => {
-                    quote! {((input_byte_buffer[#starting_inject_byte] & #mask) >> #shift_left) as u32}
+                    quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right( #shift_left)) as u32}
                 }
             },
         };

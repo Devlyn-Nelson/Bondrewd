@@ -207,7 +207,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = self.get_left_shift();
+        let shift_left = self.get_left_shift() as u32;
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -239,7 +239,7 @@ impl Resolver {
         };
         let mut source = quote! {#field_as_u8_quote};
         if shift_left != 0 {
-            source = quote! {(#source << #shift_left)};
+            source = quote! {(#source.rotate_left(#shift_left))};
         }
         if mask != u8::MAX {
             source = quote! {#source & #mask};
@@ -453,7 +453,7 @@ impl Resolver {
                 "calculating ne shift_left failed",
             ));
         }
-        let shift_left = self.get_left_shift();
+        let shift_left = self.get_left_shift() as u32;
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
@@ -488,22 +488,22 @@ impl Resolver {
                     ))
                 }
                 NumberType::Bool => {
-                    quote! {output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8) << #shift_left) & #mask;}
+                    quote! {output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8).rotate_left(#shift_left)) & #mask;}
                 }
             },
             ResolverSubType::Nested {
                 ty_ident,
                 rust_size,
             } => {
-                let used_bits_in_byte = 8 - self.data.available_bits_in_first_byte();
+                let used_bits_in_byte = (8 - self.data.available_bits_in_first_byte()) as u32;
                 let mut out = quote! {output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0])};
                 if used_bits_in_byte != 0 {
-                    out = quote! {#out >> #used_bits_in_byte;}
+                    out = quote! {#out.rotate_right(#used_bits_in_byte);}
                 }
                 out = quote! {#out ;};
                 out
                 // let used_bits_in_byte = quote_info.available_bits_in_first_byte() % 8;
-                // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]) << #used_bits_in_byte;}
+                // quote!{output_byte_buffer[#starting_inject_byte] |= (#field_access_quote.into_bytes()[0]).rotate_left(#used_bits_in_byte);}
             }
         };
         let not_mask = !mask;
@@ -695,7 +695,7 @@ impl Resolver {
         let amount_of_bits = self.data.bit_length();
         if amount_of_bits > self.data.available_bits_in_first_byte() {
             // calculate how many of the bits will be inside the least significant byte we are adding to.
-            // this will also be the number used for shifting to the right >> because that will line up
+            // this will also be the number used for shifting to the right because that will line up
             // our bytes for the buffer.
             if amount_of_bits < self.data.available_bits_in_first_byte() {
                 return Err(syn::Error::new(
@@ -738,7 +738,7 @@ impl Resolver {
                 ),
             ));
         }
-        let shift_left = self.get_left_shift();
+        let shift_left = self.get_left_shift() as u32;
         // a quote that puts the field into a byte buffer we assume exists (because this is a
         // fragment).
         // NOTE the mask used here is only needed if we can NOT guarantee the field is only using the
@@ -769,7 +769,7 @@ impl Resolver {
             output_byte_buffer[#starting_inject_byte] &= #not_mask;
         };
         let apply_field_to_buffer = quote! {
-            output_byte_buffer[#starting_inject_byte] |= (#field_as_u8_quote << #shift_left) & #mask;
+            output_byte_buffer[#starting_inject_byte] |= (#field_as_u8_quote.rotate_left(#shift_left)) & #mask;
         };
         Ok((apply_field_to_buffer, clear_quote))
     }

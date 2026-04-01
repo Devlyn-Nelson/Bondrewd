@@ -166,7 +166,7 @@ impl TryFrom<EnumBuilder> for Solved {
     type Error = syn::Error;
 
     fn try_from(value: EnumBuilder) -> Result<Self, Self::Error> {
-        println!("\n# {}", value.name);
+        // println!("\n# {}", value.name);
         let variants = value.variants;
         // give all variants ids.
         let mut used_ids: Vec<usize> = Vec::default();
@@ -348,7 +348,7 @@ impl TryFrom<&StructBuilder> for Solved {
     type Error = syn::Error;
 
     fn try_from(value: &StructBuilder) -> Result<Self, Self::Error> {
-        println!("\n# {}", value.field_set.name);
+        // println!("\n# {}", value.field_set.name);
         let fs = Self::try_from_field_set(&value.field_set, &value.attrs, None)?.finish()?;
         Ok(Self {
             name: value.field_set.name.clone(),
@@ -422,7 +422,7 @@ impl Solved {
         solved_attrs: &'a SolvedFieldSetAttributes,
         id_bits: usize,
     ) -> Result<(VariantInfo, HalfSolvedFieldSet<'a>), syn::Error> {
-        println!("### {}", variant.field_set.name);
+        // println!("### {}", variant.field_set.name);
         let solved_variant =
             Self::try_from_field_set(&variant.field_set, solved_attrs, Some(id_field))?;
 

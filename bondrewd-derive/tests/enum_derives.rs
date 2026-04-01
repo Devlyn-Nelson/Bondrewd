@@ -26,20 +26,6 @@ fn must_work() {
     assert_eq!(invalid.clone().into_bytes(), [0b0100_0000]);
 }
 
-// for situation where all bits are accounted for, like if this enum was used as a 2bit field than
-// we can just let the last option be a valid catch all (in proc_macro code it is still marked as
-// an invalid catch all but that doesn't really matter)
-#[derive(Bitfields, PartialEq, Debug)]
-#[bondrewd(id_byte_length = 1, endianness = "be")]
-enum NoInvalidEnum {
-    Zero,
-    One,
-    Two,
-    /// because a field using only 2 bits has no more than 4 possible values this last field will be
-    /// automatically marked as the Invalid catch all.
-    Three,
-}
-
 #[derive(Bitfields, PartialEq, Debug)]
 #[bondrewd(id_byte_length = 1, endianness = "be")]
 enum InferPrimitiveTypeWithInvalidEnum {
