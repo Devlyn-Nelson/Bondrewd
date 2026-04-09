@@ -170,7 +170,9 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse_0() -> anyhow::Res
     let two_bytes = simple.two.clone().into_bytes();
     assert_eq!(
         two_bytes,
-        [0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000]
+        [
+            0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000
+        ]
     );
     assert_eq!(bytes[7], 0b011_010_00);
     assert_eq!(bytes[6], 0b00000000);
