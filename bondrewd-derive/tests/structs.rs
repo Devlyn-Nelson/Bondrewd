@@ -1,7 +1,7 @@
 use bondrewd::{Bitfields, BitfieldsSlice};
 
 #[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "be", fill_bits)]
+#[bondrewd(endianness = "be", fill_bits, enforce_bits = 52)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -10,6 +10,28 @@ struct Simple {
     #[bondrewd(bit_length = 14)]
     three: u16,
     four: u8,
+}
+
+#[test]
+fn simple_inner_struct(){
+    assert_eq!(Simple::BIT_SIZE, 56);
+    assert_eq!(Simple::BYTE_SIZE, 7);
+    let simple = Simple {
+            one: 2,
+            two: 6345,
+            three: 2145,
+            four: 66,
+        };
+
+    let bytes = simple.clone().into_bytes();
+    assert_eq!(
+        bytes,
+        [
+            0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000
+        ]
+    );
+    let new  =Simple::from_bytes(bytes);
+    assert_eq!(new, simple);
 }
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
@@ -21,21 +43,6 @@ struct SimpleWithStruct {
     two: Simple,
     #[bondrewd(bit_length = 4)]
     three: u8,
-}
-
-#[derive(Bitfields)]
-#[bondrewd(endianness = "be", id_bit_length = 8)]
-enum SimpleInner {
-    One { little_payload: [u8; 10] },
-    Two { big_payload: [u8; 100] },
-}
-
-#[derive(Bitfields)]
-#[bondrewd(enforce_bytes = 104, endianness = "le")]
-struct SimpleEnforced {
-    header: [u8; 3],
-    #[bondrewd(byte_length = 101)]
-    packet: SimpleInner,
 }
 
 #[test]
@@ -79,16 +86,16 @@ fn struct_spanning_multiple_bytes_shift_required() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 11122222
-/// 22222222
-/// 22222222
-/// 22222222
-/// 22222222
-/// 22222222
-/// 22222223
 /// 33300000
+/// 22222223 44444440
+/// 22222222 33333334
+/// 22222222 23333333
+/// 22222222 22222222
+/// 22222222 22222222
+/// 22222222 22222222
+/// 11122222 00011122
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(endianness = "be", reverse, fill_bits)]
+#[bondrewd(endianness = "be", reverse, fill_bits, enforce_bits = 59, dump)]
 struct SimpleWithStructWithFlip {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -98,41 +105,61 @@ struct SimpleWithStructWithFlip {
     three: u8,
 }
 
+fn print_bytes(bytes: &[u8]) {
+    print!("[");
+    for b in bytes {
+        print!("0b{b:08b}, ")
+    }
+    print!("]\n");
+}
+
 // TODO re-impl this test.
-// #[test]
+#[test]
 fn struct_spanning_multiple_bytes_shift_required_with_reverse_1() -> anyhow::Result<()> {
     let simple = SimpleWithStructWithFlip {
         one: 0,
         two: Simple {
-            one: 0,
-            two: 0,
-            three: 0,
+            one: 0xFF,
+            two: 0xFFFFFFFF,
+            three: 0xFFFF,
             four: u8::MAX,
         },
         three: 0,
     };
     assert_eq!(SimpleWithStructWithFlip::BYTE_SIZE, 8);
-    assert_eq!(SimpleWithStructWithFlip::BIT_SIZE, 59);
+    // this is not 59 despite enforce_bytes implying that, because `fill_bits` is used
+    assert_eq!(SimpleWithStructWithFlip::BIT_SIZE, 64);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 8);
 
-    // assert_eq!(bytes[7], 0b00011110);
-    // assert_eq!(bytes[6], 0b00000001);
-    // assert_eq!(bytes[5], 0b11100000);
-    // assert_eq!(bytes[4], 0);
-    // assert_eq!(bytes[3], 0);
-    // assert_eq!(bytes[2], 0);
-    // assert_eq!(bytes[1], 0);
-    // assert_eq!(bytes[0], 0);
+    print_bytes(&bytes);
 
-    assert_eq!(bytes[7], 0b00011111);
-    assert_eq!(bytes[6], 0b11100000);
-    assert_eq!(bytes[5], 0);
-    assert_eq!(bytes[4], 0);
-    assert_eq!(bytes[3], 0);
-    assert_eq!(bytes[2], 0);
-    assert_eq!(bytes[1], 0);
+    // assert_eq!(bytes[0], 0);
+    // assert_eq!(bytes[1], 0b1111_1110);
+    // assert_eq!(bytes[2], 0b0000_0001);
+    // assert_eq!(bytes[3], 0);
+    // assert_eq!(bytes[4], 0);
+    // assert_eq!(bytes[5], 0);
+    // assert_eq!(bytes[6], 0);
+    // assert_eq!(bytes[7], 0);
+
+    // assert_eq!(bytes[0], 0);
+    // assert_eq!(bytes[1], 0);
+    // assert_eq!(bytes[2], 0);
+    // assert_eq!(bytes[3], 0);
+    // assert_eq!(bytes[4], 0);
+    // assert_eq!(bytes[5], 0);
+    // assert_eq!(bytes[6], 0b1111_1100);
+    // assert_eq!(bytes[7], 0b0000_0011);
+
     assert_eq!(bytes[0], 0);
+    assert_eq!(bytes[1], 0);
+    assert_eq!(bytes[2], 0);
+    assert_eq!(bytes[3], 0);
+    assert_eq!(bytes[4], 0);
+    assert_eq!(bytes[5], 0b11100000);
+    assert_eq!(bytes[6], 0b00000001);
+    assert_eq!(bytes[7], 0b00011110);
 
     // from_bytes
     let new_simple = SimpleWithStructWithFlip::from_bytes(bytes);
@@ -153,27 +180,9 @@ fn struct_spanning_multiple_bytes_shift_required_with_reverse_0() -> anyhow::Res
         },
         three: 7,
     };
-    let simple = SimpleWithStructWithFlip {
-        one: 0,
-        two: Simple {
-            one: 0,
-            two: 0,
-            three: 0b00111111_11111111,
-            four: 0,
-        },
-        three: 0,
-    };
     assert_eq!(SimpleWithStructWithFlip::BYTE_SIZE, 8);
-    assert_eq!(Simple::BIT_SIZE, 56);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 8);
-    let two_bytes = simple.two.clone().into_bytes();
-    assert_eq!(
-        two_bytes,
-        [
-            0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000
-        ]
-    );
     assert_eq!(bytes[7], 0b011_010_00);
     assert_eq!(bytes[6], 0b00000000);
     assert_eq!(bytes[5], 0b00001100);
