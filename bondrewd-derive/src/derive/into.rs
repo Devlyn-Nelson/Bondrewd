@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, token::Comma, Error};
+use syn::{Error, punctuated::Punctuated, token::Comma};
 
 use crate::{
     build::field::NumberType,
@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, ResolverDataBigAdditive,
-    ResolverDataLittleAdditive, ResolverDataNestedAdditive,
+    ResolverDataBigAdditive, ResolverDataLittleAdditive, ResolverDataNestedAdditive,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask,
 };
 
 impl Resolver {
@@ -223,14 +223,30 @@ impl Resolver {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let field_as_u8_quote = match self.get_resolved_ty() {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float => return Err(syn::Error::new(self.ident().span(), "Float not supported for single byte insert logic")),
-                NumberType::Unsigned |
-                NumberType::Signed |
-                NumberType::Char |
-                NumberType::Bool => quote!{(#field_access_quote as u8)},
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match number_ty {
+                NumberType::Float => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "Float not supported for single byte insert logic",
+                    ));
+                }
+                NumberType::Unsigned | NumberType::Signed | NumberType::Char | NumberType::Bool => {
+                    quote! {(#field_access_quote as u8)}
+                }
             },
-            ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
+            }
         };
         let not_mask = !mask;
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
@@ -262,20 +278,37 @@ impl Resolver {
         let field_buffer_name = self.data.field_name.name();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let mut full_quote = match self.get_resolved_ty() {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float |
-                NumberType::Unsigned |
-                NumberType::Signed |
-                NumberType::Char => {
-                    let field_call = quote!{#field_access_quote.to_le_bytes()};
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match number_ty {
+                NumberType::Float
+                | NumberType::Unsigned
+                | NumberType::Signed
+                | NumberType::Char => {
+                    let field_call = quote! {#field_access_quote.to_le_bytes()};
                     let apply_field_to_buffer = quote! {
                         let mut #field_buffer_name = #field_call;
                     };
                     apply_field_to_buffer
                 }
-                NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+                NumberType::Bool => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "matched a boolean data type in generate code for bits that span multiple bytes in the output",
+                    ));
+                }
             },
-            ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
+            }
         };
         let fields_last_bits_index = amount_of_bits.div_ceil(8) - 1;
         let current_bit_mask = get_right_and_mask(self.data.available_bits_in_first_byte());
@@ -479,13 +512,13 @@ impl Resolver {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Number not supported for no-endian insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Char => {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Char not supported for no-endian insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Bool => {
                     quote! {output_byte_buffer[#starting_inject_byte] |= ((#field_access_quote as u8).rotate_left(#shift_left)) & #mask;}
@@ -532,7 +565,7 @@ impl Resolver {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "Primitive was not given Endianness, please report this.",
-                ))
+                ));
             }
             ResolverSubType::Nested {
                 ty_ident,
@@ -754,14 +787,30 @@ impl Resolver {
         //          in the note above)
         // both of these could benefit from a return of the number that actually got set.
         let field_as_u8_quote = match self.get_resolved_ty() {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float => return Err(syn::Error::new(self.ident().span(), "Float not supported for single byte insert logic")),
-                NumberType::Unsigned |
-                NumberType::Signed |
-                NumberType::Char |
-                NumberType::Bool => quote!{(#field_access_quote as u8)},
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match number_ty {
+                NumberType::Float => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "Float not supported for single byte insert logic",
+                    ));
+                }
+                NumberType::Unsigned | NumberType::Signed | NumberType::Char | NumberType::Bool => {
+                    quote! {(#field_access_quote as u8)}
+                }
             },
-            ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
+            }
         };
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let not_mask = !mask;
@@ -809,7 +858,7 @@ impl Resolver {
                             return Err(syn::Error::new(
                                 self.ident().span(),
                                 format!("{err} (into 1)"),
-                            ))
+                            ));
                         }
                     }
                 },
@@ -830,7 +879,7 @@ impl Resolver {
                         return Err(syn::Error::new(
                             self.ident().span(),
                             format!("{err} (into 2)"),
-                        ))
+                        ));
                     }
                 },
             )
@@ -839,20 +888,37 @@ impl Resolver {
         let field_buffer_name = self.field_buffer_ident();
         // here we finish the buffer setup and give it the value returned by to_bytes from the number
         let field_byte_buffer = match self.get_resolved_ty() {
-            ResolverSubType::Primitive { number_ty, resolver_strategy, rust_size } => match number_ty {
-                NumberType::Float |
-                NumberType::Unsigned |
-                NumberType::Signed |
-                NumberType::Char => {
-                    let field_call = quote!{#shift.to_be_bytes()};
+            ResolverSubType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => match number_ty {
+                NumberType::Float
+                | NumberType::Unsigned
+                | NumberType::Signed
+                | NumberType::Char => {
+                    let field_call = quote! {#shift.to_be_bytes()};
                     let apply_field_to_buffer = quote! {
                         let #field_buffer_name = #field_call
                     };
                     apply_field_to_buffer
                 }
-                NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+                NumberType::Bool => {
+                    return Err(syn::Error::new(
+                        self.ident().span(),
+                        "matched a boolean data type in generate code for bits that span multiple bytes in the output",
+                    ));
+                }
             },
-            ResolverSubType::Nested { ty_ident, rust_size } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
+            ResolverSubType::Nested {
+                ty_ident,
+                rust_size,
+            } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
+            }
         };
         let starting_inject_byte = self.data.offset_starting_inject_byte(0);
         let not_first_bit_mask = !first_bit_mask;

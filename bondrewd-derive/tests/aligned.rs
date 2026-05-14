@@ -461,3 +461,47 @@ fn enum_vs_struct_id_3() {
     assert_eq!(my_struct_bytes, my_enum_bytes);
     assert_eq!(my_struct_bytes, [0xFF, 0b0000_0001]);
 }
+
+#[derive(Debug, Bitfields, Clone, PartialEq, Eq)]
+struct MultiByteNeInner1 {
+    one: u8,
+    #[bondrewd(bit_length = 18)]
+    two: u32,
+    #[bondrewd(bit_length = 6)]
+    three: u8,
+}
+
+#[derive(Debug, Bitfields, Clone, PartialEq, Eq)]
+#[bondrewd(id_bit_length = 2)]
+enum MultiByteNeInner2 {
+    One(#[bondrewd(bit_length = 6)] u8, u16),
+    Two(#[bondrewd(bit_length = 14)] u16, u8),
+    Three(#[bondrewd(bit_length = 22)] u32),
+    Default,
+}
+
+// #[derive(Bitfields)]
+// struct MultiByteNeInner1 {
+//     one: u8,
+//     two: u32,
+//     three: u16,
+// }
+
+#[derive(Debug, Bitfields, Clone, PartialEq, Eq)]
+struct MultiByteNe {
+    #[bondrewd(byte_length = 4)]
+    i: MultiByteNeInner1,
+    #[bondrewd(byte_length = 3)]
+    ii: MultiByteNeInner2,
+}
+
+#[test]
+fn ale_multi_byte_no_shift(){
+    let thing = MultiByteNe {
+        i: MultiByteNeInner1 { one: 14, two: 5432, three: 4 },
+        ii: MultiByteNeInner2::Default,
+    };
+    let bytes = thing.clone().into_bytes();
+    let result = MultiByteNe::from_bytes(bytes);
+    assert_eq!(result, thing);
+}

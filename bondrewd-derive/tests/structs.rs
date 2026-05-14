@@ -13,15 +13,15 @@ struct Simple {
 }
 
 #[test]
-fn simple_inner_struct(){
+fn simple_inner_struct() {
     assert_eq!(Simple::BIT_SIZE, 56);
     assert_eq!(Simple::BYTE_SIZE, 7);
     let simple = Simple {
-            one: 2,
-            two: 6345,
-            three: 2145,
-            four: 66,
-        };
+        one: 2,
+        two: 6345,
+        three: 2145,
+        four: 66,
+    };
 
     let bytes = simple.clone().into_bytes();
     assert_eq!(
@@ -30,7 +30,7 @@ fn simple_inner_struct(){
             0b01000000, 0b00000000, 0b01100011, 0b00100100, 0b10000110, 0b00010100, 0b00100000
         ]
     );
-    let new  =Simple::from_bytes(bytes);
+    let new = Simple::from_bytes(bytes);
     assert_eq!(new, simple);
 }
 

@@ -3,7 +3,7 @@ use std::{cmp::Ordering, collections::VecDeque};
 use darling::FromMeta;
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{punctuated::Punctuated, token::Comma, Ident};
+use syn::{Ident, punctuated::Punctuated, token::Comma};
 
 use crate::{
     build::field::NumberType,
@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    get_be_starting_index, get_left_and_mask, get_right_and_mask, ResolverDataBigAdditive,
-    ResolverDataLittleAdditive, ResolverDataNestedAdditive,
+    ResolverDataBigAdditive, ResolverDataLittleAdditive, ResolverDataNestedAdditive,
+    get_be_starting_index, get_left_and_mask, get_right_and_mask,
 };
 
 fn isolate_bit_index_mask(bit_index: usize) -> u8 {
@@ -435,7 +435,10 @@ impl Resolver {
                 ty_ident: _,
                 rust_size: _,
             } => {
-                return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield"));
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
             }
             ResolverType::Primitive {
                 number_ty,
@@ -446,7 +449,7 @@ impl Resolver {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Float not supported for single byte insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Unsigned => {
                     let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right(#shift_left))};
@@ -608,16 +611,23 @@ impl Resolver {
         };
         // generate code to transform buffer into rust type.
         let output = match self.ty.as_ref() {
-            ResolverType::Primitive { number_ty, resolver_strategy, rust_size } => {
+            ResolverType::Primitive {
+                number_ty,
+                resolver_strategy,
+                rust_size,
+            } => {
                 let from_endianness_fn_quote = &resolver_strategy.fn_quote;
                 match number_ty {
                     NumberType::Float => {
                         let alt_type_quote = if rust_type_size == 4 {
-                            quote!{u32}
-                        }else if rust_type_size == 8 {
-                            quote!{u64}
-                        }else{
-                            return Err(syn::Error::new(self.ident().span(), "unsupported floating type"))
+                            quote! {u32}
+                        } else if rust_type_size == 8 {
+                            quote! {u64}
+                        } else {
+                            return Err(syn::Error::new(
+                                self.ident().span(),
+                                "unsupported floating type",
+                            ));
                         };
                         let apply_field_to_buffer = quote! {
                             #alt_type_quote::#from_endianness_fn_quote({
@@ -626,8 +636,7 @@ impl Resolver {
                         };
                         apply_field_to_buffer
                     }
-                    NumberType::Unsigned |
-                    NumberType::Signed => {
+                    NumberType::Unsigned | NumberType::Signed => {
                         let type_quote = self.ty.as_ref().get_type_quote()?;
                         let apply_field_to_buffer = quote! {
                             #type_quote::#from_endianness_fn_quote({
@@ -644,11 +653,26 @@ impl Resolver {
                         };
                         apply_field_to_buffer
                     }
-                    NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+                    NumberType::Bool => {
+                        return Err(syn::Error::new(
+                            self.ident().span(),
+                            "matched a boolean data type in generate code for bits that span multiple bytes in the output",
+                        ));
+                    }
                 }
             }
-            ResolverType::Nested { .. } => return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield")),
-            ResolverType::Array { .. } => return Err(syn::Error::new(self.ident().span(), "an array got passed into apply_be_math_to_field_access_quote, which is bad."))
+            ResolverType::Nested { .. } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
+            }
+            ResolverType::Array { .. } => {
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "an array got passed into apply_be_math_to_field_access_quote, which is bad.",
+                ));
+            }
         };
 
         Ok(output)
@@ -709,7 +733,7 @@ impl Resolver {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Float not supported for single byte insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Unsigned | NumberType::Signed => {
                     self.get_read_std_single_byte_quote()?
@@ -718,7 +742,7 @@ impl Resolver {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Char not supported for single byte insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Bool => {
                     quote! {(((input_byte_buffer[#starting_inject_byte] & #mask)) != 0)}
@@ -732,7 +756,7 @@ impl Resolver {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "an array got passed into apply_ne_math_to_field_access_quote, which is bad.",
-                ))
+                ));
             }
         };
         Ok(output)
@@ -760,7 +784,7 @@ impl Resolver {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "Primitive was not given Endianness, please report this.",
-                ))
+                ));
             }
             ResolverType::Nested {
                 rust_size: size, ..
@@ -878,7 +902,7 @@ impl Resolver {
                 return Err(syn::Error::new(
                     self.ident().span(),
                     "an array got passed into apply_ne_math_to_field_access_quote, which is bad.",
-                ))
+                ));
             }
         };
 
@@ -962,7 +986,10 @@ impl Resolver {
                 ty_ident,
                 rust_size,
             } => {
-                return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield"));
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
             }
             ResolverType::Primitive {
                 number_ty,
@@ -973,7 +1000,7 @@ impl Resolver {
                     return Err(syn::Error::new(
                         self.ident().span(),
                         "Float not supported for single byte insert logic",
-                    ))
+                    ));
                 }
                 NumberType::Unsigned => {
                     let field_value = quote! {((input_byte_buffer[#starting_inject_byte] & #mask).rotate_right( #shift_left))};
@@ -1041,7 +1068,7 @@ impl Resolver {
                             return Err(syn::Error::new(
                                 self.ident().span(),
                                 format!("{err} (from 1)"),
-                            ))
+                            ));
                         }
                     }
                 },
@@ -1062,7 +1089,7 @@ impl Resolver {
                         return Err(syn::Error::new(
                             self.ident().span(),
                             format!("{err} (from 2)"),
-                        ))
+                        ));
                     }
                 },
             )
@@ -1077,10 +1104,11 @@ impl Resolver {
             } => {
                 let from_endianness_fn_quote = &resolver_strategy.fn_quote;
                 match number_ty {
-                    NumberType::Float =>{
+                    NumberType::Float => {
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
-                        let fix_ident_stupid = Ident::from_string(&ty_ident.to_string().replace('f', "u"))?;
+                        let fix_ident_stupid =
+                            Ident::from_string(&ty_ident.to_string().replace('f', "u"))?;
                         let apply_field_to_buffer = quote! {
                             #fix_ident_stupid::#from_endianness_fn_quote({
                                 #full_quote
@@ -1088,8 +1116,7 @@ impl Resolver {
                         };
                         apply_field_to_buffer
                     }
-                    NumberType::Unsigned |
-                    NumberType::Signed => {
+                    NumberType::Unsigned | NumberType::Signed => {
                         // let info = BuildNumberQuotePackage { amount_of_bits: quote_info.amount_of_bits(), bits_in_last_byte, field_buffer_name: quote_info.field_buffer_name(), rust_size, first_bits_index, starting_inject_byte: quote_info.starting_inject_byte(), first_bit_mask, last_bit_mask, right_shift, available_bits_in_first_byte: quote_info.available_bits_in_first_byte(), flip: quote_info.flip()};
                         let full_quote = build_be_number_quote(self, first_bits_index)?;
                         let apply_field_to_buffer = quote! {
@@ -1109,7 +1136,12 @@ impl Resolver {
                         };
                         apply_field_to_buffer
                     }
-                    NumberType::Bool => return Err(syn::Error::new(self.ident().span(), "matched a boolean data type in generate code for bits that span multiple bytes in the output")),
+                    NumberType::Bool => {
+                        return Err(syn::Error::new(
+                            self.ident().span(),
+                            "matched a boolean data type in generate code for bits that span multiple bytes in the output",
+                        ));
+                    }
                 }
             }
             ResolverType::Array {
@@ -1126,7 +1158,10 @@ impl Resolver {
                 ty_ident,
                 rust_size,
             } => {
-                return Err(syn::Error::new(self.ident().span(), "Struct was given Endianness which should be described by the struct implementing Bitfield"));
+                return Err(syn::Error::new(
+                    self.ident().span(),
+                    "Struct was given Endianness which should be described by the struct implementing Bitfield",
+                ));
             }
         };
 
