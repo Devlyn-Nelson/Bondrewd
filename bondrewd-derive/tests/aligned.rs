@@ -496,12 +496,19 @@ struct MultiByteNe {
 }
 
 #[test]
-fn ale_multi_byte_no_shift(){
+fn ale_multi_byte_no_shift() {
     let thing = MultiByteNe {
-        i: MultiByteNeInner1 { one: 14, two: 5432, three: 4 },
-        ii: MultiByteNeInner2::Default,
+        i: MultiByteNeInner1 {
+            one: 0,
+            two: 0,
+            three: 0b11_1111,
+        },
+        ii: MultiByteNeInner2::One(0, 0),
     };
     let bytes = thing.clone().into_bytes();
     let result = MultiByteNe::from_bytes(bytes);
+    assert_eq!([0, 0x00, 0x00,0b0011_1111, 0, 0,0], bytes);
+    // let result_bytes = result.clone().into_bytes();
+    // assert_eq!(result_bytes, bytes);
     assert_eq!(result, thing);
 }

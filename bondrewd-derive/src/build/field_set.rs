@@ -1,9 +1,9 @@
 use proc_macro2::Span;
-use syn::{spanned::Spanned, DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit};
+use syn::{DataEnum, DeriveInput, Error, Expr, Fields, Ident, Lit, spanned::Spanned};
 
 use crate::{build::EndiannessFn, solved::field_set::SolvedFieldSetAttributes};
 
-use super::{field::DataBuilder, Endianness};
+use super::{Endianness, field::DataBuilder};
 
 use darling::{FromDeriveInput, FromMeta, FromVariant};
 
@@ -126,7 +126,10 @@ impl GenericBuilder {
             if variant_attrs.id.is_none() {
                 variant_attrs.id = lit_id;
             } else if lit_id.is_some() {
-                return Err(syn::Error::new(variant.span(), "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id."));
+                return Err(syn::Error::new(
+                    variant.span(),
+                    "variant was given an id value via 'id' attribute and literal expression, please only use 1 method of defining id.",
+                ));
             }
             let variant_name = variant.ident.clone();
             let mut fields = Vec::default();
@@ -315,7 +318,10 @@ impl StructDarlingSimplified {
                     span: enforce_full_bytes.span(),
                 })
             } else {
-                Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
+                Err(Error::new(
+                    Span::call_site(),
+                    "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)",
+                ))
             }
         } else if let Some(bytes) = enforce_bytes {
             if enforce_bits.is_none() {
@@ -324,7 +330,10 @@ impl StructDarlingSimplified {
                     span: bytes.span(),
                 })
             } else {
-                Err(Error::new(Span::call_site(), "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)"))
+                Err(Error::new(
+                    Span::call_site(),
+                    "Please only use 1 byte enforcement attribute (enforce_full_bytes, enforce_bytes, enforce_bits)",
+                ))
             }
         } else if let Some(bits) = enforce_bits {
             Ok(StructEnforcement {

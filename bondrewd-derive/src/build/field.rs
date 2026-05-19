@@ -1,12 +1,12 @@
 use crate::solved::field::{DynamicIdent, ResolverArrayType};
 
 use super::{
-    get_lit_int, get_lit_range, ArraySizings, Endianness, OverlapOptions, ReserveFieldOption,
+    ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, get_lit_int, get_lit_range,
 };
 
 use darling::FromField;
 use quote::format_ident;
-use syn::{spanned::Spanned, Error, Expr, Field, Ident, Type};
+use syn::{Error, Expr, Field, Ident, Type, spanned::Spanned};
 
 #[derive(Debug)]
 pub struct DataBuilder {
@@ -232,7 +232,13 @@ impl DataType {
                 "f32" => {
                     if let DataBuilderRange::Range(ref span) = attrs.bits {
                         if 32 != span.end - span.start {
-                            return Err(syn::Error::new(path.span(), format!("f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.", span.end - span.start)));
+                            return Err(syn::Error::new(
+                                path.span(),
+                                format!(
+                                    "f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.",
+                                    span.end - span.start
+                                ),
+                            ));
                         }
                     }
                     Ok(DataType::Number(NumberType::Float, RustByteSize::Four))
@@ -243,7 +249,13 @@ impl DataType {
                 "f64" => {
                     if let DataBuilderRange::Range(ref span) = attrs.bits {
                         if 64 != span.end - span.start {
-                            return Err(syn::Error::new(path.span(), format!("f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.", span.end - span.start)));
+                            return Err(syn::Error::new(
+                                path.span(),
+                                format!(
+                                    "f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.",
+                                    span.end - span.start
+                                ),
+                            ));
                         }
                     }
                     Ok(DataType::Number(NumberType::Float, RustByteSize::Eight))
@@ -273,7 +285,9 @@ impl DataType {
                             } else {
                                 return Err(Error::new(
                                     path.span(),
-                                    format!("Can not determine size of field type. If the type is a struct or enum that implements the Bondrewd::Bitfield traits you need to define the `bit_length` via attribute of the same name, because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"),
+                                    format!(
+                                        "Can not determine size of field type. If the type is a struct or enum that implements the Bondrewd::Bitfield traits you need to define the `bit_length` via attribute of the same name, because bondrewd has no way to determine the size of another struct at compile time. [{field_type_name}]"
+                                    ),
                                 ));
                             }
                         }
@@ -366,9 +380,12 @@ impl DataBuilder {
             if attrs.overlapping_bits.is_none() {
                 OverlapOptions::Redundant
             } else {
-                return Err(Error::new(field.span(), "Field has `overlapping_bits` and `redundant` defined. \
+                return Err(Error::new(
+                    field.span(),
+                    "Field has `overlapping_bits` and `redundant` defined. \
                 Only 1 of these is allowed on a single field, if the entire fields overlaps use `redundant` \
-                otherwise use `overlapping_bits`."));
+                otherwise use `overlapping_bits`.",
+                ));
             }
         } else {
             attrs
@@ -377,9 +394,12 @@ impl DataBuilder {
         };
         let reserve = if attrs.read_only {
             if attrs.reserve {
-                return Err(Error::new(field.span(), "Field has `read_only` and `reserve` defined. \
+                return Err(Error::new(
+                    field.span(),
+                    "Field has `read_only` and `reserve` defined. \
                 Only 1 of these is allowed on a single field, if there is no need to read the values \
-                during a `from_bytes` call use `reserve`, if you want the value to be read use `read_only`."));
+                during a `from_bytes` call use `reserve`, if you want the value to be read use `read_only`.",
+                ));
             }
             ReserveFieldOption::ReadOnly
         } else if attrs.reserve {
@@ -394,7 +414,10 @@ impl DataBuilder {
                     DataDarlingSimplifiedArrayType::Block(size) => match attrs.bits {
                         DataBuilderRange::Range(range) => {
                             if range.end - range.start != size {
-                                return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
+                                return Err(Error::new(
+                                    field.span(),
+                                    "`bits` attribute's total bit length and the size provided for the block array size do not match.",
+                                ));
                             }
 
                             DataBuilderRange::Range(range)
@@ -419,7 +442,10 @@ impl DataBuilder {
                         match attrs.bits {
                             DataBuilderRange::Range(range) => {
                                 if range.end - range.start != total_size {
-                                    return Err(Error::new(field.span(), "`bits` attribute's total bit length and the size provided for the block array size do not match."));
+                                    return Err(Error::new(
+                                        field.span(),
+                                        "`bits` attribute's total bit length and the size provided for the block array size do not match.",
+                                    ));
                                 }
 
                                 DataBuilderRange::Range(range)
@@ -446,13 +472,19 @@ impl DataBuilder {
                 match attrs.bits {
                     DataBuilderRange::Range(range) => {
                         if (range.end - range.start) % elements != 0 {
-                            return Err(Error::new(field.span(), "`bits` attribute's total bit length and does not evenly divide by elements in array."));
+                            return Err(Error::new(
+                                field.span(),
+                                "`bits` attribute's total bit length and does not evenly divide by elements in array.",
+                            ));
                         }
                         DataBuilderRange::Range(range)
                     }
                     DataBuilderRange::Size(size) => {
                         if size % elements != 0 {
-                            return Err(Error::new(field.span(), "attributes defined bit length does not evenly divide by elements in array."));
+                            return Err(Error::new(
+                                field.span(),
+                                "attributes defined bit length does not evenly divide by elements in array.",
+                            ));
                         }
                         DataBuilderRange::Size(size)
                     }
@@ -461,7 +493,10 @@ impl DataBuilder {
             }
         } else {
             if attrs.array.is_some() {
-                return Err(Error::new(field.span(), "The attributes provided imply this is an array but bondrewd's type determination says it is not. if the type is not an array verify you are not using an attribute starting with `element` or `block`."));
+                return Err(Error::new(
+                    field.span(),
+                    "The attributes provided imply this is an array but bondrewd's type determination says it is not. if the type is not an array verify you are not using an attribute starting with `element` or `block`.",
+                ));
             }
             attrs.bits
         };
@@ -523,7 +558,10 @@ impl DataDarling {
             bit_defs += 1;
         }
         if bit_defs > 1 {
-            return Err(Error::new(field.span(), "please use only one of the following attributes: `bit_length`, `byte_length`, `bits`"));
+            return Err(Error::new(
+                field.span(),
+                "please use only one of the following attributes: `bit_length`, `byte_length`, `bits`",
+            ));
         }
         let bits = {
             let thing = self.bits()?.or(self
@@ -539,21 +577,25 @@ impl DataDarling {
         let element_bit_length = if self.element_bit_length.is_some()
             && self.element_byte_length.is_some()
         {
-            return Err(syn::Error::new(field.span(), "please use either `element_bit_length` or `element_byte_length` attributes, not both"));
+            return Err(syn::Error::new(
+                field.span(),
+                "please use either `element_bit_length` or `element_byte_length` attributes, not both",
+            ));
         } else {
             self.element_bit_length
                 .or(self.element_byte_length.map(|bytes| bytes * 8))
         };
-        let block_bit_length =
-            if self.block_bit_length.is_some() && self.block_byte_length.is_some() {
-                return Err(syn::Error::new(
+        let block_bit_length = if self.block_bit_length.is_some()
+            && self.block_byte_length.is_some()
+        {
+            return Err(syn::Error::new(
                 field.span(),
                 "please use either `block_bit_length` or `block_byte_length` attributes, not both",
             ));
-            } else {
-                self.block_bit_length
-                    .or(self.block_byte_length.map(|bytes| bytes * 8))
-            };
+        } else {
+            self.block_bit_length
+                .or(self.block_byte_length.map(|bytes| bytes * 8))
+        };
         let array = if let Some(bit_len) = element_bit_length {
             if block_bit_length.is_some() {
                 return Err(syn::Error::new(
