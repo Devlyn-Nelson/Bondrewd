@@ -4,13 +4,13 @@ pub mod field_set;
 use darling::FromMeta;
 use field::DataBuilderRange;
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use std::{
     fmt::Debug,
     ops::{Deref, Range},
     str::FromStr,
 };
-use syn::{spanned::Spanned, token::Pub, Expr, Ident, Lit, LitInt, LitStr};
+use syn::{Expr, Ident, Lit, LitInt, LitStr, spanned::Spanned, token::Pub};
 
 #[derive(Clone)]
 pub struct Visibility(pub syn::Visibility);
@@ -396,11 +396,7 @@ impl Endianness {
     pub fn is_field_order_reversed(&self) -> bool {
         let r =
             self.reverse_field_order.get() ^ matches!(self.field_order, FieldOrder::LastToFirst);
-        if self.is_alternative() {
-            !r
-        } else {
-            r
-        }
+        if self.is_alternative() { !r } else { r }
         // self.is_alternative() ^ (self.reverse_field_order.get() ^ self.field_order.is_reversed())
         // true
     }
@@ -480,7 +476,9 @@ impl Endianness {
     ///
     ///
     pub fn merge(outer: Self, inner: Self) {
-        todo!("Endianness is stupid and we need to be able to merge endianness together to get proper behaviors")
+        todo!(
+            "Endianness is stupid and we need to be able to merge endianness together to get proper behaviors"
+        )
     }
     pub fn from_expr(val: &LitStr) -> syn::Result<Self> {
         let val = val.value();

@@ -7,12 +7,12 @@ use std::{
 };
 
 use crate::{
-    build::{field_set::EnumBuilder, ReserveFieldOption},
+    GenerationFlavor, SplitTokenStream,
+    build::{ReserveFieldOption, field_set::EnumBuilder},
     solved::{
         field::{ResolverData, SolvedData},
         field_set::{Solved, SolvedFieldSet, SolvedType, VariantInfo},
     },
-    GenerationFlavor, SplitTokenStream,
 };
 
 use convert_case::{Case, Casing};
@@ -101,7 +101,9 @@ pub fn get_be_starting_index(
     let first = ((amount_of_bits as f64 - right_rotation as f64) / 8.0f64).ceil() as usize;
     if last_index < first {
         // TODO figure out a better message for this error. its confusing. and no, i don't know what it means.
-        Err(format!("Failed getting the starting index for big endianness, aob: {amount_of_bits}, rr: {right_rotation}, li: {last_index}, f: {first}."))
+        Err(format!(
+            "Failed getting the starting index for big endianness, aob: {amount_of_bits}, rr: {right_rotation}, li: {last_index}, f: {first}."
+        ))
     } else {
         Ok(last_index - first)
     }
@@ -889,7 +891,12 @@ impl Solved {
                     let _ = std::fs::write(file_name, output.to_string());
                 }
                 Err(err) => {
-                    return Err(syn::Error::new(self.name.span(), format!("Failed to dump code generation because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]")));
+                    return Err(syn::Error::new(
+                        self.name.span(),
+                        format!(
+                            "Failed to dump code generation because target folder could not be located. remove `dump` from struct or enum bondrewd attributes. [{err}]"
+                        ),
+                    ));
                 }
             }
         }
@@ -1092,11 +1099,19 @@ impl SolvedFieldSet {
                 let checked_mut_ident = quote::format_ident!("{struct_name}CheckedMut");
                 let unchecked_functions = &mut struct_fns.read;
                 let unchecked_mut_functions = &mut struct_fns.write;
-                let comment = format!("A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form.");
-                let comment_mut = format!("A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form.");
+                let comment = format!(
+                    "A Structure which provides functions for getting the fields of a [{struct_name}] in its bitfield form."
+                );
+                let comment_mut = format!(
+                    "A Structure which provides functions for getting and setting the fields of a [{struct_name}] in its bitfield form."
+                );
                 {
-                    let unchecked_comment = format!("Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read.");
-                    let unchecked_comment_mut = format!("Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written.");
+                    let unchecked_comment = format!(
+                        "Panics if resulting `{checked_ident}` does not contain enough bytes to read a field that is attempted to be read."
+                    );
+                    let unchecked_comment_mut = format!(
+                        "Panics if resulting `{checked_mut_ident}` does not contain enough bytes to read a field that is attempted to be read or written."
+                    );
                     *unchecked_mut_functions = quote! {
                         #[doc = #comment_mut]
                         #vis struct #checked_mut_ident<'a> {
@@ -1551,7 +1566,9 @@ pub(crate) fn generate_read_field_fn(
     let type_ident = field.resolver.ty.get_type_quote()?;
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("read_{prefixed_field_name}");
-    let comment = format!("Reads {bits_effected} within `input_byte_buffer`, getting the `{field_name}` field in bitfield form.");
+    let comment = format!(
+        "Reads {bits_effected} within `input_byte_buffer`, getting the `{field_name}` field in bitfield form."
+    );
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -1572,7 +1589,9 @@ pub(crate) fn generate_read_slice_field_fn(
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("read_slice_{prefixed_field_name}");
     let min_length = field.resolver.data.bit_range_end().div_ceil(8);
-    let comment = format!("Returns the value for the `{field_name}` field of a in bitfield form by reading {bits_effected} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present.");
+    let comment = format!(
+        "Returns the value for the `{field_name}` field of a in bitfield form by reading {bits_effected} in `input_byte_buffer`. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned if not enough bytes are present."
+    );
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -1763,7 +1782,9 @@ pub(crate) fn generate_write_field_fn(
     let type_ident = field.resolver.ty.get_type_quote()?;
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("write_{prefixed_field_name}");
-    let comment = format!("Writes to {bits_effected} within `output_byte_buffer`, setting the `{field_name}` field in bitfield form.");
+    let comment = format!(
+        "Writes to {bits_effected} within `output_byte_buffer`, setting the `{field_name}` field in bitfield form."
+    );
     Ok(quote! {
         #[inline]
         #[doc = #comment]
@@ -1786,7 +1807,9 @@ pub(crate) fn generate_write_slice_field_fn(
     let bit_range = &field.bit_range();
     let fn_field_name = format_ident!("write_slice_{prefixed_field_name}");
     let min_length = field.resolver.data.offset_starting_inject_byte(0) + 1;
-    let comment = format!("Writes to {bits_effected} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned");
+    let comment = format!(
+        "Writes to {bits_effected} in `input_byte_buffer` if enough bytes are present in slice, setting the `{field_name}` field in bitfield form. Otherwise a [BitfieldLengthError](bondrewd::BitfieldLengthError) will be returned"
+    );
     Ok(quote! {
         #[inline]
         #[doc = #comment]

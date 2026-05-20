@@ -507,7 +507,7 @@ fn ale_multi_byte_no_shift() {
     };
     let bytes = thing.clone().into_bytes();
     let result = MultiByteNe::from_bytes(bytes);
-    assert_eq!([0, 0x00, 0x00,0b0011_1111, 0, 0,0], bytes);
+    assert_eq!([0, 0x00, 0x00, 0b0011_1111, 0, 0, 0], bytes);
     // let result_bytes = result.clone().into_bytes();
     // assert_eq!(result_bytes, bytes);
     assert_eq!(result, thing);
