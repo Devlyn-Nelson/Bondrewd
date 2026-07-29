@@ -5,6 +5,7 @@ use quote::format_ident;
 use syn::Ident;
 
 use crate::build::{
+    ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
     field::{
         DataBuilderRange, DataType, FullDataType, FullDataTypeArraySpecType, NumberType,
         RustByteSize,
@@ -13,7 +14,6 @@ use crate::build::{
         EnumBuilder, FieldSetBuilder, FillBits, GenericBuilder, StructBuilder, StructEnforcementTy,
         VariantBuilder,
     },
-    ArraySizings, Endianness, OverlapOptions, ReserveFieldOption, Visibility,
 };
 
 use super::field::{DynamicIdent, SolvedData};
@@ -193,7 +193,12 @@ impl TryFrom<EnumBuilder> for Solved {
                         &mut largest_variant_id,
                     ));
                 } else {
-                    return Err(syn::Error::new(Span::call_site(), format!("invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github.")));
+                    return Err(syn::Error::new(
+                        Span::call_site(),
+                        format!(
+                            "invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github."
+                        ),
+                    ));
                 }
             }
             let built =
@@ -225,7 +230,14 @@ impl TryFrom<EnumBuilder> for Solved {
                 3..=4 => RustByteSize::Four,
                 5..=8 => RustByteSize::Eight,
                 9..=16 => RustByteSize::Sixteen,
-                invalid => return Err(syn::Error::new(Span::call_site(), format!("The variant id must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."))),
+                invalid => {
+                    return Err(syn::Error::new(
+                        Span::call_site(),
+                        format!(
+                            "The variant id must have a type of: u8, u16, u32, u64, or u128, variant bit length is currently {invalid} and bondrewd doesn't know which type use."
+                        ),
+                    ));
+                }
             };
             (DataType::Number(NumberType::Unsigned, bytes), id_bits)
         };
@@ -243,7 +255,12 @@ impl TryFrom<EnumBuilder> for Solved {
             } else {
                 Span::call_site()
             };
-            return Err(syn::Error::new(span, format!("Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})")));
+            return Err(syn::Error::new(
+                span,
+                format!(
+                    "Largest variant id value ({largest_variant_id}) is larger than `id_bit_size` ({id_bits})"
+                ),
+            ));
         }
 
         let id_field = BuiltData::new(
@@ -306,12 +323,16 @@ impl TryFrom<EnumBuilder> for Solved {
                     let (span, message) = if let Some(s) = span {
                         (
                             s,
-                            format!("Final bit count does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]"),
+                            format!(
+                                "Final bit count does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]"
+                            ),
                         )
                     } else {
                         (
                             value.attrs.enforcement.span,
-                            format!("Final bit count of a variant does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]")
+                            format!(
+                                "Final bit count of a variant does not match enforcement size. [user = {expected_total_bits}, actual = {bit_size}]"
+                            ),
                         )
                     };
                     return Err(syn::Error::new(span, message));
@@ -399,7 +420,13 @@ impl<'a> HalfSolvedFieldSet<'a> {
         for pre_field in self.pre_fields {
             if let Some(field) = self.id_field {
                 if field.conflict(&pre_field) {
-                    return Err(syn::Error::new(pre_field.name.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", field.name.name())));
+                    return Err(syn::Error::new(
+                        pre_field.name.span(),
+                        format!(
+                            "Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)",
+                            field.name.name()
+                        ),
+                    ));
                 }
             }
             fields.push(SolvedData::from_built(pre_field, flip_bits));
@@ -528,7 +555,13 @@ impl Solved {
             let field_range = field.bit_range.range();
             for other in &pre_fields {
                 if field.conflict(other) {
-                    return Err(syn::Error::new(field.name.span(), format!("Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)", other.name.name())));
+                    return Err(syn::Error::new(
+                        field.name.span(),
+                        format!(
+                            "Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)",
+                            other.name.name()
+                        ),
+                    ));
                 }
             }
             if !value_field.is_captured_id {
@@ -554,9 +587,14 @@ impl Solved {
             StructEnforcementTy::EnforceBitAmount(expected_total_bits) => {
                 if total_bits_without_id != *expected_total_bits {
                     let message = if id_field.is_some() {
-                        format!("Variant `{}` final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]", value.name)
+                        format!(
+                            "Variant `{}` final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]",
+                            value.name
+                        )
                     } else {
-                        format!("Final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]")
+                        format!(
+                            "Final bit count does not match enforcement size.[user = {expected_total_bits}, actual = {total_bits_without_id}]"
+                        )
                     };
                     return Err(syn::Error::new(value.attrs.enforcement.span, message));
                 }

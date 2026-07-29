@@ -79,11 +79,7 @@ impl From<GeneratedFunctions> for TokenStream {
 impl GeneratedFunctions {
     pub fn new(dyn_fns: bool) -> Self {
         let out = Self::default();
-        if dyn_fns {
-            out.with_dyn_fns()
-        } else {
-            out
-        }
+        if dyn_fns { out.with_dyn_fns() } else { out }
     }
     pub fn merge(&mut self, other: &Self) {
         let bitfield_trait_impl_fns = &self.bitfield_trait;
@@ -204,7 +200,7 @@ fn get_check_mut_slice_fn(
         "Returns a [{checked_ident_mut}] which allows you to read/write any field for a `{}` from/to provided mutable slice.",
         if let Some(ename) = enum_name {
             format!("{ename}::{name}")
-        }else{
+        } else {
             name.to_string()
         }
     );
@@ -253,7 +249,7 @@ fn get_check_slice_fn(
         "Returns a [{checked_ident}] which allows you to read any field for a `{}` from provided slice.",
         if let Some(ename) = enum_name {
             format!("{ename}::{name}")
-        }else{
+        } else {
             name.to_string()
         }
     );

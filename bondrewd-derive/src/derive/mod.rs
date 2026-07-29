@@ -22,6 +22,7 @@ use syn::{Ident, Visibility};
 
 mod from;
 mod into;
+mod new;
 pub mod quotes;
 use quotes::{CheckSliceNames, CheckedSliceGen, FieldQuotesNew};
 /// Stores [`TokenStream`] that contain the access (write/read/clear) code for a field.
@@ -960,7 +961,7 @@ impl SolvedFieldSet {
                 removing bytes that where used. \n # Errors\n If the provided `Vec<u8>` does not have \
                 enough bytes an error will be returned."
                         .to_string();
-                let comment = "Creates a new instance of `Self` by copying field from the bitfields. 
+                let comment = "Creates a new instance of `Self` by copying field from the bitfields.
                 # Errors\n If the provided `Vec<u8>` does not have enough bytes an error will be returned.".to_string();
                 trait_fns.read = quote! {
                     #[doc = #comment]

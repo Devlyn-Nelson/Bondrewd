@@ -171,6 +171,7 @@ impl Resolver {
             //         let right_shift_usize: u32 = right_shift.clone() as u32;
             //         quote! { (#field_access_quote.rotate_right(#right_shift_usize)) }
             //     }
+            // }
             self.get_write_alt_multi_byte_quote(field_access_quote)
         } else {
             self.get_write_alt_single_byte_quote(field_access_quote)
