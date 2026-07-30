@@ -446,11 +446,11 @@ fn do_thing(input: proc_macro::TokenStream, flavor: GenerationFlavor) -> proc_ma
             return proc_macro::TokenStream::from(err.to_compile_error());
         }
     };
-    let output = match solved.generate(flavor) {
+
+    match solved.generate(flavor) {
         Ok(generated) => generated.into(),
         Err(err) => proc_macro::TokenStream::from(err.to_compile_error()),
-    };
-    output
+    }
 }
 /// Generates an implementation of the `bondrewd::Bitfield` trait, as well as read and write functions for direct
 /// sized u8 arrays access.

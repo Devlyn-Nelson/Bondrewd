@@ -125,87 +125,87 @@ fn add_sign_fix_quote(
     } = field.ty.as_ref()
     {
         let size = rust_size.bytes();
-        if amount_of_bits != size {
-            if let NumberType::Signed = number_ty {
-                let (bit_to_isolate, mut sign_index) = match resolver_strategy.ty {
-                    ResolverPrimitiveStrategyTy::Standard => (
-                        field.data.bit_range_start() % 8,
-                        field.data.bit_range_start() / 8,
-                    ),
-                    ResolverPrimitiveStrategyTy::Alternate => {
-                        let skip_bytes = (amount_of_bits / 8) * 8;
-                        let sign_bit_index = field.data.bit_range_start() + skip_bytes;
-                        (sign_bit_index % 8, sign_bit_index / 8)
-                    }
-                };
-                if let Some(flip) = field.data.flip() {
-                    sign_index = flip - sign_index;
+        if amount_of_bits != size
+            && let NumberType::Signed = number_ty
+        {
+            let (bit_to_isolate, mut sign_index) = match resolver_strategy.ty {
+                ResolverPrimitiveStrategyTy::Standard => (
+                    field.data.bit_range_start() % 8,
+                    field.data.bit_range_start() / 8,
+                ),
+                ResolverPrimitiveStrategyTy::Alternate => {
+                    let skip_bytes = (amount_of_bits / 8) * 8;
+                    let sign_bit_index = field.data.bit_range_start() + skip_bytes;
+                    (sign_bit_index % 8, sign_bit_index / 8)
                 }
-                let sign_mask = isolate_bit_index_mask(bit_to_isolate);
-                let sign_bit = quote! {
-                    (input_byte_buffer[#sign_index] & #sign_mask)
-                };
-                let mut unused_bits = (size * 8) - amount_of_bits;
-                let mut buffer: VecDeque<u8> = VecDeque::default();
-                for _i in 0..size {
-                    if unused_bits > 7 {
-                        buffer.push_back(get_left_and_mask(8));
-                        unused_bits -= 8;
-                    } else if unused_bits != 0 {
-                        buffer.push_back(get_left_and_mask(unused_bits));
-                        unused_bits = 0;
-                    } else {
-                        buffer.push_back(get_left_and_mask(0));
-                    }
-                }
-                let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
-                match resolver_strategy.ty {
-                    ResolverPrimitiveStrategyTy::Standard => {
-                        buffer = VecDeque::from(rotate_primitive_vec(
-                            buffer.into(),
-                            right_shift,
-                            field.ident().span(),
-                        )?);
-                        while {
-                            if let Some(c) = buffer.pop_front() {
-                                bit_buffer.push(c);
-                                true
-                            } else {
-                                false
-                            }
-                        } {}
-                    }
-                    ResolverPrimitiveStrategyTy::Alternate => {
-                        match right_shift.cmp(&0) {
-                            Ordering::Greater => {
-                                buffer = buffer
-                                    .into_iter()
-                                    .map(|x| x.rotate_right(u32::from(right_shift.unsigned_abs())))
-                                    .collect();
-                            }
-                            Ordering::Less => {
-                                let left_shift = u32::from(right_shift.unsigned_abs());
-                                buffer = buffer
-                                    .into_iter()
-                                    .map(|x| x.rotate_left(left_shift))
-                                    .collect();
-                            }
-                            Ordering::Equal => {}
-                        }
-                        while {
-                            if let Some(c) = buffer.pop_back() {
-                                bit_buffer.push(c);
-                                true
-                            } else {
-                                false
-                            }
-                        } {}
-                    }
-                }
-                return Ok(Some(quote! {
-                    if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]}
-                }));
+            };
+            if let Some(flip) = field.data.flip() {
+                sign_index = flip - sign_index;
             }
+            let sign_mask = isolate_bit_index_mask(bit_to_isolate);
+            let sign_bit = quote! {
+                (input_byte_buffer[#sign_index] & #sign_mask)
+            };
+            let mut unused_bits = (size * 8) - amount_of_bits;
+            let mut buffer: VecDeque<u8> = VecDeque::default();
+            for _i in 0..size {
+                if unused_bits > 7 {
+                    buffer.push_back(get_left_and_mask(8));
+                    unused_bits -= 8;
+                } else if unused_bits != 0 {
+                    buffer.push_back(get_left_and_mask(unused_bits));
+                    unused_bits = 0;
+                } else {
+                    buffer.push_back(get_left_and_mask(0));
+                }
+            }
+            let mut bit_buffer: Punctuated<u8, Comma> = Punctuated::default();
+            match resolver_strategy.ty {
+                ResolverPrimitiveStrategyTy::Standard => {
+                    buffer = VecDeque::from(rotate_primitive_vec(
+                        buffer.into(),
+                        right_shift,
+                        field.ident().span(),
+                    )?);
+                    while {
+                        if let Some(c) = buffer.pop_front() {
+                            bit_buffer.push(c);
+                            true
+                        } else {
+                            false
+                        }
+                    } {}
+                }
+                ResolverPrimitiveStrategyTy::Alternate => {
+                    match right_shift.cmp(&0) {
+                        Ordering::Greater => {
+                            buffer = buffer
+                                .into_iter()
+                                .map(|x| x.rotate_right(u32::from(right_shift.unsigned_abs())))
+                                .collect();
+                        }
+                        Ordering::Less => {
+                            let left_shift = u32::from(right_shift.unsigned_abs());
+                            buffer = buffer
+                                .into_iter()
+                                .map(|x| x.rotate_left(left_shift))
+                                .collect();
+                        }
+                        Ordering::Equal => {}
+                    }
+                    while {
+                        if let Some(c) = buffer.pop_back() {
+                            bit_buffer.push(c);
+                            true
+                        } else {
+                            false
+                        }
+                    } {}
+                }
+            }
+            return Ok(Some(quote! {
+                if #sign_bit == #sign_mask {[#bit_buffer]} else {[0u8;#size]}
+            }));
         }
     }
     Ok(None)
@@ -222,30 +222,28 @@ fn add_sign_fix_quote_single_bit(
         resolver_strategy,
         rust_size,
     } = field.ty.as_ref()
+        && amount_of_bits != rust_size.bytes()
+        && let NumberType::Signed = number_ty
     {
-        if amount_of_bits != rust_size.bytes() {
-            if let NumberType::Signed = number_ty {
-                let bit_to_isolate = field.data.bit_range_start() % 8;
-                let sign_mask = isolate_bit_index_mask(bit_to_isolate);
-                let neg_mask_zero_count = 8 - amount_of_bits;
-                let neg_mask = get_left_and_mask(neg_mask_zero_count);
-                let sign_bit = quote! {
-                    (input_byte_buffer[#byte_index] & #sign_mask)
-                };
-                let add_me = if neg_mask == 0 {
-                    field_access
+        let bit_to_isolate = field.data.bit_range_start() % 8;
+        let sign_mask = isolate_bit_index_mask(bit_to_isolate);
+        let neg_mask_zero_count = 8 - amount_of_bits;
+        let neg_mask = get_left_and_mask(neg_mask_zero_count);
+        let sign_bit = quote! {
+            (input_byte_buffer[#byte_index] & #sign_mask)
+        };
+        let add_me = if neg_mask == 0 {
+            field_access
+        } else {
+            quote! {
+                if #sign_bit == #sign_mask {
+                    #neg_mask | #field_access
                 } else {
-                    quote! {
-                        if #sign_bit == #sign_mask {
-                            #neg_mask | #field_access
-                        } else {
-                            #field_access
-                        }
-                    }
-                };
-                return add_me;
+                    #field_access
+                }
             }
-        }
+        };
+        return add_me;
     }
     field_access
 }

@@ -19,8 +19,7 @@ use super::{
 
 impl Resolver {
     pub fn get_left_shift(&self) -> usize {
-        let left_shift = (8 - self.bit_length()) - (self.bit_range().start % 8);
-        left_shift
+        (8 - self.bit_length()) - (self.bit_range().start % 8)
     }
     /// This function is kind of funny. it is essentially a function that gets called by either
     /// `get_le_quotes`, `get_be_quotes`, `get_ne_quotes` with the end code generation function given
