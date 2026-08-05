@@ -24,6 +24,9 @@ impl FieldAttributes {
             quote! { .to_be_bytes() }
         }
     }
+    pub fn is_little_endian(&self) -> bool {
+        self.little_endian
+    }
 }
 
 pub enum NameOrIndex {
@@ -47,31 +50,36 @@ impl NameOrIndex {
 }
 
 pub struct FieldBits {
-    /// A list of each bit range for the field. each bit range should pertain to a single byte.
+    /// A list of each bit range for the field. each bit range should pertain to a single byte. the first
+    /// element SHALL be the lowest byte index, and the last element SHALL be the highest byte index.
     ranges: Vec<Range<usize>>,
 }
 
 /// `access` is a [`TokenStream`] for accessing the field from the field.
 pub fn make_write_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream {
     let field_name = f.name.field_name();
+    let field_name_bytes = format_ident!("{field_name}_bytes");
     let bytes_func = f.get_into_bytes_function();
     let mut output = quote! {
-        let #field_name = #access #bytes_func;
+        let #field_name_bytes = #access #bytes_func;
     };
-    for r in &f.bits.ranges {
-        let byte_index = r.start / 8;
+    let effected_bytes = f.bits.ranges.len();
+    for (i, r) in f.bits.ranges.iter().enumerate() {
+        let i = if f.is_little_endian() {
+            i
+        } else {
+            effected_bytes - i - 1
+        };
+        let output_byte_index = r.start / 8;
         let start = r.start % 8;
         let end = r.end % 8;
         let mask = make_mask(start, end);
         let neg_mask = !mask;
-        // TODO add actual writing from field to byte buffer, currently only clearing old
-        // bits is done.
         output = quote! {
             #output
-            output_byte_buffer &= #neg_mask;
-        }
-        // TODO use makes an bit info to write data. still need to figure out what
-        // byte in the fields output array to write from.
+            output_byte_buffer[#output_byte_index] &= #neg_mask;
+            output_byte_buffer[#output_byte_index] |= #field_name_bytes [ #i ] & #mask;
+        };
     }
     todo!("output tokenstream for writing field to bytes");
 }
