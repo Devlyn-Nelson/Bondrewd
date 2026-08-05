@@ -63,6 +63,13 @@ pub fn make_write_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream
         let start = r.start % 8;
         let end = r.end % 8;
         let mask = make_mask(start, end);
+        let neg_mask = !mask;
+        // TODO add actual writing from field to byte buffer, currently only clearing old
+        // bits is done.
+        output = quote! {
+            #output
+            output_byte_buffer &= #neg_mask;
+        }
         // TODO use makes an bit info to write data. still need to figure out what
         // byte in the fields output array to write from.
     }
@@ -78,13 +85,13 @@ pub fn make_read_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream 
 fn make_mask(start: usize, end: usize) -> u8 {
     debug_assert!(start < 8, "make_mask param `start` must be less than 8");
     debug_assert!(end < 8, "make_mask param `end` must be less than 8");
+    // TODO this might need the `+ 1` removed if we use exclusive ranges.
     let bits = (end - start) + 1;
-    let mut mask = 0;
+    let mut mask: u8 = 0;
     for _ in 0..bits {
         mask <<= 1;
         mask |= 1;
     }
-    // let shift = 8 - start;
-    todo!("shift bits to correct position, currently they are right-aligned")
-    // mask
+    let shift = (8 - bits) - start;
+    mask.wrapping_shl(shift as u32)
 }
