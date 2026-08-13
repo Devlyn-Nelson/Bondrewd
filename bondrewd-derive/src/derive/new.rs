@@ -127,7 +127,10 @@ impl FieldWriteQuote {
             // 1111 1111 0000 0011 field bytes (little endian)
             // 0011 1111 1111 0000 be/ale
             // 1111 1100 0000 1111 le
-            if f.little_endian {}
+            if f.little_endian {
+                write = quote! {};
+            } else {
+            }
         }
         todo!(
             "make logic to place bits in proper place. it can be 1 or 2 operations depending on how the input bits \
