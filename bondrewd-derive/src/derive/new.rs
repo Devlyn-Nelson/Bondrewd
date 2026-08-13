@@ -17,13 +17,6 @@ pub struct FieldAttributes {
 }
 
 impl FieldAttributes {
-    pub fn get_into_bytes_function(&self) -> TokenStream {
-        if self.little_endian {
-            quote! { .to_le_bytes() }
-        } else {
-            quote! { .to_be_bytes() }
-        }
-    }
     pub fn is_little_endian(&self) -> bool {
         self.little_endian
     }
@@ -66,40 +59,6 @@ impl FieldBits {
 }
 
 /// `access` is a [`TokenStream`] for accessing the field from the field.
-pub fn make_write_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream {
-    let field_name = f.name.field_name();
-    let field_name_bytes = format_ident!("{field_name}_bytes");
-    let bytes_func = f.get_into_bytes_function();
-    let mut output = quote! {
-        let #field_name_bytes = #access #bytes_func;
-    };
-    let effected_bytes = f.bits.ranges.len();
-    for (i, r) in f.bits.ranges.iter().rev().enumerate() {
-        let output_byte_index = r.start / 8;
-        let start = r.start % 8;
-        let end = r.last % 8;
-        let (mask, left_shift) = MaskAndShift::from_start_end(start, end).split();
-        // neg mask to clear bits before applying the new bits
-        let neg_mask = !mask;
-        // 1111 1111 0000 0011 field bytes
-        // 0011 1111 1111 0000 be/ale
-        // 1111 1100 0000 1111 le
-        output = quote! {
-            #output
-            output_byte_buffer[#output_byte_index] &= #neg_mask;
-        };
-        todo!(
-            "make logic to bit bits in proper place. it can be 1 or 2 operations depending on how the input bits \
-            and output bits are aligned."
-        );
-        output = quote! {
-            output_byte_buffer[#output_byte_index] |= #field_name_bytes [ #i ] & #mask;
-        };
-    }
-    todo!("output tokenstream for writing field to bytes");
-}
-
-/// `access` is a [`TokenStream`] for accessing the field from the field.
 pub fn make_read_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream {
     todo!("output tokenstream for reading field from bytes");
 }
@@ -129,5 +88,51 @@ impl MaskAndShift {
     }
     pub fn split(self) -> (u8, u32) {
         (self.mask, self.shift)
+    }
+}
+
+pub struct FieldWriteQuote {
+    /// code for clearing the field from an existing byte array.
+    clear: TokenStream,
+    /// code for writing field to byte array.
+    write: TokenStream,
+}
+
+impl FieldWriteQuote {
+    /// `access` is a [`TokenStream`] for accessing the field from the field.
+    pub fn new(f: &FieldAttributes) -> FieldWriteQuote {
+        let field_name = f.name.field_name();
+        let field_name_bytes = format_ident!("{field_name}_bytes");
+        let mut clear = quote! {};
+        let mut write = quote! {};
+        let mut effected_bytes = f.bits.count();
+        for (i, r) in f.bits.ranges.iter().rev().enumerate() {
+            let output_byte_index = r.start / 8;
+            let start = r.start % 8;
+            let end = r.last % 8;
+            let (mask, left_shift) = MaskAndShift::from_start_end(start, end).split();
+            // neg mask to clear bits before applying the new bits
+            let neg_mask = !mask;
+            clear = quote! {
+                #clear
+                output_byte_buffer[#output_byte_index] &= #neg_mask;
+            };
+            // TODO we need to make the code that puts the bits into the output.
+            // also note that we shouldn't need to use `to_be_bytes` because
+            // it doesn't actually matter what the bondrewd buffer looks like
+            // as long as the endianess in the output is correct. and since it
+            // is more likely that little endian is used, we use that as the
+            // default.
+            //
+            // 1111 1111 0000 0011 field bytes (little endian)
+            // 0011 1111 1111 0000 be/ale
+            // 1111 1100 0000 1111 le
+            if f.little_endian {}
+        }
+        todo!(
+            "make logic to place bits in proper place. it can be 1 or 2 operations depending on how the input bits \
+            and output bits are aligned."
+        );
+        FieldWriteQuote { clear, write }
     }
 }
