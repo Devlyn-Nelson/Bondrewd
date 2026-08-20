@@ -105,12 +105,12 @@ impl FieldWriteQuote {
         let field_name_bytes = format_ident!("{field_name}_bytes");
         let mut clear = quote! {};
         let mut write = quote! {};
-        let mut effected_bytes = f.bits.count();
+        let mut field_bits = f.bits.count();
         for (i, r) in f.bits.ranges.iter().rev().enumerate() {
             let output_byte_index = r.start / 8;
-            let start = r.start % 8;
-            let end = r.last % 8;
-            let (mask, left_shift) = MaskAndShift::from_start_end(start, end).split();
+            let output_start = r.start % 8;
+            let output_end = r.last % 8;
+            let (mask, left_shift) = MaskAndShift::from_start_end(output_start, output_end).split();
             // neg mask to clear bits before applying the new bits
             let neg_mask = !mask;
             clear = quote! {
@@ -122,11 +122,29 @@ impl FieldWriteQuote {
             // it doesn't actually matter what the bondrewd buffer looks like
             // as long as the endianess in the output is correct. and since it
             // is more likely that little endian is used, we use that as the
-            // default.
+            // default
             //
             // 1111 1111 0000 0011 field bytes (little endian)
             // 0011 1111 1111 0000 be/ale
             // 1111 1100 0000 1111 le
+
+            // the amount of bits the first operation will pull from the input.
+            // this is determined by the amount of bits available in the input
+            // in a single byte. for example, if the output wants 4 bits for
+            // the current output byte but the input would cross a bytes boundry
+            // then the system need to make this 2 operations (one for each input byte
+            // going into the 4 bits of the output byte)
+            let total_output_bits = (output_end - output_start) + 1;
+            let first_op_bits = field_bits % 8;
+            let first_op_bits =
+                if first_op_bits == 0 { 8 } else { first_op_bits }.min(total_output_bits);
+
+            if first_op_bits == total_output_bits {
+                // only 1 operation to write the field fragment to the output byte array
+            } else {
+                // 2 operations to write the field fragment to the output byte array
+            }
+
             if f.little_endian {
                 write = quote! {};
             } else {
