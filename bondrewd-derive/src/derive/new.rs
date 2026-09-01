@@ -138,9 +138,14 @@ impl FieldWriteQuote {
             let first_op_bits = field_bits % 8;
             let first_op_bits =
                 if first_op_bits == 0 { 8 } else { first_op_bits }.min(total_output_bits);
-
+            // rotate input.
+            write = quote! {#field_name_bytes[#i].rotate_left(#left_shift)};
+            // do operations to transfer bits.
             if first_op_bits == total_output_bits {
                 // only 1 operation to write the field fragment to the output byte array
+                write = quote! {
+                    output_byte_buffer[#output_byte_index] |= #field_name_bytes[#i] & #mask;
+                };
             } else {
                 // 2 operations to write the field fragment to the output byte array
             }
