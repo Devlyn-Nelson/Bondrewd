@@ -166,7 +166,11 @@ syn::DeriveInput
 
 ### 1. Parsed model
 
-Create a small parser layer, preferably in a new `src/model` module, using `syn` and either explicit parsing or the existing `darling` dependency. It should produce types similar to:
+Create a small parser layer, preferably in a new `src/model` module, using `syn` and either explicit parsing or the existing `darling` dependency. 
+
+**Diagnostic-First Design**: The parser must use a `DiagnosticBuffer` to accumulate `syn::Error` instances. It should not return early on the first attribute typo or logic conflict. This ensures that a user can see and fix all attribute errors in a single compilation pass.
+
+It should produce types similar to:
 
 ```rust
 struct ParsedObject {
@@ -454,6 +458,8 @@ Generate a small set of internal operations from `FieldLayout`:
 - `read_nested`/`write_nested` through the nested `Bitfields` implementation.
 - Array expansion/reassembly for element arrays and block arrays.
 
+**Static Safety Invariants**: For every field, the generator should emit a `const _: () = assert!(...)` check. This invariant must verify at compile-time that the solver's calculated `physical_segments` and bit-shifts are within the bounds of the target Rust primitive and the output buffer. This protects against logical bugs in the solver that might otherwise result in runtime panics or silent bit-corruption.
+
 Each generated public function should call these operations inline through quoted code or a private generated helper. The implementation should avoid runtime loops for fixed layouts when that is a documented performance goal; the IR can still be built using loops at macro-expansion time.
 
 Writing must preserve unrelated bits. For every segment:
@@ -504,6 +510,8 @@ Use `quote_spanned!` for field-level generated code so type and attribute errors
 1. Add a new workspace member for `bondrewd-derive-next`; do not replace or rename the legacy package yet.
 2. Copy only the minimum public test fixtures and derive-facing documentation needed to exercise the new crate. Do not copy the legacy implementation as a starting point; the new crate should have an independent architecture.
 3. Add a comparison integration-test harness that imports both derive crates under aliases and generates equivalent old/new fixture types.
+
+**Shared Test DSL**: To prevent manual duplication errors, Phase 0 must include the creation of a `test_bitfield!` macro. This macro should take a single bitfield definition (fields and attributes) and expand it into both a Legacy-derived struct and a Next-derived struct, along with the standard comparison assertions.
 4. Inventory all derive exports, runtime trait methods, generated helper names, attributes, feature gates, and supported input forms.
 5. Turn every runnable example in `bondrewd-derive/src/lib.rs` into a maintained test where it is not already covered.
 6. Correct documentation contradictions before using it as a specification, especially wording around `bit_traversal`, `BIT_SIZE`, fill, enum invalid variants, and `ale`.
@@ -613,6 +621,8 @@ Fuzz targets should retain failing inputs as corpus files and promote every mini
 7. Implement validation for bounds, overlap policies, size enforcement, fill, and unsupported combinations.
 8. Implement enum ID allocation and shared payload layout.
 9. Serialize or pretty-print the IR in debug tests so layout regressions are easy to inspect.
+
+**Bit Layout Visualization**: The layout engine should be capable of producing a visual Markdown or ASCII bit-table diagram of the resolved structure. This diagram must be included in the `dump` output or test logs to make manual verification of complex `ale` or `reverse` layouts trivial.
 
 At the end of this phase, no proc-macro token generation should be necessary to prove that a layout is correct.
 
