@@ -1,6 +1,7 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "le", enforce_bits = 52)]
 struct Simple {
     #[bondrewd(bit_length = 3)]
     one: u8,
@@ -22,15 +23,18 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     assert_eq!(Simple::BYTE_SIZE, 7);
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 7);
-    assert_eq!(bytes[0], 0b010_11001);
-    assert_eq!(bytes[1], 0b0010_0011);
-    assert_eq!(bytes[2], 0b0000_0000);
-    assert_eq!(bytes[3], 0b0000_0001);
-    assert_eq!(bytes[4], 0b1000_0100);
-    assert_eq!(bytes[5], 0b1000_0100);
-    // this last 4 bits here don't exist in the struct
-    assert_eq!(bytes[6], 0b0010_0000);
-    #[cfg(feature = "dyn_fns")]
+    assert_eq!(
+        bytes,
+        [
+            0b010_11001,
+            0b0010_0011,
+            0b0000_0000,
+            0b0000_0001,
+            0b1000_0100,
+            0b1000_0100,
+            0b0010_0000,
+        ]
+    );
     {
         //peeks
         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
@@ -45,8 +49,8 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "le", reverse)]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "le", reverse)]
 struct SimpleWithFlip {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -65,9 +69,12 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[1], 0b0111_1111);
-    assert_eq!(bytes[0], 0b1110_0000);
-    #[cfg(feature = "dyn_fns")]
+    assert!(
+        !(bytes[0] != 0b1110_0000 || bytes[1] != 0b0111_1111),
+        "[{:08b}, {:08b}]!=[0b1110_0000, 0b0111_1111]",
+        bytes[0],
+        bytes[1]
+    );
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFlip::read_slice_one(&bytes)?);
@@ -81,8 +88,8 @@ fn le_into_bytes_simple_with_reverse() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Eq, Debug)]
-#[bondrewd(default_endianness = "le", read_from = "lsb0")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+#[bondrewd(endianness = "le", bit_traversal = "back")]
 struct SimpleWithReadFromBack {
     one: bool,
     #[bondrewd(bit_length = 10)]
@@ -101,9 +108,12 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     let bytes = simple.clone().into_bytes();
     assert_eq!(bytes.len(), 2);
 
-    assert_eq!(bytes[0], 0b0000_0111);
-    assert_eq!(bytes[1], 0b1111_1110);
-    #[cfg(feature = "dyn_fns")]
+    assert!(
+        !(bytes[0] != 0b0000_0111 || bytes[1] != 0b1111_1110),
+        "[{:08b}, {:08b}]!=[0b0000_0111, 0b1111_1110]",
+        bytes[0],
+        bytes[1]
+    );
     {
         //peeks
         assert_eq!(simple.one, SimpleWithReadFromBack::read_slice_one(&bytes)?);
@@ -120,16 +130,17 @@ fn le_into_bytes_simple_with_read_from_back() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[derive(Bitfields, Clone, PartialEq, Debug)]
-#[bondrewd(default_endianness = "le")]
+#[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]
+#[bondrewd(endianness = "le")]
 struct SimpleWithFloats {
     #[bondrewd(bit_length = 32)]
     one: f32,
     #[bondrewd(bit_length = 64)]
     two: f64,
+
     three: f32,
 }
-
+#[allow(clippy::float_cmp)]
 #[test]
 fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
     let simple = SimpleWithFloats {
@@ -138,7 +149,6 @@ fn le_into_bytes_simple_floating_point() -> anyhow::Result<()> {
         three: f32::from_bits(0x0001_D45E_u32),
     };
     let bytes = simple.clone().into_bytes();
-    #[cfg(feature = "dyn_fns")]
     {
         //peeks
         assert_eq!(simple.one, SimpleWithFloats::read_slice_one(&bytes)?);
