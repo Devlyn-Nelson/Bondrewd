@@ -23,7 +23,11 @@ impl FieldAttributes {
 }
 
 pub enum NameOrIndex {
+    /// The field is from a struct and is of course named.
+    NameSelf(String),
+    /// The field is from an enum and is named.
     Name(String),
+    /// The field is from an enum and is not named therefor.
     Index(usize),
 }
 
@@ -32,12 +36,14 @@ impl NameOrIndex {
         match self {
             NameOrIndex::Name(name) => name.clone(),
             NameOrIndex::Index(index) => format!("field_{index}"),
+            NameOrIndex::NameSelf(name) => name.clone(),
         }
     }
     pub fn field_access(&self) -> Ident {
         match self {
             NameOrIndex::Name(name) => format_ident!("self.{name}"),
             NameOrIndex::Index(index) => format_ident!("field_{index}"),
+            NameOrIndex::NameSelf(name) => format_ident!("{name}"),
         }
     }
 }
@@ -60,7 +66,7 @@ impl FieldBits {
 
 /// `access` is a [`TokenStream`] for accessing the field from the field.
 pub fn make_read_code(f: &FieldAttributes, access: &TokenStream) -> TokenStream {
-    todo!("output tokenstream for reading field from bytes");
+    todo!("output token stream for reading field from bytes");
 }
 
 pub struct MaskAndShift {
@@ -103,9 +109,16 @@ impl FieldWriteQuote {
     pub fn new(f: &FieldAttributes) -> FieldWriteQuote {
         let field_name = f.name.field_name();
         let field_name_bytes = format_ident!("{field_name}_bytes");
-        let mut clear = quote! {};
-        let mut write = quote! {};
-        let mut field_bits = f.bits.count();
+        let field_name_access = f.name.field_access();
+        let mut clear = quote! {
+            #field_name_bytes = #field_name_access.to_be_bytes();
+        };
+        let mut write = match &f.name {
+            NameOrIndex::NameSelf(name) => quote! {},
+            NameOrIndex::Name(_) => quote! {},
+            NameOrIndex::Index(_) => quote! {},
+        };
+        let field_bits = f.bits.count();
         for (i, r) in f.bits.ranges.iter().rev().enumerate() {
             let output_byte_index = r.start / 8;
             let output_start = r.start % 8;
@@ -131,7 +144,7 @@ impl FieldWriteQuote {
             // the amount of bits the first operation will pull from the input.
             // this is determined by the amount of bits available in the input
             // in a single byte. for example, if the output wants 4 bits for
-            // the current output byte but the input would cross a bytes boundry
+            // the current output byte but the input would cross a bytes boundary
             // then the system need to make this 2 operations (one for each input byte
             // going into the 4 bits of the output byte)
             let total_output_bits = (output_end - output_start) + 1;
@@ -141,6 +154,11 @@ impl FieldWriteQuote {
 
             if first_op_bits == total_output_bits {
                 // only 1 operation to write the field fragment to the output byte array
+                let input_byte_index = output_end.div_ceil(8);
+                write = quote! {
+                    #write
+                    output_byte_buffer[#output_byte_index] |= #field_name_bytes [ #input_byte_index ];
+                };
             } else {
                 // 2 operations to write the field fragment to the output byte array
             }
