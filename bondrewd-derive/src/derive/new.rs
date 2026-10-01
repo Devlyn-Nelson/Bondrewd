@@ -1,5 +1,3 @@
-use std::range::RangeInclusive;
-
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::Ident;
@@ -48,17 +46,22 @@ impl NameOrIndex {
     }
 }
 
+pub struct BitOperation {
+    struct_field_bit_start: usize,
+    struct_field_bit_length: usize,
+    bit_field_bit_start: usize,
+}
+
 pub struct FieldBits {
-    /// A list of each bit range for the field. each bit range should pertain to a single byte. the first
-    /// element SHALL be the lowest byte index, and the last element SHALL be the highest byte index.
-    ranges: Vec<RangeInclusive<usize>>,
+    /// A list of all bit operations for the field.
+    ranges: Vec<BitOperation>,
 }
 
 impl FieldBits {
     pub fn count(&self) -> usize {
         let mut c = 0;
         for r in &self.ranges {
-            c += r.last - r.start + 1;
+            c += r.struct_field_bit_length;
         }
         c
     }
@@ -120,9 +123,9 @@ impl FieldWriteQuote {
         };
         let field_bits = f.bits.count();
         for (i, r) in f.bits.ranges.iter().rev().enumerate() {
-            let output_byte_index = r.start / 8;
-            let output_start = r.start % 8;
-            let output_end = r.last % 8;
+            let output_byte_index = r.bit_field_bit_start / 8;
+            let output_start = r.bit_field_bit_start % 8;
+            let output_end = (r.bit_field_bit_start + r.struct_field_bit_length) % 8;
             let (mask, left_shift) = MaskAndShift::from_start_end(output_start, output_end).split();
             // neg mask to clear bits before applying the new bits
             let neg_mask = !mask;
@@ -130,40 +133,14 @@ impl FieldWriteQuote {
                 #clear
                 output_byte_buffer[#output_byte_index] &= #neg_mask;
             };
-            // TODO we need to make the code that puts the bits into the output.
-            // also note that we shouldn't need to use `to_be_bytes` because
-            // it doesn't actually matter what the bondrewd buffer looks like
-            // as long as the endianess in the output is correct. and since it
-            // is more likely that little endian is used, we use that as the
-            // default
-            //
-            // 1111 1111 0000 0011 field bytes (little endian)
-            // 0011 1111 1111 0000 be/ale
-            // 1111 1100 0000 1111 le
-
-            // the amount of bits the first operation will pull from the input.
-            // this is determined by the amount of bits available in the input
-            // in a single byte. for example, if the output wants 4 bits for
-            // the current output byte but the input would cross a bytes boundary
-            // then the system need to make this 2 operations (one for each input byte
-            // going into the 4 bits of the output byte)
-            let total_output_bits = (output_end - output_start) + 1;
-            let first_op_bits = field_bits % 8;
-            let first_op_bits =
-                if first_op_bits == 0 { 8 } else { first_op_bits }.min(total_output_bits);
-            // rotate input.
-            write = quote! {#field_name_bytes[#i].rotate_left(#left_shift)};
-            // do operations to transfer bits.
-            if first_op_bits == total_output_bits {
-                // only 1 operation to write the field fragment to the output byte array
-                let input_byte_index = output_end.div_ceil(8);
-                write = quote! {
-                    #write
-                    output_byte_buffer[#output_byte_index] |= #field_name_bytes [ #input_byte_index ] & #mask;
-                };
-            } else {
-                // 2 operations to write the field fragment to the output byte array
-            }
+            // TODO rotation of bits in field needs to happen. but one operation may
+            // try to rotate the same bytes if not careful.
+            // only 1 operation to write the field fragment to the output byte array
+            let input_byte_index = output_end.div_ceil(8);
+            write = quote! {
+                #write
+                output_byte_buffer[#output_byte_index] |= #field_name_bytes [ #input_byte_index ] & #mask;
+            };
 
             if f.little_endian {
                 write = quote! {};
