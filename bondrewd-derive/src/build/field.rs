@@ -230,16 +230,16 @@ impl DataType {
                 "u16" => Ok(DataType::Number(NumberType::Unsigned, RustByteSize::Two)),
                 "i16" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Two)),
                 "f32" => {
-                    if let DataBuilderRange::Range(ref span) = attrs.bits {
-                        if 32 != span.end - span.start {
-                            return Err(syn::Error::new(
-                                path.span(),
-                                format!(
-                                    "f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.",
-                                    span.end - span.start
-                                ),
-                            ));
-                        }
+                    if let DataBuilderRange::Range(ref span) = attrs.bits
+                        && 32 != span.end - span.start
+                    {
+                        return Err(syn::Error::new(
+                            path.span(),
+                            format!(
+                                "f32 must be full sized, if this is a problem for you open an issue.. provided bit length = {}.",
+                                span.end - span.start
+                            ),
+                        ));
                     }
                     Ok(DataType::Number(NumberType::Float, RustByteSize::Four))
                 }
@@ -247,16 +247,16 @@ impl DataType {
                 "i32" => Ok(DataType::Number(NumberType::Signed, RustByteSize::Four)),
                 "char" => Ok(DataType::Number(NumberType::Char, RustByteSize::Four)),
                 "f64" => {
-                    if let DataBuilderRange::Range(ref span) = attrs.bits {
-                        if 64 != span.end - span.start {
-                            return Err(syn::Error::new(
-                                path.span(),
-                                format!(
-                                    "f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.",
-                                    span.end - span.start
-                                ),
-                            ));
-                        }
+                    if let DataBuilderRange::Range(ref span) = attrs.bits
+                        && 64 != span.end - span.start
+                    {
+                        return Err(syn::Error::new(
+                            path.span(),
+                            format!(
+                                "f64 must be full sized, if this is a problem for you open an issue. provided bit length = {}.",
+                                span.end - span.start
+                            ),
+                        ));
                     }
                     Ok(DataType::Number(NumberType::Float, RustByteSize::Eight))
                 }
@@ -368,10 +368,7 @@ impl DataBuilder {
         };
         // parse all attrs. which will also give us the bit locations
         // NOTE read only attribute assumes that the value should not effect the placement of the rest og
-        let last_relevant_field = fields
-            .iter()
-            .filter(|x| !x.overlap.is_redundant())
-            .next_back();
+        let last_relevant_field = fields.iter().rfind(|x| !x.overlap.is_redundant());
 
         let mut attrs = DataDarling::from_field(field)?.simplify(field)?;
         // check the field for supported types.

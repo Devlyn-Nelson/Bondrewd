@@ -188,7 +188,7 @@ impl Iterator for BlockArrayIter {
     fn next(&mut self) -> Option<Self::Item> {
         if self.remaining_elements != 0 {
             let mut ty_size = self.ty.rust_size() * 8;
-            if self.remaining_bits % ty_size != 0 {
+            if !self.remaining_bits.is_multiple_of(ty_size) {
                 ty_size = self.remaining_bits % ty_size;
             }
             let start = self.starting_bit_index;

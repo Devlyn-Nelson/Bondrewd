@@ -390,7 +390,7 @@ impl Resolver {
     }
     #[must_use]
     pub fn field_buffer_name(&self) -> String {
-        format!("{}_bytes", &self.data.field_name.name())
+        format!("{}_bytes", self.data.field_name.name())
     }
     #[must_use]
     pub fn field_buffer_ident(&self) -> Ident {
@@ -508,7 +508,7 @@ impl ResolverType {
             }
         )
     }
-    #[must_use]
+
     pub fn get_type_quote(&self) -> syn::Result<TokenStream> {
         match self {
             ResolverType::Primitive {

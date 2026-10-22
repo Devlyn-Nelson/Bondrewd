@@ -22,7 +22,6 @@ use syn::{Ident, Visibility};
 
 mod from;
 mod into;
-mod new;
 pub mod quotes;
 use quotes::{CheckSliceNames, CheckedSliceGen, FieldQuotesNew};
 /// Stores [`TokenStream`] that contain the access (write/read/clear) code for a field.
@@ -322,7 +321,7 @@ impl Solved {
         let set_add = SolvedFieldSetAdditive::new_struct(enum_name);
         let field_access = id.get_quotes()?;
         let bits_effected =
-            get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().map(|a| *a));
+            get_bits_effected_string(id.bit_range().clone(), id.resolver.data.flip().copied());
 
         invalid.make_read_fns(
             id,
@@ -1058,7 +1057,7 @@ impl SolvedFieldSet {
             let field_access = field.get_quotes()?;
             let bits_effected = get_bits_effected_string(
                 field.bit_range().clone(),
-                field.resolver.data.flip().map(|a| *a),
+                field.resolver.data.flip().copied(),
             );
             self.make_read_fns(
                 field,
@@ -1690,7 +1689,7 @@ pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) ->
             // the index of the first bit in the byte where the last set of bits is.
             let last_byte_zero_index = start_byte * 8;
             // so start above is the start before the flip. below we are using post flip start.
-            let mut output = format!("bits");
+            let mut output = "bits".to_string();
             if start_byte == end_byte {
                 // the offset to add to last `first_byte_zero_index`
                 let first_offset = (bit_range.end - 1) % 8;
@@ -1761,7 +1760,7 @@ pub fn get_bits_effected_string(bit_range: Range<usize>, flip: Option<usize>) ->
                     }
                 }
             }
-            return output;
+            output
         } else {
             format!("bits {} through {}", bit_range.start, bit_range.end - 1)
         }

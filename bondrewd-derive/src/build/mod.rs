@@ -58,7 +58,7 @@ impl From<syn::Visibility> for Visibility {
 /// |[[u8;4];5]|          4|          5|
 pub type ArraySizings = Vec<usize>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub enum BuilderRange {
     /// A range of bits to use. solve this is easy, but note that it is an exclusive range, meaning the
     /// end is NOT included.
@@ -66,6 +66,7 @@ pub enum BuilderRange {
     /// Amount of bits to consume
     Size(usize),
     /// Will not solve, must be another variant.
+    #[default]
     None,
 }
 
@@ -100,12 +101,6 @@ impl From<DataBuilderRange> for BuilderRange {
             DataBuilderRange::Size(size) => Self::Size(size),
             DataBuilderRange::None => Self::None,
         }
-    }
-}
-
-impl Default for BuilderRange {
-    fn default() -> Self {
-        Self::None
     }
 }
 
@@ -147,16 +142,11 @@ impl ByteOrder {
 /// [`Endianness`] is complicated, and allowing users to mess will it is hard. so we need a way
 /// to allow the user to show intent to deviate from convention, while not blowing up how the backend works.
 /// this is that way read [`Endianness`].
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 enum UserDefinedReversal {
     Set(bool),
+    #[default]
     Unset,
-}
-
-impl Default for UserDefinedReversal {
-    fn default() -> Self {
-        Self::Unset
-    }
 }
 
 impl UserDefinedReversal {

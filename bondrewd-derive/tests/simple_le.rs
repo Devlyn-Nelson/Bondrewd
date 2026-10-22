@@ -49,6 +49,56 @@ fn le_into_bytes_simple() -> anyhow::Result<()> {
     Ok(())
 }
 
+// TODO this doesn't work.
+// #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
+// #[bondrewd(endianness = "le", enforce_bits = 52)]
+// struct SimpleTuple (
+//     #[bondrewd(bit_length = 3)]
+//     u8,
+//     #[bondrewd(bit_length = 27)]
+//     u32,
+//     #[bondrewd(bit_length = 14)]
+//     u16,
+//     u8,
+// );
+
+// #[test]
+// fn le_into_bytes_simple_tuple() -> anyhow::Result<()> {
+//     let simple = SimpleTuple (
+//         2,
+//         6345,
+//         2145,
+//         66,
+//     );
+//     assert_eq!(Simple::BYTE_SIZE, 7);
+//     let bytes = simple.clone().into_bytes();
+//     assert_eq!(bytes.len(), 7);
+//     assert_eq!(
+//         bytes,
+//         [
+//             0b010_11001,
+//             0b0010_0011,
+//             0b0000_0000,
+//             0b0000_0001,
+//             0b1000_0100,
+//             0b1000_0100,
+//             0b0010_0000,
+//         ]
+//     );
+//     {
+//         //peeks
+//         assert_eq!(simple.one, Simple::read_slice_one(&bytes)?);
+//         assert_eq!(simple.two, Simple::read_slice_two(&bytes)?);
+//         assert_eq!(simple.three, Simple::read_slice_three(&bytes)?);
+//         assert_eq!(simple.four, Simple::read_slice_four(&bytes)?);
+//     }
+
+//     // from_bytes
+//     let new_simple = Simple::from_bytes(bytes);
+//     assert_eq!(simple, new_simple);
+//     Ok(())
+// }
+
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Eq, Debug)]
 #[bondrewd(endianness = "le", reverse)]
 struct SimpleWithFlip {

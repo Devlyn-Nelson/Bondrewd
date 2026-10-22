@@ -195,9 +195,7 @@ impl TryFrom<EnumBuilder> for Solved {
                 } else {
                     return Err(syn::Error::new(
                         Span::call_site(),
-                        format!(
-                            "invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github."
-                        ),
+                        "invalid variant id changed, this is a bug in the `bondrewd` crate please report issue on github.".to_string(),
                     ));
                 }
             }
@@ -303,7 +301,7 @@ impl TryFrom<EnumBuilder> for Solved {
         match &value.attrs.enforcement.ty {
             StructEnforcementTy::NoRules => {}
             StructEnforcementTy::EnforceFullBytes => {
-                if bit_size % 8 != 0 {
+                if !bit_size.is_multiple_of(8) {
                     return Err(syn::Error::new(
                         value.attrs.enforcement.span,
                         "Final bit count was not evenly divisible by 0.",
@@ -418,16 +416,16 @@ impl<'a> HalfSolvedFieldSet<'a> {
         let mut fields: Vec<SolvedData> = Vec::default();
         let flip_bits = self.total_bit_size;
         for pre_field in self.pre_fields {
-            if let Some(field) = self.id_field {
-                if field.conflict(&pre_field) {
-                    return Err(syn::Error::new(
-                        pre_field.name.span(),
-                        format!(
-                            "Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)",
-                            field.name.name()
-                        ),
-                    ));
-                }
+            if let Some(field) = self.id_field
+                && field.conflict(&pre_field)
+            {
+                return Err(syn::Error::new(
+                    pre_field.name.span(),
+                    format!(
+                        "Field overlaps with `{}` (you can mark this as `redundant` if they read from the same bits)",
+                        field.name.name()
+                    ),
+                ));
             }
             fields.push(SolvedData::from_built(pre_field, flip_bits));
         }
@@ -636,7 +634,8 @@ impl Solved {
                 }
             }
         };
-        let thing = if let Some(fill_bits) = auto_fill {
+
+        if let Some(fill_bits) = auto_fill {
             *total_bits += fill_bits;
             let first_bit = if let Some(last_range) = fields.iter().last() {
                 last_range.bit_range.end()
@@ -661,8 +660,7 @@ impl Solved {
             Some(fill_field)
         } else {
             None
-        };
-        thing
+        }
     }
 }
 /// This is going to house all of the information for a Field. This acts as the stage between Builder and

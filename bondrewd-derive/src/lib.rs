@@ -100,6 +100,7 @@ use syn::{DeriveInput, parse_macro_input};
 mod build;
 mod derive;
 mod masked;
+mod new;
 mod solved;
 
 #[derive(Clone)]
