@@ -1,4 +1,4 @@
-mod write;
+mod proc;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -11,7 +11,7 @@ pub struct StructAttributes {
 
 pub struct FieldInfo {
     name: FieldAccessInfo,
-    bits: FieldBits,
+    bits: BitFieldOperations,
     little_endian: bool,
 }
 
@@ -80,32 +80,23 @@ impl FieldAccessInfo {
     }
 }
 
-pub struct BitOperation {
-    /// total count of bits in this operation.
-    bit_length: usize,
-    /// the byte index in the field's byte array, rust side.
-    field_index: usize,
-    /// the start bit within the byte accessed by `field_index`, rust side.
-    field_start: usize,
-    /// the index of the byte in the bit field's byte array, bitfield side.
-    bit_field_index: usize,
-    /// the start bit within the byte accessed by `bit_field_index`, bitfield side.
-    bit_field_start: usize,
+pub enum Shift {
+    /// Shift the structure bits left when outputting to bitfield.
+    Left(u32),
+    /// Shift the structure bits right when outputting to bitfield.
+    Right(u32),
 }
 
-pub struct FieldBits {
+pub struct BitOperation {
+    shift: Shift,
+    bit_mask: u8,
+    struct_index: usize,
+    bitfield_index: usize,
+}
+
+pub struct BitFieldOperations {
     /// A list of all bit operations for the field.
     ranges: Vec<BitOperation>,
-}
-
-impl FieldBits {
-    pub fn count(&self) -> usize {
-        let mut c = 0;
-        for r in &self.ranges {
-            c += r.bit_length;
-        }
-        c
-    }
 }
 
 /// `access` is a [`TokenStream`] for accessing the field from the field.
