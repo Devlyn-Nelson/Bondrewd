@@ -1,10 +1,7 @@
-use bondrewd::Bitfields;
+use bondrewd::{Bitfields, BitfieldsSlice};
 
-// TODO add the ability to mark a field in the variants as the id which will contain the value the id and
-// be ignored as a field of the struct.
-// TODO add a functions that get and set the id.
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 14)]
+#[derive(Bitfields, BitfieldsSlice, Clone, Debug, PartialEq, Eq)]
+#[bondrewd(endianness = "be", id_bit_length = 14)]
 enum ComplexEnum {
     One {
         test: u32,
@@ -14,7 +11,7 @@ enum ComplexEnum {
         test_two: u8,
     },
     Three {
-        // TODO: fix
+        // OPTIMIZE:
         /// DO NOT CHANGE THIS. i believe it produces un-optimized code because it
         /// rotates the bits right 6 times.
         #[bondrewd(bit_length = 30)]
@@ -26,8 +23,8 @@ enum ComplexEnum {
     },
 }
 
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be", id_bit_length = 3)]
+#[derive(Bitfields, Clone, Debug, PartialEq, Eq)]
+#[bondrewd(endianness = "be", id_bit_length = 3)]
 enum SimpleEnum {
     Alpha,
     Beta,
@@ -35,8 +32,9 @@ enum SimpleEnum {
     Invalid,
 }
 
-#[derive(Bitfields)]
-#[bondrewd(default_endianness = "be")]
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Bitfields, Clone, Debug, PartialEq)]
+#[bondrewd(endianness = "be")]
 struct SimpleExample {
     // fields that are as expected do not require attributes.
     one: bool,
@@ -51,22 +49,13 @@ struct SimpleExample {
     flag_four: bool,
     flag_five: bool,
     flag_six: bool,
-    // TODO make it so the struct_size attribute can be defined with bits.
-    // currently the backend used byte size for all of the math surrounding
-    // the extraction of nested bondrewd structures, i believe this could
-    // become bit_size based.
-    // this would allow us to either:
-    // - enforce that nested bondrewd Bitfields use either `bit-length`
-    //      or `byte-length` instead of `struct_size`. it would be kind to still
-    //      allow struct_size but just have the underlying code do what
-    //      `byte-length` does.
-    // - make `struct-bit-length` and `struct-byte-length` replace `struct_size`.
     #[bondrewd(bit_length = 46)]
     enum_field: ComplexEnum,
     #[bondrewd(bit_length = 3)]
     other_enum_field: SimpleEnum,
 }
 
+#[allow(clippy::float_cmp)]
 #[test]
 fn complex_stuff() {
     // this is to test capturing the id in the invalid.
@@ -86,11 +75,8 @@ fn complex_stuff() {
 
     // test full structure with Enums that are `Bitfields` NOT `BitfieldEnum`.
     assert_eq!(13, SimpleExample::BYTE_SIZE);
-    // if you are wondering why the 2 is there. it is because bondrewd currently does
-    // not support nested `Bitfields` to use bit sizing. read TODO above the declaration
-    // of the `SimpleExample::enum_field` field.
     assert_eq!(53 + 46 + 3, SimpleExample::BIT_SIZE);
-    let mut bytes = SimpleExample {
+    let og = SimpleExample {
         one: false,
         two: -4.25,
         three: -1034,
@@ -106,28 +92,40 @@ fn complex_stuff() {
             test_two: 3,
         },
         other_enum_field: SimpleEnum::Charley,
-    }
-    .into_bytes();
+    };
+    let enum_field_bytes = og.enum_field.clone().into_bytes();
+    assert_eq!(
+        enum_field_bytes,
+        [
+            0b00000000,
+            0b000001_00,
+            0b000011_00,
+            0b000011_00,
+            0b00000000,
+            0b00000000,
+        ]
+    );
+    let mut bytes = og.clone().into_bytes();
     // check the output binary is correct. (i did math by hand
     // to get the binary). each field is separated by a underscore
     // in the binary assert to make it easy to see.
     assert_eq!(
+        bytes,
         [
-            0b0_1100000, // one - two,
-            0b0100_0100, // two,
-            0b0000_0000, // two,
-            0b0000_0000, // two,
-            0b0_1110111, // two - three,
-            0b1110_1101, // three - flags,
-            0b1111_1000, // flags - enum_field_id
-            0b0000_0000, // enum_field_id
-            0b001_00000, // enum_field_id - enum_field_TWO_test
-            0b011_00000, // enum_field_TWO_test - enum_field_TWO_test_two
-            0b011_00000, // enum_field_TWO_test_two - unused
-            0b0000_0000, // unused
-            0b0000_1100, // unused - other_enum_field -- unused
+            0b0_1100000,  // one - two,
+            0b01000100,   // two,
+            0b00000000,   // two,
+            0b00000000,   // two,
+            0b0_1110111,  // two - three,
+            0b1110110_1,  // three - flags,
+            0b11111_000,  // flags - enum_field_id
+            0b00000000,   // enum_field.id
+            0b001_00000,  // enum_field.id - enum_field::Two.test
+            0b011_00000,  // enum_field::Two.test - enum_field::Two.test_two
+            0b011_00000,  // enum_field::Two.test_two - enum_field::Two.fill
+            0b00000000,   // enum_field::Two.fill
+            0b000_011_00, // enum_field::Two.fill - other_enum_field -- unused
         ],
-        bytes
     );
     // use read functions to get the fields value without
     // doing a from_bytes call.
@@ -155,17 +153,19 @@ fn complex_stuff() {
 
 #[derive(Bitfields)]
 #[repr(u8)]
-#[bondrewd(default_endianness = "be", id_bit_length = 2, enforce_bytes = 3)]
+#[bondrewd(endianness = "be", id_bit_length = 2, enforce_bits = 18)]
 enum Thing {
-    One {
-        a: u16,
-    } = 1,
+    #[bondrewd(enforce_bits = 16)]
+    One { a: u16 } = 1,
+    #[bondrewd(enforce_bits = 16)]
     Two {
         #[bondrewd(bit_length = 10)]
         a: u16,
         #[bondrewd(bit_length = 6)]
         b: u8,
     } = 2,
+    // TODO below attribute will break things. it should not.
+    // #[bondrewd(enforce_bits = 16)]
     Idk {
         #[bondrewd(capture_id)]
         id: u8,
