@@ -269,6 +269,62 @@ fn slice_only_derive() {
     assert_eq!(SliceOnly::read_slice_b(&bytes), Ok(s.b));
 }
 
+// ---------------------------------------------------------------- read_only
+
+#[derive(Bitfields, BitfieldsSlice, Clone, Copy, Eq, PartialEq, Debug)]
+#[bondrewd(endianness = "be")]
+struct WithReadOnly {
+    #[bondrewd(bit_length = 4)]
+    kind: u8,
+    #[bondrewd(bit_length = 12, read_only)]
+    counter: u16,
+    flag: bool,
+    #[bondrewd(bit_length = 7)]
+    rest: u8,
+}
+
+#[derive(Bitfields, Clone, Copy, Eq, PartialEq, Debug)]
+#[bondrewd(endianness = "le", id_bit_length = 2)]
+enum ReadOnlyEnum {
+    A {
+        #[bondrewd(bit_length = 6, read_only)]
+        status: u8,
+        value: u8,
+    },
+    B(#[bondrewd(bit_length = 14)] u16),
+}
+
+#[test]
+fn read_only_fields() {
+    // from_bytes reads the field.
+    let bytes = [0xA1, 0x23, 0xFF];
+    let v = WithReadOnly::from_bytes(bytes);
+    assert_eq!(v, WithReadOnly { kind: 0xA, counter: 0x123, flag: true, rest: 0x7F });
+    assert_eq!(WithReadOnly::from_slice(&bytes).unwrap(), v);
+
+    // into_bytes leaves its bits zero, everything else is written.
+    assert_eq!(v.into_bytes(), [0xA0, 0x00, 0xFF]);
+
+    // write functions are still generated, like the old crate.
+    let mut out = v.into_bytes();
+    WithReadOnly::write_counter(&mut out, 0x456);
+    assert_eq!(WithReadOnly::read_counter(&out), 0x456);
+    WithReadOnly::write_slice_counter(&mut out, 0x789).unwrap();
+    assert_eq!(WithReadOnly::read_slice_counter(&out).unwrap(), 0x789);
+    let mut view = WithReadOnly::check_slice_mut(&mut out).unwrap();
+    view.write_counter(0x321);
+    assert_eq!(view.read_counter(), 0x321);
+
+    // Enum variant fields too; the id is still written.
+    let e = ReadOnlyEnum::A { status: 0x3F, value: 0x55 };
+    let bytes = e.into_bytes();
+    assert_eq!(ReadOnlyEnum::from_bytes(bytes), ReadOnlyEnum::A { status: 0, value: 0x55 });
+    assert_eq!(ReadOnlyEnum::read_a_status(&bytes), 0);
+    let mut bytes = bytes;
+    ReadOnlyEnum::write_a_status(&mut bytes, 0x3F);
+    assert_eq!(ReadOnlyEnum::from_bytes(bytes), e);
+}
+
 // ---------------------------------------------------------------- arrays
 
 #[derive(Bitfields, BitfieldsSlice, Clone, PartialEq, Debug)]

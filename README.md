@@ -45,7 +45,7 @@ Type level: `endianness = "be" | "le" | "ale"` (default `be`), `reverse`, `bit_t
 Variant level: `id = N` (Rust discriminants also work, and ids continue from the previous one), `invalid`.
 
 Field level: `bit_length` / `byte_length`, `element_bit_length` / `element_byte_length`,
-`block_bit_length` / `block_byte_length`, `endianness`, `bits = "a..b"`, `reserve`, `redundant`, `capture_id`.
+`block_bit_length` / `block_byte_length`, `endianness`, `bits = "a..b"`, `reserve`, `read_only`, `redundant`, `capture_id`.
 
 ## Inspecting generated code
 
@@ -78,6 +78,8 @@ operation touches. If the file can't be written, compilation fails with the reas
   bits of element 0 are removed first. For `be` this is the same as one big number with
   element 0 most significant.
 * `reserve` fields are not written by `into_bytes` and decode as `Default::default()`.
+  `read_only` fields are decoded by `from_bytes` but not written by `into_bytes` (their bits stay
+  zero); their `write_<field>` functions are still generated. Can't be combined with `reserve`.
   `redundant` fields may overlap others and aren't written by `into_bytes`.
 
 ## Changes from bondrewd 0.3 / bondrewd-derive 0.5

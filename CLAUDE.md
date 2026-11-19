@@ -79,7 +79,7 @@ Any other `DIFFERS` line, or `NEW FAILS ROUND-TRIP`, is a regression. Add a case
 - Generic types (rejected with an error in `Model::build`).
 - Old API: `BitfieldsDyn` (`from_vec` is now `take_from_vec`), `BitfieldsHex*`, hex error types,
   per-variant `<VARIANT>_BIT_SIZE` consts, generated `check_slice_<name>` helpers.
-- Old attributes: `overlapping_bits = N` (only the bare flag), `read_only`, `endianness_fn`,
+- Old attributes: `overlapping_bits = N` (only the bare flag), `endianness_fn`,
   `fill`, `fill_bits_to`, `fill_bytes_to`, `payload_bit_length`/`payload_byte_length`,
   per-variant endianness/reverse/fill, `endianness = "ne"`, unquoted `bits` ranges.
 

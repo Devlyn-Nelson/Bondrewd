@@ -107,6 +107,13 @@ fn build_fields(
                 e
             }
         };
+        if attrs.read_only && attrs.reserve {
+            return Err(Error::new(
+                span,
+                "`read_only` and `reserve` can't be combined: use `reserve` to skip the field in both \
+                 `from_bytes` and `into_bytes`, or `read_only` to only skip it in `into_bytes`",
+            ));
+        }
         if let Some(s) = attrs.capture_id {
             if !in_enum {
                 return Err(Error::new(s, "`capture_id` is only valid on enum variant fields"));
@@ -130,6 +137,7 @@ fn build_fields(
             bits,
             reserve: attrs.reserve,
             redundant: attrs.redundant,
+            read_only: attrs.read_only,
             capture_id: attrs.capture_id.is_some(),
             span,
         });
@@ -233,6 +241,7 @@ impl Model {
                     bits: id_bits,
                     reserve: false,
                     redundant: false,
+                    read_only: false,
                     capture_id: false,
                     span,
                 };
@@ -343,7 +352,7 @@ impl Model {
         let destructure = |path: TokenStream, fields: &[Field]| {
             let binds = fields.iter().map(|f| {
                 let m = &f.member;
-                if f.reserve || f.redundant {
+                if f.skips_into() {
                     quote!(#m: _)
                 } else {
                     let b = format_ident!("__f_{}", f.name);
@@ -352,7 +361,7 @@ impl Model {
             });
             let writes: Vec<_> = fields
                 .iter()
-                .filter(|f| !f.reserve && !f.redundant)
+                .filter(|f| !f.skips_into())
                 .map(|f| {
                     let b = format_ident!("__f_{}", f.name);
                     self.write(&ctx, f, buf, &quote!(#b))

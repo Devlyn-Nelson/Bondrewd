@@ -113,6 +113,8 @@ pub struct Field {
     pub bits: usize,
     pub reserve: bool,
     pub redundant: bool,
+    /// Read by `from_bytes` but left out of `into_bytes`.
+    pub read_only: bool,
     pub capture_id: bool,
     pub span: Span,
 }
@@ -120,6 +122,11 @@ pub struct Field {
 impl Field {
     pub fn end(&self) -> usize {
         self.start + self.bits
+    }
+
+    /// Fields `into_bytes` doesn't write (their bits stay zero / untouched).
+    pub fn skips_into(&self) -> bool {
+        self.reserve || self.redundant || self.read_only
     }
 }
 

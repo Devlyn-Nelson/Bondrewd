@@ -70,6 +70,7 @@ pub struct FieldAttrs {
     pub bits: Option<(usize, usize, Span)>,
     pub reserve: bool,
     pub redundant: bool,
+    pub read_only: bool,
     pub capture_id: Option<Span>,
 }
 
@@ -196,6 +197,9 @@ pub fn field_attrs(attrs: &[Attribute]) -> Result<FieldAttrs> {
             }
         } else if p.is_ident("reserve") {
             out.reserve = true;
+            Ok(())
+        } else if p.is_ident("read_only") {
+            out.read_only = true;
             Ok(())
         } else if p.is_ident("redundant") || p.is_ident("overlapping_bits") {
             out.redundant = true;
