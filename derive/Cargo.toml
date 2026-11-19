@@ -1,6 +1,6 @@
 [package]
 name = "bondrewd-derive"
-version = "0.6.0-alpha.0"
+version = "0.6.0-alpha.1"
 edition = "2024"
 description = "Derive macros for bondrewd: bit-level field packing"
 license = "MIT OR Apache-2.0"
