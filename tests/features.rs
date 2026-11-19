@@ -217,6 +217,27 @@ fn checked_views() {
 }
 
 #[test]
+fn unchecked_views() {
+    let h = Header { version: 1, id: 77, length: 0xBEEF, spare: 0 };
+    let mut bytes = h.clone().into_bytes().to_vec();
+
+    let view = HeaderChecked::from_unchecked_slice(&bytes);
+    assert_eq!(view.read_length(), 0xBEEF);
+    let back: Header = view.into();
+    assert_eq!(back, h);
+
+    let mut view = HeaderCheckedMut::from_unchecked_slice(&mut bytes);
+    view.write_id(5);
+    assert_eq!(view.read_id(), 5);
+    assert_eq!(Header::from_slice(&bytes).unwrap(), Header { id: 5, ..h });
+
+    // Fields that fit in a short buffer still read; ones that don't panic.
+    let short = HeaderChecked::from_unchecked_slice(&bytes[..1]);
+    assert_eq!(short.read_version(), 1);
+    assert!(std::panic::catch_unwind(|| short.read_length()).is_err());
+}
+
+#[test]
 fn take_from_vec() {
     let a = Header { version: 1, id: 2, length: 3, spare: 0 };
     let b = Header { version: 4, id: 5, length: 6, spare: 0 };

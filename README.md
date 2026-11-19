@@ -32,7 +32,7 @@ assert_eq!(view.read_version(), 1);
 | Derive | Generates |
 |---|---|
 | `Bitfields` | `impl Bitfields<N>` (`BIT_SIZE`, `BYTE_SIZE`, `into_bytes`, `from_bytes`), inherent `BIT_SIZE`/`BYTE_SIZE`, `read_<field>(&[u8; N])`, `write_<field>(&mut [u8; N], v)` |
-| `BitfieldsSlice` | `impl BitfieldsSlice` (`from_slice`, `take_from_vec`, `check_slice`, `check_slice_mut`), `read_slice_<field>` / `write_slice_<field>` (only need the bytes that field touches), `<Name>Checked` / `<Name>CheckedMut` with `read_<field>` / `write_<field>`, `From<Checked>` for the type |
+| `BitfieldsSlice` | `impl BitfieldsSlice` (`from_slice`, `take_from_vec`, `check_slice`, `check_slice_mut`), `read_slice_<field>` / `write_slice_<field>` (only need the bytes that field touches), `<Name>Checked` / `<Name>CheckedMut` with `read_<field>` / `write_<field>` and `from_unchecked_slice` (skips the length check; a short slice panics on access), `From<Checked>` for the type |
 
 Enums get `read_variant_id` plus `read_<variant_snake>_<field>`. Tuple fields are named `field_<index>`.
 

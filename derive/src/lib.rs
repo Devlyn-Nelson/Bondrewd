@@ -527,6 +527,16 @@ impl Model {
         let from_slice = self.gen_from(self.phys, &bytes);
         let doc = format!("A byte slice checked to contain the {} bytes of [`{ident}`].", self.byte_size);
         let doc_mut = format!("A mutable byte slice checked to contain the {} bytes of [`{ident}`].", self.byte_size);
+        let unchecked_doc = format!(
+            "Wraps `data` without checking its length. Reading a field (or converting into [`{ident}`]) \
+             panics if `data` is shorter than the bytes that field touches; use \
+             `check_slice` to check up front."
+        );
+        let unchecked_doc_mut = format!(
+            "Wraps `data` without checking its length. Reading or writing a field (or converting into \
+             [`{ident}`]) panics if `data` is shorter than the bytes that field touches; use \
+             `check_slice_mut` to check up front."
+        );
 
         quote! {
             impl #ident {
@@ -538,6 +548,10 @@ impl Model {
             #vis struct #checked<'a> { buffer: &'a [u8] }
 
             impl<'a> #checked<'a> {
+                #[doc = #unchecked_doc]
+                #[inline]
+                #[must_use]
+                pub fn from_unchecked_slice(data: &'a [u8]) -> Self { Self { buffer: data } }
                 /// The checked bytes (only the first `BYTE_SIZE` are used).
                 pub fn bytes(&self) -> &'a [u8] { self.buffer }
                 #(#checked_reads)*
@@ -553,6 +567,10 @@ impl Model {
             #vis struct #checked_mut<'a> { buffer: &'a mut [u8] }
 
             impl<'a> #checked_mut<'a> {
+                #[doc = #unchecked_doc_mut]
+                #[inline]
+                #[must_use]
+                pub fn from_unchecked_slice(data: &'a mut [u8]) -> Self { Self { buffer: data } }
                 /// The checked bytes (only the first `BYTE_SIZE` are used).
                 pub fn bytes(&self) -> &[u8] { self.buffer }
                 #(#checked_reads)*
